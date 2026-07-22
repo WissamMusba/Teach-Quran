@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1006112398052",
+    "project_id": "chattingapp-e0621",
+    "storage_bucket": "chattingapp-e0621.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1006112398052:android:aa12aff012bf0c1c1d2af1",
+        "android_client_info": {
+          "package_name": "com.teachquran.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpAj4N5vC-iLzXL3Chi8SyN6u9SqErrDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1006112398052:android:5a32957b0fd5976a1d2af1",
+        "android_client_info": {
+          "package_name": "com.wissam.YapApp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpAj4N5vC-iLzXL3Chi8SyN6u9SqErrDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
