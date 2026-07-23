@@ -31,7 +31,20 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
               const hasNote = !!notes?.[vKey];
               const isReadingMark = readingMarkVerse === verseNum;
               const nextWord = line.words[wordIdx + 1];
-              const isVerseBoundary = !!nextWord && (nextWord.location && nextWord.location.split(':')[1] !== String(verseNum));
+              let isVerseBoundary = false;
+              if (nextWord && nextWord.location) {
+                isVerseBoundary = nextWord.location.split(':')[1] !== String(verseNum);
+              } else if (!nextWord) {
+                const nextLine = pageData.lines[lineIdx + 1];
+                if (nextLine && nextLine.words && nextLine.words.length > 0) {
+                  const nw = nextLine.words[0];
+                  if (nw && nw.location) {
+                    isVerseBoundary = nw.location.split(':')[1] !== String(verseNum);
+                  }
+                } else {
+                  isVerseBoundary = true;
+                }
+              }
 
               return (
                 <React.Fragment key={wordIdx}>
@@ -61,7 +74,7 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'space-around', backgroundColor: 'transparent' },
-  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
+  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
