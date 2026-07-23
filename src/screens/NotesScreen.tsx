@@ -39,7 +39,7 @@ export default function NotesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 15, backgroundColor: '#121212' },
   card: { backgroundColor: '#1e1e1e', padding: 20, borderRadius: 8, marginBottom: 10 },
-  headerText: { color: '#0066FF', fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
+  headerText: { color: '#00d4aa', fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   noteText: { color: '#fff', fontSize: 16 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#888', fontSize: 16 }

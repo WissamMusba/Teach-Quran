@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { downloadAndCacheQuran, getSurahs } from '../database/quranData';
 import auth from '@react-native-firebase/auth';
@@ -11,44 +11,25 @@ export default function SplashScreen({ navigation }: any) {
   const [errorMessage, setErrorMessage] = useState('');
   const dispatch = useDispatch();
 
+  const load = useCallback(async () => {
+    setIsLoading(true); setError(false);
+    try {
+      await downloadAndCacheQuran();
+      const surahs = await getSurahs();
+      const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
+      dispatch(setSurahNames(map));
+      const unsub = auth().onAuthStateChanged(user => {
+        navigation.replace(user ? 'Dashboard' : 'Login');
+        unsub();
+      });
+    } catch (e: any) {
+      setError(true); setErrorMessage(e.message || JSON.stringify(e)); setIsLoading(false);
+    }
+  }, [navigation, dispatch]);
+
   useEffect(() => {
-    let isMounted = true; // ⚠️ CRITICAL FIX: Prevent state updates on unmounted component
-
-    const load = async () => {
-      setIsLoading(true);
-      setError(false);
-      
-      try {
-        await downloadAndCacheQuran();
-
-        // ⚠️ FIX: Fetch surah names AFTER database is ready
-        const surahs = await getSurahs();
-        const map = {} as any;
-        surahs.forEach((s: any) => map[s.id] = s.englishName);
-        dispatch(setSurahNames(map));
-
-        // ⚠️ CRITICAL FIX: Clean up listener properly
-        const unsub = auth().onAuthStateChanged(user => {
-          if (!isMounted) {
-            unsub();
-            return;
-          }
-          navigation.replace(user ? 'Dashboard' : 'Login');
-          unsub();
-        });
-      } catch (e: any) {
-        if (!isMounted) return;
-        console.error('Splash Screen Error:', e);
-        setError(true);
-        setErrorMessage(e.message || JSON.stringify(e));
-        setIsLoading(false);
-      }
-    };
-
     load();
-
-    return () => { isMounted = false; };
-  }, [navigation]);
+  }, [load]);
 
   return (
     <View style={styles.container}>
@@ -61,10 +42,10 @@ export default function SplashScreen({ navigation }: any) {
       ) : error ? (
         <>
           <Text style={styles.errorText}>Download failed!</Text>
-          <ScrollView style={styles.errorBox}>
-            <Text style={styles.errorDetail}>{errorMessage}</Text>
-          </ScrollView>
-          {/* Retry button will be handled by user reloading app or a separate trigger if needed */}
+          <ScrollView style={styles.errorBox}><Text style={styles.errorDetail}>{errorMessage}</Text></ScrollView>
+          <TouchableOpacity style={styles.retryBtn} onPress={load}>
+            <Text style={styles.retryText}>Retry Download</Text>
+          </TouchableOpacity>
         </>
       ) : null}
     </View>
@@ -78,4 +59,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 18, color: '#FF0000', textAlign: 'center', marginBottom: 10, fontWeight: 'bold' },
   errorBox: { maxHeight: 200, width: '100%', backgroundColor: '#1e1e1e', borderRadius: 8, padding: 10, marginBottom: 20 },
   errorDetail: { fontSize: 12, color: '#fff' },
+  retryBtn: { backgroundColor: '#0066FF', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8 },
+  retryText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

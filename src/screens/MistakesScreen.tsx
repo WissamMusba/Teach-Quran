@@ -9,6 +9,7 @@ export default function MistakesScreen() {
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const highlights = studentData?.highlights ? Object.entries(studentData.highlights) : [];
   const mistakes = highlights.flatMap(([verseKey, data]: any) => (data?.highlights || []).map((h: any) => ({ verseKey, color: h.color, createdAt: h.createdAt })));
+  const sortedMistakes = mistakes.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleNavigate = (vKey: string) => { 
     const [s, v] = vKey.split('_').map(Number); 
@@ -19,13 +20,13 @@ export default function MistakesScreen() {
 
   return (
     <View style={styles.container}>
-      {mistakes.length === 0 ? (
+      {sortedMistakes.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={{ fontSize: 48, marginBottom: 10 }}>✏️</Text>
           <Text style={styles.emptyText}>No mistakes highlighted yet</Text>
         </View>
       ) : (
-        <FlatList data={mistakes} keyExtractor={(i: any, idx: number) => idx.toString()} renderItem={({ item }: any) => {
+        <FlatList data={sortedMistakes} keyExtractor={(i: any, idx: number) => idx.toString()} renderItem={({ item }: any) => {
           const [s, v] = item.verseKey.split('_').map(Number);
           return (
             <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.verseKey)}>

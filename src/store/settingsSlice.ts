@@ -6,8 +6,6 @@ const initialState = {
   bgBrightness: 18,
   translationTextSize: 16,
   showPageInfo: true,
-  showMarkers: true,
-  streaming: true,
 };
 
 export const settingsSlice = createSlice({
@@ -19,13 +17,8 @@ export const settingsSlice = createSlice({
     setBgBrightness: (state, action) => { state.bgBrightness = action.payload; },
     setTranslationTextSize: (state, action) => { state.translationTextSize = action.payload; },
     toggleShowPageInfo: (state) => { state.showPageInfo = !state.showPageInfo; },
-    toggleShowMarkers: (state) => { state.showMarkers = !state.showMarkers; },
-    toggleStreaming: (state) => { state.streaming = !state.streaming; },
   }
 });
 
-export const { 
-  toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, 
-  toggleShowPageInfo, toggleShowMarkers, toggleStreaming 
-} = settingsSlice.actions;
+export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, toggleShowPageInfo } = settingsSlice.actions;
 export default settingsSlice.reducer;

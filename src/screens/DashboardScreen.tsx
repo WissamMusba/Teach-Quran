@@ -7,14 +7,17 @@ import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
 import SyncStatus from '../components/common/SyncStatus';
-import { purgeLocalStudent, processSyncQueue } from '../database/localDB';
+import { purgeLocalStudent } from '../database/localDB';
+import { processSyncQueue } from '../api/sync';
 
 export default function DashboardScreen({ navigation }: any) {
   const [modal, setModal] = useState(false); const [name, setName] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const dispatch = useDispatch(); const students = useSelector((s: any) => s.student.list);
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
+  
   useEffect(() => { getStudents().then(res => res.success && dispatch(setStudents(res.students))); }, []);
+  
   const handleCreate = async () => { const res = await createStudent(name); if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setModal(false); setName(''); } };
   
   const handleManualSync = async () => {
@@ -24,12 +27,7 @@ export default function DashboardScreen({ navigation }: any) {
   
   const handleDelete = (id: string) => Alert.alert('Delete', 'Are you sure?', [
     { text: 'Cancel' }, 
-    { text: 'Delete', onPress: async () => { 
-        await deleteStudent(id); 
-        await purgeLocalStudent(id); 
-        dispatch(removeStudent(id)); 
-      } 
-    }
+    { text: 'Delete', onPress: async () => { await deleteStudent(id); await purgeLocalStudent(id); dispatch(removeStudent(id)); } }
   ]);
 
   return (
@@ -41,21 +39,13 @@ export default function DashboardScreen({ navigation }: any) {
           <TouchableOpacity onPress={handleManualSync} disabled={isSyncing || pendingChanges === 0}>
             <Text style={[styles.logout, (isSyncing || pendingChanges === 0) && { color: '#555' }]}>{isSyncing ? 'Syncing...' : `Sync (${pendingChanges})`}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={async () => { 
-            await logoutUser(); 
-            dispatch(logout()); 
-            navigation.replace('Login');
-          }}>
+          <TouchableOpacity onPress={async () => { await logoutUser(); dispatch(logout()); navigation.replace('Login'); }}>
             <Text style={styles.logout}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
       <FlatList data={students} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 15 }} renderItem={({ item }) => (
-        <TouchableOpacity style={styles.card} onPress={() => { 
-            dispatch(setCurrentStudent(item)); 
-            dispatch(setSurah({ surahId: 1, verses: [] })); // ⚠️ FIX: Reset to Surah 1 for new student
-            navigation.navigate('QuranView'); 
-        }} onLongPress={() => handleDelete(item.id)}>
+        <TouchableOpacity style={styles.card} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); navigation.navigate('QuranView'); }} onLongPress={() => handleDelete(item.id)}>
           <Text style={styles.name}>{item.name}</Text>
         </TouchableOpacity>
       )} />

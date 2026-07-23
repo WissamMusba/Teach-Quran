@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State, TapGestureHandler } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
-import { setSurah, toggleTranslation, setFlashingVerse, setLastRead } from '../store/quranSlice';
+import { setSurah, toggleTranslation, setFlashingVerse } from '../store/quranSlice';
 import { addPendingChange } from '../store/syncSlice';
 import { setStudentData } from '../store/studentSlice';
-import { setPlaying, setCurrentTrack } from '../store/audioSlice';
+import { setPlaying } from '../store/audioSlice';
 import VerseDisplay from '../components/quran/VerseDisplay';
 import FlowingText from '../components/quran/FlowingText';
 import DrawingCanvas from '../components/drawing/DrawingCanvas';
@@ -42,31 +42,36 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   const deepLinkLoadedRef = useRef(false);
+  const pagePromiseRef = useRef({});
   const [isRecording, setIsRecording] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
+  const audioPlayer = useRef(new AudioRecorderPlayer());
   const viewShotRef = useRef<any>(null);
 
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse } = useSelector((s: any) => s.quran);
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
-  const { showPageInfo } = useSelector((s: any) => s.settings);
-  const { isPlaying } = useSelector((s: any) => s.audio);
+  const { showPageInfo, nightMode, bgBrightness } = useSelector((s: any) => s.settings);
+  const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
   const activeColor = useSelector((s: any) => s.drawing.activeColor);
 
+  const bgColor = nightMode ? '#121212' : '#FFFFFF';
+
   const getCurrentJuz = () => {
+    const currentVerse = 1;
     for (let i = JUZ_MAP.length - 1; i >= 0; i--) {
-      if (currentSurahId > JUZ_MAP[i].s || (currentSurahId === JUZ_MAP[i].s)) return JUZ_MAP[i].j;
+      if (currentSurahId > JUZ_MAP[i].s || (currentSurahId === JUZ_MAP[i].s && currentVerse >= JUZ_MAP[i].v)) return JUZ_MAP[i].j;
     } return 1;
   };
 
   const ensurePageLoaded = useCallback((pageNum: number) => {
-    setPageCache(prev => {
-      if (!prev[pageNum]) {
-        getMushafPageData(pageNum).then(data => setPageCache(p => ({ ...p, [pageNum]: data })));
-      }
-      return prev;
+    if (pageCache[pageNum] || pagePromiseRef.current[pageNum]) return;
+    pagePromiseRef.current[pageNum] = true;
+    getMushafPageData(pageNum).then(data => {
+      setPageCache(prev => ({ ...prev, [pageNum]: data }));
+      delete pagePromiseRef.current[pageNum];
     });
-  }, []);
+  }, [pageCache]);
   
   useEffect(() => {
     const { surahId, scrollToVerse } = route.params || {};
@@ -99,18 +104,22 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [route.params]);
 
   const surahIdRef = useRef(currentSurahId);
+  const versesRef = useRef(verses);
+  const pageRef = useRef(page);
   useEffect(() => { surahIdRef.current = currentSurahId; }, [currentSurahId]);
+  useEffect(() => { versesRef.current = verses; }, [verses]);
+  useEffect(() => { pageRef.current = page; }, [page]);
   
   const loadSurah = async (surahId: number, resetPage: boolean = true) => {
-    const currentPage = resetPage ? 1 : page;
+    const currentPage = resetPage ? 1 : pageRef.current;
     const { verses: newVerses, total } = await getVersesBySurahPaginated(surahId, currentPage, 20);
     if (surahId !== surahIdRef.current) return; 
-    const accLen = resetPage ? newVerses.length : verses.length + newVerses.length;
+    const accLen = resetPage ? newVerses.length : versesRef.current.length + newVerses.length;
     if (resetPage) {
       dispatch(setSurah({ surahId, verses: newVerses }));
       setPage(2); setHasMore(accLen < total);
     } else {
-      dispatch(setSurah({ surahId, verses: [...verses, ...newVerses] }));
+      dispatch(setSurah({ surahId, verses: [...versesRef.current, ...newVerses] }));
       setPage(currentPage + 1); setHasMore(accLen < total);
     }
   };
@@ -130,12 +139,38 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     if (currentStudent) {
       getStudentData(currentStudent.id).then(d => {
-        const data = d || { bookmarks: {}, highlights: {}, drawings: {}, notes: {} };
+        const data = d || { bookmarks: {}, highlights: {}, drawings: {}, notes: {}, lastRead: null };
         dispatch(setStudentData(data));
         if (!d) saveStudentData(currentStudent.id, data);
       });
     }
   }, [currentStudent]);
+
+  useEffect(() => {
+    if (studentData?.lastRead) {
+      const { surah, verse } = studentData.lastRead;
+      if (currentSurahId !== surah) {
+        dispatch(setSurah({ surahId: surah, verses: [] }));
+      }
+      if (readingMode === 'page') {
+        getVersePage(surah, verse).then(p => {
+          setCurrentPageNum(p);
+          ensurePageLoaded(p);
+          setTimeout(() => flatListRef.current?.scrollToIndex({ index: p - 1, animated: false }), 500);
+        });
+      } else if (readingMode === 'ayah') {
+        setTimeout(() => {
+          const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse);
+          if (idx !== -1 && flatListRef.current) flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+        }, 500);
+      } else if (readingMode === 'continuous') {
+        setTimeout(() => {
+          const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse);
+          if (idx !== -1 && scrollViewRef.current) scrollViewRef.current.scrollTo({ y: idx * 45, animated: true });
+        }, 500);
+      }
+    }
+  }, [studentData?.lastRead?.surah]);
 
   const updateData = async (newData: any) => {
     const dataToSave = { ...newData, updatedAt: new Date().toISOString() };
@@ -215,12 +250,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   };
 
   const handleSharePage = async () => {
+    const wasHeaderVisible = isHeaderVisible;
     try {
+      setIsHeaderVisible(false);
       setIsCapturing(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.9 });
       await Share.open({ url: uri, type: 'image/jpeg', title: 'Quran Page' });
-    } catch (e) {} finally { setIsCapturing(false); }
+    } catch (e) {} finally {
+      setIsCapturing(false);
+      setIsHeaderVisible(wasHeaderVisible);
+    }
   };
 
   const onSwipe = (event: any) => {
@@ -236,18 +276,21 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, []);
 
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
-  const pageDataForFooter = pageCache[currentPageNum];
-  const pageVerseNumbers = pageDataForFooter?.lines?.flatMap((l: any) => l.words?.map((w: any) => w.location?.split(':')?.[1])).filter(Boolean) || [];
-  const uniqueVerses = [...new Set(pageVerseNumbers)];
-  const verseRange = uniqueVerses.length > 0 ? `(Verses ${uniqueVerses[0]}-${uniqueVerses[uniqueVerses.length - 1]})` : '';
 
-  const togglePlayAudio = () => {
-    dispatch(setPlaying(!isPlaying));
-    dispatch(setCurrentTrack({ surah: currentSurahId, ayah: 1 }));
+  const togglePlayAudio = async () => {
+    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const url = `https://cdn.islamic.network/quran/audio-surah/128/${qariId}/${currentSurahId}.mp3`;
+    if (isPlaying) {
+      await audioPlayer.current.pausePlayer();
+      dispatch(setPlaying(false));
+    } else {
+      await audioPlayer.current.startPlayer(url);
+      dispatch(setPlaying(true));
+    }
   };
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: bgColor }]}>
       <PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetX={[-20, 20]} failOffsetY={[-5, 5]}>
         <View style={styles.container}>
           
@@ -269,13 +312,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
             </View>
           )}
           
-          <TapGestureHandler onActivated={onCenterTap} numberOfTaps={1} maxDurationMs={300} maxDeltaX={20} maxDeltaY={20}>
+          <TapGestureHandler onActivated={onCenterTap} numberOfTaps={1} maxDurationMs={250} maxDeltaX={5} maxDeltaY={5}>
             <View style={{flex: 1}} ref={viewShotRef} collapsable={false}>
               
               {readingMode === 'ayah' && (
                 <FlatList 
                   ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()} 
-                  contentContainerStyle={{ padding: 20, paddingBottom: 100 }} 
+                  contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 120 : 40 }} 
                   renderItem={({ item }) => (
                     <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights || []} 
                       isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} 
@@ -291,7 +334,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
               )}
 
               {readingMode === 'continuous' && (
-                <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 100 }} scrollEventThrottle={16}>
+                <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 120 : 40 }} scrollEventThrottle={16}>
                   <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} 
                     onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} 
                     onVerseLongPress={handleVerseLongPress} bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).filter(k => k.startsWith(`${currentSurahId}_`)).map(k => parseInt(k.split('_')[1]))} 
@@ -304,6 +347,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <FlatList
                   ref={flatListRef} data={Array.from({length: 604}, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                   horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: isHeaderVisible ? 60 : 0 }}
                   getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
                   initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
                   onMomentumScrollEnd={(e) => {
@@ -329,9 +373,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks} 
                           flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} /> 
                         : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>}
-                        {showPageInfo && isHeaderVisible && (
-                          <View style={styles.pageFooter}><Text style={styles.pageText}>Page {item} {verseRange}</Text></View>
-                        )}
+                        {showPageInfo && isHeaderVisible && (() => {
+                          const pData = pageCache[item];
+                          const vs = pData?.lines?.flatMap((l: any) => l.words?.map((w: any) => w.location?.split(':')?.[1])).filter(Boolean) || [];
+                          const u = [...new Set(vs)];
+                          const range = u.length > 0 ? `(Verses ${u[0]}-${u[u.length - 1]})` : '';
+                          return (
+                            <View style={styles.pageFooter}><Text style={styles.pageText}>Page {item} {range}</Text></View>
+                          );
+                        })()}
                       </View>
                     );
                   }}
@@ -357,7 +407,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}>
                   <Text style={styles.compactIcon}>🔖</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.compactBtn} onPress={() => { dispatch(setLastRead({ surah: currentSurahId, verse: menuVerse })); setMenuVerse(null); Alert.alert('Reading Mark Set'); }}>
+                <TouchableOpacity style={styles.compactBtn} onPress={() => { updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: menuVerse } }); setMenuVerse(null); Alert.alert('Reading Mark Set'); }}>
                   <Text style={styles.compactIcon}>📍</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.compactBtn} onPress={openNoteModal}>
@@ -391,7 +441,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({ 
-  container: { flex: 1, backgroundColor: '#121212' }, 
+  container: { flex: 1 }, 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#1a1a2e', borderBottomWidth: 1, borderColor: '#2a2a2a' }, 
   backBtn: { color: '#00d4aa', fontSize: 24 }, 
   surahName: { color: '#fff', fontSize: 18, fontWeight: 'bold' }, 

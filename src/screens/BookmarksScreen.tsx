@@ -7,8 +7,8 @@ export default function BookmarksScreen() {
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
-  const lastRead = useSelector((s: any) => s.quran);
   const bookmarks = studentData?.bookmarks ? Object.values(studentData.bookmarks) : [];
+  const sortedBookmarks = bookmarks.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleNavigate = (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
 
@@ -16,13 +16,13 @@ export default function BookmarksScreen() {
 
   return (
     <View style={styles.container}>
-      {bookmarks.length === 0 ? (
+      {sortedBookmarks.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={{ fontSize: 48, marginBottom: 10 }}>📌</Text>
           <Text style={styles.emptyText}>No bookmarks yet</Text>
         </View>
       ) : (
-        <FlatList data={bookmarks} keyExtractor={(i: any, idx: number) => idx.toString()} renderItem={({ item }: any) => (
+        <FlatList data={sortedBookmarks} keyExtractor={(i: any, idx: number) => idx.toString()} renderItem={({ item }: any) => (
           <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.surah, item.verse)}>
             <Text style={styles.text}>Surat {surahNames[item.surah] || '...'} ({item.surah}:{item.verse})</Text>
             {item.createdAt && <Text style={styles.timestamp}>{formatTime(item.createdAt)}</Text>}
