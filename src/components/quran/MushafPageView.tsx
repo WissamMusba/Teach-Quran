@@ -74,7 +74,7 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'space-around', backgroundColor: 'transparent' },
-  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between' },
+  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
