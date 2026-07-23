@@ -49,10 +49,11 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
   };
 
   const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
+    onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
     onPanResponderGrant: (e) => handleTouch(e.nativeEvent.locationX, e.nativeEvent.locationY),
     onPanResponderMove: (e) => {
+      if (stateRef.current.activeTool === 'eraser') return;
       if (currentPathRef.current) {
         const newPoint = `${e.nativeEvent.locationX},${e.nativeEvent.locationY}`;
         const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
@@ -60,14 +61,20 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
         setCurrentPath(updatedPath);
       }
     },
-    onPanResponderRelease: () => {
-      const pathToSave = currentPathRef.current;
-      if (pathToSave && pathToSave.points.length > 1) {
-        const newPaths = [...pathsRef.current, pathToSave];
-        setPaths(newPaths); pathsRef.current = newPaths;
-        setRedoStack([]); 
-        dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
-        debouncedSave(newPaths);
+    onPanResponderRelease: (e) => {
+      if (stateRef.current.activeTool === 'eraser') {
+        const { locationX, locationY } = e.nativeEvent;
+        const newPaths = pathsRef.current.filter((p:any) => !p.points.some((pt:string) => { const [x,y] = pt.split(',').map(Number); return Math.abs(x-locationX)<30 && Math.abs(y-locationY)<30; }));
+        if (newPaths.length !== pathsRef.current.length) { setPaths(newPaths); pathsRef.current = newPaths; debouncedSave(newPaths); }
+      } else {
+        const pathToSave = currentPathRef.current;
+        if (pathToSave && pathToSave.points.length > 1) {
+          const newPaths = [...pathsRef.current, pathToSave];
+          setPaths(newPaths); pathsRef.current = newPaths;
+          setRedoStack([]); 
+          dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
+          debouncedSave(newPaths);
+        }
       }
       setCurrentPath(null);
       currentPathRef.current = null;

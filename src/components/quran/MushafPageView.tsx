@@ -46,7 +46,7 @@ export default function MushafPageView({ pageData, highlights, onWordPress, onVe
                   <Text
                     style={[
                       styles.text,
-                      h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + '80' },
+                      h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' },
                       isFlashing && { backgroundColor: '#FFD70040' }
                     ]}
                     onPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)}

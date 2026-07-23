@@ -1,16 +1,19 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSelector } from 'react-redux';
 import { FONT_SIZES } from '../../utils/constants';
 
 const VerseDisplay = ({ verse, highlights, isBookmarked, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize }: any) => {
-  const cleanText = verse.textArabic.replace(/۞/u, '').trim();
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
+  const displayText = textStyle === 'indopak' ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
+  const cleanText = displayText.replace(/۞/u, '').trim();
   const words = cleanText.split(' ');
   return (
     <View style={styles.container}>
       <View style={styles.arabicRow}>
         {words.map((word: string, index: number) => {
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
-          return <Text key={index} onPress={() => onWordPress(index)} style={[styles.arabicText, { fontSize: FONT_SIZES[fontSize] }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + '30' }]}>{word}{' '}</Text>;
+          return <Text key={index} onPress={() => onWordPress(index)} style={[styles.arabicText, { fontSize: FONT_SIZES[fontSize] }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>;
         })}
         <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)}>
           <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge]}>

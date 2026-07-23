@@ -1,13 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSelector } from 'react-redux';
 import { FONT_SIZES } from '../../utils/constants';
 
 const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTranslation, fontSize, bookmarkedVerses, notes }: any) => {
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   return (
     <View style={styles.container}>
       <Text style={styles.mainText}>
         {verses.map((verse: any, vIdx: number) => {
-          const cleanText = verse.textArabic.replace(/۞/u, '').trim();
+          const displayText = textStyle === 'indopak' ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
+          const cleanText = displayText.replace(/۞/u, '').trim();
           const words = cleanText.split(' ');
           const vKey = `${verse.surahId}_${verse.verseNumber}`;
           const verseHighs = highlights?.[vKey]?.highlights || [];
@@ -21,7 +24,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
               
               {words.map((word: string, wIdx: number) => {
                 const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
-                return <Text key={wIdx} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)} delayLongPress={300} style={[styles.arabicText, { fontSize: FONT_SIZES[fontSize] }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + '80' }]}>{word} </Text>;
+                return <Text key={wIdx} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)} delayLongPress={300} style={[styles.arabicText, { fontSize: FONT_SIZES[fontSize] }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word} </Text>;
               })}
               
               <Text onPress={() => onVerseLongPress(verse.verseNumber)} style={styles.verseBadge}>{` ${verse.verseNumber} `}</Text>

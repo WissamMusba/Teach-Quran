@@ -1,7 +1,6 @@
 import { initDatabase, getDB } from './localDB';
 
-const ARABIC_API = 'https://api.alquran.cloud/v1/quran/quran-uthmani';
-const ENGLISH_API = 'https://api.alquran.cloud/v1/quran/en.sahih';
+const BATCH_API = 'https://api.alquran.cloud/v1/quran/editions/quran-uthmani,en.sahih,indo.pak';
 const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf';
 
 export const getMushafPageData = async (pageNum: number) => {
@@ -34,13 +33,19 @@ export const downloadAndCacheQuran = async () => {
   if (versesCached && mushafCached) return true;
 
   try {
-    // Fetch Quran text if not cached
-    const [arRes, enRes] = versesCached
-      ? [null, null]
-      : await Promise.all([
-          safeFetchJson(ARABIC_API),
-          safeFetchJson(ENGLISH_API)
-        ]);
+    // Fetch Quran text if not cached (batched API)
+    let arRes: any = null, enRes: any = null, indopakRes: any = null;
+    if (!versesCached) {
+      const res = await fetch(BATCH_API);
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      arRes = { data: { surahs: data.data[0].surahs } };
+      enRes = { data: { surahs: data.data[1].surahs } };
+      indopakRes = { data: { surahs: data.data[2].surahs } };
+      if (!arRes?.data?.surahs || !enRes?.data?.surahs) {
+        throw new Error('API returned invalid data structure');
+      }
+    }
 
     // Fetch Mushaf pages if not cached
     const mushafPages: any[] = [];
@@ -60,20 +65,18 @@ export const downloadAndCacheQuran = async () => {
     // Save everything in one transaction
     await db.transaction((tx: any) => {
       if (!versesCached && arRes && enRes) {
-        if (!arRes?.data?.surahs || !enRes?.data?.surahs) {
-          throw new Error('API returned invalid data structure');
-        }
         for (const surah of arRes.data.surahs) {
           tx.executeSql(
             `INSERT OR REPLACE INTO surahs (id, name, englishName, verses) VALUES (?, ?, ?, ?)`,
             [surah.number, surah.name, surah.englishName, surah.ayahs.length]
           );
           const enSurah = enRes.data.surahs.find((s: any) => s.number === surah.number);
+          const indopakSurah = indopakRes?.data?.surahs?.find((s: any) => s.number === surah.number);
           for (let i = 0; i < surah.ayahs.length; i++) {
             const ayah = surah.ayahs[i];
             tx.executeSql(
-              `INSERT INTO verses (surahId, verseNumber, textArabic, textTranslation, page) VALUES (?, ?, ?, ?, ?)`,
-              [surah.number, ayah.numberInSurah, ayah.text, enSurah?.ayahs[i]?.text || '', ayah.page]
+              `INSERT INTO verses (surahId, verseNumber, textArabic, textIndopak, textTranslation, page) VALUES (?, ?, ?, ?, ?, ?)`,
+              [surah.number, ayah.numberInSurah, ayah.text, indopakSurah?.ayahs[i]?.text || ayah.text, enSurah?.ayahs[i]?.text || '', ayah.page]
             );
           }
         }

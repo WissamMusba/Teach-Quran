@@ -9,6 +9,7 @@ import { setStudentData } from '../store/studentSlice';
 import VerseDisplay from '../components/quran/VerseDisplay';
 import FlowingText from '../components/quran/FlowingText';
 import DrawingCanvas from '../components/drawing/DrawingCanvas';
+import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
@@ -17,6 +18,11 @@ import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { DRAWING_COLORS } from '../utils/constants';
+import { captureRef } from 'react-native-view-shot';
+import Share from 'react-native-share';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+
+const JUZ_MAP = [{j:1,s:1,v:1},{j:2,s:2,v:142},{j:3,s:2,v:253},{j:4,s:3,v:93},{j:5,s:4,v:24},{j:6,s:4,v:148},{j:7,s:5,v:82},{j:8,s:6,v:111},{j:9,s:7,v:88},{j:10,s:8,v:41},{j:11,s:9,v:93},{j:12,s:11,v:6},{j:13,s:12,v:53},{j:14,s:15,v:1},{j:15,s:17,v:1},{j:16,s:18,v:75},{j:17,s:21,v:1},{j:18,s:23,v:1},{j:19,s:25,v:21},{j:20,s:27,v:56},{j:21,s:29,v:46},{j:22,s:33,v:31},{j:23,s:36,v:28},{j:24,s:39,v:32},{j:25,s:41,v:47},{j:26,s:46,v:1},{j:27,s:51,v:31},{j:28,s:58,v:1},{j:29,s:67,v:1},{j:30,s:78,v:1}];
 
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
@@ -33,6 +39,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   const deepLinkLoadedRef = useRef(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
+  const viewShotRef = useRef<any>(null);
+
+  const getCurrentJuz = () => {
+    for (let i = JUZ_MAP.length - 1; i >= 0; i--) {
+      if (currentSurahId > JUZ_MAP[i].s || (currentSurahId === JUZ_MAP[i].s)) return JUZ_MAP[i].j;
+    } return 1;
+  };
 
   const ensurePageLoaded = useCallback((pageNum: number) => {
     setPageCache(prev => {
@@ -153,7 +169,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const cHigh = studentData.highlights || {};
     const vHighs = cHigh[vKey]?.highlights || [];
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
-    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: activeColor }];
+    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: activeColor, createdAt: new Date().toISOString() }];
     updateData({ ...studentData, highlights: { ...cHigh, [vKey]: { highlights: newHighs } } });
     dispatch(addAction({ type: 'highlight', action: exists ? 'remove' : 'add', data: { vKey, wordIndex } }));
     try { ReactNativeHapticFeedback.trigger('impactLight'); } catch (_) {}
@@ -164,7 +180,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const cMarks = studentData.bookmarks || {};
     const isMarked = !!cMarks[vKey];
     const newMarks = { ...cMarks };
-    if (isMarked) delete newMarks[vKey]; else newMarks[vKey] = { surah: currentSurahId, verse: verseNum };
+    if (isMarked) delete newMarks[vKey]; else newMarks[vKey] = { surah: currentSurahId, verse: verseNum, createdAt: new Date().toISOString() };
     updateData({ ...studentData, bookmarks: newMarks });
     dispatch(addAction({ type: 'bookmark', action: isMarked ? 'remove' : 'add', data: { vKey } }));
     try { ReactNativeHapticFeedback.trigger('impactMedium'); } catch (_) {}
@@ -184,7 +200,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (!studentData) return;
     const vKey = `${currentSurahId}_${verseNum}`;
     const cHigh = studentData.highlights || {};
-    const newHighs = [{ id: uuidv4(), wordIndex: 0, color }];
+    const newHighs = [{ id: uuidv4(), wordIndex: 0, color, createdAt: new Date().toISOString() }];
     updateData({ ...studentData, highlights: { ...cHigh, [vKey]: { highlights: newHighs } } });
     setMenuVerse(null);
   };
@@ -220,6 +236,43 @@ export default function QuranViewScreen({ navigation, route }: any) {
     setMenuVerse(null);
   };
 
+  const handleSetReadingMark = () => {
+    if (menuVerse === null) return;
+    dispatch(setLastRead({ surah: currentSurahId, verse: menuVerse }));
+    setMenuVerse(null);
+    Alert.alert('Reading Mark Set');
+  };
+
+  const handleAddVoiceNote = async () => {
+    if (menuVerse === null) return;
+    const vKey = `${currentSurahId}_${menuVerse}`;
+    if (!isRecording) {
+      await audioRecorderPlayer.current.startRecorder(`audio_${Date.now()}.m4a`);
+      setIsRecording(true);
+      setMenuVerse(null);
+    } else {
+      const path = await audioRecorderPlayer.current.stopRecorder();
+      setIsRecording(false);
+      const cNotes = studentData?.notes || {};
+      const existing = cNotes[vKey] || '';
+      const newNotes = { ...cNotes, [vKey]: existing + (existing ? '\n' : '') + `audio:${path}` };
+      updateData({ ...studentData, notes: newNotes });
+    }
+  };
+
+  const handleSharePage = async () => {
+    try {
+      setIsCapturing(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.9 });
+      await Share.open({ url: uri, type: 'image/jpeg', title: 'Teach Quran Page' });
+    } catch (e) {
+      console.error('Share failed:', e);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
   const onSwipe = (event: any) => {
     if (isDrawing || readingMode === 'page') return;
     if (event.nativeEvent.state === State.END) {
@@ -251,14 +304,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.navigate('Dashboard')}><Text style={styles.btnText}>←</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowList(true)}><Text style={[styles.surahName, readingMode === 'page' && { fontSize: 16 }]}>Surah {currentSurahId} ☰</Text></TouchableOpacity>
+            <View style={{ alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => setShowList(true)}><Text style={[styles.surahName, readingMode === 'page' && { fontSize: 16 }]}>Surah {currentSurahId} ☰</Text></TouchableOpacity>
+              <Text style={{ color: '#888', fontSize: 11 }}>Juz {getCurrentJuz()}</Text>
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => navigation.navigate('Bookmarks')}><Text style={styles.iconBtn}>📌</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('Mistakes')}><Text style={styles.iconBtn}>✏️</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleSharePage}><Text style={styles.iconBtn}>📤</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Notes')}><Text style={styles.iconBtn}>📝</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setIsDrawing(true)}><Text style={styles.iconBtn}>🖍️</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => navigation.navigate('Settings')}><Text style={styles.iconBtn}>⚙️</Text></TouchableOpacity>
             </View>
           </View>
+          
+          <View style={{flex: 1}} ref={viewShotRef} collapsable={false}>
           
           {readingMode === 'ayah' && (
             <FlatList 
@@ -319,6 +377,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
               inverted
               pagingEnabled
               showsHorizontalScrollIndicator={false}
+              maximumZoomScale={3}
+              minimumZoomScale={1}
               getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
               initialNumToRender={3}
               maxToRenderPerBatch={5}
@@ -378,6 +438,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
             />
           )}
           
+          {isCapturing && (
+            <StaticDrawingOverlay paths={studentData?.drawings?.[readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`]?.paths || []} />
+          )}
+          </View>
+          
           <SurahList visible={showList} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} />
           
           {isDrawing && (
@@ -399,7 +464,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <TouchableOpacity style={styles.menuItem} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}>
                   <Text style={styles.menuText}>🔖 Bookmark</Text>
                 </TouchableOpacity>
-                
+                <TouchableOpacity style={styles.menuItem} onPress={handleSetReadingMark}>
+                  <Text style={styles.menuText}>📍 Set Reading Mark</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { openNoteModal(); }}>
+                  <Text style={styles.menuText}>📝 Add Note</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={handleAddVoiceNote}>
+                  <Text style={styles.menuText}>{isRecording ? '⏹️ Stop Recording' : '🎤 Add Voice Note'}</Text>
+                </TouchableOpacity>
+
                 <Text style={styles.menuLabel}>🖍️ Highlight Verse</Text>
                 <View style={styles.menuColorRow}>
                   {DRAWING_COLORS.map(c => (
@@ -407,9 +481,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   ))}
                 </View>
 
-                <TouchableOpacity style={styles.menuItem} onPress={openNoteModal}>
-                  <Text style={styles.menuText}>📝 Add Note</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.menuItem} onPress={() => handleCopyVerse(menuVerse!)}>
                   <Text style={styles.menuText}>📋 Copy Verse</Text>
                 </TouchableOpacity>
@@ -444,8 +515,7 @@ const styles = StyleSheet.create({
   btnText: { color: '#0066FF', fontSize: 18 }, 
   surahName: { color: '#fff', fontSize: 18, fontWeight: 'bold' }, 
   iconBtn: { fontSize: 18, marginLeft: 15 },
-  drawFab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#0066FF', justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 }, 
-  fabText: { color: '#fff', fontWeight: 'bold', fontSize: 24 },
+
   pageFooter: { alignItems: 'center', marginTop: 20 },
   pageText: { color: '#555', fontSize: 14 },
   menuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },

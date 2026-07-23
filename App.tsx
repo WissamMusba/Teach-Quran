@@ -15,6 +15,7 @@ import QuranViewScreen from './src/screens/QuranViewScreen';
 import BookmarksScreen from './src/screens/BookmarksScreen';
 import MistakesScreen from './src/screens/MistakesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import NotesScreen from './src/screens/NotesScreen';
 import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -56,6 +57,7 @@ const AppInner = () => {
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
         <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />
+        <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
       </Stack.Navigator>
     </NavigationContainer>

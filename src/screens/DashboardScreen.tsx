@@ -7,13 +7,20 @@ import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
 import SyncStatus from '../components/common/SyncStatus';
-import { purgeLocalStudent } from '../database/localDB';
+import { purgeLocalStudent, processSyncQueue } from '../database/localDB';
 
 export default function DashboardScreen({ navigation }: any) {
   const [modal, setModal] = useState(false); const [name, setName] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   const dispatch = useDispatch(); const students = useSelector((s: any) => s.student.list);
+  const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
   useEffect(() => { getStudents().then(res => res.success && dispatch(setStudents(res.students))); }, []);
   const handleCreate = async () => { const res = await createStudent(name); if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setModal(false); setName(''); } };
+  
+  const handleManualSync = async () => {
+    if (pendingChanges === 0) { Alert.alert('Up to Date', 'Nothing to sync.'); return; }
+    setIsSyncing(true); await processSyncQueue(); setIsSyncing(false);
+  };
   
   const handleDelete = (id: string) => Alert.alert('Delete', 'Are you sure?', [
     { text: 'Cancel' }, 
@@ -31,6 +38,9 @@ export default function DashboardScreen({ navigation }: any) {
         <Text style={styles.title}>Students</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <SyncStatus />
+          <TouchableOpacity onPress={handleManualSync} disabled={isSyncing || pendingChanges === 0}>
+            <Text style={[styles.logout, (isSyncing || pendingChanges === 0) && { color: '#555' }]}>{isSyncing ? 'Syncing...' : `Sync (${pendingChanges})`}</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={async () => { 
             await logoutUser(); 
             dispatch(logout()); 
