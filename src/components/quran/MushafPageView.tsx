@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { useSelector } from 'react-redux';
 
-const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes }: any) => {
+const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
   const { nightMode, textBrightness } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness }));
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   
@@ -29,6 +29,7 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
               const isBookmarked = !!bookmarks?.[vKey];
               const isFlashing = flashingVerseKey === vKey;
               const hasNote = !!notes?.[vKey];
+              const isReadingMark = readingMarkVerse === verseNum;
               const nextWord = line.words[wordIdx + 1];
               const isVerseBoundary = !!nextWord && (nextWord.location && nextWord.location.split(':')[1] !== String(verseNum));
 
@@ -41,8 +42,8 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
                   {isVerseBoundary && (
                     <View style={styles.verseBadgeContainer}>
                       <TouchableOpacity onPress={() => onBookmarkToggle(verseNum)}>
-                        <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge]}>
-                          <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{verseNum}</Text>
+                        <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+                          <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -59,14 +60,15 @@ const MushafPageView = ({ pageData, highlights, onWordPress, onVerseLongPress, o
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 15, paddingVertical: 10, justifyContent: 'space-around', backgroundColor: 'transparent' },
-  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'hidden', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
+  container: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'space-around', backgroundColor: 'transparent' },
+  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 6 },
+  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
   verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
+  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
   bookmarkedBadgeText: { color: '#000000' },
   noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 }

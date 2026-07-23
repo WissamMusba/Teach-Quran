@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import { FONT_SIZES } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 
-const VerseDisplay = ({ verse, highlights, isBookmarked, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse }: any) => {
+const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse }: any) => {
   const { textStyle, nightMode, textBrightness } = useSelector((s: any) => ({ textStyle: s.quran.textStyle, nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness }));
   const displayText = textStyle === 'indopak' ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
   const words = displayText.replace(/۞/u, '').trim().split(' ');
@@ -19,8 +19,8 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, onWordPress, onBookmark
           return <Text key={index} onPress={() => onWordPress(index)} style={[styles.arabicText, { fontSize: scaleFont(FONT_SIZES[fontSize]), color: textColor }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>;
         })}
         <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
-          <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge]}>
-            <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{verse.verseNumber}</Text>
+          <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+            <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -39,5 +39,6 @@ const styles = StyleSheet.create({
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
   bookmarkedBadgeText: { color: '#000000' },
+  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24 }
 });

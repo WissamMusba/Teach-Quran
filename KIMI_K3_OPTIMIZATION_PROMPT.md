@@ -475,7 +475,38 @@ Fixed bottom bar during reading:
 - Shows only when audio is available
 ```
 
-### 2. QARI SELECTION MODAL
+### 2. SURAH LIST MODAL (Opens When Tapping Header)
+```
+TRIGGER: User taps the header area (Surah name + ≡ hamburger icon)
+BEHAVIOR: Opens a full-screen modal showing all 114 surahs
+
+HEADER OF MODAL:
+- Left: "Select Surah" title (white, bold)
+- Right: "Close" button (teal #00d4aa text)
+
+CONTENT:
+- SectionList grouped by Juz (Juz 1, Juz 2, ... Juz 30)
+- Each section header: "Juz X" (gold #ffd700 text, bold, bg #1e1e1e)
+- Each surah row shows:
+  - Left: Surah number (e.g., "1", "2", "3")
+  - Center: English name (e.g., "Al-Fatihah", "Al-Baqarah")
+  - Right: Arabic name (e.g., "الفاتحة", "البقرة")
+
+STYLES:
+- Background: #121212 (deep dark)
+- Section header bg: #1e1e1e
+- Row bg: #121212
+- Text color: #fff
+- Divider: #2a2a2a (subtle)
+
+BEHAVIOR:
+- Tap section header → Jump to that surah (close modal)
+- Tap surah row → Close modal, navigate to that surah
+- Smooth slide-up animation
+- FlatList with sections for performance
+```
+
+### 3. QARI SELECTION MODAL
 ```
 Full-screen modal with:
 - Header: "Select a Qari" with close (×) button
