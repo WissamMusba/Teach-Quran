@@ -51,7 +51,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse } = useSelector((s: any) => s.quran);
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
-  const { showPageInfo, nightMode, bgBrightness } = useSelector((s: any) => s.settings);
+  const { nightMode, bgBrightness } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
   const activeColor = useSelector((s: any) => s.drawing.activeColor);
 
@@ -317,7 +317,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'ayah' && (
                 <FlatList 
                 ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()} 
-                  contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 120 : 40 }} 
+                  contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 30 : 20 }} 
                 renderItem={({ item }) => (
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights || []} 
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} 
@@ -334,7 +334,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'continuous' && (
-                <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 120 : 40 }} scrollEventThrottle={16}>
+                <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 30 : 20 }} scrollEventThrottle={16}>
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} 
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} 
                   onVerseLongPress={handleVerseLongPress} bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).filter(k => k.startsWith(`${currentSurahId}_`)).map(k => parseInt(k.split('_')[1]))} 
@@ -347,7 +347,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
               <FlatList
                 ref={flatListRef} data={Array.from({length: 604}, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 60 : 0 }}
+                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 20 : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
                 onMomentumScrollEnd={(e) => {
@@ -373,15 +373,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
                         onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks} 
                         flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} /> 
                       : <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>}
-                      {showPageInfo && isHeaderVisible && (() => {
-                        const pData = pageCache[item];
-                        const vs = pData?.lines?.flatMap((l: any) => l.words?.map((w: any) => w.location?.split(':')?.[1])).filter(Boolean) || [];
-                        const u = [...new Set(vs)];
-                        const range = u.length > 0 ? `(Verses ${u[0]}-${u[u.length - 1]})` : '';
-                        return (
-                          <View style={styles.pageFooterAbsolute}><Text style={styles.pageText}>Page {item} {range}</Text></View>
-                        );
-                      })()}
                     </View>
                   );
                 }}
@@ -448,8 +439,6 @@ const styles = StyleSheet.create({
   juzText: { color: '#b0b0b0', fontSize: 11 },
   iconBtn: { fontSize: 16, marginLeft: 12 },
   pageFooter: { alignItems: 'center', marginTop: 20 },
-  pageFooterAbsolute: { position: 'absolute', bottom: 10, left: 0, right: 0, alignItems: 'center', backgroundColor: 'transparent' },
-  pageText: { color: '#555', fontSize: 14 },
   menuOverlay: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingBottom: 40 },
   compactMenuContainer: { flexDirection: 'row', backgroundColor: '#1e1e1e', borderRadius: 35, padding: 5, elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10 },
   compactBtn: { width: 55, height: 55, justifyContent: 'center', alignItems: 'center' },
