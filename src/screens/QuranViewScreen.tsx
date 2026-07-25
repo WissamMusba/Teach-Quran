@@ -92,6 +92,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (pageNum < 1 || pageNum > 604) return;
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
     pageVersesPromiseRef.current[pageNum] = true;
+    if (typeof getVersesByPage !== 'function') { delete pageVersesPromiseRef.current[pageNum]; return; }
     getVersesByPage(pageNum).then(v => { setPageVersesCache(prev => ({ ...prev, [pageNum]: v })); delete pageVersesPromiseRef.current[pageNum]; })
       .catch(() => { delete pageVersesPromiseRef.current[pageNum]; });
   }, [pageVersesCache]);
