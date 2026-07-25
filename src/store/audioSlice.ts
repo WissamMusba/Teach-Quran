@@ -20,10 +20,9 @@ export const audioSlice = createSlice({
     setCurrentTrack: (state, action) => {
       state.currentSurah = action.payload.surah;
       state.currentAyah = action.payload.ayah;
-    },
-    setCurrentSurah: (state, action) => { state.currentSurah = action.payload; }
+    }
   }
 });
 
-export const { setPlaying, setQari, setAudioPosition, setAudioDuration, setCurrentTrack, setCurrentSurah } = audioSlice.actions;
+export const { setPlaying, setQari, setAudioPosition, setAudioDuration, setCurrentTrack } = audioSlice.actions;
 export default audioSlice.reducer;

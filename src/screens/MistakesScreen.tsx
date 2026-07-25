@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { COLORS, SPACING, RADIUS, scaleFont } from '../utils/theme';
 
 export default function MistakesScreen() {
   const navigation = useNavigation<any>();
@@ -12,9 +11,9 @@ export default function MistakesScreen() {
   const mistakes = highlights.flatMap(([verseKey, data]: any) => (data?.highlights || []).map((h: any) => ({ verseKey, color: h.color, createdAt: h.createdAt })));
   const sortedMistakes = mistakes.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const handleNavigate = (vKey: string) => {
-    const [s, v] = vKey.split('_').map(Number);
-    navigation.navigate('QuranView' as any, { surahId: s, scrollToVerse: v } as any);
+  const handleNavigate = (vKey: string) => { 
+    const [s, v] = vKey.split('_').map(Number); 
+    navigation.navigate('QuranView' as any, { surahId: s, scrollToVerse: v } as any); 
   };
 
   const formatTime = (ts: string) => ts ? new Date(ts).toLocaleDateString() : '';
@@ -27,21 +26,21 @@ export default function MistakesScreen() {
           <Text style={styles.emptyText}>No mistakes highlighted yet</Text>
         </View>
       ) : (
-        <FlatList data={sortedMistakes} keyExtractor={(i: any, idx: number) => i.createdAt ? `${i.verseKey}_${i.createdAt}` : idx.toString()} renderItem={({ item }: any) => {
+        <FlatList data={sortedMistakes} keyExtractor={(i: any, idx: number) => idx.toString()} renderItem={({ item }: any) => {
           const [s, v] = item.verseKey.split('_').map(Number);
           return (
             <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.verseKey)}>
-              <View style={{ width: 20, height: 20, backgroundColor: item.color, borderRadius: 10, marginRight: SPACING.sm }} />
+              <View style={{ width: 20, height: 20, backgroundColor: item.color, borderRadius: 10, marginRight: 10 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.text}>Surat {surahNames[s] || '...'} ({s}:{v})</Text>
                 {item.createdAt && <Text style={styles.timestamp}>{formatTime(item.createdAt)}</Text>}
               </View>
             </TouchableOpacity>
           );
-        }} removeClippedSubviews={true} maxToRenderPerBatch={20} windowSize={10} />
+        }} />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({ container: { flex: 1, padding: SPACING.lg, backgroundColor: COLORS.bgDark }, card: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, padding: SPACING.xl, borderRadius: RADIUS.md, marginBottom: SPACING.sm }, text: { color: COLORS.textPrimary, fontSize: scaleFont(16) }, timestamp: { color: COLORS.textMuted, fontSize: scaleFont(12), marginTop: SPACING.xs }, emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' }, emptyText: { color: COLORS.textSecondary, fontSize: scaleFont(16) } });
+const styles = StyleSheet.create({ container: { flex: 1, padding: 15, backgroundColor: '#121212' }, card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e1e1e', padding: 20, borderRadius: 8, marginBottom: 10 }, text: { color: '#fff', fontSize: 16 }, timestamp: { color: '#555', fontSize: 12, marginTop: 2 }, emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' }, emptyText: { color: '#888', fontSize: 16 } });

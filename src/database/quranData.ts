@@ -1,21 +1,7 @@
 import { initDatabase, getDB } from './localDB';
-import type { Verse } from '../utils/types';
 
 const SURAH_API = 'https://api.alquran.cloud/v1/surah';
 const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf';
-const MAX_RETRIES = 3;
-
-export const fetchWithRetry = async (url: string, retries = MAX_RETRIES): Promise<any> => {
-  for (let i = 0; i < retries; i++) { try { const r = await fetch(url); if (r.ok) return r.json(); } catch {} await new Promise(r => setTimeout(r, 1000 * (i + 1))); }
-  throw new Error(`Failed after ${retries} retries: ${url}`);
-};
-
-export const getVersesByPage = async (pageNum: number): Promise<Verse[]> => {
-  const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
-  const verses: Verse[] = [];
-  if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) verses.push(res[0].rows.item(i));
-  return verses;
-};
 
 export const getMushafPageData = async (pageNum: number) => {
   const res = await getDB().executeSql(`SELECT data FROM mushaf_pages WHERE pageNumber=?`, [pageNum]);
