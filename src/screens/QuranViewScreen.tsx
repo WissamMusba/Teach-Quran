@@ -15,15 +15,47 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData } from '../database/quranData';
+import PageFlowingView from '../components/quran/PageFlowingView';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
 import { getJuzInfoFromPage, getStartJuzOfSurah } from '../utils/theme';
 import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { captureRef } from 'react-native-view-shot';
-import Share from 'react-native-share';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+
+function PageVersesFallback({ pageNum, studentData, handleWordFlow, handleBookmarkFlow, handleVerseLongPress, flashingVerse, readingMarkVerse, showTranslation }: any) {
+  const [pVerses, setPVerses] = useState<any[]>([]);
+  useEffect(() => {
+    getVersesByPage(pageNum).then(setPVerses);
+  }, [pageNum]);
+
+  if (!pVerses || pVerses.length === 0) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#00d4aa" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={{ flex: 1, paddingHorizontal: 15 }}>
+      <PageFlowingView
+        verses={pVerses}
+        highlights={studentData?.highlights}
+        bookmarks={studentData?.bookmarks}
+        notes={studentData?.notes}
+        readingMarkVerse={readingMarkVerse}
+        showTranslation={showTranslation}
+        onWordPress={handleWordFlow}
+        onBookmarkToggle={handleBookmarkFlow}
+        onVerseLongPress={handleVerseLongPress}
+        flashingVerse={flashingVerse}
+      />
+    </ScrollView>
+  );
+}
 
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
@@ -51,7 +83,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const viewShotRef = useRef<any>(null);
 
-  const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames } = useSelector((s: any) => s.quran);
+  const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
   const { nightMode, bgBrightness } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
@@ -305,11 +337,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const pData = pageCache[item];
                   return (
                     <View style={{ width: Dimensions.get('window').width, flex: 1 }}>
-                      {pData ? (
-                        <MushafPageView pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
-                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
-                          flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} />
-                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
+                      {textStyle === 'uthmani' ? (
+                        pData ? (
+                          <MushafPageView pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
+                            onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
+                            flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} />
+                        ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)
+                      ) : (
+                        <PageVersesFallback pageNum={item} studentData={studentData} handleWordFlow={handleWordFlow} handleBookmarkFlow={handleBookmarkFlow} handleVerseLongPress={handleVerseLongPress} flashingVerse={flashingVerse} readingMarkVerse={readingMarkVerse} showTranslation={showTranslation} />
+                      )}
                     </View>
                   );
                 }} />
