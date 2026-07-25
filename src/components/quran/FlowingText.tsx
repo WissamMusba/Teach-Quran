@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { FONT_SIZES } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
@@ -35,7 +35,11 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
                   style={[styles.arabicText, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
               );
             })}
-            <Text onPressIn={onInteractivePressIn} onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)} style={styles.verseBadge}>{` ${verse.verseNumber} `}{' '}</Text>
+            <TouchableOpacity onPressIn={onInteractivePressIn} onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
+              <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+                <Text style={[styles.verseBadgeText, isBookmarked && !isReadingMark && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+              </View>
+            </TouchableOpacity>
             {showTranslation && <Text style={styles.translation}>{'\n'}{verse.textTranslation}{'\n'}</Text>}
           </Text>
         );
@@ -50,7 +54,11 @@ const styles = StyleSheet.create({
   bookmarkIcon: { color: '#ffd700', fontSize: 16 },
   noteIcon: { color: '#ffd700', fontSize: 12 },
   readingMarkIcon: { color: '#4a90d9', fontSize: 14 },
-  verseBadge: { color: '#fff', fontWeight: 'bold', backgroundColor: '#1e1e1e', borderColor: '#00d4aa', borderWidth: 1, borderRadius: 12, overflow: 'hidden', fontSize: 12 },
+  verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
+  bookmarkedBadgeText: { color: '#000' },
+  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   translation: { color: '#b0b0b0', fontStyle: 'italic' },
 });
 export default memo(FlowingText);
