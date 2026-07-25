@@ -9,11 +9,11 @@ export const scaleFont = (size: number): number => {
 };
 
 export const getMushafFontSize = (): number => {
-  if (SCREEN_WIDTH < 360) return 16;
-  if (SCREEN_WIDTH < 400) return 19;
-  if (SCREEN_WIDTH < 500) return 23;
-  if (SCREEN_WIDTH < 700) return 27;
-  return 31;
+  if (SCREEN_WIDTH < 360) return 12;
+  if (SCREEN_WIDTH < 400) return 15;
+  if (SCREEN_WIDTH < 500) return 18;
+  if (SCREEN_WIDTH < 700) return 21;
+  return 24;
 };
 
-export const getMushafLineHeight = (): number => getMushafFontSize() * 2.4;
+export const getMushafLineHeight = (): number => getMushafFontSize() * 2.6;

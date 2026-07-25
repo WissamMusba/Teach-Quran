@@ -5,7 +5,7 @@ import { FONT_SIZES } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 
-const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse, onInteractivePressIn }: any) => {
+const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
@@ -21,12 +21,12 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
         {words.map((word: string, index: number) => {
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
-            <TouchableOpacity key={index} onPressIn={onInteractivePressIn} onPress={() => onWordPress(index)} activeOpacity={0.7}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.0 }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
+            <TouchableOpacity key={index} onPress={() => onWordPress(index)} activeOpacity={0.7}>
+              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6 }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
             </TouchableOpacity>
           );
         })}
-        <TouchableOpacity onPressIn={onInteractivePressIn} onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
+        <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
           <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
             <Text style={[styles.verseBadgeText, isBookmarked && !isReadingMark && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
@@ -39,12 +39,12 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
 export default memo(VerseDisplay);
 const styles = StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
-  arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center' },
+  arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
-  verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', marginLeft: 10, marginTop: 4, borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', marginHorizontal: 10, marginTop: 4, borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
   bookmarkedBadgeText: { color: '#000000' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24 },
+  translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });

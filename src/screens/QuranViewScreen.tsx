@@ -137,6 +137,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     deepLinkLoadedRef.current = false;
   }, [currentSurahId, readingMode]);
 
+  useEffect(() => { if (isDrawing) setIsDrawing(false); }, [currentSurahId, currentPageNum]);
+
   useEffect(() => {
     if (currentStudent) getStudentData(currentStudent.id).then(d => {
       const data = d || { bookmarks: {}, highlights: {}, drawings: {}, notes: {}, lastRead: null };
@@ -245,13 +247,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       <View style={{ flex: 1 }}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetX={[-20, 20]} failOffsetY={[-5, 5]}>
-          <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
+          <View style={{ flex: 1, position: 'relative' }} ref={viewShotRef} collapsable={false}>
             <Pressable style={styles.edgeTapLeft} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
             <Pressable style={styles.edgeTapRight} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
 
+            {isDrawing && (
+              <DrawingCanvas onClose={() => setIsDrawing(false)} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
+                onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
+            )}
+
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
-                contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 60 : 20 }}
+                contentContainerStyle={{ padding: 20 }}
                 renderItem={({ item }: any) => (
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
@@ -264,7 +271,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 60 : 20 }} scrollEventThrottle={16}>
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} scrollEventThrottle={16}>
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).filter(k => k.startsWith(`${currentSurahId}_`)).map(k => parseInt(k.split('_')[1]))}
@@ -276,7 +283,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={flatListRef} data={Array.from({ length: 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 50 : 0 }}
+                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 10 : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
                 onMomentumScrollEnd={(e) => {
@@ -308,7 +315,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 }} />
             )}
 
-            {!isDrawing && studentData?.drawings?.[drawingKey]?.paths?.length > 0 && (<StaticDrawingOverlay paths={studentData.drawings[drawingKey].paths} />)}
+            {isCapturing && studentData?.drawings?.[drawingKey]?.paths?.length > 0 && (<StaticDrawingOverlay paths={studentData.drawings[drawingKey].paths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
       </View>
@@ -319,10 +326,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       <SurahList visible={showList} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} />
       <QariSelector visible={showQariModal} onClose={() => setShowQariModal(false)} />
 
-      {isDrawing && (
-        <DrawingCanvas onClose={() => setIsDrawing(false)} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
-          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
-      )}
+
 
       <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => setMenuVerse(null)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVerse(null)}>
