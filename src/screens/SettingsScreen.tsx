@@ -1,98 +1,47 @@
-import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setTextBrightness, setBgBrightness, toggleShowPageInfo } from '../store/settingsSlice';
+import React from 'react';
+import { View, Text, Switch, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector, useDispatch } from 'react-redux';
 import Slider from '@react-native-community/slider';
-import { RootState } from '../store';
-
-const SettingsScreen = () => {
+import { toggleNightMode, setTextBrightness, setBgBrightness, toggleShowPageInfo } from '../store/settingsSlice';
+import { setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
+import { COLORS, SPACING, RADIUS, scaleFont } from '../utils/theme';
+export default function SettingsScreen() {
   const dispatch = useDispatch();
-  const { showTranslation, fontSize, readingMode, textStyle } = useSelector((state: RootState) => state.quran);
-  const { nightMode, textBrightness, bgBrightness, showPageInfo } = useSelector((state: RootState) => state.settings);
-
+  const { nightMode, textBrightness, bgBrightness, showPageInfo } = useSelector((s: any) => s.settings);
+  const { fontSize, readingMode, textStyle } = useSelector((s: any) => s.quran);
+  const Section = ({ title, children }: any) => (<View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text><View style={styles.sectionContent}>{children}</View></View>);
+  const Row = ({ label, children }: any) => (<View style={styles.row}><Text style={styles.rowLabel}>{label}</Text>{children}</View>);
+  const Pills = ({ options, value, onChange }: any) => (<View style={styles.pillRow}>{options.map((o: any) => (<TouchableOpacity key={o.value} style={[styles.pill, value === o.value && styles.pillActive]} onPress={() => onChange(o.value)} activeOpacity={0.7}><Text style={[styles.pillText, value === o.value && styles.pillTextActive]}>{o.label}</Text></TouchableOpacity>))}</View>);
   return (
-    <ScrollView style={[styles.container, { backgroundColor: nightMode ? '#121212' : '#FFFFFF' }]}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reading Settings</Text>
-        <View style={styles.row}>
-          <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Show Translation</Text>
-          <Switch value={showTranslation} onValueChange={() => dispatch(toggleTranslation())} trackColor={{ false: '#333', true: '#00d4aa' }} />
-        </View>
-        <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Reading Mode</Text>
-        <View style={styles.modeContainer}>
-          {['ayah', 'continuous', 'page'].map((mode) => (
-            <TouchableOpacity key={mode} style={[styles.modeBtn, readingMode === mode && styles.activeMode]} onPress={() => dispatch(setReadingMode(mode))}>
-              <Text style={readingMode === mode ? styles.activeText : styles.inactiveText}>{mode === 'ayah' ? 'Ayah List' : mode === 'continuous' ? 'Continuous' : 'Page Swipe'}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Arabic Font Size</Text>
-        <View style={styles.sizeContainer}>
-          {['small', 'medium', 'large', 'xl'].map((size) => (
-            <TouchableOpacity key={size} style={[styles.sizeBtn, fontSize === size && styles.activeSize]} onPress={() => dispatch(setFontSize(size))}>
-              <Text style={fontSize === size ? styles.activeText : styles.inactiveText}>{size.toUpperCase()}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Text Style</Text>
-        <View style={styles.modeContainer}>
-          {['indopak', 'uthmani'].map((style) => (
-            <TouchableOpacity key={style} style={[styles.modeBtnWide, textStyle === style && styles.activeMode]} onPress={() => dispatch(setTextStyle(style))}>
-              <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Night Mode</Text>
-        <View style={styles.row}>
-          <View style={styles.settingInfo}><Text style={[styles.settingTitle, { color: nightMode ? '#fff' : '#000' }]}>Night mode</Text><Text style={styles.settingDesc}>Use dark background and light fonts</Text></View>
-          <Switch value={nightMode} onValueChange={() => dispatch(toggleNightMode())} trackColor={{ false: '#333', true: '#00d4aa' }} />
-        </View>
-        <View style={styles.sliderRow}>
-          <Text style={styles.sliderLabel}>Text brightness</Text>
-          <Slider style={{ flex: 1 }} value={textBrightness} onValueChange={(v) => dispatch(setTextBrightness(Math.round(v)))} minimumValue={0} maximumValue={255} minimumTrackTintColor="#00d4aa" thumbTintColor="#00d4aa" />
-          <Text style={styles.sliderValue}>{textBrightness}</Text>
-        </View>
-        <View style={styles.sliderRow}>
-          <Text style={styles.sliderLabel}>Background brightness</Text>
-          <Slider style={{ flex: 1 }} value={bgBrightness} onValueChange={(v) => dispatch(setBgBrightness(Math.round(v)))} minimumValue={0} maximumValue={255} minimumTrackTintColor="#00d4aa" thumbTintColor="#00d4aa" />
-          <Text style={styles.sliderValue}>{bgBrightness}</Text>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reading Preferences</Text>
-        <View style={styles.row}>
-          <View style={styles.settingInfo}><Text style={[styles.settingTitle, { color: nightMode ? '#fff' : '#000' }]}>Show page info</Text><Text style={styles.settingDesc}>Overlay page number, surah name, and juz' number while reading</Text></View>
-          <Switch value={showPageInfo} onValueChange={() => dispatch(toggleShowPageInfo())} trackColor={{ false: '#333', true: '#00d4aa' }} />
-        </View>
-      </View>
-    </ScrollView>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <Text style={styles.title}>⚙️ Settings</Text>
+      <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxxl }} showsVerticalScrollIndicator={false}>
+        <Section title="Appearance">
+          <Row label="Night Mode"><Switch value={nightMode} onValueChange={() => dispatch(toggleNightMode())} trackColor={{ true: COLORS.primary, false: '#555' }} thumbColor="#fff" /></Row>
+          <Row label={`Text Brightness: ${textBrightness}`}><Slider style={styles.slider} value={textBrightness} minimumValue={50} maximumValue={255} onValueChange={(v: number) => dispatch(setTextBrightness(Math.round(v)))} minimumTrackTintColor={COLORS.primary} maximumTrackTintColor="#444" thumbTintColor={COLORS.primary} /></Row>
+          <Row label={`Background: ${bgBrightness}`}><Slider style={styles.slider} value={bgBrightness} minimumValue={0} maximumValue={60} onValueChange={(v: number) => dispatch(setBgBrightness(Math.round(v)))} minimumTrackTintColor={COLORS.primary} maximumTrackTintColor="#444" thumbTintColor={COLORS.primary} /></Row>
+        </Section>
+        <Section title="Arabic Text">
+          <Row label="Font Size"><Pills options={[{ label: 'S', value: 'small' }, { label: 'M', value: 'medium' }, { label: 'L', value: 'large' }, { label: 'XL', value: 'xl' }]} value={fontSize} onChange={(v: string) => dispatch(setFontSize(v))} /></Row>
+          <Row label="Script Style"><Pills options={[{ label: 'IndoPak', value: 'indopak' }, { label: 'Uthmani', value: 'uthmani' }, { label: 'Naskh', value: 'naskh' }]} value={textStyle} onChange={(v: string) => dispatch(setTextStyle(v))} /></Row>
+        </Section>
+        <Section title="Reading Mode"><Pills options={[{ label: '📋 Ayah', value: 'ayah' }, { label: '📜 Continuous', value: 'continuous' }, { label: '📖 Page', value: 'page' }]} value={readingMode} onChange={(v: string) => dispatch(setReadingMode(v))} /></Section>
+        <Section title="Other"><Row label="Show Page Info"><Switch value={showPageInfo} onValueChange={() => dispatch(toggleShowPageInfo())} trackColor={{ true: COLORS.primary, false: '#555' }} thumbColor="#fff" /></Row></Section>
+      </ScrollView>
+    </SafeAreaView>
   );
-};
-
+}
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  section: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#00d4aa', marginBottom: 16, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  label: { fontSize: 16, marginBottom: 10 },
-  modeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  modeBtn: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '32%', alignItems: 'center' },
-  modeBtnWide: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '48%', alignItems: 'center' },
-  activeMode: { backgroundColor: '#00d4aa', borderColor: '#00d4aa' },
-  sizeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
-  sizeBtn: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '23%', alignItems: 'center' },
-  activeSize: { backgroundColor: '#00d4aa', borderColor: '#00d4aa' },
-  activeText: { color: '#121212', fontWeight: 'bold' }, inactiveText: { color: '#b0b0b0' },
-  settingInfo: { flex: 1, marginRight: 16 },
-  settingTitle: { fontSize: 16, fontWeight: '500', marginBottom: 4 },
-  settingDesc: { fontSize: 14, color: '#888', lineHeight: 20 },
-  sliderRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  sliderLabel: { fontSize: 14, color: '#888', width: 120 },
-  sliderValue: { fontSize: 14, color: '#00d4aa', width: 40, textAlign: 'right' }
+  container: { flex: 1, backgroundColor: COLORS.bgDark },
+  title: { fontSize: scaleFont(24), fontWeight: '800', color: COLORS.textPrimary, paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
+  section: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, marginBottom: SPACING.lg, overflow: 'hidden' },
+  sectionTitle: { color: COLORS.primary, fontSize: scaleFont(13), fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: SPACING.xl, paddingTop: SPACING.lg, paddingBottom: SPACING.sm },
+  sectionContent: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.lg },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderDark },
+  rowLabel: { color: COLORS.textPrimary, fontSize: scaleFont(15) }, slider: { width: 160, height: 40 },
+  pillRow: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
+  pill: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'transparent' },
+  pillActive: { backgroundColor: 'rgba(0,212,170,0.15)', borderColor: COLORS.primary },
+  pillText: { color: COLORS.textSecondary, fontSize: scaleFont(14), fontWeight: '600' }, pillTextActive: { color: COLORS.primary },
 });
-export default memo(SettingsScreen);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { COLORS, SPACING, RADIUS, scaleFont } from '../utils/theme';
 
 export class ErrorBoundary extends React.Component<any, { hasError: boolean; errorText: string }> {
   constructor(props: any) {
@@ -12,7 +13,6 @@ export class ErrorBoundary extends React.Component<any, { hasError: boolean; err
   }
 
   componentDidCatch(error: any, errorInfo: any) {
-    // This will log the error to your Android ADB logs as well
     console.error("App Crashed:", error, errorInfo);
   }
 
@@ -20,7 +20,7 @@ export class ErrorBoundary extends React.Component<any, { hasError: boolean; err
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>App Crashed! 🚨</Text>
+          <Text style={styles.title}>App Crashed!</Text>
           <Text style={styles.subtitle}>Please send a screenshot of this error:</Text>
           <ScrollView style={styles.errorBox}>
             <Text style={styles.errorText}>{this.state.errorText}</Text>
@@ -33,9 +33,9 @@ export class ErrorBoundary extends React.Component<any, { hasError: boolean; err
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#fff' },
-  title: { color: 'red', fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
-  subtitle: { color: '#333', fontSize: 14, marginBottom: 20 },
-  errorBox: { maxHeight: 400, width: '100%', backgroundColor: '#eee', borderRadius: 8, padding: 10 },
-  errorText: { color: '#000', fontSize: 12 }
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, backgroundColor: COLORS.bgWhite },
+  title: { color: COLORS.red, fontSize: scaleFont(22), fontWeight: 'bold', marginBottom: SPACING.sm },
+  subtitle: { color: COLORS.textDarkSecondary, fontSize: scaleFont(14), marginBottom: SPACING.xl },
+  errorBox: { maxHeight: 400, width: '100%', backgroundColor: COLORS.bgLightCard, borderRadius: RADIUS.md, padding: SPACING.sm },
+  errorText: { color: COLORS.textDark, fontSize: scaleFont(12) }
 });

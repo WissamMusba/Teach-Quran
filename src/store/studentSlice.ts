@@ -1,7 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
+import type { Student, StudentData } from '../utils/types';
 export const studentSlice = createSlice({
   name: 'student', 
-  initialState: { list: [] as any[], currentStudent: null as any, studentData: null as any },
+  initialState: { list: [] as Student[], currentStudent: null as Student | null, studentData: null as StudentData | null },
   reducers: {
     setStudents: (state, action) => { state.list = action.payload; },
     addStudent: (state, action) => { state.list.push(action.payload); },

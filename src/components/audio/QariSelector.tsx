@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, Text, SectionList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { setQari } from '../../store/audioSlice';
+import { COLORS, SPACING, RADIUS, scaleFont } from '../../utils/theme';
 
 const QARIS = [
   { id: 'mishary', name: 'Mishary Al-Afasy', style: 'gapped' },
@@ -43,14 +44,14 @@ const QariSelector = ({ visible, onClose }: any) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#2a2a2a' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
-  closeBtn: { color: '#00d4aa', fontSize: 20 },
-  sectionHeader: { padding: 15, backgroundColor: '#1a1a2e' },
-  sectionHeaderText: { color: '#00d4aa', fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' },
-  qariRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#1e1e1e' },
-  qariName: { color: '#fff', fontSize: 16 },
-  checkmark: { color: '#00d4aa', fontSize: 18, fontWeight: 'bold' }
+  container: { flex: 1, backgroundColor: COLORS.bgDark },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.xl, borderBottomWidth: 1, borderColor: COLORS.borderDark },
+  title: { fontSize: scaleFont(20), fontWeight: 'bold', color: COLORS.textPrimary },
+  closeBtn: { color: COLORS.primary, fontSize: scaleFont(20) },
+  sectionHeader: { padding: SPACING.lg, backgroundColor: COLORS.bgCard },
+  sectionHeaderText: { color: COLORS.primary, fontSize: scaleFont(14), fontWeight: 'bold', textTransform: 'uppercase' },
+  qariRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.xl, borderBottomWidth: 1, borderColor: COLORS.borderDark },
+  qariName: { color: COLORS.textPrimary, fontSize: scaleFont(16) },
+  checkmark: { color: COLORS.primary, fontSize: scaleFont(18), fontWeight: 'bold' }
 });
 export default memo(QariSelector);

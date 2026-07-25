@@ -1,4 +1,6 @@
 import SQLite from 'react-native-sqlite-storage';
+import auth from '@react-native-firebase/auth';
+import type { StudentData } from '../utils/types';
 SQLite.enablePromise(true);
 let dbInstance: any = null;
 
@@ -14,6 +16,7 @@ export const initDatabase = async () => {
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_data_cache (studentId TEXT PRIMARY KEY, data TEXT)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, studentId TEXT, data TEXT, synced BOOLEAN DEFAULT 0)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
 
   await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
   await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_page ON verses(page)`);
@@ -21,17 +24,17 @@ export const initDatabase = async () => {
 
 export const getDB = () => dbInstance;
 
-export const getStudentData = async (studentId: string) => {
+export const getStudentData = async (studentId: string): Promise<StudentData | null> => {
   const res = await getDB().executeSql(`SELECT data FROM student_data_cache WHERE studentId=?`, [studentId]);
   if (res && res.length > 0 && res[0].rows.length > 0) return JSON.parse(res[0].rows.item(0).data);
   return null;
 };
 
-export const saveStudentData = async (studentId: string, data: any) => {
+export const saveStudentData = async (studentId: string, data: StudentData): Promise<void> => {
   await getDB().executeSql(`INSERT OR REPLACE INTO student_data_cache (studentId, data) VALUES (?, ?)`, [studentId, JSON.stringify(data)]);
 };
 
-export const addToSyncQueue = async (studentId: string, data: any) => {
+export const addToSyncQueue = async (studentId: string, data: StudentData): Promise<void> => {
   await getDB().executeSql(`INSERT INTO sync_queue (studentId, data, synced) VALUES (?, ?, 0)`, [studentId, JSON.stringify(data)]);
 };
 
@@ -45,6 +48,25 @@ export const markQueueItemsSynced = async (ids: number[]) => {
   await getDB().executeSql(`UPDATE sync_queue SET synced=1 WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
 };
 
+export const getCachedStudentList = async (): Promise<any[] | null> => {
+  const uid = auth().currentUser?.uid; if (!uid) return null;
+  const res = await getDB().executeSql(`SELECT students FROM student_list_cache WHERE uid = ?`, [uid]);
+  if (res && res.length > 0 && res[0].rows.length > 0) { try { return JSON.parse(res[0].rows.item(0).students); } catch { return null; } }
+  return null;
+};
+export const cacheStudentList = async (students: any[]): Promise<void> => {
+  const uid = auth().currentUser?.uid; if (!uid) return;
+  await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`, [uid, JSON.stringify(students), new Date().toISOString()]);
+};
+export const getPendingSyncStudents = async (): Promise<string[]> => {
+  const res = await getDB().executeSql(`SELECT DISTINCT studentId FROM sync_queue WHERE synced=0`);
+  const ids: string[] = [];
+  if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) ids.push(res[0].rows.item(i).studentId);
+  return ids;
+};
+export const clearSyncQueueForStudent = async (studentId: string) => {
+  await getDB().executeSql(`DELETE FROM sync_queue WHERE studentId=?`, [studentId]);
+};
 export const purgeLocalStudent = async (studentId: string) => {
   const db = getDB();
   await db.executeSql(`DELETE FROM student_data_cache WHERE studentId=?`, [studentId]);

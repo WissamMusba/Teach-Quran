@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { undo, redo, addAction } from '../../store/historySlice';
 import { setColor, setTool, setPenSize } from '../../store/drawingSlice';
 import { DRAWING_COLORS } from '../../utils/constants';
+import { COLORS, SPACING, RADIUS, scaleFont } from '../../utils/theme';
 
 export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
   const dispatch = useDispatch();
@@ -38,7 +39,7 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     const isEraser = s.activeTool === 'eraser';
     const newPath = {
       points: [`${x},${y}`],
-      color: isEraser ? '#121212' : s.activeColor,
+      color: isEraser ? COLORS.bgInput : s.activeColor,
       width: isEraser ? s.penSize * 3 : s.penSize,
       opacity: isEraser ? 1 : s.localOpacity,
       tool: s.activeTool,
@@ -136,7 +137,7 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
       {showToolbar && (
         <View style={styles.toolbar}>
           <View style={styles.row}>
-            {DRAWING_COLORS.map(c => <TouchableOpacity key={c.id} style={[styles.colorBtn, { backgroundColor: c.hex, borderWidth: activeColor === c.hex ? 3 : 1, borderColor: '#fff' }]} onPress={() => dispatch(setColor(c.hex))} />)}
+            {DRAWING_COLORS.map(c => <TouchableOpacity key={c.id} style={[styles.colorBtn, { backgroundColor: c.hex, borderWidth: activeColor === c.hex ? 3 : 1, borderColor: COLORS.textPrimary }]} onPress={() => dispatch(setColor(c.hex))} />)}
             <TouchableOpacity onPress={handleUndo}><Text style={styles.btnText}>↩️</Text></TouchableOpacity>
             <TouchableOpacity onPress={handleRedo}><Text style={styles.btnText}>↪️</Text></TouchableOpacity>
             <TouchableOpacity onPress={handleClear}><Text style={styles.btnText}>🗑️</Text></TouchableOpacity>
@@ -155,14 +156,14 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
   canvasContainer: { flex: 1 },
   svg: { flex: 1, width: '100%', height: '100%', backgroundColor: 'transparent' },
-  toolbar: { backgroundColor: '#1e1e1e', padding: 10, borderTopWidth: 1, borderColor: '#333' },
-  row: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 10 },
-  colorBtn: { width: 30, height: 30, borderRadius: 15 },
-  toolBtn: { padding: 8, backgroundColor: '#333', borderRadius: 8 },
-  activeTool: { backgroundColor: '#0066FF' },
-  btnText: { color: '#fff', fontSize: 14 },
-  toggleBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 5 }
+  toolbar: { backgroundColor: COLORS.bgCard, padding: SPACING.md, borderTopWidth: 1, borderColor: COLORS.borderDark },
+  row: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: SPACING.sm },
+  colorBtn: { width: scaleFont(30), height: scaleFont(30), borderRadius: scaleFont(15) },
+  toolBtn: { padding: SPACING.sm, backgroundColor: COLORS.bgCardLight, borderRadius: RADIUS.sm },
+  activeTool: { backgroundColor: COLORS.accent },
+  btnText: { color: COLORS.textPrimary, fontSize: scaleFont(14) },
+  toggleBtn: { position: 'absolute', top: SPACING.sm, right: SPACING.sm, backgroundColor: COLORS.overlay, padding: SPACING.xs, borderRadius: RADIUS.sm }
 });

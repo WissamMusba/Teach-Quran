@@ -1,15 +1,16 @@
 import { createSlice } from '@reduxjs/toolkit';
+import type { Verse } from '../utils/types';
 export const quranSlice = createSlice({
   name: 'quran', 
   initialState: { 
     currentSurahId: 1, 
-    verses: [] as any[], 
+    verses: [] as Verse[], 
     showTranslation: false, 
     fontSize: 'medium' as 'small' | 'medium' | 'large' | 'xl', 
     readingMode: 'page' as 'continuous' | 'page' | 'ayah', 
     surahNames: {} as any, 
     flashingVerse: null as number | null, 
-    textStyle: 'indopak' as 'indopak' | 'uthmani' 
+    textStyle: 'indopak' as 'indopak' | 'uthmani' | 'naskh' 
   },
   reducers: {
     setSurah: (state, action) => { state.currentSurahId = action.payload.surahId; state.verses = action.payload.verses; },

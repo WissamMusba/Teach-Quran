@@ -2,15 +2,16 @@ import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import { COLORS, SPACING, RADIUS, scaleFont } from '../utils/theme';
 
 export default function BookmarksScreen() {
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
-  
+
   const bookmarks = studentData?.bookmarks ? Object.values(studentData.bookmarks) : [];
   const sortedBookmarks = bookmarks.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  
+
   const lastRead = studentData?.lastRead;
 
   const handleNavigate = (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
@@ -34,30 +35,33 @@ export default function BookmarksScreen() {
           <Text style={styles.emptyText}>No bookmarks yet</Text>
         </View>
       ) : (
-        <FlatList 
-          data={sortedBookmarks} 
-          keyExtractor={(i: any, idx: number) => idx.toString()} 
+        <FlatList
+          data={sortedBookmarks}
+          keyExtractor={(i: any, idx: number) => i.createdAt ? `${i.surah}_${i.verse}_${i.createdAt}` : idx.toString()}
           renderItem={({ item }: any) => (
             <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.surah, item.verse)}>
               <Text style={styles.text}>Surat {surahNames[item.surah] || '...'} ({item.surah}:{item.verse})</Text>
               {item.createdAt && <Text style={styles.timestamp}>{formatTime(item.createdAt)}</Text>}
             </TouchableOpacity>
-          )} 
+          )}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={20}
+          windowSize={10}
         />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({ 
-  container: { flex: 1, padding: 15, backgroundColor: '#121212' }, 
-  pinnedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#003366', padding: 20, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#00d4aa' },
-  pinnedIcon: { fontSize: 24, marginRight: 15 },
-  pinnedTitle: { color: '#00d4aa', fontSize: 12, fontWeight: 'bold', marginBottom: 2, textTransform: 'uppercase' },
-  pinnedText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  card: { backgroundColor: '#1e1e1e', padding: 20, borderRadius: 8, marginBottom: 10 }, 
-  text: { color: '#fff', fontSize: 16 }, 
-  timestamp: { color: '#555', fontSize: 12, marginTop: 5 }, 
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' }, 
-  emptyText: { color: '#888', fontSize: 16 } 
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: SPACING.lg, backgroundColor: COLORS.bgDark },
+  pinnedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, padding: SPACING.xl, borderRadius: RADIUS.md, marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.primary },
+  pinnedIcon: { fontSize: 24, marginRight: SPACING.lg },
+  pinnedTitle: { color: COLORS.primary, fontSize: scaleFont(12), fontWeight: 'bold', marginBottom: 2, textTransform: 'uppercase' },
+  pinnedText: { color: COLORS.textPrimary, fontSize: scaleFont(16), fontWeight: 'bold' },
+  card: { backgroundColor: COLORS.bgCard, padding: SPACING.xl, borderRadius: RADIUS.md, marginBottom: SPACING.sm },
+  text: { color: COLORS.textPrimary, fontSize: scaleFont(16) },
+  timestamp: { color: COLORS.textMuted, fontSize: scaleFont(12), marginTop: SPACING.xs },
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { color: COLORS.textSecondary, fontSize: scaleFont(16) }
 });
