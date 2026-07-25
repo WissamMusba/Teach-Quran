@@ -114,3 +114,10 @@ export const getVersePage = async (surahId: number, verseNum: number) => {
   const res = await getDB().executeSql(`SELECT page FROM verses WHERE surahId=? AND verseNumber=? LIMIT 1`, [surahId, verseNum]);
   return res && res.length > 0 && res[0].rows.length > 0 ? res[0].rows.item(0).page : 1;
 };
+
+export const getVersesByPage = async (pageNum: number) => {
+  const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
+  const out: any[] = [];
+  if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));
+  return out;
+};
