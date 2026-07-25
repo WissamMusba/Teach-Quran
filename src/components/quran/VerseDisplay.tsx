@@ -22,7 +22,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
             <TouchableOpacity key={index} onPressIn={onInteractivePressIn} onPress={() => onWordPress(index)} activeOpacity={0.7}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
+              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.0 }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
             </TouchableOpacity>
           );
         })}
@@ -40,7 +40,7 @@ export default memo(VerseDisplay);
 const styles = StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center' },
-  arabicText: { lineHeight: 56 },
+  arabicText: {},
   verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', marginLeft: 10, marginTop: 4, borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },

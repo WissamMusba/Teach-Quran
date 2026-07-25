@@ -251,7 +251,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
-                contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 30 : 20 }}
+                contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 60 : 20 }}
                 renderItem={({ item }: any) => (
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
@@ -264,7 +264,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 30 : 20 }} scrollEventThrottle={16}>
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: isHeaderVisible ? 60 : 20 }} scrollEventThrottle={16}>
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).filter(k => k.startsWith(`${currentSurahId}_`)).map(k => parseInt(k.split('_')[1]))}
@@ -276,7 +276,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={flatListRef} data={Array.from({ length: 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 20 : 0 }}
+                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 50 : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
                 onMomentumScrollEnd={(e) => {
@@ -324,9 +324,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
           onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
       )}
 
-      {menuVerse !== null && (
-        <View style={styles.menuOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setMenuVerse(null)} />
+      <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => setMenuVerse(null)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVerse(null)}>
           <View style={styles.compactMenuContainer}>
             <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}><Text style={styles.compactIcon}>🔖</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => { updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: menuVerse } }); setMenuVerse(null); Alert.alert('Reading Mark Set'); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
@@ -334,8 +333,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <TouchableOpacity style={styles.compactBtn} onPress={handleAddVoiceNote}><Text style={styles.compactIcon}>{isRecording ? '⏹️' : '🎤'}</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => handleCopyVerse(menuVerse!)}><Text style={styles.compactIcon}>📋</Text></TouchableOpacity>
           </View>
-        </View>
-      )}
+        </TouchableOpacity>
+      </Modal>
 
       <Modal visible={showNoteModal} transparent animationType="fade">
         <View style={styles.noteOverlay}>

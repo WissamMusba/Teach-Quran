@@ -24,8 +24,8 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
         const isFlashing = flashingVerse === verse.verseNumber;
         const isReadingMark = readingMarkVerse === verse.verseNumber;
         return (
-          <Text key={vKey} style={[styles.mainText, { fontSize: size, color: textColor, fontFamily }]}>
-            {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
+            <Text key={vKey} style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.0 }]}>
+              {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
             {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
             {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}
             {words.map((word: string, wIdx: number) => {
@@ -49,7 +49,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
 };
 const styles = StyleSheet.create({
   container: { width: '100%', padding: 15, backgroundColor: 'transparent' },
-  mainText: { textAlign: 'justify', lineHeight: 56, width: '100%' },
+  mainText: { textAlign: 'justify', width: '100%' },
   arabicText: {},
   bookmarkIcon: { color: '#ffd700', fontSize: 16 },
   noteIcon: { color: '#ffd700', fontSize: 12 },
