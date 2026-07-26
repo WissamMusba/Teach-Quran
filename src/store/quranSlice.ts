@@ -9,7 +9,7 @@ export const quranSlice = createSlice({
     readingMode: 'page' as 'continuous' | 'page' | 'ayah', 
     surahNames: {} as any, 
     flashingVerse: null as number | null, 
-    textStyle: 'saleem' as 'saleem' | 'uthmani' | 'mequran' | 'amiri' | 'scheherazade' | 'noto' 
+    textStyle: 'uthmani' as 'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'amiri' | 'scheherazade' | 'noto' 
   },
   reducers: {
     setSurah: (state, action) => { state.currentSurahId = action.payload.surahId; state.verses = action.payload.verses; },
@@ -18,7 +18,7 @@ export const quranSlice = createSlice({
     setReadingMode: (state, action) => { state.readingMode = action.payload; },
     setSurahNames: (state, action) => { state.surahNames = action.payload; },
     setFlashingVerse: (state, action) => { state.flashingVerse = action.payload; },
-    setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'amiri' | 'scheherazade' | 'noto'>) => { state.textStyle = action.payload; }
+    setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'amiri' | 'scheherazade' | 'noto'>) => { state.textStyle = action.payload; }
   }
 });
 export const { setSurah, toggleTranslation, setFontSize, setReadingMode, setSurahNames, setFlashingVerse, setTextStyle } = quranSlice.actions;

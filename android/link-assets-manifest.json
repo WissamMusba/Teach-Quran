@@ -6,8 +6,16 @@
       "sha1": "a5f4fe8279d587ca8e65b01159c405788850c6d3"
     },
     {
+      "path": "assets/fonts/Harmattan-Regular.ttf",
+      "sha1": "8d06a7db0fb2c3f9a961a67c46a3a0be6c3612cf"
+    },
+    {
       "path": "assets/fonts/KFGQPCUthmanicScriptHAFS.ttf",
       "sha1": "672e441d0f956bee65d6f87d9aa08b676d5300aa"
+    },
+    {
+      "path": "assets/fonts/Lateef-Regular.ttf",
+      "sha1": "551d6200bc7d658f60d0bc1cca3640382ce8b976"
     },
     {
       "path": "assets/fonts/Me_Quran.ttf",

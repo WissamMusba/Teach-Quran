@@ -8,11 +8,13 @@ export const ARABIC_FONTS: Record<string, string> = {
   saleem: 'PDMSSaleemQuranFont',
   uthmani: 'KFGQPCUthmanicScriptHAFS',
   mequran: 'Me_Quran',
+  lateef: 'Lateef-Regular',
+  harmattan: 'Harmattan-Regular',
   amiri: 'Amiri-Regular',
   scheherazade: 'ScheherazadeNew-Regular',
   noto: 'NotoNaskhArabic-Regular',
 };
-export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.saleem;
+export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.uthmani;
 
 export const COLORS = { primary: '#00d4aa', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };
 
