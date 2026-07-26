@@ -6,9 +6,13 @@ Generated: 2026-07-26
 Total Files: 31 source files + package.json
 
 ================================================================================
- RECENT CHANGES (Batch 3 & 4)
+ RECENT CHANGES (Batch 3, 4 & 5)
 ================================================================================
 
+Batch 5: Smart Header Gestures & Al Qalam Font
+- Implemented smart swipe gestures in QuranViewScreen: swipe down from top half shows header/footer; swipe up from bottom half shows it (and vice versa for hiding).
+- Downloaded, linked, and mapped Al Qalam Quran Majeed font ('alqalam') for highly readable Indo-Pak tajweed text.
+- Tagged v13 release in git before these new changes.
 Batch 3: Unify Page Mode Fonts & Fix Badges (No Scrolling)
 - All 5 fonts now use MushafPageView (removed PageVersesFallback, removed textStyle === 'uthmani' conditional)
 - MushafPageView maps JSON word positions to SQLite verse text (Saleem → textIndopak, others → textArabic)

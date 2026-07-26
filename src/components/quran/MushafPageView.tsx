@@ -21,7 +21,7 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
     const maxLineHeight = containerHeight / 15.5;
     if (maxLineHeight < baseLineHeight) {
       mushafLineHeight = maxLineHeight;
-      mushafFontSize = mushafLineHeight / 1.85;
+      mushafFontSize = mushafLineHeight / 1.45;
     }
   }
 
@@ -42,11 +42,6 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
               const vKey = `${surahId}_${verseNum}`;
               const verseObj = versesForPage.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = word.word;
-              if (verseObj) {
-                const fullText = (textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'alqalam') ? (verseObj.textIndopak || verseObj.textArabic) : verseObj.textArabic;
-                const wordsArray = fullText.replace(/۞/u, '').trim().split(' ');
-                displayText = wordsArray[wordPos - 1] || word.word;
-              }
 
               const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
               const isBookmarked = !!bookmarks?.[vKey];
