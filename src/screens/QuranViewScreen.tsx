@@ -21,6 +21,8 @@ import { getJuzInfoFromPage, getStartJuzOfSurah } from '../utils/theme';
 import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { captureRef } from 'react-native-view-shot';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import PageFlowingView from '../components/quran/PageFlowingView';
 
 function PageVersesFallback({ pageNum, studentData, handleWordFlow, handleBookmarkFlow, handleVerseLongPress, flashingVerse, readingMarkVerse, showTranslation }: any) {
