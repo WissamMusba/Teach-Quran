@@ -265,7 +265,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onBookmarks={() => navigation.navigate('Bookmarks')} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onDraw={() => setIsDrawing(true)} onSettings={() => navigation.navigate('Settings')} />
 
-      <View style={{ flex: 1 }} onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}>
+      <View style={{ flex: 1 }}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]}>
           <View style={{ flex: 1, position: 'relative' }} ref={viewShotRef} collapsable={false}>
             <Pressable style={styles.edgeTapLeft} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
