@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   arabicText: {},
   verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', marginHorizontal: 10, marginTop: 4, borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
-  verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
+  verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },

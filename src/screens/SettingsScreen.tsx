@@ -36,10 +36,10 @@ const SettingsScreen = () => {
           ))}
         </View>
         <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Text Style</Text>
-        <View style={styles.modeContainer}>
+        <View style={styles.styleContainer}>
            {['saleem', 'uthmani', 'amiri', 'scheherazade', 'noto'].map((style) => (
-            <TouchableOpacity key={style} style={[styles.modeBtn, textStyle === style && styles.activeMode]} onPress={() => dispatch(setTextStyle(style as any))}>
-              <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style.toUpperCase()}</Text>
+            <TouchableOpacity key={style} style={[styles.styleBtn, textStyle === style && styles.activeMode]} onPress={() => dispatch(setTextStyle(style as any))}>
+              <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style === 'saleem' ? 'INDOPAK' : style.toUpperCase()}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -82,6 +82,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 16, marginBottom: 10 },
   modeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   modeBtn: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '32%', alignItems: 'center' },
+  styleContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginBottom: 20, gap: 8 },
+  styleBtn: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '30%', alignItems: 'center', marginBottom: 8 },
   modeBtnWide: { padding: 10, borderWidth: 1, borderColor: '#2a2a2a', borderRadius: 8, width: '48%', alignItems: 'center' },
   activeMode: { backgroundColor: '#00d4aa', borderColor: '#00d4aa' },
   sizeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
