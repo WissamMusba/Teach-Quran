@@ -2,6 +2,10 @@
   "migIndex": 1,
   "data": [
     {
+      "path": "assets/fonts/AlQalamQuranMajeed.ttf",
+      "sha1": "a2ff01e5359a9cb93b9f67d0d9268c2c4c9e62d5"
+    },
+    {
       "path": "assets/fonts/Amiri-Regular.ttf",
       "sha1": "a5f4fe8279d587ca8e65b01159c405788850c6d3"
     },
@@ -19,7 +23,7 @@
     },
     {
       "path": "assets/fonts/Me_Quran.ttf",
-      "sha1": "551d6200bc7d658f60d0bc1cca3640382ce8b976"
+      "sha1": "98bbd32a4db4ef3f24283dc012fc991452c80eb7"
     },
     {
       "path": "assets/fonts/NotoNaskhArabic-Regular.ttf",

@@ -260,11 +260,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const onSwipe = (event: any) => {
     if (isDrawing) return;
     if (event.nativeEvent.state === State.END) {
-      const { translationX, translationY, velocityY } = event.nativeEvent;
-      if (translationY > 40 || velocityY > 300) {
-        setIsHeaderVisible(true);
-      } else if (translationY < -40 || velocityY < -300) {
-        setIsHeaderVisible(false);
+      const { translationX, translationY, velocityY, y } = event.nativeEvent;
+      const isTopHalf = y < (containerHeight || Dimensions.get('window').height) / 2;
+      if (Math.abs(translationY) > 40 || Math.abs(velocityY) > 300) {
+        if (isTopHalf) {
+          setIsHeaderVisible(translationY > 0); // swipe down shows, swipe up hides
+        } else {
+          setIsHeaderVisible(translationY < 0); // swipe up shows, swipe down hides
+        }
       } else if (readingMode !== 'page') {
         if (translationX > 50 && currentSurahId > 1) dispatch(setSurah({ surahId: currentSurahId - 1, verses: [] }));
         else if (translationX < -50 && currentSurahId < 114) dispatch(setSurah({ surahId: currentSurahId + 1, verses: [] }));

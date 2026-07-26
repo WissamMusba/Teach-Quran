@@ -8,6 +8,7 @@ export const ARABIC_FONTS: Record<string, string> = {
   saleem: 'PDMSSaleemQuranFont',
   uthmani: 'KFGQPCUthmanicScriptHAFS',
   mequran: 'Me_Quran',
+  alqalam: 'AlQalamQuranMajeed',
   lateef: 'Lateef-Regular',
   harmattan: 'Harmattan-Regular',
   amiri: 'Amiri-Regular',
