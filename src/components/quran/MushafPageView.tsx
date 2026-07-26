@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
@@ -17,12 +17,11 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
   let mushafFontSize = baseFontSize;
   let mushafLineHeight = baseLineHeight;
   
-  if (containerHeight > 0) {
-    const maxLineHeight = containerHeight / 15.5;
-    if (maxLineHeight < baseLineHeight) {
-      mushafLineHeight = maxLineHeight;
-      mushafFontSize = mushafLineHeight / 2.0;
-    }
+  const effectiveHeight = containerHeight > 0 ? containerHeight : Dimensions.get('window').height - 120;
+  const maxLineHeight = effectiveHeight / 15.5;
+  if (maxLineHeight < baseLineHeight) {
+    mushafLineHeight = maxLineHeight;
+    mushafFontSize = mushafLineHeight / 2.0;
   }
 
   return (
