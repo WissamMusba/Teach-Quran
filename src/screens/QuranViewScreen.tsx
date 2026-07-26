@@ -21,8 +21,30 @@ import { getJuzInfoFromPage, getStartJuzOfSurah } from '../utils/theme';
 import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { captureRef } from 'react-native-view-shot';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import PageFlowingView from '../components/quran/PageFlowingView';
+
+function PageVersesFallback({ pageNum, studentData, handleWordFlow, handleBookmarkFlow, handleVerseLongPress, flashingVerse, readingMarkVerse, showTranslation }: any) {
+  const [verses, setVerses] = useState<any[]>([]);
+  const fontSize = useSelector((s: any) => s.quran.fontSize);
+  useEffect(() => {
+    let active = true;
+    getVersesByPage(pageNum).then((res: any) => { if (active) setVerses(res || []); });
+    return () => { active = false; };
+  }, [pageNum]);
+
+  if (verses.length === 0) {
+    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 15 }} scrollEventThrottle={16}>
+      <PageFlowingView verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
+        onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
+        bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).map(k => parseInt(k.split('_')[1]))}
+        notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
+    </ScrollView>
+  );
+}
 
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
