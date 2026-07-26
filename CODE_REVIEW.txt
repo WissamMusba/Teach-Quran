@@ -2,8 +2,46 @@
  QURAN MASTER APP — FULL SOURCE CODE REVIEW
 ================================================================================
 
-Generated: 2026-07-23
+Generated: 2026-07-26
 Total Files: 31 source files + package.json
+
+================================================================================
+ RECENT CHANGES (Batch 3 & 4)
+================================================================================
+
+Batch 3: Unify Page Mode Fonts & Fix Badges (No Scrolling)
+- All 5 fonts now use MushafPageView (removed PageVersesFallback, removed textStyle === 'uthmani' conditional)
+- MushafPageView maps JSON word positions to SQLite verse text (Saleem → textIndopak, others → textArabic)
+- Added pageVersesCache in QuranViewScreen to load SQLite verses per page via getVersesByPage
+- Added containerHeight state + onLayout on reading container for dynamic text shrinking
+- Dynamic font/line-height shrinking: containerHeight / 15.5 when header bar appears
+- Fixed edge tap zones: reduced from 40px to 10px, line padding from 45px to 12px
+- MushafPageView uses fixed height: mushafLineHeight (no ScrollView, no scrolling)
+- apply fontFamily from getArabicFont(textStyle) to word and header elements
+
+Batch 4: Force Verse Badges in All Modes & All Fonts
+- FlowingText (Continuous mode): replaced plain Text badge with circle View badge (TouchableOpacity + View + Text)
+- Added verseBadgeText, bookmarkedBadgeText styles to FlowingText with fontFamily: 'normal'
+- VerseDisplay: added fontFamily: 'normal' to verseBadgeText
+- MushafPageView: added fontFamily: 'normal' to verseBadgeText
+- Settings screen: renamed SALEEM → INDOPAK display label, wrapped Text Style buttons (5 items → 2 rows via flexWrap)
+- Added styleContainer (flexWrap) and styleBtn styles for Settings font options
+- All circle badges now render correctly across all 3 modes and all 5 fonts
+
+Font files available (assets/fonts/):
+  - PDMSSaleemQuranFont.ttf (Saleem/IndoPak)
+  - KFGQPCUthmanicScriptHAFS.ttf (Uthmani)
+  - NotoNaskhArabic-Regular.ttf (Noto)
+  - Amiri-Regular.ttf (MISSING - needs to be added)
+  - ScheherazadeNew-Regular.ttf (MISSING - needs to be added)
+
+Key Files Modified:
+  - src/screens/QuranViewScreen.tsx
+  - src/components/quran/MushafPageView.tsx
+  - src/components/quran/FlowingText.tsx
+  - src/components/quran/VerseDisplay.tsx
+  - src/screens/SettingsScreen.tsx
+  - CODE_REVIEW.txt (this file)
 Framework: React Native 0.72.0
 Language: TypeScript
 State: Redux Toolkit + redux-persist
