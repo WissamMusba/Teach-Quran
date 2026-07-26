@@ -4,13 +4,14 @@ const wScale = W / 375;
 export const scaleW = (n: number) => PixelRatio.roundToNearestPixel(n * Math.min(wScale, 1.5));
 export const scaleFont = (n: number) => PixelRatio.roundToNearestPixel(Math.max(12, Math.min(n * wScale, n * 1.6)));
 
-export const ARABIC_FONTS = {
-  uthmani: Platform.OS === 'ios' ? 'KFGQPC Uthmanic Script HAFS' : 'KFGQPCUthmanicScriptHAFS',
-  indopak: Platform.OS === 'ios' ? 'PDMS Saleem Quran Font' : 'PDMSSaleemQuranFont',
-  naskh: Platform.OS === 'ios' ? 'Noto Naskh Arabic' : 'NotoNaskhArabic',
+export const ARABIC_FONTS: Record<string, string> = {
+  saleem: 'PDMSSaleemQuranFont',
+  uthmani: 'KFGQPCUthmanicScriptHAFS',
+  amiri: 'Amiri-Regular',
+  scheherazade: 'ScheherazadeNew-Regular',
+  noto: 'NotoNaskhArabic-Regular',
 };
-export const getArabicFont = (style: string) =>
-  style === 'indopak' ? ARABIC_FONTS.indopak : style === 'naskh' ? ARABIC_FONTS.naskh : ARABIC_FONTS.uthmani;
+export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.saleem;
 
 export const COLORS = { primary: '#00d4aa', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };
 

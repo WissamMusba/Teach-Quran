@@ -37,9 +37,9 @@ const SettingsScreen = () => {
         </View>
         <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Text Style</Text>
         <View style={styles.modeContainer}>
-           {['indopak', 'uthmani', 'naskh'].map((style) => (
-            <TouchableOpacity key={style} style={[styles.modeBtnWide, textStyle === style && styles.activeMode]} onPress={() => dispatch(setTextStyle(style))}>
-              <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style}</Text>
+           {['saleem', 'uthmani', 'amiri', 'scheherazade', 'noto'].map((style) => (
+            <TouchableOpacity key={style} style={[styles.modeBtn, textStyle === style && styles.activeMode]} onPress={() => dispatch(setTextStyle(style as any))}>
+              <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style.toUpperCase()}</Text>
             </TouchableOpacity>
           ))}
         </View>
