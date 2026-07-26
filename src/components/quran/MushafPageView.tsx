@@ -21,7 +21,7 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
     const maxLineHeight = containerHeight / 15.5;
     if (maxLineHeight < baseLineHeight) {
       mushafLineHeight = maxLineHeight;
-      mushafFontSize = mushafLineHeight / 1.45;
+      mushafFontSize = mushafLineHeight / 2.0;
     }
   }
 
@@ -42,6 +42,12 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
               const vKey = `${surahId}_${verseNum}`;
               const verseObj = versesForPage.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = word.word;
+              if (verseObj) {
+                const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
+                const fullText = isIndopakStyle ? (verseObj.textIndopak || verseObj.textArabic) : verseObj.textArabic;
+                const wordsArray = fullText.replace(/۞/u, '').trim().split(' ');
+                displayText = wordsArray[wordPos - 1] || word.word;
+              }
 
               const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
               const isBookmarked = !!bookmarks?.[vKey];
@@ -74,7 +80,7 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
                   {isVerseBoundary && (
                     <View style={styles.verseBadgeContainer}>
                       <TouchableOpacity onPress={() => onBookmarkToggle(verseNum)}>
-                        <View style={[styles.verseBadge, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+                        <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
                           <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
@@ -98,7 +104,7 @@ const styles = StyleSheet.create({
   text: { textAlign: 'center', flexShrink: 1, includeFontPadding: false, textAlignVertical: 'center' },
   headerText: { fontWeight: 'bold', textAlign: 'center', includeFontPadding: false },
   verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
-  verseBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
