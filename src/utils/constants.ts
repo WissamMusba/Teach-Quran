@@ -5,5 +5,5 @@ export const DRAWING_COLORS = [
   { id: 'yellow', name: 'Yellow', hex: '#FFD700' },
   { id: 'black', name: 'Black', hex: '#000000' }
 ];
-export const FONT_SIZES = { small: 18, medium: 22, large: 26, xl: 32 };
+export const FONT_SIZES = { small: 22, medium: 26, large: 30, xl: 36 };
 export const SYNC_INTERVAL = 5 * 60 * 1000;
