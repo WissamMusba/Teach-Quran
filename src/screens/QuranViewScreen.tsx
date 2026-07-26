@@ -234,10 +234,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   };
 
   const onSwipe = (event: any) => {
-    if (isDrawing || readingMode === 'page') return;
+    if (isDrawing) return;
     if (event.nativeEvent.state === State.END) {
-      if (event.nativeEvent.translationX > 50 && currentSurahId > 1) dispatch(setSurah({ surahId: currentSurahId - 1, verses: [] }));
-      else if (event.nativeEvent.translationX < -50 && currentSurahId < 114) dispatch(setSurah({ surahId: currentSurahId + 1, verses: [] }));
+      const { translationX, translationY, velocityY } = event.nativeEvent;
+      if (translationY > 40 || velocityY > 300) {
+        setIsHeaderVisible(true);
+      } else if (translationY < -40 || velocityY < -300) {
+        setIsHeaderVisible(false);
+      } else if (readingMode !== 'page') {
+        if (translationX > 50 && currentSurahId > 1) dispatch(setSurah({ surahId: currentSurahId - 1, verses: [] }));
+        else if (translationX < -50 && currentSurahId < 114) dispatch(setSurah({ surahId: currentSurahId + 1, verses: [] }));
+      }
     }
   };
 
@@ -258,7 +265,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onDraw={() => setIsDrawing(true)} onSettings={() => navigation.navigate('Settings')} />
 
       <View style={{ flex: 1 }} onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}>
-        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetX={[-20, 20]} failOffsetY={[-5, 5]}>
+        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]}>
           <View style={{ flex: 1, position: 'relative' }} ref={viewShotRef} collapsable={false}>
             <Pressable style={styles.edgeTapLeft} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
             <Pressable style={styles.edgeTapRight} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />

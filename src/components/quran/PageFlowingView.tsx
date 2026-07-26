@@ -17,7 +17,7 @@ const PageFlowingView = ({ verses, highlights, bookmarks, notes, readingMarkVers
   return (
     <View style={styles.container}>
       {verses.map((verse: any) => {
-        const displayText = (textStyle === 'saleem' || textStyle === 'indopak') ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
+        const displayText = (textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran') ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
         const words = displayText.replace(/۞/u, '').trim().split(' ');
         const vKey = `${verse.surahId}_${verse.verseNumber}`;
         const verseHighs = highlights?.[vKey]?.highlights || [];

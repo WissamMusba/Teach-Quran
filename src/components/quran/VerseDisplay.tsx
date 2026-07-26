@@ -9,7 +9,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
-  const displayText = (textStyle === 'saleem' || textStyle === 'indopak') ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
+  const displayText = (textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran') ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
   const words = displayText.replace(/۞/u, '').trim().split(' ');
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
   const isFlashing = flashingVerse === verse.verseNumber;

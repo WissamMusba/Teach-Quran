@@ -43,7 +43,7 @@ const MushafPageView = ({ containerHeight, versesForPage, pageData, highlights, 
               const verseObj = versesForPage.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = word.word;
               if (verseObj) {
-                const fullText = textStyle === 'saleem' || textStyle === 'indopak' ? (verseObj.textIndopak || verseObj.textArabic) : verseObj.textArabic;
+                const fullText = (textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran') ? (verseObj.textIndopak || verseObj.textArabic) : verseObj.textArabic;
                 const wordsArray = fullText.replace(/۞/u, '').trim().split(' ');
                 displayText = wordsArray[wordPos - 1] || word.word;
               }

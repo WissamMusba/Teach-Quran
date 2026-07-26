@@ -7,6 +7,7 @@ export const scaleFont = (n: number) => PixelRatio.roundToNearestPixel(Math.max(
 export const ARABIC_FONTS: Record<string, string> = {
   saleem: 'PDMSSaleemQuranFont',
   uthmani: 'KFGQPCUthmanicScriptHAFS',
+  mequran: 'Me_Quran',
   amiri: 'Amiri-Regular',
   scheherazade: 'ScheherazadeNew-Regular',
   noto: 'NotoNaskhArabic-Regular',
