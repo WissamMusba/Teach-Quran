@@ -4,15 +4,15 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
-const MushafPageView = ({ versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
+const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
   const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
   
   if (!pageData || !pageData.lines) return <View style={styles.container} />;
-  const mushafFontSize = getMushafFontSize();
-  const mushafLineHeight = getMushafLineHeight();
+  const mushafFontSize = getMushafFontSize(headerVisible);
+  const mushafLineHeight = getMushafLineHeight(headerVisible);
 
   return (
     <View style={styles.container}>

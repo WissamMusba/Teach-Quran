@@ -8,12 +8,16 @@ export const scaleFont = (size: number): number => {
   return PixelRatio.roundToNearestPixel(size * scale);
 };
 
-export const getMushafFontSize = (): number => {
-  if (SCREEN_WIDTH < 360) return 18;
-  if (SCREEN_WIDTH < 400) return 20;
-  if (SCREEN_WIDTH < 500) return 22;
-  if (SCREEN_WIDTH < 700) return 25;
-  return 28;
+export const getMushafFontSize = (headerVisible?: boolean): number => {
+  const base = (() => {
+    if (SCREEN_WIDTH < 360) return 18;
+    if (SCREEN_WIDTH < 400) return 20;
+    if (SCREEN_WIDTH < 500) return 22;
+    if (SCREEN_WIDTH < 700) return 25;
+    return 28;
+  })();
+  if (headerVisible === false) return base + 3;
+  return base;
 };
 
-export const getMushafLineHeight = (): number => getMushafFontSize() * 1.4;
+export const getMushafLineHeight = (headerVisible?: boolean): number => getMushafFontSize(headerVisible) * 1.6;

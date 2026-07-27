@@ -20,9 +20,9 @@ export default function RegisterScreen({ navigation }: any) {
 }
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#121212' },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: '#fff' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#00d4aa' },
   input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#fff', backgroundColor: '#1e1e1e' },
-  btn: { height: 50, backgroundColor: '#0066FF', justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
-  btnText: { color: '#fff', fontSize: 18 },
-  link: { color: '#0066FF', marginTop: 15, textAlign: 'center' }
+  btn: { height: 50, backgroundColor: '#00d4aa', justifyContent: 'center', alignItems: 'center', borderRadius: 8, marginTop: 5 },
+  btnText: { color: '#121212', fontSize: 18, fontWeight: '700' },
+  link: { color: '#00d4aa', marginTop: 15, textAlign: 'center', fontSize: 14 }
 });

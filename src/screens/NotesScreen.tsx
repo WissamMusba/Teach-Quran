@@ -18,16 +18,17 @@ export default function NotesScreen() {
     <View style={styles.container}>
       {notes.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={{ fontSize: 48, marginBottom: 10 }}>📝</Text>
+          <Text style={styles.emptyIcon}>📝</Text>
           <Text style={styles.emptyText}>No notes yet</Text>
+          <Text style={styles.emptySub}>Long-press a verse to add a note</Text>
         </View>
       ) : (
-        <FlatList data={notes} keyExtractor={(i: any) => i[0]} renderItem={({ item }: any) => {
+        <FlatList data={notes} keyExtractor={(i: any) => i[0]} contentContainerStyle={styles.list} renderItem={({ item }: any) => {
           const [s, v] = item[0].split('_').map(Number);
           return (
-            <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item[0])}>
-              <Text style={styles.headerText}>Surat {surahNames[s] || '...'} ({s}:{v})</Text>
-              <Text style={styles.noteText}>{item[1]}</Text>
+            <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item[0])} activeOpacity={0.7}>
+              <Text style={styles.surahText}>Surat {surahNames[s] || '...'}  ·  Ayat {v}</Text>
+              <Text style={styles.noteText} numberOfLines={3}>{item[1]}</Text>
             </TouchableOpacity>
           );
         }} />
@@ -37,10 +38,13 @@ export default function NotesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 15, backgroundColor: '#121212' },
-  card: { backgroundColor: '#1e1e1e', padding: 20, borderRadius: 8, marginBottom: 10 },
-  headerText: { color: '#00d4aa', fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
-  noteText: { color: '#fff', fontSize: 16 },
+  container: { flex: 1, padding: 16, backgroundColor: '#121212' },
+  list: { paddingBottom: 20 },
+  card: { backgroundColor: '#1a1a2e', padding: 14, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: '#2a2a4a' },
+  surahText: { color: '#00d4aa', fontSize: 12, fontWeight: '700', marginBottom: 6, letterSpacing: 0.5 },
+  noteText: { color: '#fff', fontSize: 14, lineHeight: 20 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#888', fontSize: 16 }
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { color: '#888', fontSize: 16, fontWeight: '600' },
+  emptySub: { color: '#555', fontSize: 12, marginTop: 4 },
 });
