@@ -17,7 +17,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const fontFamily = getArabicFont(textStyle);
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
-  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
+  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
   const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>

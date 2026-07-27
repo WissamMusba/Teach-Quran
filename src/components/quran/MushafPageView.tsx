@@ -13,18 +13,19 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   if (!pageData || !pageData.lines) return <View style={styles.container} />;
   const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
-  const fontAdj: Record<string, { size: number; y: number }> = {
-    saleem: { size: 2, y: 0 },
-    uthmani: { size: 0, y: 0 },
-    mequran: { size: 0, y: 1 },
-    alqalam: { size: 0, y: 0 },
-    lateef: { size: 4, y: 0 },
-    harmattan: { size: 0, y: 0 },
-    amiri: { size: 0, y: 0 },
-    scheherazade: { size: 0, y: 1 },
-    noto: { size: 0, y: 1 },
+  const getFontAdj = (ts: string, hv: boolean) => {
+    switch (ts) {
+      case 'saleem': return { size: 2, y: 0 };
+      case 'alqalam': return { size: 0, y: 0 };
+      case 'uthmani': return { size: 0, y: 0 };
+      case 'mequran': return { size: hv ? -1 : 0, y: 2 };
+      case 'lateef': return { size: 4, y: 0 };
+      case 'noto': return { size: 0, y: hv ? 0 : 1 };
+      case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
+      default: return { size: 0, y: 0 };
+    }
   };
-  const adj = fontAdj[textStyle] || { size: 0, y: 0 };
+  const adj = getFontAdj(textStyle, headerVisible);
 
   return (
     <View style={styles.container}>
