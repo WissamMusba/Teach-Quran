@@ -1,57 +1,39 @@
 import { firestore, getUserId } from './firebase';
-import { getPendingSyncQueue, markQueueItemsSynced, getStudentData, saveStudentData } from '../database/localDB';
+import { getPendingSyncStudents, clearSyncQueueForStudent, getStudentData } from '../database/localDB';
 
-export const processSyncQueue = async () => {
-  const userId = getUserId();
-  if (!userId) return { success: false, error: 'No user' };
-
+const serverNow = (): any => {
   try {
-    const queue = await getPendingSyncQueue();
-    if (queue.length === 0) return { success: true, synced: 0 };
+    const FV = (firestore as any).FieldValue;
+    if (FV && typeof FV.serverTimestamp === 'function') return FV.serverTimestamp();
+  } catch {}
+  return new Date().toISOString();
+};
 
-    const uniqueIds = [...new Set(queue.map(item => item.studentId))];
-    let syncedCount = 0;
-    let batch = firestore().batch();
-    let opsInBatch = 0;
+export const processSyncQueue = async (): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> => {
+  const userId = getUserId();
+  if (!userId) return { success: false, error: 'Not authenticated' };
+  try {
+    let dirtyIds: string[] = [];
+    try { dirtyIds = await getPendingSyncStudents(); } catch { return { success: false, error: 'queue read failed' }; }
+    if (!dirtyIds || dirtyIds.length === 0) return { success: true, synced: 0, failed: 0 };
 
-    for (const studentId of uniqueIds) {
-      const localData = await getStudentData(studentId);
-      if (!localData) continue;
-
-      const ref = firestore().collection('users').doc(userId).collection('students').doc(studentId).collection('data').doc('studentData');
-      const cloudDoc = await ref.get();
-      const cloudData = cloudDoc.exists ? cloudDoc.data() : null;
-
-      const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : 0;
-      const cloudTime = cloudData?.updatedAt?.toMillis ? cloudData.updatedAt.toMillis() : 0;
-
-      if (localTime >= cloudTime) {
-        batch.set(ref, { 
-          ...localData, 
-          updatedAt: firestore.FieldValue.serverTimestamp() 
-        }, { merge: true });
-        syncedCount++;
-        opsInBatch++;
-      } else {
-        await saveStudentData(studentId, { ...cloudData, updatedAt: new Date(cloudTime) });
-      }
-
-      // ⚠️ CRITICAL FIX: Firestore max batch size is 500. Chunk it.
-      if (opsInBatch >= 400) {
-        await batch.commit();
-        batch = firestore().batch(); // Start a new batch
-        opsInBatch = 0;
-      }
+    let synced = 0, failed = 0;
+    for (const sid of dirtyIds) {
+      try {
+        const local = await getStudentData(sid);
+        if (!local) { try { await clearSyncQueueForStudent(sid); } catch {} continue; }
+        await firestore()
+          .collection('users').doc(userId)
+          .collection('students').doc(sid)
+          .collection('data').doc('studentData')
+          .set({ ...(local as object), updatedAt: serverNow() }, { merge: true });
+        try { await clearSyncQueueForStudent(sid); } catch {}
+        synced++;
+      } catch (e) { console.warn(`Sync failed for ${sid}:`, e); failed++; }
     }
-
-    // Commit any remaining operations
-    if (opsInBatch > 0) {
-      await batch.commit();
-    }
-
-    await markQueueItemsSynced(queue.map(item => item.id));
-    return { success: true, synced: syncedCount };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: true, synced, failed };
+  } catch (e: any) {
+    console.warn('Sync failed:', e?.message);
+    return { success: false, error: e?.message };
   }
 };

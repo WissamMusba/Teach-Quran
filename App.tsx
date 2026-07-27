@@ -1,12 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { processSyncQueue } from './src/api/sync';
-import { SYNC_INTERVAL } from './src/utils/constants';
-
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -21,11 +20,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+const SYNC_INTERVAL = 30 * 60 * 1000; // 30-min safety net defined locally
 const Stack = createNativeStackNavigator();
 
 const AppInner = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -37,14 +38,20 @@ const AppInner = () => {
     };
     initialSync();
 
-    const intervalId = setInterval(async () => {
+    const interval = setInterval(async () => {
       dispatch(setSyncing());
       const result = await processSyncQueue();
       if (result.success) dispatch(setSynced(new Date().toISOString()));
       else dispatch(setOffline());
     }, SYNC_INTERVAL);
 
-    return () => clearInterval(intervalId);
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      const prev = appState.current; appState.current = next;
+      if (prev === 'active' && next !== 'active') processSyncQueue().catch(() => {});
+      if (prev !== 'active' && next === 'active') processSyncQueue().catch(() => {});
+    });
+
+    return () => { clearInterval(interval); sub.remove(); };
   }, [isAuthenticated, dispatch]);
 
   return (
