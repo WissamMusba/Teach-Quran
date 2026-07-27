@@ -2,151 +2,500 @@
  TEMP CHANGES — Apply when instructed
 ========================================
 
-Apply these edits in order from top to bottom.
+Apply these edits **in order**. Each section is adapted to match the actual
+codebase — column names, db handle pattern, import paths, existing wrappers.
 
-========================================
- EDIT 1: src/screens/QuranViewScreen.tsx
-========================================
+=====================================================================
+ EDIT 1: src/api/sync.ts  (FULL FILE REPLACE)
+Coalesced sync — zero reads, server-timestamp, last-write-wins.
+Keeps our existing firebase wrapper import ({ firestore, getUserId }).
+=====================================================================
 
---- 1a. Add missing Share import ---
-After line 24 (import { captureRef }), insert:
+import { firestore, getUserId } from './firebase';
+import { getPendingSyncStudents, clearSyncQueueForStudent, getStudentData } from '../database/localDB';
 
-  import Share from 'react-native-share';
+const serverNow = (): any => {
+  try {
+    const FV = (firestore as any).FieldValue;
+    if (FV && typeof FV.serverTimestamp === 'function') return FV.serverTimestamp();
+  } catch {}
+  return new Date().toISOString();
+};
 
-Result should be:
-  import { captureRef } from 'react-native-view-shot';
-  import Share from 'react-native-share';
-  import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+export const processSyncQueue = async (): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> => {
+  const userId = getUserId();
+  if (!userId) return { success: false, error: 'Not authenticated' };
+  try {
+    let dirtyIds: string[] = [];
+    try { dirtyIds = await getPendingSyncStudents(); } catch { return { success: false, error: 'queue read failed' }; }
+    if (!dirtyIds || dirtyIds.length === 0) return { success: true, synced: 0, failed: 0 };
 
---- 1b. Fix handleBookmarkFlow to accept surahId ---
-Replace lines 191-199:
-
-  const handleBookmarkFlow = useCallback((verseNum: number, surahId?: number) => {
-    if (!studentData) return;
-    const sId = surahId || currentSurahId;
-    const vKey = `${sId}_${verseNum}`;
-    const cMarks = studentData.bookmarks || {};
-    const newMarks = { ...cMarks };
-    if (newMarks[vKey]) delete newMarks[vKey]; else newMarks[vKey] = { surah: sId, verse: verseNum, createdAt: new Date().toISOString() };
-    updateData({ ...studentData, bookmarks: newMarks });
-    ReactNativeHapticFeedback.trigger('impactMedium');
-  }, [studentData, currentSurahId]);
-
---- 1c. Fix onBookmarkToggle wrapper to pass surahId ---
-Replace line 202:
-
-  const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
-
---- 1d. Fix FlowingText props — pass bookmarks object instead of filtered array ---
-Replace lines 297-300:
-
-                <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
-                  onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
-                  bookmarks={studentData?.bookmarks}
-                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
-
---- 1e. Add scroll handler + edge taps to continuous mode ---
-Replace lines 295-303:
-
-            {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }}
-                onScroll={({ nativeEvent }: any) => {
-                  const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
-                  if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
-                    if (!loadingMore && hasMore && verses.length > 0) {
-                      setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false));
-                    }
-                  }
-                }} scrollEventThrottle={100}>
-                <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
-                  onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
-                  bookmarks={studentData?.bookmarks}
-                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
-                {loadingMore && <ActivityIndicator color="#00d4aa" />}
-              </ScrollView>
-            )}
+    let synced = 0, failed = 0;
+    for (const sid of dirtyIds) {
+      try {
+        const local = await getStudentData(sid);
+        if (!local) { try { await clearSyncQueueForStudent(sid); } catch {} continue; }
+        await firestore()
+          .collection('users').doc(userId)
+          .collection('students').doc(sid)
+          .collection('data').doc('studentData')
+          .set({ ...(local as object), updatedAt: serverNow() }, { merge: true });
+        try { await clearSyncQueueForStudent(sid); } catch {}
+        synced++;
+      } catch (e) { console.warn(`Sync failed for ${sid}:`, e); failed++; }
+    }
+    return { success: true, synced, failed };
+  } catch (e: any) {
+    console.warn('Sync failed:', e?.message);
+    return { success: false, error: e?.message };
+  }
+};
 
 
-========================================
- EDIT 2: src/components/quran/FlowingText.tsx
-========================================
+=====================================================================
+ EDIT 2: src/database/localDB.ts  (ADDITIVE — do NOT delete anything)
+New functions for coalesced sync + optional student-list cache.
+Adapted: sync_queue uses `synced` (0/1) not `status`, db handle is getDB().
+=====================================================================
 
---- 2a. Change signature to accept bookmarks object instead of bookmarkedVerses array ---
-Replace line 8:
+--- 2a. Add auth import at top ---
+Find line 1:
+  import SQLite from 'react-native-sqlite-storage';
+Insert after it:
+  import auth from '@react-native-firebase/auth';
 
-const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, showTranslation, fontSize, bookmarks, notes, flashingVerse, readingMarkVerse }: any) => {
+--- 2b. Add new table creation inside initDatabase ---
+Find line that says:
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages ...`);
+Insert after it:
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
 
---- 2b. Fix bookmark lookup + pass surahId to onBookmarkToggle + redesign for flowing layout ---
-Replace lines 17-51 (the entire return block inside the component function):
+--- 2c. Add four new exported functions at the end of the file (after purgeLocalStudent) ---
+
+export const getPendingSyncStudents = async (): Promise<string[]> => {
+  try {
+    const r = await getDB().executeSql(`SELECT DISTINCT studentId FROM sync_queue WHERE synced = 0`);
+    const ids: string[] = [];
+    for (let i = 0; i < r[0].rows.length; i++) ids.push(r[0].rows.item(i).studentId);
+    return ids;
+  } catch (e) { console.warn('getPendingSyncStudents failed', e); return []; }
+};
+
+export const clearSyncQueueForStudent = async (studentId: string): Promise<void> => {
+  try {
+    await getDB().executeSql(`DELETE FROM sync_queue WHERE studentId = ?`, [studentId]);
+  } catch (e) { console.warn('clearSyncQueueForStudent failed', e); }
+};
+
+export const getCachedStudentList = async (): Promise<any[] | null> => {
+  try {
+    const uid = auth().currentUser?.uid; if (!uid) return null;
+    const r = await getDB().executeSql(`SELECT students FROM student_list_cache WHERE uid = ?`, [uid]);
+    if (r[0].rows.length === 0) return null;
+    return JSON.parse(r[0].rows.item(0).students);
+  } catch { return null; }
+};
+
+export const cacheStudentList = async (students: any[]): Promise<void> => {
+  try {
+    const uid = auth().currentUser?.uid; if (!uid) return;
+    await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
+      [uid, JSON.stringify(students), new Date().toISOString()]);
+  } catch {}
+};
+
+
+=====================================================================
+ EDIT 3: src/App.tsx  (FULL FILE REPLACE)
+Adds AppState background/foreground sync + 30-min interval.
+Keeps GestureHandlerRootView, ./src/ imports, syncSlice dispatches,
+and the isAuthenticated gate from the current version.
+=====================================================================
+
+import React, { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Provider, useDispatch, useSelector } from 'react-redux';
+import { store, persistor, RootState } from './src/store';
+import { PersistGate } from 'redux-persist/integration/react';
+import { processSyncQueue } from './src/api/sync';
+import SplashScreen from './src/screens/SplashScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+import QuranViewScreen from './src/screens/QuranViewScreen';
+import BookmarksScreen from './src/screens/BookmarksScreen';
+import MistakesScreen from './src/screens/MistakesScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import NotesScreen from './src/screens/NotesScreen';
+import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+const SYNC_INTERVAL = 30 * 60 * 1000; // 30-min safety net defined locally
+const Stack = createNativeStackNavigator();
+
+const AppInner = () => {
+  const dispatch = useDispatch();
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const initialSync = async () => {
+      dispatch(setSyncing());
+      const result = await processSyncQueue();
+      if (result.success) dispatch(setSynced(new Date().toISOString()));
+      else dispatch(setOffline());
+    };
+    initialSync();
+
+    const interval = setInterval(async () => {
+      dispatch(setSyncing());
+      const result = await processSyncQueue();
+      if (result.success) dispatch(setSynced(new Date().toISOString()));
+      else dispatch(setOffline());
+    }, SYNC_INTERVAL);
+
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      const prev = appState.current; appState.current = next;
+      if (prev === 'active' && next !== 'active') processSyncQueue().catch(() => {}); // leaving -> flush
+      if (prev !== 'active' && next === 'active') processSyncQueue().catch(() => {}); // returning -> flush
+    });
+
+    return () => { clearInterval(interval); sub.remove(); };
+  }, [isAuthenticated, dispatch]);
 
   return (
-    <View style={styles.container}>
-      {verses.map((verse: any) => {
-        const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'lateef' || textStyle === 'harmattan';
-        const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
-        const words = displayText.replace(/۞/u, '').trim().split(' ');
-        const vKey = `${verse.surahId}_${verse.verseNumber}`;
-        const verseHighs = highlights?.[vKey]?.highlights || [];
-        const isBookmarked = !!bookmarks?.[vKey];
-        const hasNote = !!notes?.[vKey];
-        const isFlashing = flashingVerse === verse.verseNumber;
-        const isReadingMark = readingMarkVerse === verse.verseNumber;
-        return (
-          <View key={vKey} style={[styles.verseBlock, { borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
-            <Text style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }]}>
-              {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
-              {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
-              {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}
-              {words.map((word: string, wIdx: number) => {
-                const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
-                return (
-                  <Text key={wIdx} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
-                    style={[styles.arabicText, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
-                );
-              })}
-              <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber, verse.surahId)}>
-                <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                  <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-                </View>
-              </TouchableOpacity>
-            </Text>
-            {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
-          </View>
-        );
-      })}
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Splash">
+        <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Students', headerBackVisible: false }} />
+        <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
+        <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />
+        <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+const App = () => {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <Provider store={store}>
+            <PersistGate loading={null} persistor={persistor}>
+              <AppInner />
+            </PersistGate>
+          </Provider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
+  );
+};
+
+export default App;
+
+
+=====================================================================
+ EDIT 4 (OPTIONAL): src/api/student.ts  — Replace getStudents body
+Cache-first student list. Keeps our existing import + getUserId pattern.
+SKIP this if you don't want the cache — app still works, just pays one
+read per dashboard open.
+=====================================================================
+
+--- 4a. Add imports at top ---
+At line 1, after `import { firestore, getUserId } from './firebase';`, add:
+import { getCachedStudentList, cacheStudentList } from '../database/localDB';
+
+--- 4b. Replace getStudents function body ---
+Replace lines 9-14 (the whole function body) with:
+
+export const getStudents = async () => {
+  const userId = getUserId();
+  if (!userId) return { success: false, error: 'No user' };
+  try {
+    const cached = await getCachedStudentList();
+    if (cached && cached.length > 0) { refreshInBackground(userId); return { success: true, students: cached }; }
+    const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
+    const students = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) }));
+    await cacheStudentList(students);
+    return { success: true, students };
+  } catch (e: any) {
+    const cached = await getCachedStudentList(); // offline fallback
+    if (cached && cached.length > 0) return { success: true, students: cached };
+    return { success: false, error: e?.message };
+  }
+};
+
+async function refreshInBackground(uid: string) {
+  try {
+    const snap = await firestore().collection('users').doc(uid).collection('students').orderBy('createdAt', 'desc').get();
+    await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
+  } catch {}
+}
+
+--- 4c (optional): Keep cache fresh after create/delete ---
+In createStudent, after the ref is created, optionally add:
+  const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
+  await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
+
+In deleteStudent, after deleting, optionally add:
+  const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
+  await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
+
+
+=====================================================================
+ EDIT 5: NEW FILE — src/components/audio/VoiceNoteRecorder.tsx
+Tiny config (mono/16kHz/24kbps/HE-AAC) + hard 60s cap.
+Enums loaded via guarded require() — cannot crash the reader.
+=====================================================================
+
+Place this at src/components/audio/VoiceNoteRecorder.tsx (create the audio
+directory if it doesn't exist):
+
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, PermissionsAndroid, Platform } from 'react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+
+let AudioEncoderAndroidType: any, OutputFormatAndroidType: any, AudioSourceAndroidType: any;
+try {
+  const mod = require('react-native-audio-recorder-player');
+  AudioEncoderAndroidType = mod.AudioEncoderAndroidType;
+  OutputFormatAndroidType = mod.OutputFormatAndroidType;
+  AudioSourceAndroidType = mod.AudioSourceAndroidType;
+} catch {}
+
+const recorder = new AudioRecorderPlayer();
+
+const buildAudioSets = (): any => {
+  const sets: any = { AudioSamplingRateAndroid: 16000, AudioEncodingBitRateAndroid: 24000, AudioChannelsAndroid: 1 };
+  try {
+    if (AudioSourceAndroidType && AudioSourceAndroidType.MIC !== undefined) sets.AudioSourceAndroid = AudioSourceAndroidType.MIC;
+    if (OutputFormatAndroidType && OutputFormatAndroidType.MPEG_4 !== undefined) sets.OutputFormatAndroid = OutputFormatAndroidType.MPEG_4;
+    if (AudioEncoderAndroidType) {
+      if (AudioEncoderAndroidType.HE_AAC !== undefined) sets.AudioEncoderAndroid = AudioEncoderAndroidType.HE_AAC;
+      else if (AudioEncoderAndroidType.AAC !== undefined) sets.AudioEncoderAndroid = AudioEncoderAndroidType.AAC;
+    }
+  } catch {}
+  return sets;
+};
+
+const fmt = (ms: number) => {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
+
+const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (path: string, ms: number) => void; onCancel: () => void; maxMs?: number }) => {
+  const [recording, setRecording] = useState(false);
+  const [time, setTime] = useState('00:00');
+  const durRef = useRef(0);
+  const stoppingRef = useRef(false);
+
+  useEffect(() => () => { recorder.removeRecordBackListener(); }, []);
+
+  const requestPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const g = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+        title: 'Microphone',
+        message: 'Needed to record voice notes.',
+        buttonPositive: 'OK',
+      });
+      return g === PermissionsAndroid.RESULTS.GRANTED;
+    } catch { return false; }
+  };
+
+  const stop = async (auto = false) => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    try {
+      const res = await recorder.stopRecorder();
+      recorder.removeRecordBackListener();
+      setRecording(false);
+      const ms = durRef.current;
+      if (res && ms > 500) onSaved(res, ms);
+      else if (!auto) Alert.alert('Too short', 'Hold on a moment — the recording was too short.');
+    } catch (e: any) {
+      if (!auto) Alert.alert('Error', e?.message || 'Could not stop recording.');
+      setRecording(false);
+    } finally {
+      stoppingRef.current = false;
+    }
+  };
+
+  const start = async () => {
+    if (!(await requestPermission())) {
+      Alert.alert('Permission denied', 'Microphone access is required for voice notes.');
+      return;
+    }
+    try {
+      await recorder.startRecorder(`audio_note_${Date.now()}.m4a`, buildAudioSets());
+      durRef.current = 0;
+      stoppingRef.current = false;
+      setRecording(true);
+      recorder.addRecordBackListener((e: any) => {
+        const pos = Math.min(e.currentPosition, maxMs);
+        durRef.current = pos;
+        setTime(fmt(pos));
+        if (e.currentPosition >= maxMs) stop(true);
+      });
+    } catch (e: any) {
+      Alert.alert('Recording error', e?.message || 'Could not start recording.');
+    }
+  };
+
+  const cancel = async () => {
+    if (recording) { try { await recorder.stopRecorder(); recorder.removeRecordBackListener(); } catch {} }
+    onCancel();
+  };
+
+  const atMax = recording && durRef.current >= maxMs - 200;
+
+  return (
+    <View style={styles.overlay}>
+      <View style={styles.box}>
+        <Text style={styles.title}>Voice Note</Text>
+        <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{recording ? time : 'Tap record to start'}</Text>
+        <Text style={styles.cap}>{recording ? `Max ${fmt(maxMs)}` : `Notes are capped at ${fmt(maxMs)} to save space`}</Text>
+        <View style={styles.row}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={cancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+          {!recording ? (
+            <TouchableOpacity style={styles.recBtn} onPress={start}>
+              <Text style={styles.recText}>Record</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.stopBtn} onPress={() => stop(false)}>
+              <Text style={styles.stopText}>Stop & Save</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     </View>
   );
-
---- 2c. Update styles for more flowing/compact layout ---
-Replace the entire styles object (lines 54-68):
+};
 
 const styles = StyleSheet.create({
-  container: { width: '100%', padding: 12, backgroundColor: 'transparent' },
-  verseBlock: { paddingVertical: 4, borderBottomWidth: 0, marginBottom: 2 },
-  mainText: { textAlign: 'center', width: '100%' },
-  arabicText: {},
-  bookmarkIcon: { color: '#ffd700', fontSize: 14 },
-  noteIcon: { color: '#ffd700', fontSize: 11 },
-  readingMarkIcon: { color: '#4a90d9', fontSize: 12 },
-  verseBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginLeft: 6, marginTop: 2, borderWidth: 1, borderColor: '#00d4aa', alignSelf: 'center' },
-  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
-  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { color: '#ffffff', fontSize: 12, fontWeight: '700', fontFamily: 'normal' },
-  bookmarkedBadgeText: { color: '#000000' },
-  translation: { color: '#b0b0b0', fontStyle: 'italic', fontSize: 14, textAlign: 'center', marginTop: 2 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
+  box: { width: '82%', backgroundColor: '#1e1e1e', borderRadius: 14, padding: 24, alignItems: 'center' },
+  title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  timer: { color: '#00d4aa', fontSize: 34, fontWeight: 'bold', marginBottom: 6, fontVariant: ['tabular-nums'] as const },
+  cap: { color: '#888', fontSize: 12, marginBottom: 18 },
+  row: { flexDirection: 'row', width: '100%', gap: 10 },
+  cancelBtn: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#333', borderRadius: 10 },
+  cancelText: { color: '#fff', fontWeight: '600' },
+  recBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#FF4444', borderRadius: 10 },
+  recText: { color: '#fff', fontWeight: '700' },
+  stopBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 10 },
+  stopText: { color: '#000', fontWeight: '700' },
 });
 
-
-========================================
- EDIT 3: src/components/quran/MushafPageView.tsx
-========================================
-
---- 3a. Fix onBookmarkToggle to pass surahId ---
-Replace line 68:
-
-                      <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
+export default VoiceNoteRecorder;
 
 
-========================================
+=====================================================================
+ EDIT 6: src/store/quranSlice.ts — type union + default
+Add `alqalam` to type union, remove `harmattan` and `scheherazade`,
+change default textStyle from `'uthmani'` to `'alqalam'`.
+=====================================================================
+
+--- 6a. Change initialization default ---
+Find line 12:
+  textStyle: 'uthmani' as 'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'scheherazade' | 'noto'
+Replace with:
+  textStyle: 'alqalam' as 'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto'
+
+--- 6b. Fix setTextStyle action payload type ---
+Find line 21:
+  setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'scheherazade' | 'noto'>) => { state.textStyle = action.payload; }
+Replace with:
+  setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto'>) => { state.textStyle = action.payload; }
+
+
+=====================================================================
+ EDIT 7: src/screens/SettingsScreen.tsx — font list
+Rename alqalam to "INDOPAK 1", remove harmattan + scheherazade.
+=====================================================================
+
+--- 7a. Remove harmattan and scheherazade from font list, add INDOPAK 1 label ---
+Find line 40:
+  {['saleem', 'uthmani', 'mequran', 'alqalam', 'lateef', 'harmattan', 'scheherazade', 'noto'].map((style) => (
+Replace with:
+  {['saleem', 'uthmani', 'mequran', 'alqalam', 'lateef', 'noto'].map((style) => (
+
+Find lines 42-43:
+  <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style === 'saleem' ? 'INDOPAK' : style === 'mequran' ? 'ME QURAN' : style === 'alqalam' ? 'AL QALAM' : style === 'lateef' ? 'LATEEF (WAQF)' : style.toUpperCase()}</Text>
+Replace with:
+  <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style === 'alqalam' ? 'INDOPAK 1' : style === 'saleem' ? 'INDOPAK' : style === 'mequran' ? 'ME QURAN' : style === 'lateef' ? 'LATEEF (WAQF)' : style.toUpperCase()}</Text>
+
+
+=====================================================================
+ EDIT 8: src/components/quran/VerseDisplay.tsx — y-offset adjustments
+Me Quran 2px down (was 1), remove scheherazade entry.
+=====================================================================
+
+--- 8a. Update yAdj map ---
+Find line 20:
+  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
+Replace with:
+  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+
+
+=====================================================================
+ EDIT 9: src/components/quran/FlowingText.tsx — same y-offset adjustments
+=====================================================================
+
+Find line 16:
+  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
+Replace with:
+  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+
+
+=====================================================================
+ EDIT 10: src/components/quran/MushafPageView.tsx — header-aware font adjustment
+Replace static fontAdj object with a getFontAdj(headerVisible) function.
+=====================================================================
+
+--- 10a. Replace the static fontAdj declaration + adj lookup ---
+Find lines 16-27:
+  const fontAdj: Record<string, { size: number; y: number }> = {
+    saleem: { size: 2, y: 0 },
+    uthmani: { size: 0, y: 0 },
+    mequran: { size: 0, y: 1 },
+    alqalam: { size: 0, y: 0 },
+    lateef: { size: 4, y: 0 },
+    harmattan: { size: 0, y: 0 },
+    amiri: { size: 0, y: 0 },
+    scheherazade: { size: 0, y: 1 },
+    noto: { size: 0, y: 1 },
+  };
+  const adj = fontAdj[textStyle] || { size: 0, y: 0 };
+
+Replace with:
+  const getFontAdj = (ts: string, hv: boolean) => {
+    switch (ts) {
+      case 'saleem': return { size: 2, y: 0 };
+      case 'alqalam': return { size: 0, y: 0 };
+      case 'uthmani': return { size: 0, y: 0 };
+      case 'mequran': return { size: hv ? -1 : 0, y: 2 };
+      case 'lateef': return { size: 4, y: 0 };
+      case 'noto': return { size: 0, y: hv ? 0 : 1 };
+      case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
+      default: return { size: 0, y: 0 };
+    }
+  };
+  const adj = getFontAdj(textStyle, headerVisible);
+
+
+=====================================================================
  END OF CHANGES
-========================================
+=====================================================================
