@@ -11,7 +11,10 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
   const fontFamily = getArabicFont(textStyle);
-  const size = scaleFont(FONT_SIZES[fontSize]);
+  const baseSize = scaleFont(FONT_SIZES[fontSize]);
+  const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
+  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
+  const size = baseSize + (sizeBoost[textStyle] || 0);
   const lineH = size * 2.6;
   return (
     <View style={styles.container}>
@@ -27,7 +30,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
         const isReadingMark = readingMarkVerse === verse.verseNumber;
         return (
           <View key={vKey} style={[styles.verseBlock, { borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
-            <Text style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }]}>
+            <Text style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }]}>
               {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
               {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
               {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}

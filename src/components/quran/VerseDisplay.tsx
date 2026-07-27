@@ -16,7 +16,9 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const isFlashing = flashingVerse === verse.verseNumber;
   const fontFamily = getArabicFont(textStyle);
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
-  const size = (textStyle === 'mequran' || textStyle === 'alqalam' || textStyle === 'lateef') ? baseSize + 4 : baseSize;
+  const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
+  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
+  const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
       <View style={styles.arabicRow}>
@@ -24,7 +26,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
             <TouchableOpacity key={index} onPress={() => onWordPress(index)} activeOpacity={0.7}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6 }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
+              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
             </TouchableOpacity>
           );
         })}
