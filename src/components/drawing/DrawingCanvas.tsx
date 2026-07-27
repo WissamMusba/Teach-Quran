@@ -23,35 +23,33 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
   const saveTimerRef = useRef<any>(null);
 
   useEffect(() => { pathsRef.current = paths; }, [paths]);
-  useEffect(() => { 
+  useEffect(() => {
     stateRef.current = { activeTool, activeColor, penSize, localOpacity, underlineStyle };
-    currentPathRef.current = currentPath;
-  }, [activeTool, activeColor, penSize, localOpacity, underlineStyle, currentPath]);
+  }, [activeTool, activeColor, penSize, localOpacity, underlineStyle]);
+  useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
 
   const debouncedSave = useCallback((pathsToSave: any[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { onSave(pathsToSave); }, 1500);
   }, [onSave]);
 
-  const handleTouch = (x: number, y: number) => {
-    const s = stateRef.current;
-    const isEraser = s.activeTool === 'eraser';
-    const newPath = {
-      points: [`${x},${y}`],
-      color: isEraser ? '#121212' : s.activeColor,
-      width: isEraser ? s.penSize * 3 : s.penSize,
-      opacity: isEraser ? 1 : s.localOpacity,
-      tool: s.activeTool,
-      style: s.underlineStyle
-    };
-    setCurrentPath(newPath);
-    currentPathRef.current = newPath;
-  };
-
   const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
-    onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
-    onPanResponderGrant: (e) => handleTouch(e.nativeEvent.locationX, e.nativeEvent.locationY),
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      const s = stateRef.current;
+      const isEraser = s.activeTool === 'eraser';
+      const newPath = {
+        points: [`${e.nativeEvent.locationX},${e.nativeEvent.locationY}`],
+        color: isEraser ? '#121212' : s.activeColor,
+        width: isEraser ? s.penSize * 3 : s.penSize,
+        opacity: isEraser ? 1 : s.localOpacity,
+        tool: s.activeTool,
+        style: s.underlineStyle
+      };
+      setCurrentPath(newPath);
+      currentPathRef.current = newPath;
+    },
     onPanResponderMove: (e) => {
       if (stateRef.current.activeTool === 'eraser') return;
       if (currentPathRef.current) {
@@ -64,14 +62,14 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     onPanResponderRelease: (e) => {
       if (stateRef.current.activeTool === 'eraser') {
         const { locationX, locationY } = e.nativeEvent;
-        const newPaths = pathsRef.current.filter((p:any) => !p.points.some((pt:string) => { const [x,y] = pt.split(',').map(Number); return Math.abs(x-locationX)<30 && Math.abs(y-locationY)<30; }));
+        const newPaths = pathsRef.current.filter((p: any) => !p.points.some((pt: string) => { const [x, y] = pt.split(',').map(Number); return Math.abs(x - locationX) < 30 && Math.abs(y - locationY) < 30; }));
         if (newPaths.length !== pathsRef.current.length) { setPaths(newPaths); pathsRef.current = newPaths; debouncedSave(newPaths); }
       } else {
         const pathToSave = currentPathRef.current;
         if (pathToSave && pathToSave.points.length > 1) {
           const newPaths = [...pathsRef.current, pathToSave];
           setPaths(newPaths); pathsRef.current = newPaths;
-          setRedoStack([]); 
+          setRedoStack([]);
           dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
           debouncedSave(newPaths);
         }
@@ -85,7 +83,7 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     if (pathsRef.current.length === 0) return;
     const lastPath = pathsRef.current[pathsRef.current.length - 1];
     const newPaths = pathsRef.current.slice(0, -1);
-    setPaths(newPaths); pathsRef.current = newPaths; 
+    setPaths(newPaths); pathsRef.current = newPaths;
     setRedoStack(prev => [...prev, lastPath]); dispatch(undo()); debouncedSave(newPaths);
   };
 
@@ -93,7 +91,7 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     if (redoStack.length === 0) return;
     const pathToRedo = redoStack[redoStack.length - 1];
     const newPaths = [...pathsRef.current, pathToRedo];
-    setPaths(newPaths); pathsRef.current = newPaths; 
+    setPaths(newPaths); pathsRef.current = newPaths;
     setRedoStack(prev => prev.slice(0, -1)); dispatch(redo()); debouncedSave(newPaths);
   };
 
@@ -107,8 +105,8 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     if (style === 'wavy') {
       let d = `M ${points[0]}`;
       for (let i = 1; i < points.length; i++) {
-        const p = points[i]; const prevP = points[i-1];
-        const off = i % 2 === 0 ? 5 : -5; 
+        const p = points[i]; const prevP = points[i - 1];
+        const off = i % 2 === 0 ? 5 : -5;
         d += ` Q ${prevP.split(',')[0]},${parseInt(prevP.split(',')[1]) + off} ${p}`;
       }
       return d;
@@ -118,8 +116,8 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
 
   return (
     <View style={styles.overlay}>
-      <View style={styles.canvasContainer} {...panResponder.panHandlers}>
-        <Svg style={styles.svg}>
+      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+        <Svg style={StyleSheet.absoluteFill}>
           {paths.map((p, i) => (
             <React.Fragment key={i}>
               <Path d={generatePathD(p.points, p.style)} stroke={p.color} strokeWidth={p.width} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" />
@@ -128,11 +126,12 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
           ))}
           {currentPath && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />}
         </Svg>
-        <TouchableOpacity style={styles.toggleBtn} onPress={() => setShowToolbar(!showToolbar)}>
-          <Text style={styles.btnText}>{showToolbar ? '▼' : '▲'}</Text>
-        </TouchableOpacity>
       </View>
-      
+
+      <TouchableOpacity style={styles.toggleBtn} onPress={() => setShowToolbar(!showToolbar)}>
+        <Text style={styles.btnText}>{showToolbar ? '▼' : '▲'}</Text>
+      </TouchableOpacity>
+
       {showToolbar && (
         <View style={styles.toolbar}>
           <View style={styles.row}>
@@ -155,14 +154,12 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' },
-  canvasContainer: { flex: 1 },
-  svg: { flex: 1, width: '100%', height: '100%', backgroundColor: 'transparent' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.15)', elevation: 10, zIndex: 100 },
   toolbar: { backgroundColor: '#1e1e1e', padding: 10, borderTopWidth: 1, borderColor: '#333' },
   row: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 10 },
   colorBtn: { width: 30, height: 30, borderRadius: 15 },
   toolBtn: { padding: 8, backgroundColor: '#333', borderRadius: 8 },
   activeTool: { backgroundColor: '#0066FF' },
   btnText: { color: '#fff', fontSize: 14 },
-  toggleBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 5 }
+  toggleBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 5, zIndex: 10 }
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable, Platform } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse } from '../store/quranSlice';
@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { captureRef } from 'react-native-view-shot';
+import Share from 'react-native-share';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
@@ -49,6 +50,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageVersesPromiseRef = useRef({});
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
   const audioPlayer = useRef(new AudioRecorderPlayer());
+  const headerVisibleBeforeDrawRef = useRef(true);
   const viewShotRef = useRef<any>(null);
 
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
@@ -187,22 +189,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ReactNativeHapticFeedback.trigger('impactLight');
   }, [studentData, activeColor, currentSurahId]);
 
-  const handleBookmarkFlow = useCallback((verseNum: number) => {
+  const handleBookmarkFlow = useCallback((verseNum: number, surahId?: number) => {
     if (!studentData) return;
-    const vKey = `${currentSurahId}_${verseNum}`;
+    const sId = surahId || currentSurahId;
+    const vKey = `${sId}_${verseNum}`;
     const cMarks = studentData.bookmarks || {};
     const newMarks = { ...cMarks };
-    if (newMarks[vKey]) delete newMarks[vKey]; else newMarks[vKey] = { surah: currentSurahId, verse: verseNum, createdAt: new Date().toISOString() };
+    if (newMarks[vKey]) delete newMarks[vKey]; else newMarks[vKey] = { surah: sId, verse: verseNum, createdAt: new Date().toISOString() };
     updateData({ ...studentData, bookmarks: newMarks });
     ReactNativeHapticFeedback.trigger('impactMedium');
   }, [studentData, currentSurahId]);
 
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
-  const onBookmarkToggle = useCallback((verseNum: number) => () => handleBookmarkFlow(verseNum), [handleBookmarkFlow]);
+  const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
   const handleVerseLongPress = useCallback((verseNum: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); }, []);
 
   const handleCopyVerse = (verseNum: number) => {
-    const verse = verses.find((v: any) => v.verseNumber === verseNum);
+    let verse: any;
+    if (readingMode === 'page') {
+      const pgVerses = pageVersesCache[currentPageNum] || [];
+      verse = pgVerses.find((v: any) => v.verseNumber === verseNum);
+    } else {
+      verse = verses.find((v: any) => v.verseNumber === verseNum);
+    }
     if (verse) { Clipboard.setString(`${verse.textArabic}\n\n${verse.textTranslation}`); Alert.alert('Copied', 'Verse copied to clipboard!'); }
     setMenuVerse(null);
   };
@@ -227,8 +236,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const handleSharePage = async () => {
     const wasHeaderVisible = isHeaderVisible;
-    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise(r => setTimeout(r, 300)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.9 }); await Share.open({ url: uri, type: 'image/jpeg', title: 'Quran Page' }); }
-    catch (e) {} finally { setIsCapturing(false); setIsHeaderVisible(wasHeaderVisible); }
+    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise(r => setTimeout(r, 500)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
+    catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); setIsHeaderVisible(wasHeaderVisible); }
   };
 
   const onSwipe = (event: any) => {
@@ -263,18 +272,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onBookmarks={() => navigation.navigate('Bookmarks')} onMistakes={() => navigation.navigate('Mistakes')}
-        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onDraw={() => setIsDrawing(true)} onSettings={() => navigation.navigate('Settings')} />
+        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onDraw={() => { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }} onSettings={() => navigation.navigate('Settings')} />
 
-      <View style={{ flex: 1 }}>
-        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]}>
-          <View style={{ flex: 1, position: 'relative' }} ref={viewShotRef} collapsable={false}>
+      <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
+        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
+          <View style={{ flex: 1, position: 'relative' }}>
             <Pressable style={styles.edgeTapLeft} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
             <Pressable style={styles.edgeTapRight} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
-
-            {isDrawing && (
-              <DrawingCanvas onClose={() => setIsDrawing(false)} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
-                onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
-            )}
 
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
@@ -291,10 +295,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} scrollEventThrottle={16}>
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }}
+                onScroll={({ nativeEvent }: any) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                  if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
+                    if (!loadingMore && hasMore && verses.length > 0) {
+                      setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false));
+                    }
+                  }
+                }} scrollEventThrottle={100}>
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
-                  bookmarkedVerses={Object.keys(studentData?.bookmarks || {}).filter(k => k.startsWith(`${currentSurahId}_`)).map(k => parseInt(k.split('_')[1]))}
+                  bookmarks={studentData?.bookmarks}
                   notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
                 {loadingMore && <ActivityIndicator color="#00d4aa" />}
               </ScrollView>
@@ -341,6 +353,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
         </PanGestureHandler></GestureHandlerRootView>
       </View>
 
+      {isDrawing && (
+        <DrawingCanvas onClose={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
+          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
+      )}
+
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
       {isHeaderVisible && <AudioPlayerBar onOpenQari={() => setShowQariModal(true)} onTogglePlay={togglePlayAudio} isPlaying={isPlaying} />}
 
@@ -353,7 +370,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVerse(null)}>
           <View style={styles.compactMenuContainer}>
             <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}><Text style={styles.compactIcon}>🔖</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={() => { updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: menuVerse } }); setMenuVerse(null); Alert.alert('Reading Mark Set'); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.compactBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v } }); } }]); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={openNoteModal}><Text style={styles.compactIcon}>📝</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={handleAddVoiceNote}><Text style={styles.compactIcon}>{isRecording ? '⏹️' : '🎤'}</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => handleCopyVerse(menuVerse!)}><Text style={styles.compactIcon}>📋</Text></TouchableOpacity>

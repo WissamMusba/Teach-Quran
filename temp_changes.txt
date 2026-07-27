@@ -1,0 +1,152 @@
+========================================
+ TEMP CHANGES — Apply when instructed
+========================================
+
+Apply these edits in order from top to bottom.
+
+========================================
+ EDIT 1: src/screens/QuranViewScreen.tsx
+========================================
+
+--- 1a. Add missing Share import ---
+After line 24 (import { captureRef }), insert:
+
+  import Share from 'react-native-share';
+
+Result should be:
+  import { captureRef } from 'react-native-view-shot';
+  import Share from 'react-native-share';
+  import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+
+--- 1b. Fix handleBookmarkFlow to accept surahId ---
+Replace lines 191-199:
+
+  const handleBookmarkFlow = useCallback((verseNum: number, surahId?: number) => {
+    if (!studentData) return;
+    const sId = surahId || currentSurahId;
+    const vKey = `${sId}_${verseNum}`;
+    const cMarks = studentData.bookmarks || {};
+    const newMarks = { ...cMarks };
+    if (newMarks[vKey]) delete newMarks[vKey]; else newMarks[vKey] = { surah: sId, verse: verseNum, createdAt: new Date().toISOString() };
+    updateData({ ...studentData, bookmarks: newMarks });
+    ReactNativeHapticFeedback.trigger('impactMedium');
+  }, [studentData, currentSurahId]);
+
+--- 1c. Fix onBookmarkToggle wrapper to pass surahId ---
+Replace line 202:
+
+  const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
+
+--- 1d. Fix FlowingText props — pass bookmarks object instead of filtered array ---
+Replace lines 297-300:
+
+                <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
+                  onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
+                  bookmarks={studentData?.bookmarks}
+                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
+
+--- 1e. Add scroll handler + edge taps to continuous mode ---
+Replace lines 295-303:
+
+            {readingMode === 'continuous' && (
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }}
+                onScroll={({ nativeEvent }: any) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                  if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
+                    if (!loadingMore && hasMore && verses.length > 0) {
+                      setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false));
+                    }
+                  }
+                }} scrollEventThrottle={100}>
+                <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
+                  onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
+                  bookmarks={studentData?.bookmarks}
+                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
+                {loadingMore && <ActivityIndicator color="#00d4aa" />}
+              </ScrollView>
+            )}
+
+
+========================================
+ EDIT 2: src/components/quran/FlowingText.tsx
+========================================
+
+--- 2a. Change signature to accept bookmarks object instead of bookmarkedVerses array ---
+Replace line 8:
+
+const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, showTranslation, fontSize, bookmarks, notes, flashingVerse, readingMarkVerse }: any) => {
+
+--- 2b. Fix bookmark lookup + pass surahId to onBookmarkToggle + redesign for flowing layout ---
+Replace lines 17-51 (the entire return block inside the component function):
+
+  return (
+    <View style={styles.container}>
+      {verses.map((verse: any) => {
+        const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'lateef' || textStyle === 'harmattan';
+        const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
+        const words = displayText.replace(/۞/u, '').trim().split(' ');
+        const vKey = `${verse.surahId}_${verse.verseNumber}`;
+        const verseHighs = highlights?.[vKey]?.highlights || [];
+        const isBookmarked = !!bookmarks?.[vKey];
+        const hasNote = !!notes?.[vKey];
+        const isFlashing = flashingVerse === verse.verseNumber;
+        const isReadingMark = readingMarkVerse === verse.verseNumber;
+        return (
+          <View key={vKey} style={[styles.verseBlock, { borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
+            <Text style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }]}>
+              {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
+              {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
+              {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}
+              {words.map((word: string, wIdx: number) => {
+                const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
+                return (
+                  <Text key={wIdx} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
+                    style={[styles.arabicText, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
+                );
+              })}
+              <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber, verse.surahId)}>
+                <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+                  <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+                </View>
+              </TouchableOpacity>
+            </Text>
+            {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
+          </View>
+        );
+      })}
+    </View>
+  );
+
+--- 2c. Update styles for more flowing/compact layout ---
+Replace the entire styles object (lines 54-68):
+
+const styles = StyleSheet.create({
+  container: { width: '100%', padding: 12, backgroundColor: 'transparent' },
+  verseBlock: { paddingVertical: 4, borderBottomWidth: 0, marginBottom: 2 },
+  mainText: { textAlign: 'center', width: '100%' },
+  arabicText: {},
+  bookmarkIcon: { color: '#ffd700', fontSize: 14 },
+  noteIcon: { color: '#ffd700', fontSize: 11 },
+  readingMarkIcon: { color: '#4a90d9', fontSize: 12 },
+  verseBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginLeft: 6, marginTop: 2, borderWidth: 1, borderColor: '#00d4aa', alignSelf: 'center' },
+  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
+  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
+  verseBadgeText: { color: '#ffffff', fontSize: 12, fontWeight: '700', fontFamily: 'normal' },
+  bookmarkedBadgeText: { color: '#000000' },
+  translation: { color: '#b0b0b0', fontStyle: 'italic', fontSize: 14, textAlign: 'center', marginTop: 2 },
+});
+
+
+========================================
+ EDIT 3: src/components/quran/MushafPageView.tsx
+========================================
+
+--- 3a. Fix onBookmarkToggle to pass surahId ---
+Replace line 68:
+
+                      <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
+
+
+========================================
+ END OF CHANGES
+========================================

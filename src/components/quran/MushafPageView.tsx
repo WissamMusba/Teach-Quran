@@ -65,7 +65,7 @@ const MushafPageView = ({ versesForPage, pageData, highlights, onWordPress, onVe
                   </Text>
                   {isVerseBoundary && (
                     <View style={styles.verseBadgeContainer}>
-                      <TouchableOpacity onPress={() => onBookmarkToggle(verseNum)}>
+                      <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
                           <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>

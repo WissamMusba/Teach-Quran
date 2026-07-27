@@ -16,4 +16,4 @@ export const getMushafFontSize = (): number => {
   return 28;
 };
 
-export const getMushafLineHeight = (): number => getMushafFontSize() * 2.4;
+export const getMushafLineHeight = (): number => getMushafFontSize() * 1.4;
