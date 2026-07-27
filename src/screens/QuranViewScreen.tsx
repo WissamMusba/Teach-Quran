@@ -24,6 +24,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
   const [isDrawing, setIsDrawing] = useState(false);
@@ -40,7 +41,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [menuVerse, setMenuVerse] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [recordingVerseKey, setRecordingVerseKey] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
@@ -48,7 +49,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pagePromiseRef = useRef({});
   const [pageVersesCache, setPageVersesCache] = useState<any>({});
   const pageVersesPromiseRef = useRef({});
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer());
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const headerVisibleBeforeDrawRef = useRef(true);
   const viewShotRef = useRef<any>(null);
@@ -222,17 +222,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     updateData({ ...studentData, notes: { ...(studentData.notes || {}), [vKey]: noteText } });
     setShowNoteModal(false); setMenuVerse(null);
   };
-  const handleAddVoiceNote = async () => {
-    if (menuVerse === null) return;
-    const vKey = `${currentSurahId}_${menuVerse}`;
-    if (!isRecording) { await audioRecorderPlayer.current.startRecorder(`audio_${Date.now()}.m4a`); setIsRecording(true); setMenuVerse(null); }
-    else {
-      const path = await audioRecorderPlayer.current.stopRecorder();
-      setIsRecording(false);
-      const existing = studentData?.notes?.[vKey] || '';
-      updateData({ ...studentData, notes: { ...(studentData?.notes || {}), [vKey]: existing + (existing ? '\n' : '') + `audio:${path}` } });
-    }
-  };
+  const handleVoiceNoteSaved = useCallback((path: string, _ms: number) => {
+    if (!studentData || !recordingVerseKey) return;
+    const existing = studentData?.notes?.[recordingVerseKey] || '';
+    updateData({ ...studentData, notes: { ...(studentData?.notes || {}), [recordingVerseKey]: existing + (existing ? '\n' : '') + `audio:${path}` } });
+    setRecordingVerseKey(null);
+  }, [studentData, recordingVerseKey]);
 
   const handleSharePage = async () => {
     const wasHeaderVisible = isHeaderVisible;
@@ -372,7 +367,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}><Text style={styles.compactIcon}>🔖</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v } }); } }]); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={openNoteModal}><Text style={styles.compactIcon}>📝</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={handleAddVoiceNote}><Text style={styles.compactIcon}>{isRecording ? '⏹️' : '🎤'}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.compactBtn} onPress={() => { if (menuVerse) { setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); setMenuVerse(null); } }}><Text style={styles.compactIcon}>🎤</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => handleCopyVerse(menuVerse!)}><Text style={styles.compactIcon}>📋</Text></TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -389,6 +384,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
+
+      {recordingVerseKey && (
+        <View style={StyleSheet.absoluteFill}>
+          <VoiceNoteRecorder onSaved={handleVoiceNoteSaved} onCancel={() => setRecordingVerseKey(null)} />
+        </View>
+      )}
     </View>
   );
 }
