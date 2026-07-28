@@ -1,6 +1,10 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const IS_TABLET = SCREEN_WIDTH >= 600;
+const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.04 : 12;
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -10,7 +14,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
   
-  if (!pageData || !pageData.lines) return <View style={styles.container} />;
+  if (!pageData || !pageData.lines) return <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]} />;
   const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
   const getFontAdj = (ts: string, hv: boolean) => {
@@ -28,7 +32,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   const adj = getFontAdj(textStyle, headerVisible);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         if (line.type === 'surah-header' || line.type === 'basmala') {
           return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>{line.type === 'basmala' ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : line.text}</Text></View>;

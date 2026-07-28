@@ -283,8 +283,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
           <View style={{ flex: 1, position: 'relative' }}>
-            <Pressable style={styles.edgeTapLeft} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
-            <Pressable style={styles.edgeTapRight} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
+            <Pressable style={[styles.edgeTapLeft, { width: Dimensions.get('window').width >= 600 ? 40 : 10 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
+            <Pressable style={[styles.edgeTapRight, { width: Dimensions.get('window').width >= 600 ? 40 : 10 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
 
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}

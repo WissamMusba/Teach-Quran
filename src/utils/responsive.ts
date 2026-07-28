@@ -14,10 +14,14 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
     if (SCREEN_WIDTH < 400) return 20;
     if (SCREEN_WIDTH < 500) return 22;
     if (SCREEN_WIDTH < 700) return 25;
-    return 28;
+    if (SCREEN_WIDTH < 900) return 28;
+    return 32;
   })();
   if (headerVisible === false) return base + 3;
   return base;
 };
 
-export const getMushafLineHeight = (headerVisible?: boolean): number => getMushafFontSize(headerVisible) * 1.6;
+export const getMushafLineHeight = (headerVisible?: boolean): number => {
+  const mult = SCREEN_WIDTH >= 900 ? 1.7 : 1.6;
+  return getMushafFontSize(headerVisible) * mult;
+};
