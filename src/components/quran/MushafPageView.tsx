@@ -1,16 +1,20 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const IS_TABLET = SCREEN_WIDTH >= 600;
+const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.04 : 12;
 
 const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
   const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
-  
-  if (!pageData || !pageData.lines) return <View style={styles.container} />;
+
+  if (!pageData || !pageData.lines) return <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]} />;
   const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
   const getFontAdj = (ts: string, hv: boolean) => {
@@ -28,20 +32,19 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   const adj = getFontAdj(textStyle, headerVisible);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         if (line.type === 'surah-header' || line.type === 'basmala') {
           return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>{line.type === 'basmala' ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : line.text}</Text></View>;
         }
         return (
           <View key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }]}>
-            {line.words?.map((word: any, wordIdx: number) => {
+            {(line.words || []).map((word: any, wordIdx: number) => {
               const parts = word.location ? word.location.split(':') : [];
               const surahId = parts[0] || '0';
               const verseNum = parts.length > 1 ? parseInt(parts[1], 10) : 0;
               const wordPos = parts.length > 2 ? parseInt(parts[2], 10) : 0;
               const vKey = `${surahId}_${verseNum}`;
-              const verseObj = versesForPage?.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = word.word;
               const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
               const isBookmarked = !!bookmarks?.[vKey];
@@ -91,8 +94,8 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'space-around', backgroundColor: 'transparent' },
-  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
+  container: { flex: 1, paddingVertical: 6, justifyContent: 'space-around', backgroundColor: 'transparent' },
+  line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
