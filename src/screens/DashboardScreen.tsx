@@ -1,34 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { getStudents, createStudent, deleteStudent } from '../api/student';
-import { setStudents, addStudent, removeStudent, setCurrentStudent } from '../store/studentSlice';
+import { getStudents, createStudent, deleteStudent, updateStudent } from '../api/student';
+import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
 import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
 import SyncStatus from '../components/common/SyncStatus';
+import AlertModal from '../components/common/AlertModal';
 import { purgeLocalStudent } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
 
 export default function DashboardScreen({ navigation }: any) {
-  const [modal, setModal] = useState(false); const [name, setName] = useState('');
+  const [addModal, setAddModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [name, setName] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editId, setEditId] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const dispatch = useDispatch(); const students = useSelector((s: any) => s.student.list);
+  const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', buttons: undefined as any });
+  const dispatch = useDispatch();
+  const students = useSelector((s: any) => s.student.list);
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
 
   useEffect(() => { getStudents().then(res => res.success && dispatch(setStudents(res.students))); }, []);
 
-  const handleCreate = async () => { const res = await createStudent(name); if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setModal(false); setName(''); } };
+  const showAlert = useCallback((title: string, message: string, buttons?: any) => {
+    setAlertModal({ visible: true, title, message, buttons });
+  }, []);
 
-  const handleManualSync = async () => {
-    if (pendingChanges === 0) { Alert.alert('Up to Date', 'Nothing to sync.'); return; }
+  const handleCreate = useCallback(async () => {
+    const res = await createStudent(name);
+    if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setAddModal(false); setName(''); }
+    else showAlert('Error', res.error);
+  }, [name]);
+
+  const handleManualSync = useCallback(async () => {
+    if (pendingChanges === 0) { showAlert('Up to Date', 'Nothing to sync.'); return; }
     setIsSyncing(true); await processSyncQueue(); setIsSyncing(false);
-  };
+  }, [pendingChanges]);
 
-  const handleDelete = (id: string) => Alert.alert('Delete', 'Are you sure?', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { await deleteStudent(id); await purgeLocalStudent(id); dispatch(removeStudent(id)); } }
-  ]);
+  const handleLongPress = useCallback((item: any) => {
+    showAlert(item.name, 'Choose an action:', [
+      { text: 'Edit Name', onPress: () => { setEditId(item.id); setEditName(item.name); setEditModal(true); } },
+      { text: 'Delete', style: 'destructive' as const, onPress: async () => {
+        await deleteStudent(item.id); await purgeLocalStudent(item.id); dispatch(removeStudent(item.id));
+      }},
+    ]);
+  }, []);
+
+  const handleEdit = useCallback(async () => {
+    if (!editName.trim()) return;
+    const res = await updateStudent(editId, editName.trim());
+    if (res.success) { dispatch(updateStudentSlice({ id: editId, name: editName.trim() })); setEditModal(false); }
+    else showAlert('Error', res.error);
+  }, [editId, editName]);
+
+  const renderItem = useCallback(({ item }: any) => (
+    <TouchableOpacity style={styles.card} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+      <Text style={styles.studentName}>{item.name}</Text>
+    </TouchableOpacity>
+  ), [navigation]);
 
   return (
     <View style={styles.container}>
@@ -44,25 +76,36 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <FlatList data={students} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={({ item }) => (
-        <TouchableOpacity style={styles.card} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); navigation.navigate('QuranView'); }} onLongPress={() => handleDelete(item.id)} activeOpacity={0.7}>
-          <Text style={styles.studentName}>{item.name}</Text>
-          <Text style={styles.studentHint}>Tap to open  ·  Long-press to delete</Text>
-        </TouchableOpacity>
-      )} />
-      <TouchableOpacity style={styles.fab} onPress={() => setModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
-      <Modal visible={modal} transparent animationType="fade" onRequestClose={() => setModal(false)}>
+      <FlatList data={students} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
+      <TouchableOpacity style={styles.fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
+
+      <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Student</Text>
             <TextInput style={styles.input} placeholder="Student name" placeholderTextColor="#666" onChangeText={setName} autoFocus />
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setAddModal(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreate}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      <Modal visible={editModal} transparent animationType="fade" onRequestClose={() => setEditModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Student Name</Text>
+            <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Student name" placeholderTextColor="#666" autoFocus />
+            <View style={{ flexDirection: 'row', marginTop: 10 }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModal(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleEdit}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
     </View>
   );
 }
@@ -74,7 +117,6 @@ const styles = StyleSheet.create({
   logout: { color: '#ff4444', marginLeft: 12, fontSize: 13, fontWeight: '600' },
   card: { backgroundColor: '#1a1a2e', padding: 18, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: '#2a2a4a' },
   studentName: { fontSize: 18, fontWeight: '700', color: '#fff' },
-  studentHint: { fontSize: 11, color: '#666', marginTop: 4 },
   fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#00d4aa', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   fabText: { color: '#121212', fontSize: 28, fontWeight: '700', lineHeight: 30 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },

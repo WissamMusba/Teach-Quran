@@ -13,8 +13,14 @@ export const studentSlice = createSlice({
         state.currentStudent = null;
         state.studentData = null;
       }
+    },
+    updateStudent: (state, action) => {
+      const { id, name } = action.payload;
+      const idx = state.list.findIndex((s: any) => s.id === id);
+      if (idx !== -1) state.list[idx] = { ...state.list[idx], name };
+      if (state.currentStudent?.id === id) state.currentStudent = { ...state.currentStudent, name };
     }
   }
 });
-export const { setStudents, addStudent, setCurrentStudent, setStudentData, removeStudent } = studentSlice.actions;
+export const { setStudents, addStudent, setCurrentStudent, setStudentData, removeStudent, updateStudent } = studentSlice.actions;
 export default studentSlice.reducer;

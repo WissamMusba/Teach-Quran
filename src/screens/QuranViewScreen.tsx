@@ -15,7 +15,7 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage } from '../database/quranData';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
 import { getJuzInfoFromPage, getStartJuzOfSurah } from '../utils/theme';
 import { v4 as uuidv4 } from 'uuid';
@@ -59,6 +59,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
   const activeColor = useSelector((s: any) => s.drawing.activeColor);
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
+  const indopakFonts = ['saleem', 'indopak', 'mequran', 'alqalam', 'lateef', 'noto', 'harmattan'];
+  const isIndopak = indopakFonts.includes(textStyle);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
@@ -72,20 +74,21 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [headerSurahId, headerPage, currentSurahId, surahNames, readingMode]);
 
   // ---- load mushaf page data (v7-style page mode) ----
-  const ensurePageLoaded = useCallback((pageNum: number) => {
+  const ensurePageLoaded = useCallback(async (pageNum: number) => {
     if (pageCache[pageNum] || pagePromiseRef.current[pageNum]) return;
     pagePromiseRef.current[pageNum] = true;
-    getMushafPageData(pageNum).then(data => {
+    if (isIndopak) await importIndopakPages();
+    getMushafPageData(pageNum, textStyleRef.current).then(data => {
       setPageCache(prev => ({ ...prev, [pageNum]: data }));
       delete pagePromiseRef.current[pageNum];
     });
-  }, [pageCache]);
+  }, [pageCache, isIndopak]);
 
   // ---- load verses for a page (for SQLite text mapping) ----
   const ensurePageVersesLoaded = useCallback((pageNum: number) => {
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
     pageVersesPromiseRef.current[pageNum] = true;
-    getVersesByPage(pageNum).then(verses => {
+    getVersesByPage(pageNum, textStyleRef.current).then(verses => {
       setPageVersesCache(prev => ({ ...prev, [pageNum]: verses }));
       delete pageVersesPromiseRef.current[pageNum];
     });
@@ -96,7 +99,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const { surahId, scrollToVerse } = route.params || {};
     if (surahId) {
       if (readingMode === 'page') {
-        getVersePage(surahId, scrollToVerse).then(pg => {
+        getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg);
           setTimeout(() => flatListRef.current?.scrollToIndex({ index: pg - 1, animated: false }), 100);
         });
@@ -122,9 +125,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const surahIdRef = useRef(currentSurahId);
   const versesRef = useRef(verses);
   const pageRef = useRef(page);
+  const textStyleRef = useRef(textStyle);
   useEffect(() => { surahIdRef.current = currentSurahId; }, [currentSurahId]);
   useEffect(() => { versesRef.current = verses; }, [verses]);
   useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { textStyleRef.current = textStyle; }, [textStyle]);
 
   const loadSurah = async (surahId: number, resetPage: boolean = true) => {
     const currentPage = resetPage ? 1 : pageRef.current;
@@ -138,7 +143,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     setHeaderSurahId(currentSurahId);
     if (readingMode === 'page') {
-      getVersePage(currentSurahId, 1).then(pg => {
+      getVersePage(currentSurahId, 1, textStyle).then(pg => {
         setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg);
         setTimeout(() => flatListRef.current?.scrollToIndex({ index: pg - 1, animated: false }), 100);
       });
@@ -147,9 +152,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (!deepLinkLoadedRef.current) loadSurah(currentSurahId, true);
     }
     deepLinkLoadedRef.current = false;
-  }, [currentSurahId, readingMode]);
+  }, [currentSurahId, readingMode, textStyle]);
 
   useEffect(() => { if (isDrawing) setIsDrawing(false); }, [currentSurahId, currentPageNum]);
+
+  useEffect(() => {
+    setPageCache({});
+    setPageVersesCache({});
+    if (isIndopak) importIndopakPages();
+  }, [textStyle]);
 
   useEffect(() => {
     if (currentStudent) getStudentData(currentStudent.id).then(d => {
@@ -163,7 +174,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const { surah, verse } = studentData.lastRead;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
       if (readingMode === 'page') {
-        getVersePage(surah, verse).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: pg - 1, animated: false }), 500); });
+        getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: pg - 1, animated: false }), 500); });
       } else if (readingMode === 'ayah') {
         setTimeout(() => { const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse); if (idx !== -1 && flatListRef.current) flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 }); }, 500);
       } else if (readingMode === 'continuous') {
@@ -308,7 +319,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'page' && (
-              <FlatList ref={flatListRef} data={Array.from({ length: 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
+              <FlatList ref={flatListRef} data={Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: isHeaderVisible ? 10 : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
@@ -332,7 +343,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   ensurePageVersesLoaded(item);
                   const pData = pageCache[item];
                   return (
-                    <View style={{ width: Dimensions.get('window').width, flex: 1 }}>
+                    <View style={{ width: Dimensions.get('window').width, flex: 1, overflow: 'hidden' }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
@@ -367,7 +378,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}><Text style={styles.compactIcon}>🔖</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v } }); } }]); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={openNoteModal}><Text style={styles.compactIcon}>📝</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={() => { if (menuVerse) { setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); setMenuVerse(null); } }}><Text style={styles.compactIcon}>🎤</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.compactBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { try { await audioPlayer.current.pausePlayer(); } catch {} dispatch(setPlaying(false)); } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); setMenuVerse(null); } }}><Text style={styles.compactIcon}>🎤</Text></TouchableOpacity>
             <TouchableOpacity style={styles.compactBtn} onPress={() => handleCopyVerse(menuVerse!)}><Text style={styles.compactIcon}>📋</Text></TouchableOpacity>
           </View>
         </TouchableOpacity>

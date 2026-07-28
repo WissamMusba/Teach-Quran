@@ -1,8 +1,31 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { getMushafFontSize } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const AVAIL_WIDTH = SCREEN_WIDTH - 24;
+
+const estimateTextWidth = (text: any, fontSize: number) => {
+  if (!text) return 0;
+  return text.length * fontSize * 0.7;
+};
+
+const calcLineFontSize = (words: any, baseFontSize: number) => {
+  if (!words || words.length === 0) return baseFontSize;
+  let badgeWidth = 0;
+  for (let i = 0; i < words.length - 1; i++) {
+    const cur = words[i]?.location?.split(':')?.[1];
+    const next = words[i + 1]?.location?.split(':')?.[1];
+    if (cur && next && cur !== next) badgeWidth += 40;
+  }
+  const totalWordWidth = words.reduce((sum, w) => sum + estimateTextWidth(w.word, baseFontSize), 0);
+  const needed = totalWordWidth + badgeWidth;
+  if (needed <= AVAIL_WIDTH) return baseFontSize;
+  const ratio = AVAIL_WIDTH / needed;
+  return Math.max(Math.round(baseFontSize * ratio * 10) / 10, 8);
+};
 
 const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
   const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
@@ -12,7 +35,6 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   
   if (!pageData || !pageData.lines) return <View style={styles.container} />;
   const mushafFontSize = getMushafFontSize(headerVisible);
-  const mushafLineHeight = getMushafLineHeight(headerVisible);
   const getFontAdj = (ts: string, hv: boolean) => {
     switch (ts) {
       case 'saleem': return { size: 2, y: 0 };
@@ -26,6 +48,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
     }
   };
   const adj = getFontAdj(textStyle, headerVisible);
+  const baseFontSize = mushafFontSize + adj.size;
 
   return (
     <View style={styles.container}>
@@ -33,6 +56,8 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
         if (line.type === 'surah-header' || line.type === 'basmala') {
           return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>{line.type === 'basmala' ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : line.text}</Text></View>;
         }
+        const lineFontSize = calcLineFontSize(line.words, baseFontSize);
+        const lineHeight = lineFontSize * 1.6;
         return (
           <View key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }]}>
             {line.words?.map((word: any, wordIdx: number) => {
@@ -72,7 +97,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
 
               return (
                 <React.Fragment key={wordIdx}>
-                  <Text style={[styles.text, { fontSize: mushafFontSize + adj.size, lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]}
+                  <Text style={[styles.text, { fontSize: lineFontSize, lineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]}
                     onPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}>
                     {displayText}{' '}
                   </Text>
@@ -80,7 +105,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
                     <View style={styles.verseBadgeContainer}>
                       <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                          <Text style={[styles.verseBadgeText, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -100,7 +125,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'space-around', backgroundColor: 'transparent' },
   line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
-  text: { textAlign: 'center', flexShrink: 1 },
+  text: { textAlign: 'center' },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
   verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },

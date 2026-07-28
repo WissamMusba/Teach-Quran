@@ -3,8 +3,45 @@ import { initDatabase, getDB } from './localDB';
 const SURAH_API = 'https://api.alquran.cloud/v1/surah';
 const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf';
 
-export const getMushafPageData = async (pageNum: number) => {
-  const res = await getDB().executeSql(`SELECT data FROM mushaf_pages WHERE pageNumber=?`, [pageNum]);
+let indopakVerseCache: Record<string, number> | null = null;
+let indopakReverseMap: Record<string, string[]> | null = null;
+let allVersesCache: any[] | null = null;
+
+const isIndopakStyle = (mushaf?: string) => {
+  const indopakFonts = ['saleem', 'indopak', 'mequran', 'alqalam', 'lateef', 'noto', 'harmattan'];
+  return mushaf && indopakFonts.includes(mushaf);
+};
+
+export const importIndopakPages = async () => {
+  const db = getDB();
+  const check = await db.executeSql(`SELECT COUNT(*) as c FROM mushaf_pages_indopak`);
+  if (check && check.length > 0 && check[0].rows.item(0).c > 0) return true;
+  try {
+    const allPages = require('../assets/data/indopak_pages.json');
+    if (!allPages?.pages) return false;
+    const entries = Object.values(allPages.pages) as any[];
+    await db.transaction((tx: any) => {
+      for (const p of entries) {
+        tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
+          [p.page, JSON.stringify(p)]);
+      }
+    });
+    return true;
+  } catch (e) { console.warn('importIndopakPages failed', e); return false; }
+};
+
+const getIndopakVersePage = (surahId: number, verseNum: number): number => {
+  if (!indopakVerseCache) {
+    try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
+    catch { indopakVerseCache = {}; }
+  }
+  const key = `${surahId}:${verseNum}`;
+  return indopakVerseCache[key] || 1;
+};
+
+export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
+  const table = isIndopakStyle(mushaf) ? 'mushaf_pages_indopak' : 'mushaf_pages';
+  const res = await getDB().executeSql(`SELECT data FROM ${table} WHERE pageNumber=?`, [pageNum]);
   if (res && res.length > 0 && res[0].rows.length > 0) return JSON.parse(res[0].rows.item(0).data);
   return { lines: [] };
 };
@@ -110,12 +147,35 @@ export const getVersesBySurahPaginated = async (surahId: number, page: number = 
   return { verses, total };
 };
 
-export const getVersePage = async (surahId: number, verseNum: number) => {
+export const getVersePage = async (surahId: number, verseNum: number, mushaf?: string) => {
+  if (isIndopakStyle(mushaf)) return getIndopakVersePage(surahId, verseNum);
   const res = await getDB().executeSql(`SELECT page FROM verses WHERE surahId=? AND verseNumber=? LIMIT 1`, [surahId, verseNum]);
   return res && res.length > 0 && res[0].rows.length > 0 ? res[0].rows.item(0).page : 1;
 };
 
-export const getVersesByPage = async (pageNum: number) => {
+export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
+  if (isIndopakStyle(mushaf)) {
+    if (!allVersesCache) {
+      const db = getDB();
+      const res = await db.executeSql(`SELECT * FROM verses ORDER BY surahId, verseNumber`);
+      allVersesCache = [];
+      if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) allVersesCache.push(res[0].rows.item(i));
+    }
+    if (!indopakVerseCache) {
+      try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
+      catch { indopakVerseCache = {}; }
+    }
+    if (!indopakReverseMap) {
+      indopakReverseMap = {};
+      for (const key of Object.keys(indopakVerseCache)) {
+        const pg = indopakVerseCache[key];
+        if (!indopakReverseMap[pg]) indopakReverseMap[pg] = [];
+        indopakReverseMap[pg].push(key);
+      }
+    }
+    const onThisPage = indopakReverseMap[pageNum] || [];
+    return allVersesCache.filter((v: any) => onThisPage.includes(`${v.surahId}:${v.verseNumber}`));
+  }
   const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
   const out: any[] = [];
   if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));

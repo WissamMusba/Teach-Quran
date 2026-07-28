@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, PermissionsAndroid, Platform } from 'react-native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import RNFS from 'react-native-fs';
 
 let AudioEncoderAndroidType: any, OutputFormatAndroidType: any, AudioSourceAndroidType: any;
 try {
@@ -74,7 +75,8 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
       return;
     }
     try {
-      await recorder.startRecorder(`audio_note_${Date.now()}.m4a`, buildAudioSets());
+      const path = `${RNFS.DocumentDirectoryPath}/audio_note_${Date.now()}.m4a`;
+      await recorder.startRecorder(path, buildAudioSets());
       durRef.current = 0;
       stoppingRef.current = false;
       setRecording(true);

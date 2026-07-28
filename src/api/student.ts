@@ -30,6 +30,13 @@ async function refreshInBackground(uid: string) {
     await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
   } catch {}
 }
+export const updateStudent = async (id: string, name: string) => {
+  const userId = getUserId();
+  if (!userId) return { success: false, error: 'No user' };
+  await firestore().collection('users').doc(userId).collection('students').doc(id).update({ name });
+  return { success: true };
+};
+
 export const deleteStudent = async (id: string) => {
   const userId = getUserId();
   if (!userId) return { success: false, error: 'No user' };

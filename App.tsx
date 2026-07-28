@@ -60,7 +60,7 @@ const AppInner = () => {
         <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Students', headerBackVisible: false }} />
+        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
         <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />

@@ -9,7 +9,7 @@ export const quranSlice = createSlice({
     readingMode: 'page' as 'continuous' | 'page' | 'ayah', 
     surahNames: {} as any, 
     flashingVerse: null as number | null, 
-    textStyle: 'alqalam' as 'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto' 
+    textStyle: 'lateef' as 'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto' 
   },
   reducers: {
     setSurah: (state, action) => { state.currentSurahId = action.payload.surahId; state.verses = action.payload.verses; },

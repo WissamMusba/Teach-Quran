@@ -15,6 +15,7 @@ export const initDatabase = async () => {
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_data_cache (studentId TEXT PRIMARY KEY, data TEXT)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, studentId TEXT, data TEXT, synced BOOLEAN DEFAULT 0)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages_indopak (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
 
   await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
