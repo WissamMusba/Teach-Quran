@@ -36,6 +36,7 @@ const ZigZag = ({ w, active }: { w: number; active: boolean }) => (
 
 interface Props {
   visible: boolean;
+  drawingGestureActive: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onClear: () => void;
@@ -45,7 +46,7 @@ interface Props {
   onActivateDraw?: () => void;
 }
 
-const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
+const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
   const dispatch = useDispatch();
   const { width, height } = useWindowDimensions();
   const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
@@ -54,6 +55,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
 
   const [pal, setPal] = useState(false);
+  const [selectedTool, setSelectedTool] = useState('');
   const [docked, setDocked] = useState<string | null>(null);
   const [[x, y], setPos] = useState([MARGIN, height - BOT - 100]);
   const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
@@ -135,16 +137,16 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const placeAbove = y > height - 220;
-  const barBg = nightMode ? 'rgba(190,190,205,0.45)' : 'rgba(18,18,20,0.85)';
+  const barBg = nightMode ? 'rgba(200,200,215,0.60)' : 'rgba(18,18,20,0.85)';
   const iconC = nightMode ? '#2A2A2A' : '#CFCFCF';
   const disC = nightMode ? '#6A6A6A' : '#5A5A5A';
   const labC = nightMode ? '#4A4A4A' : '#9A9A9A';
   const palBg = 'rgba(20,20,22,0.96)';
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
-    const a = activeTool === k;
-    return (<TouchableOpacity style={s.col} onPress={() => { setPal(false); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
-      <Icon c={a ? ACCENT : iconC} /><Text style={[s.lab, { color: labC }, a && { color: ACCENT }]}>{label}</Text>
+    const sel = selectedTool === k;
+    return (<TouchableOpacity style={s.col} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
+      <Icon c={sel ? ACCENT : iconC} /><Text style={[s.lab, { color: labC }, sel && { color: ACCENT }]}>{label}</Text>
     </TouchableOpacity>);
   };
   const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
@@ -154,7 +156,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   );
 
   return (
-    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row' }]}>
+    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: drawingGestureActive ? 50 : 200, zIndex: drawingGestureActive ? 50 : 200 }]}>
       <View style={[s.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}

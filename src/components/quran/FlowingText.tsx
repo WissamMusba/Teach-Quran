@@ -13,13 +13,13 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
   const fontFamily = getArabicFont(textStyle);
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
-  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+  const yAdj: Record<string, number> = {};
   const size = baseSize + (sizeBoost[textStyle] || 0);
   const lineH = size * 2.6;
   return (
     <View style={styles.container}>
       {verses.map((verse: any) => {
-        const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
+        const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
         const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
         const words = displayText.replace(/۞/u, '').trim().split(' ');
         const vKey = `${verse.surahId}_${verse.verseNumber}`;

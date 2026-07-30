@@ -9,7 +9,7 @@ let indopakPageVersesMap: Record<string, any[]> | null = null;
 let allVersesCache: any[] | null = null;
 
 const isIndopakStyle = (mushaf?: string) => {
-  const indopakFonts = ['saleem', 'indopak', 'mequran', 'alqalam', 'lateef', 'noto', 'harmattan'];
+  const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   return mushaf && indopakFonts.includes(mushaf);
 };
 

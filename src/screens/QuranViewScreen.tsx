@@ -27,6 +27,8 @@ import { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const IS_TABLET = SCREEN_WIDTH >= 600;
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
   const [isDrawing, setIsDrawing] = useState(false);
@@ -45,6 +47,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [recordingVerseKey, setRecordingVerseKey] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   const deepLinkLoadedRef = useRef(false);
@@ -53,6 +56,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageVersesPromiseRef = useRef({});
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const headerVisibleBeforeDrawRef = useRef(true);
+  const pageScrollSurahChangeRef = useRef(false);
   const viewShotRef = useRef<any>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
@@ -63,7 +67,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
   const activeColor = useSelector((s: any) => s.drawing.activeColor);
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
-  const indopakFonts = ['saleem', 'indopak', 'mequran', 'alqalam', 'lateef', 'noto', 'harmattan'];
+  const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
@@ -147,6 +151,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     setHeaderSurahId(currentSurahId);
     if (readingMode === 'page') {
+      if (pageScrollSurahChangeRef.current) {
+        pageScrollSurahChangeRef.current = false;
+        return;
+      }
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
         setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg);
         setTimeout(() => flatListRef.current?.scrollToIndex({ index: pg - 1, animated: false }), 100);
@@ -287,12 +295,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
           <View style={{ flex: 1, position: 'relative' }}>
-            <Pressable style={[styles.edgeTapLeft, { width: Dimensions.get('window').width >= 600 ? 40 : 10 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
-            <Pressable style={[styles.edgeTapRight, { width: Dimensions.get('window').width >= 600 ? 40 : 10 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
+            <Pressable style={[styles.edgeTapLeft, { width: IS_TABLET ? 50 : 24 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
+            <Pressable style={[styles.edgeTapRight, { width: IS_TABLET ? 50 : 24 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
 
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
-                contentContainerStyle={{ padding: 20 }}
+                contentContainerStyle={{ padding: IS_TABLET ? 40 : 20 }}
                 renderItem={({ item }: any) => (
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
@@ -305,7 +313,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 20 }}
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: IS_TABLET ? 40 : 20 }}
                 onScroll={({ nativeEvent }: any) => {
                   const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
                   if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
@@ -325,7 +333,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={flatListRef} data={Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: isHeaderVisible ? 10 : 0 }}
+                contentContainerStyle={{ paddingBottom: isHeaderVisible ? (IS_TABLET ? 20 : 10) : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
                 onMomentumScrollEnd={(e) => {
@@ -337,7 +345,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
                       if (firstWord?.location) {
                         const sId = parseInt(firstWord.location.split(':')[0], 10);
-                        if (sId && sId !== currentSurahId) setHeaderSurahId(sId);
+                        if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
                       }
                     }
                   }
@@ -366,14 +374,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {isDrawing && (
         <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
           onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }}
-          onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })} />
+          onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
+          onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />
       )}
 
       <ToolbarBoundary>
-        <AnnotationToolbar visible={!isCapturing} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
+        <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
           onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
           canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
-          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
+          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); dispatch(setToolbarExpanded(false)); }}} />
       </ToolbarBoundary>
 
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
@@ -438,6 +447,6 @@ const styles = StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
-  edgeTapLeft: { position: 'absolute', top: 0, left: 0, width: 10, height: '100%', zIndex: 1 },
-  edgeTapRight: { position: 'absolute', top: 0, right: 0, width: 10, height: '100%', zIndex: 1 },
+  edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
+  edgeTapRight: { position: 'absolute', top: 0, right: 0, height: '100%', zIndex: 1 },
 });

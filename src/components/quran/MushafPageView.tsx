@@ -4,7 +4,7 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
-const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.04 : 12;
+const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -22,9 +22,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
       case 'saleem': return { size: 2, y: 0 };
       case 'alqalam': return { size: 0, y: 0 };
       case 'uthmani': return { size: 0, y: 0 };
-      case 'mequran': return { size: hv ? -1 : 0, y: 2 };
       case 'lateef': return { size: 4, y: 0 };
-      case 'noto': return { size: 0, y: hv ? 0 : 1 };
       case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
       default: return { size: 0, y: 0 };
     }
@@ -121,7 +119,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'space-around', backgroundColor: 'transparent' },
+  container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
   line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },

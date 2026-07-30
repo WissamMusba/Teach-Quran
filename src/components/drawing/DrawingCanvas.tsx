@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { View, StyleSheet, PanResponder } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { useDispatch, useSelector } from 'react-redux';
 import { addAction, undo as undoHistory, redo as redoHistory } from '../../store/historySlice';
 
@@ -15,9 +15,11 @@ interface Props {
   initialPaths?: any[];
   onSave: (paths: any[]) => void;
   onStateChange: (canUndo: boolean, canRedo: boolean) => void;
+  onGestureStart?: () => void;
+  onGestureEnd?: () => void;
 }
 
-const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initialPaths = [], onSave, onStateChange }, ref) => {
+const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initialPaths = [], onSave, onStateChange, onGestureStart, onGestureEnd }, ref) => {
   const dispatch = useDispatch();
   const { activeTool, activeColor, penSize } = useSelector((state: any) => state.drawing);
   const [paths, setPaths] = useState<any[]>(initialPaths);
@@ -33,6 +35,10 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
 
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
+  const onGestureStartRef = useRef(onGestureStart);
+  onGestureStartRef.current = onGestureStart;
+  const onGestureEndRef = useRef(onGestureEnd);
+  onGestureEndRef.current = onGestureEnd;
 
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -122,6 +128,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (e) => {
+      onGestureStartRef.current?.();
       const s = stateRef.current;
       if (s.activeTool === 'laser') {
         const newPath = {
@@ -150,9 +157,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       if (stateRef.current.activeTool === 'eraser' || stateRef.current.activeTool === 'laser') return;
       if (currentPathRef.current) {
         const newPoint = `${e.nativeEvent.locationX},${e.nativeEvent.locationY}`;
-        const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
-        currentPathRef.current = updatedPath;
-        setCurrentPath(updatedPath);
+        if (stateRef.current.activeTool === 'underline') {
+          const updatedPath = { ...currentPathRef.current, points: [currentPathRef.current.points[0], newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+        } else {
+          const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+        }
       }
     },
     onPanResponderRelease: (e) => {
@@ -160,6 +173,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       if (s.activeTool === 'laser') {
         setCurrentPath(null);
         currentPathRef.current = null;
+        onGestureEndRef.current?.();
         return;
       }
       if (s.activeTool === 'eraser') {
@@ -189,6 +203,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
           debouncedSave(newPaths);
         }
       }
+      onGestureEndRef.current?.();
       setCurrentPath(null);
       currentPathRef.current = null;
     },
@@ -223,8 +238,10 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
               )}
             </React.Fragment>
           ))}
-          {currentPath && (
-            <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
+          {currentPath && currentPath.tool === 'laser' ? (
+            (() => { const [cx, cy] = currentPath.points[0].split(',').map(Number); return <Circle cx={cx} cy={cy} r={14} fill="#FF0000" opacity={0.85} />; })()
+          ) : (
+            currentPath && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
           )}
         </Svg>
       </View>

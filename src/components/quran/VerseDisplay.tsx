@@ -9,7 +9,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
-  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'mequran' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
+  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
   const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
   const words = displayText.replace(/۞/u, '').trim().split(' ');
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
@@ -17,7 +17,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const fontFamily = getArabicFont(textStyle);
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
-  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+  const yAdj: Record<string, number> = {};
   const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>

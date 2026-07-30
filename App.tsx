@@ -47,8 +47,9 @@ const AppInner = () => {
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appState.current; appState.current = next;
-      if (prev === 'active' && next !== 'active') processSyncQueue().catch(() => {});
-      if (prev !== 'active' && next === 'active') processSyncQueue().catch(() => {});
+      if ((prev === 'active' && next !== 'active') || (prev !== 'active' && next === 'active')) {
+        (async () => { dispatch(setSyncing()); const r = await processSyncQueue(); if (r.success) dispatch(setSynced()); else dispatch(setOffline()); })();
+      }
     });
 
     return () => { clearInterval(interval); sub.remove(); };

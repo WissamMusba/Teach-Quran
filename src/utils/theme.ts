@@ -7,13 +7,11 @@ export const scaleFont = (n: number) => PixelRatio.roundToNearestPixel(Math.max(
 export const ARABIC_FONTS: Record<string, string> = {
   saleem: 'PDMSSaleemQuranFont',
   uthmani: 'KFGQPCUthmanicScriptHAFS',
-  mequran: 'Me_Quran',
   alqalam: 'AlQalamQuranMajeed',
   lateef: 'Lateef-Regular',
   harmattan: 'Harmattan-Regular',
   amiri: 'Amiri-Regular',
   scheherazade: 'ScheherazadeNew-Regular',
-  noto: 'NotoNaskhArabic-Regular',
 };
 export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.uthmani;
 
