@@ -11,6 +11,7 @@ import {
 
 const ROUND = 44, GAP = 5, COL = 32, MARGIN = 10;
 const BAR_W = 9 * COL + 12;
+const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
 const ACCENT = '#00D4AA', ICONC = '#CFCFCF', DIS = '#5A5A5A';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
@@ -27,6 +28,11 @@ const UndoI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 
 const RedoI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M15 7l5 5-5 5" /><Path d="M20 12H9a5 5 0 0 0 0 10h3" /></Svg>);
 const TrashI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6" /></Svg>);
 const CloseI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M18 6L6 18M6 6l12 12" /></Svg>);
+const ZigZag = ({ w, active }: { w: number; active: boolean }) => (
+  <Svg width={34} height={16} viewBox="0 0 34 16">
+    <Path d="M2 12 C8 2, 12 14, 17 8 C22 2, 26 14, 32 8" fill="none" stroke={active ? ACCENT : '#8A8A8A'} strokeWidth={Math.max(1.5, w * 0.8)} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
 
 interface Props {
   visible: boolean;
@@ -46,13 +52,17 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
 
   const [pal, setPal] = useState(false);
+  const [docked, setDocked] = useState<string | null>(null);
   const [[x, y], setPos] = useState([MARGIN, height - BOT - 100]);
   const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
+  const posRef = useRef({ x: MARGIN, y: height - BOT - 100 });
+  const preDockRef = useRef({ x: MARGIN, y: height - BOT - 100 });
 
-  const clampX = (v: number) => Math.max(MARGIN, Math.min(v, width - ROUND - MARGIN - (open ? GAP + BAR_W : 0)));
-  const clampY = (v: number) => Math.max(sbHeight, Math.min(v, height - ROUND - BOT));
+  const clampX = (v: number) => Math.max(-(ROUND - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
+  const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK), Math.min(v, height - BOT - DOCK_PEEK));
 
   const onTouchStart = useCallback((e: any) => {
     dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y };
@@ -61,22 +71,61 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const onTouchMove = useCallback((e: any) => {
     const dx = e.nativeEvent.pageX - dragStart.current.x;
     const dy = e.nativeEvent.pageY - dragStart.current.y;
-    setPos([clampX(dragStart.current.px + dx), clampY(dragStart.current.py + dy)]);
-  }, [width, height, open]);
+    const nx = clampX(dragStart.current.px + dx);
+    const ny = clampY(dragStart.current.py + dy);
+    setPos([nx, ny]);
+    posRef.current = { x: nx, y: ny };
+  }, [width, height]);
 
   const onTouchEnd = useCallback((e: any) => {
     const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
     const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
+
     if (dx < 8 && dy < 8) {
-      const wasClosed = !open;
-      dispatch(setToolbarExpanded(!open));
-      if (wasClosed) onActivateDraw?.();
+      if (docked) {
+        const p = preDockRef.current;
+        setPos([clampX(p.x), clampY(p.y)]);
+        posRef.current = { x: clampX(p.x), y: clampY(p.y) };
+        setDocked(null);
+        dispatch(setToolbarExpanded(true));
+      } else if (open) {
+        dispatch(setToolbarExpanded(false));
+        onExit();
+      } else {
+        dispatch(setToolbarExpanded(true));
+      }
+      return;
     }
-  }, [open, onActivateDraw]);
+
+    const cx = posRef.current.x + ROUND / 2;
+    const cy = posRef.current.y + ROUND / 2;
+    const dl = cx;
+    const dr = width - cx;
+    const dt = cy - sbHeight;
+    const db = (height - BOT) - cy;
+    const min = Math.min(dl, dr, dt, db);
+
+    if (min < DOCK_THRESHOLD) {
+      preDockRef.current = { x: posRef.current.x, y: posRef.current.y };
+      let nx = posRef.current.x, ny = posRef.current.y, edge: string | null = null;
+      if (min === dl) { nx = -(ROUND - DOCK_PEEK); edge = 'left'; }
+      else if (min === dr) { nx = width - DOCK_PEEK; edge = 'right'; }
+      else if (min === dt) { ny = sbHeight - (ROUND - DOCK_PEEK); edge = 'top'; }
+      else { ny = height - BOT - DOCK_PEEK; edge = 'bottom'; }
+      setPos([nx, ny]);
+      posRef.current = { x: nx, y: ny };
+      setDocked(edge);
+    } else {
+      setDocked(null);
+    }
+  }, [open, docked, width, height, sbHeight, BOT]);
 
   if (!visible) return null;
 
   const placeAbove = y > height - 220;
+  const barOnLeft = docked === 'right' || (!docked && x + ROUND / 2 > width / 2);
+  const barBg = nightMode ? 'rgba(255,255,255,0.40)' : 'rgba(18,18,20,0.50)';
+  const palBg = nightMode ? 'rgba(255,255,255,0.90)' : 'rgba(20,20,22,0.96)';
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const a = activeTool === k;
@@ -91,7 +140,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   );
 
   return (
-    <View style={[s.wrap, { left: x, top: y }]}>
+    <View style={[s.wrap, { left: x, top: y, flexDirection: barOnLeft ? 'row-reverse' : 'row' }]}>
       <View style={s.grip}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
@@ -102,7 +151,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
       </View>
 
       {open && (
-        <View style={s.bar}>
+        <View style={[s.bar, { backgroundColor: barBg }, barOnLeft ? { marginLeft: 0, marginRight: GAP } : { marginLeft: GAP }]}>
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
           <ToolBtn k="pen" label="PEN" Icon={Pencil} />
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
@@ -114,27 +163,31 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
               { text: 'Cancel', style: 'cancel' },
               { text: 'Clear', style: 'destructive', onPress: onClear },
             ])} />
-          <TouchableOpacity style={s.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
-            <View style={[s.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : 'rgba(255,255,255,0.5)' }]} />
-            <Text style={[s.lab, pal && { color: ACCENT }]}>COLOR</Text>
-          </TouchableOpacity>
+          <View style={s.colorWrap}>
+            <TouchableOpacity style={s.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
+              <View style={[s.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : 'rgba(255,255,255,0.5)' }]} />
+              <Text style={[s.lab, pal && { color: ACCENT }]}>COLOR</Text>
+            </TouchableOpacity>
+            {pal && (
+              <View style={[s.pal, { backgroundColor: palBg, top: placeAbove ? -(PAL_H + 18) : COL + 4 }]}>
+                {placeAbove ? null : <View style={[s.arr, { borderBottomColor: palBg }]} />}
+                <View style={s.row}>{PEN_SIZES.map((w, i) => (
+                  <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
+                    <ZigZag w={w} active={penSize === w} />
+                    <Text style={[s.zw, penSize === w && { color: ACCENT }]}>{['S','M','L','XL'][i]}</Text>
+                  </TouchableOpacity>))}
+                </View>
+                <View style={s.grid}>{PALETTE.map((c) => (
+                  <TouchableOpacity key={c} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
+                    style={[s.sw, { backgroundColor: c, borderColor: activeColor === c ? '#fff' : 'rgba(255,255,255,0.15)' }]} />
+                ))}</View>
+              {placeAbove && <View style={[s.arr, { borderTopColor: palBg }]} />}
+              </View>
+            )}
+          </View>
           <TouchableOpacity style={s.col} onPress={onExit} activeOpacity={0.5}>
             <CloseI c={ICONC} /><Text style={s.lab}>EXIT</Text>
           </TouchableOpacity>
-
-          {pal && (
-            <View style={[s.pal, { top: placeAbove ? -(PAL_H + 8) : ROUND + 8 }]}>
-              <View style={s.row}>{PEN_SIZES.map((w) => (
-                <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
-                  <View style={{ height: w * 2 + 4, width: 18, borderRadius: w, backgroundColor: penSize === w ? ACCENT : '#8A8A8A' }} />
-                </TouchableOpacity>))}
-              </View>
-              <View style={s.grid}>{PALETTE.map((c) => (
-                <TouchableOpacity key={c} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
-                  style={[s.sw, { backgroundColor: c, borderColor: activeColor === c ? '#fff' : 'rgba(255,255,255,0.15)' }]} />
-              ))}</View>
-            </View>
-          )}
         </View>
       )}
     </View>
@@ -142,15 +195,18 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 };
 
 const s = StyleSheet.create({
-  wrap: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
+  wrap: { position: 'absolute', alignItems: 'center', elevation: 200, zIndex: 200 },
   grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, backgroundColor: '#151517', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  bar: { marginLeft: GAP, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(18,18,20,0.96)', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 5, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 5, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   col: { width: COL, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },
   lab: { fontSize: 7.5, color: '#9A9A9A', marginTop: 1, fontWeight: '600' },
   dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },
-  pal: { position: 'absolute', left: 0, width: 180, backgroundColor: 'rgba(20,20,22,0.96)', borderRadius: 12, padding: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  colorWrap: { position: 'relative' },
+  pal: { position: 'absolute', left: -(180 - COL) / 2, width: 180, borderRadius: 12, padding: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  arr: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   wcol: { alignItems: 'center', paddingVertical: 3 },
+  zw: { fontSize: 9, color: '#8A8A8A', marginTop: 1, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   sw: { width: 36, height: 30, borderRadius: 8, borderWidth: 2, marginBottom: 6 },
 });
