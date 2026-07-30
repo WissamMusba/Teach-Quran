@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 interface Props {
   visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean;
   onBack: () => void; onOpenList: () => void; onBookmarks: () => void; onMistakes: () => void;
-  onShare: () => void; onNotes: () => void; onDraw: () => void; onSettings: () => void;
+  onShare: () => void; onNotes: () => void; onSettings: () => void;
 }
 
 const AnimatedHeader: React.FC<Props> = (p) => {
@@ -53,7 +53,6 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <Icon label="✏️" onPress={p.onMistakes} />
             <Icon label="📤" onPress={p.onShare} />
             <Icon label="📝" onPress={p.onNotes} />
-            <Icon label="🖍️" onPress={p.onDraw} />
             <Icon label="⚙️" onPress={p.onSettings} />
           </View>
         </View>

@@ -6,6 +6,7 @@ import { setStudents, addStudent, removeStudent, updateStudent as updateStudentS
 import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
+import { setToolbarExpanded } from '../store/drawingSlice';
 import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
@@ -58,7 +59,7 @@ export default function DashboardScreen({ navigation }: any) {
   }, [editId, editName]);
 
   const renderItem = useCallback(({ item }: any) => (
-    <TouchableOpacity style={styles.card} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+    <TouchableOpacity style={styles.card} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
       <Text style={styles.studentName}>{item.name}</Text>
     </TouchableOpacity>
   ), [navigation]);

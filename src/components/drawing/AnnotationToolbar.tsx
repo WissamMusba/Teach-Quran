@@ -52,7 +52,6 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
-  const nightMode = useSelector((s: any) => s.settings?.nightMode);
 
   const [pal, setPal] = useState(false);
   const [docked, setDocked] = useState<string | null>(null);
@@ -61,7 +60,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const posRef = useRef({ x: MARGIN, y: height - BOT - 100 });
   const preDockRef = useRef({ x: MARGIN, y: height - BOT - 100 });
 
-  const clampX = (v: number) => Math.max(-(ROUND - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
+  const expandedWidth = BAR_W + GAP + ROUND;
+  const clampX = (v: number, expanded: boolean, barLeft: boolean) => {
+    if (expanded) {
+      const min = MARGIN;
+      const max = barLeft ? width - ROUND - MARGIN : width - expandedWidth - MARGIN;
+      return Math.max(min, Math.min(v, max));
+    }
+    return Math.max(-(ROUND - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
+  };
   const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK), Math.min(v, height - BOT - DOCK_PEEK));
 
   const onTouchStart = useCallback((e: any) => {
@@ -71,11 +78,18 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const onTouchMove = useCallback((e: any) => {
     const dx = e.nativeEvent.pageX - dragStart.current.x;
     const dy = e.nativeEvent.pageY - dragStart.current.y;
-    const nx = clampX(dragStart.current.px + dx);
+    const newPx = dragStart.current.px + dx;
+    const barLeft = docked === 'right' || (!docked && newPx + ROUND / 2 > width / 2);
+    const nx = clampX(newPx, open, barLeft);
     const ny = clampY(dragStart.current.py + dy);
     setPos([nx, ny]);
     posRef.current = { x: nx, y: ny };
-  }, [width, height]);
+  }, [width, height, open, docked]);
+
+  const reclampOnExpand = useCallback((px: number, py: number) => {
+    const bl = px + ROUND / 2 > width / 2;
+    return { x: clampX(px, true, bl), y: clampY(py) };
+  }, [width, height, sbHeight, BOT]);
 
   const onTouchEnd = useCallback((e: any) => {
     const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
@@ -84,14 +98,18 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
     if (dx < 8 && dy < 8) {
       if (docked) {
         const p = preDockRef.current;
-        setPos([clampX(p.x), clampY(p.y)]);
-        posRef.current = { x: clampX(p.x), y: clampY(p.y) };
+        const clamped = reclampOnExpand(p.x, p.y);
+        setPos([clamped.x, clamped.y]);
+        posRef.current = clamped;
         setDocked(null);
         dispatch(setToolbarExpanded(true));
       } else if (open) {
         dispatch(setToolbarExpanded(false));
         onExit();
       } else {
+        const clamped = reclampOnExpand(posRef.current.x, posRef.current.y);
+        setPos([clamped.x, clamped.y]);
+        posRef.current = clamped;
         dispatch(setToolbarExpanded(true));
       }
       return;
@@ -105,7 +123,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
     const db = (height - BOT) - cy;
     const min = Math.min(dl, dr, dt, db);
 
-    if (min < DOCK_THRESHOLD) {
+    if (!open && min < DOCK_THRESHOLD) {
       preDockRef.current = { x: posRef.current.x, y: posRef.current.y };
       let nx = posRef.current.x, ny = posRef.current.y, edge: string | null = null;
       if (min === dl) { nx = -(ROUND - DOCK_PEEK); edge = 'left'; }
@@ -118,14 +136,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
     } else {
       setDocked(null);
     }
-  }, [open, docked, width, height, sbHeight, BOT]);
+  }, [open, docked, width, height, sbHeight, BOT, reclampOnExpand]);
 
   if (!visible) return null;
 
   const placeAbove = y > height - 220;
   const barOnLeft = docked === 'right' || (!docked && x + ROUND / 2 > width / 2);
-  const barBg = nightMode ? 'rgba(255,255,255,0.40)' : 'rgba(18,18,20,0.50)';
-  const palBg = nightMode ? 'rgba(255,255,255,0.90)' : 'rgba(20,20,22,0.96)';
+  const barBg = 'rgba(18,18,20,0.55)';
+  const gripBg = barBg;
+  const palBg = 'rgba(20,20,22,0.96)';
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const a = activeTool === k;
@@ -141,7 +160,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 
   return (
     <View style={[s.wrap, { left: x, top: y, flexDirection: barOnLeft ? 'row-reverse' : 'row' }]}>
-      <View style={s.grip}
+      <View style={[s.grip, { backgroundColor: gripBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
         onResponderGrant={onTouchStart}
@@ -151,7 +170,12 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
       </View>
 
       {open && (
-        <View style={[s.bar, { backgroundColor: barBg }, barOnLeft ? { marginLeft: 0, marginRight: GAP } : { marginLeft: GAP }]}>
+        <View style={[s.bar, { backgroundColor: barBg }, barOnLeft ? { marginLeft: 0, marginRight: GAP } : { marginLeft: GAP }]}
+          onStartShouldSetResponder={() => false}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={onTouchStart}
+          onResponderMove={onTouchMove}
+          onResponderRelease={onTouchEnd}>
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
           <ToolBtn k="pen" label="PEN" Icon={Pencil} />
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
@@ -185,7 +209,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
               </View>
             )}
           </View>
-          <TouchableOpacity style={s.col} onPress={onExit} activeOpacity={0.5}>
+          <TouchableOpacity style={s.col} onPress={() => { dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
             <CloseI c={ICONC} /><Text style={s.lab}>EXIT</Text>
           </TouchableOpacity>
         </View>
@@ -196,8 +220,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 
 const s = StyleSheet.create({
   wrap: { position: 'absolute', alignItems: 'center', elevation: 200, zIndex: 200 },
-  grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, backgroundColor: '#151517', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  bar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 5, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 0, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 5, borderWidth: 0, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   col: { width: COL, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },
   lab: { fontSize: 7.5, color: '#9A9A9A', marginTop: 1, fontWeight: '600' },
   dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },

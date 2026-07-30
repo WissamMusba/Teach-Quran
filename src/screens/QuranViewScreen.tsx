@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, 
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse } from '../store/quranSlice';
+import { setToolbarExpanded } from '../store/drawingSlice';
 import { addPendingChange } from '../store/syncSlice';
 import { setStudentData } from '../store/studentSlice';
 import { setPlaying } from '../store/audioSlice';
@@ -157,7 +158,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     deepLinkLoadedRef.current = false;
   }, [currentSurahId, readingMode, textStyle]);
 
-  useEffect(() => { if (isDrawing) setIsDrawing(false); }, [currentSurahId, currentPageNum]);
+  useEffect(() => { setIsDrawing(false); dispatch(setToolbarExpanded(false)); }, [currentSurahId, currentPageNum]);
 
   useEffect(() => {
     setPageCache({});
@@ -281,7 +282,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onBookmarks={() => navigation.navigate('Bookmarks')} onMistakes={() => navigation.navigate('Mistakes')}
-        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onDraw={() => { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }} onSettings={() => navigation.navigate('Settings')} />
+        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onSettings={() => navigation.navigate('Settings')} />
 
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>

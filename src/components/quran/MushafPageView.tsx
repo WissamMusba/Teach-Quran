@@ -45,6 +45,13 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
               const verseNum = parts.length > 1 ? parseInt(parts[1], 10) : 0;
               const wordPos = parts.length > 2 ? parseInt(parts[2], 10) : 0;
               const vKey = `${surahId}_${verseNum}`;
+
+              // Skip rendering verse-end marker entries (Private Use Area U+F500-F5FF)
+              // These are decorative verse-number circle glyphs meant for QPC fonts.
+              // Standard fonts render them as garbled tofu. We hide them but keep
+              // the layout entry intact so word positions and verse boundaries stay correct.
+              const isVerseEndMarker = word.word && /[\uF500-\uF5FF]/.test(word.word);
+
               const verseObj = versesForPage?.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = word.word;
               const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
@@ -66,6 +73,25 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
                 } else {
                   isVerseBoundary = true;
                 }
+              }
+
+              // If this is a verse-end marker, don't render the garbled text
+              // but still allow verse boundary badge to appear
+              if (isVerseEndMarker) {
+                return (
+                  <React.Fragment key={wordIdx}>
+                    {isVerseBoundary && (
+                      <View style={styles.verseBadgeContainer}>
+                        <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
+                          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        {hasNote && <Text style={styles.noteIcon}>📝</Text>}
+                      </View>
+                    )}
+                  </React.Fragment>
+                );
               }
 
               return (
