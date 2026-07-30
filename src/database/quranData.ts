@@ -5,6 +5,7 @@ const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/m
 
 let indopakVerseCache: Record<string, number> | null = null;
 let indopakReverseMap: Record<string, string[]> | null = null;
+let indopakPageVersesMap: Record<string, any[]> | null = null;
 let allVersesCache: any[] | null = null;
 
 const isIndopakStyle = (mushaf?: string) => {
@@ -173,8 +174,18 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
         indopakReverseMap[pg].push(key);
       }
     }
-    const onThisPage = indopakReverseMap[pageNum] || [];
-    return allVersesCache.filter((v: any) => onThisPage.includes(`${v.surahId}:${v.verseNumber}`));
+    if (!indopakPageVersesMap) {
+      indopakPageVersesMap = {};
+      for (const v of allVersesCache) {
+        const key = `${v.surahId}:${v.verseNumber}`;
+        const pg = indopakVerseCache[key];
+        if (pg) {
+          if (!indopakPageVersesMap[pg]) indopakPageVersesMap[pg] = [];
+          indopakPageVersesMap[pg].push(v);
+        }
+      }
+    }
+    return indopakPageVersesMap[pageNum] || [];
   }
   const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
   const out: any[] = [];

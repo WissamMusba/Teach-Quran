@@ -644,5 +644,75 @@ Safety:
 - ✅ Quran data is static — map never goes stale
 
 ================================================================================
+ SYNC VISUAL FEEDBACK — App.tsx + Dashboard screen
+===============================================================================
+
+Problem: Sync runs silently on login, 30-min interval, and app background/foreground
+but nothing shows on screen. User can't tell if data was uploaded or if it failed.
+
+Fix: Show a small sync indicator in the Dashboard header (or a floating snackbar).
+
+=== 1. Add sync status selector (App.tsx or create a SyncIndicator component) ===
+
+Read `state.sync.status` and `state.sync.pendingChanges` from Redux.
+
+=== 2. SyncIndicator component (src/components/sync/SyncIndicator.tsx) ===
+
+```tsx
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import { useSelector } from 'react-redux';
+
+const SyncIndicator = () => {
+  const { status, pendingChanges } = useSelector((s: any) => s.sync);
+  const [visible, setVisible] = useState(false);
+  const [fade] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    if (status === 'syncing') {
+      setVisible(true);
+      Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    } else if (status === 'synced' || status === 'offline') {
+      Animated.timing(fade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
+        setVisible(false);
+      });
+    }
+  }, [status]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[s.wrap, { opacity: fade }]}>
+      <Text style={s.text}>
+        {status === 'syncing' ? 'Syncing...' : status === 'offline' ? 'Sync failed' : 'Synced ✓'}
+      </Text>
+    </Animated.View>
+  );
+};
+
+const s = StyleSheet.create({
+  wrap: {
+    position: 'absolute', bottom: 60, alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 20, zIndex: 999,
+  },
+  text: { color: '#fff', fontSize: 13, fontWeight: '600' },
+});
+
+export default SyncIndicator;
+```
+
+=== 3. Place in DashboardScreen.tsx and optionally in App.tsx ===
+
+Dashboard: import SyncIndicator, render at bottom of the screen (above the sync button area).
+App.tsx: render as a global overlay at the end of AppInner's return.
+
+=== 4. (Optional) Better: integrate into the Dashboard header ===
+
+- When syncing: show a small spinning icon next to "Dashboard" title
+- When failed: show red "!" icon
+- When synced: brief green checkmark that fades
+
+===============================================================================
  END
 ================================================================================

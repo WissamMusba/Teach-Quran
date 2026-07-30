@@ -7,6 +7,7 @@ import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
 import SyncStatus from '../components/common/SyncStatus';
+import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
 import { purgeLocalStudent } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
@@ -105,6 +106,7 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </Modal>
 
+      <SyncIndicator />
       <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
     </View>
   );

@@ -336,7 +336,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
                       if (firstWord?.location) {
                         const sId = parseInt(firstWord.location.split(':')[0], 10);
-                        if (sId && sId !== currentSurahId) dispatch(setSurah({ surahId: sId, verses: [] }));
+                        if (sId && sId !== currentSurahId) setHeaderSurahId(sId);
                       }
                     }
                   }
