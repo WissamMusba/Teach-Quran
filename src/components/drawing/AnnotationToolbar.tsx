@@ -12,7 +12,7 @@ import {
 const ROUND = 44, GAP = 5, COL = 32, MARGIN = 10;
 const BAR_W = 9 * COL + 12;
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
-const ACCENT = '#00D4AA', ICONC = '#CFCFCF', DIS = '#5A5A5A';
+const ACCENT = '#00D4AA';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
 const PAL_H = 120;
@@ -61,14 +61,9 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const preDockRef = useRef({ x: MARGIN, y: height - BOT - 100 });
 
   const expandedWidth = BAR_W + GAP + ROUND;
-  const clampX = (v: number, expanded: boolean, barLeft: boolean) => {
-    if (expanded) {
-      const min = MARGIN;
-      const max = barLeft ? width - ROUND - MARGIN : width - expandedWidth - MARGIN;
-      return Math.max(min, Math.min(v, max));
-    }
-    return Math.max(-(ROUND - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
-  };
+  const clampXDrag = (v: number) => Math.max(-(expandedWidth - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
+  const clapXOnOpen = (v: number) => Math.max(MARGIN, Math.min(v, width - expandedWidth - MARGIN));
+  const clampXDock = (v: number) => Math.max(-(ROUND - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
   const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK), Math.min(v, height - BOT - DOCK_PEEK));
 
   const onTouchStart = useCallback((e: any) => {
@@ -79,16 +74,14 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
     const dx = e.nativeEvent.pageX - dragStart.current.x;
     const dy = e.nativeEvent.pageY - dragStart.current.y;
     const newPx = dragStart.current.px + dx;
-    const barLeft = docked === 'right' || (!docked && newPx + ROUND / 2 > width / 2);
-    const nx = clampX(newPx, open, barLeft);
+    const nx = open ? clampXDrag(newPx) : clampXDock(newPx);
     const ny = clampY(dragStart.current.py + dy);
     setPos([nx, ny]);
     posRef.current = { x: nx, y: ny };
-  }, [width, height, open, docked]);
+  }, [width, height, open]);
 
   const reclampOnExpand = useCallback((px: number, py: number) => {
-    const bl = px + ROUND / 2 > width / 2;
-    return { x: clampX(px, true, bl), y: clampY(py) };
+    return { x: clapXOnOpen(px), y: clampY(py) };
   }, [width, height, sbHeight, BOT]);
 
   const onTouchEnd = useCallback((e: any) => {
@@ -140,37 +133,39 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 
   if (!visible) return null;
 
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const placeAbove = y > height - 220;
-  const barOnLeft = docked === 'right' || (!docked && x + ROUND / 2 > width / 2);
-  const barBg = 'rgba(18,18,20,0.55)';
-  const gripBg = barBg;
+  const barBg = nightMode ? 'rgba(190,190,205,0.45)' : 'rgba(18,18,20,0.85)';
+  const iconC = nightMode ? '#2A2A2A' : '#CFCFCF';
+  const disC = nightMode ? '#6A6A6A' : '#5A5A5A';
+  const labC = nightMode ? '#4A4A4A' : '#9A9A9A';
   const palBg = 'rgba(20,20,22,0.96)';
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const a = activeTool === k;
-    return (<TouchableOpacity style={s.col} onPress={() => { dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
-      <Icon c={a ? ACCENT : ICONC} /><Text style={[s.lab, a && { color: ACCENT }]}>{label}</Text>
+    return (<TouchableOpacity style={s.col} onPress={() => { setPal(false); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
+      <Icon c={a ? ACCENT : iconC} /><Text style={[s.lab, { color: labC }, a && { color: ACCENT }]}>{label}</Text>
     </TouchableOpacity>);
   };
   const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
     <TouchableOpacity style={s.col} onPress={onPress} disabled={disabled} activeOpacity={0.5}>
-      <Icon c={disabled ? DIS : ICONC} /><Text style={[s.lab, disabled && { color: DIS }]}>{label}</Text>
+      <Icon c={disabled ? disC : iconC} /><Text style={[s.lab, { color: labC }, disabled && { color: disC }]}>{label}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[s.wrap, { left: x, top: y, flexDirection: barOnLeft ? 'row-reverse' : 'row' }]}>
-      <View style={[s.grip, { backgroundColor: gripBg }]}
+    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row' }]}>
+      <View style={[s.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
         onResponderGrant={onTouchStart}
         onResponderMove={onTouchMove}
         onResponderRelease={onTouchEnd}>
-        {open ? <Chevron c={ICONC} /> : <Pencil c={ICONC} />}
+        {open ? <Chevron c={iconC} /> : <Pencil c={iconC} />}
       </View>
 
       {open && (
-        <View style={[s.bar, { backgroundColor: barBg }, barOnLeft ? { marginLeft: 0, marginRight: GAP } : { marginLeft: GAP }]}
+        <View style={[s.bar, { backgroundColor: barBg, marginLeft: GAP }]}
           onStartShouldSetResponder={() => false}
           onMoveShouldSetResponder={() => true}
           onResponderGrant={onTouchStart}
@@ -189,16 +184,16 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
             ])} />
           <View style={s.colorWrap}>
             <TouchableOpacity style={s.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
-              <View style={[s.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : 'rgba(255,255,255,0.5)' }]} />
-              <Text style={[s.lab, pal && { color: ACCENT }]}>COLOR</Text>
+              <View style={[s.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : iconC }]} />
+              <Text style={[s.lab, { color: labC }, pal && { color: ACCENT }]}>COLOR</Text>
             </TouchableOpacity>
             {pal && (
-              <View style={[s.pal, { backgroundColor: palBg, top: placeAbove ? -(PAL_H + 18) : COL + 4 }]}>
+              <View style={[s.pal, { backgroundColor: palBg, top: placeAbove ? -(PAL_H + 18) : COL + 4, left: Math.min(Math.max(10 - x, -(180 - COL) / 2), width - 190 - x) }]}>
                 {placeAbove ? null : <View style={[s.arr, { borderBottomColor: palBg }]} />}
                 <View style={s.row}>{PEN_SIZES.map((w, i) => (
                   <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
                     <ZigZag w={w} active={penSize === w} />
-                    <Text style={[s.zw, penSize === w && { color: ACCENT }]}>{['S','M','L','XL'][i]}</Text>
+                    <Text style={[s.zw, { color: labC }, penSize === w && { color: ACCENT }]}>{['S','M','L','XL'][i]}</Text>
                   </TouchableOpacity>))}
                 </View>
                 <View style={s.grid}>{PALETTE.map((c) => (
@@ -210,7 +205,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
             )}
           </View>
           <TouchableOpacity style={s.col} onPress={() => { dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
-            <CloseI c={ICONC} /><Text style={s.lab}>EXIT</Text>
+            <CloseI c={iconC} /><Text style={[s.lab, { color: labC }]}>EXIT</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -223,14 +218,14 @@ const s = StyleSheet.create({
   grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 0, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   bar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 5, borderWidth: 0, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   col: { width: COL, alignItems: 'center', justifyContent: 'center', paddingVertical: 1 },
-  lab: { fontSize: 7.5, color: '#9A9A9A', marginTop: 1, fontWeight: '600' },
+  lab: { fontSize: 7.5, marginTop: 1, fontWeight: '600' },
   dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },
   colorWrap: { position: 'relative' },
   pal: { position: 'absolute', left: -(180 - COL) / 2, width: 180, borderRadius: 12, padding: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   arr: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 8, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   wcol: { alignItems: 'center', paddingVertical: 3 },
-  zw: { fontSize: 9, color: '#8A8A8A', marginTop: 1, fontWeight: '700' },
+  zw: { fontSize: 9, marginTop: 1, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   sw: { width: 36, height: 30, borderRadius: 8, borderWidth: 2, marginBottom: 6 },
 });
