@@ -600,5 +600,49 @@ Insert after the DrawingCanvas block:
 Build & test.
 
 ================================================================================
+ OPTIMIZATION — getVersesByPage O(n²) → O(1)
+================================================================================
+File: src/database/quranData.ts
+
+Problem (Indopak mode only):
+Every page flip does allVersesCache.filter(v => onThisPage.includes(...)) 
+— scans all 6,200 verses and calls .includes() on each iteration.
+O(6,200 × ~20) = ~186k ops per page flip.
+
+Fix — Pre-compute a page→verses map once, then O(1) lookup:
+
+1. Add a new global cache after line 8 (indopakReverseMap):
+  let indopakPageVersesMap: Record<string, any[]> | null = null;
+
+2. After the indopakReverseMap build block (~line 174), add:
+  if (!indopakPageVersesMap) {
+    indopakPageVersesMap = {};
+    for (const v of allVersesCache) {
+      const key = `${v.surahId}:${v.verseNumber}`;
+      const pg = indopakVerseCache[key];
+      if (pg) {
+        if (!indopakPageVersesMap[pg]) indopakPageVersesMap[pg] = [];
+        indopakPageVersesMap[pg].push(v);
+      }
+    }
+  }
+
+3. Replace the return at line 177:
+  BEFORE: return allVersesCache.filter((v: any) => onThisPage.includes(`${v.surahId}:${v.verseNumber}`));
+  AFTER:  return indopakPageVersesMap[pageNum] || [];
+
+4. The onThisPage variable on line 176 is no longer needed — can remove it:
+  BEFORE: const onThisPage = indopakReverseMap[pageNum] || [];
+          return allVersesCache.filter((v: any) => onThisPage.includes(`${v.surahId}:${v.verseNumber}`));
+  AFTER:  return indopakPageVersesMap[pageNum] || [];
+
+Safety:
+- ✅ Every navigation path works (random surah, bookmark, page back)
+- ✅ Same verse objects returned, same structure
+- ✅ Build cost is one extra loop during first load (same time as existing caches)
+- ✅ No negative performance — O(1) instead of O(n) on page flips
+- ✅ Quran data is static — map never goes stale
+
+================================================================================
  END
 ================================================================================

@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
-  Animated, View, Text, TouchableOpacity, StyleSheet, PanResponder,
+  View, Text, TouchableOpacity, StyleSheet,
   useWindowDimensions, Alert, Platform, StatusBar,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -10,7 +10,6 @@ import {
 } from '../../store/drawingSlice';
 
 const ROUND = 52, GAP = 8, COL = 46, MARGIN = 12;
-const DOCK_PEEK = 20, DOCK_THRESHOLD = 46, TAP = 7;
 const ACCENT = '#00D4AA', ICONC = '#E8E8E8', DIS = '#5A5A5A';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
@@ -26,9 +25,6 @@ const UndoI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 
 const RedoI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M15 7l5 5-5 5" /><Path d="M20 12H9a5 5 0 0 0 0 10h3" /></Svg>);
 const Trash = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6" /></Svg>);
 const CloseI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M18 6L6 18M6 6l12 12" /></Svg>);
-const Zig = ({ w, active }: { w: number; active: boolean }) => (
-  <Svg width={34} height={14} viewBox="0 0 34 14"><Path d="M2 10L8 4l6 6 6-6 6 6 4-4" fill="none" stroke={active ? ACCENT : '#8A8A8A'} strokeWidth={Math.max(1, w * 0.55)} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-);
 
 interface Props {
   visible: boolean;
@@ -45,109 +41,40 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const dispatch = useDispatch();
   const { width, height } = useWindowDimensions();
   const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
-  const TOP = sbHeight, BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
+  const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
 
   const [pal, setPal] = useState(false);
-  const [docked, setDocked] = useState(false);
-  const [cwidth, setCWidth] = useState(ROUND);
+  const [[x, y], setPos] = useState([MARGIN, height - BOT - 100]);
+  const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
 
-  const pan = useRef(new Animated.ValueXY()).current;
-  const press = useRef(new Animated.Value(1)).current;
-  const pos = useRef({ x: 0, y: 0 });
-  const preDock = useRef({ x: 0, y: 0 });
-  const init = useRef(false);
+  const clampX = (v: number) => Math.max(MARGIN, Math.min(v, width - (open ? 400 : ROUND) - MARGIN));
+  const clampY = (v: number) => Math.max(sbHeight, Math.min(v, height - ROUND - BOT));
 
-  const openR = useRef(open), dockedR = useRef(docked), cwR = useRef(cwidth);
-  const wR = useRef(width), hR = useRef(height);
-  const topR = useRef(TOP), botR = useRef(BOT);
-  useEffect(() => { openR.current = open; }, [open]);
-  useEffect(() => { dockedR.current = docked; }, [docked]);
-  useEffect(() => { cwR.current = cwidth; }, [cwidth]);
-  useEffect(() => { wR.current = width; hR.current = height; }, [width, height]);
+  const onTouchStart = useCallback((e: any) => {
+    dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y };
+  }, [x, y]);
 
-  const clampX = (x: number, w: number) => Math.max(MARGIN, Math.min(x, wR.current - w - MARGIN));
-  const clampY = (y: number) => Math.max(topR.current, Math.min(y, hR.current - ROUND - botR.current));
-  const clampP = (p: { x: number; y: number }, w: number) => ({ x: clampX(p.x, w), y: clampY(p.y) });
+  const onTouchMove = useCallback((e: any) => {
+    const dx = e.nativeEvent.pageX - dragStart.current.x;
+    const dy = e.nativeEvent.pageY - dragStart.current.y;
+    setPos([clampX(dragStart.current.px + dx), clampY(dragStart.current.py + dy)]);
+  }, [width, height, open]);
 
-  const animateTo = (t: { x: number; y: number }, dock: boolean) => {
-    const cur = { x: pos.current.x, y: pos.current.y };
-    pan.setOffset(t);
-    pan.setValue({ x: cur.x - t.x, y: cur.y - t.y });
-    Animated.timing(pan, { toValue: { x: 0, y: 0 }, duration: 170, useNativeDriver: true }).start();
-    pos.current = t;
-    setDocked(dock);
-  };
-
-  useEffect(() => {
-    if (init.current) return;
-    const p = { x: width - ROUND - MARGIN, y: height - BOT - 100 };
-    pos.current = p; preDock.current = p;
-    pan.setOffset(p); pan.setValue({ x: 0, y: 0 });
-    init.current = true;
-  }, [width, height]);
-
-  useEffect(() => {
-    if (!init.current) return;
-    if (dockedR.current) setDocked(false);
-    const c = clampP(pos.current, cwR.current);
-    pos.current = c; preDock.current = c;
-    pan.setOffset(c); pan.setValue({ x: 0, y: 0 });
-  }, [cwidth, width, height]);
-
-  useEffect(() => { if (!open) setPal(false); }, [open]);
-
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
-      pan.setOffset(pos.current); pan.setValue({ x: 0, y: 0 });
-      Animated.spring(press, { toValue: 0.9, useNativeDriver: true, friction: 8 }).start();
-    },
-    onPanResponderMove: (_, g) => {
-      pan.x.setValue(g.dx);
-      pan.y.setValue(g.dy);
-    },
-    onPanResponderRelease: (_: any, g: any) => {
-      Animated.spring(press, { toValue: 1, useNativeDriver: true, friction: 8 }).start();
-      const abs = { x: pos.current.x + g.dx, y: pos.current.y + g.dy };
-      pos.current = abs;
-      if (Math.hypot(g.dx, g.dy) < TAP) {
-        if (dockedR.current) {
-          const t = clampP(preDock.current, ROUND);
-          pos.current = { x: pos.current.x, y: pos.current.y }; animateTo(t, false);
-        } else {
-          dispatch(setToolbarExpanded(!openR.current));
-          pan.setOffset(pos.current); pan.setValue({ x: 0, y: 0 });
-        }
-        return;
-      }
-      if (!openR.current) {
-        const cx = abs.x + ROUND / 2, cy = abs.y + ROUND / 2;
-        const W = wR.current, H = hR.current, tp = topR.current, bt = botR.current;
-        const dL = cx, dR = W - cx, dT = cy - tp, dB = (H - bt) - cy;
-        const m = Math.min(dL, dR, dT, dB);
-        if (m < DOCK_THRESHOLD) {
-          let t;
-          if (m === dL) t = { x: -(ROUND - DOCK_PEEK), y: clampY(abs.y) };
-          else if (m === dR) t = { x: W - DOCK_PEEK, y: clampY(abs.y) };
-          else if (m === dT) t = { x: clampX(abs.x, ROUND), y: -(ROUND - DOCK_PEEK) };
-          else t = { x: clampX(abs.x, ROUND), y: H - bt - DOCK_PEEK };
-          preDock.current = clampP(abs, ROUND);
-          animateTo(t, true);
-          return;
-        }
-      }
-      const t = clampP(abs, cwR.current);
-      animateTo(t, false);
-    },
-    onPanResponderTerminate: () => Animated.spring(press, { toValue: 1, useNativeDriver: true }).start(),
-  })).current;
+  const onTouchEnd = useCallback((e: any) => {
+    const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
+    const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
+    if (dx < 8 && dy < 8) {
+      const wasClosed = !open;
+      dispatch(setToolbarExpanded(!open));
+      if (wasClosed) onActivateDraw?.();
+    }
+  }, [open, onActivateDraw]);
 
   if (!visible) return null;
 
-  const placeAbove = pos.current.y > height - 220;
+  const placeAbove = y > height - 220;
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const a = activeTool === k;
@@ -162,10 +89,13 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   );
 
   return (
-    <Animated.View onLayout={(e) => setCWidth(e.nativeEvent.layout.width)}
-      style={[s.wrap, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]}>
-
-      <View {...panResponder.panHandlers} style={[s.grip, { transform: [{ scale: press }] }]}>
+    <View style={[s.wrap, { left: x, top: y }]}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderGrant={onTouchStart}
+      onResponderMove={onTouchMove}
+      onResponderRelease={onTouchEnd}>
+      <View style={s.grip}>
         {open ? <Chevron c={ICONC} /> : <Pencil c={ICONC} />}
       </View>
 
@@ -194,7 +124,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
             <View style={[s.pal, { top: placeAbove ? -(PAL_H + 8) : ROUND + 8 }]}>
               <View style={s.row}>{PEN_SIZES.map((w) => (
                 <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
-                  <Zig w={w} active={penSize === w} />
+                  <View style={{ height: w * 2 + 4, width: 20, borderRadius: w, backgroundColor: penSize === w ? ACCENT : '#8A8A8A' }} />
                 </TouchableOpacity>))}
               </View>
               <View style={s.grid}>{PALETTE.map((c) => (
@@ -205,7 +135,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
           )}
         </View>
       )}
-    </Animated.View>
+    </View>
   );
 };
 
