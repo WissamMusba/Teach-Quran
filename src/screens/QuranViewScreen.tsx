@@ -8,7 +8,8 @@ import { setStudentData } from '../store/studentSlice';
 import { setPlaying } from '../store/audioSlice';
 import VerseDisplay from '../components/quran/VerseDisplay';
 import FlowingText from '../components/quran/FlowingText';
-import DrawingCanvas from '../components/drawing/DrawingCanvas';
+import DrawingCanvas, { DrawingCanvasHandle } from '../components/drawing/DrawingCanvas';
+import AnnotationToolbar from '../components/drawing/AnnotationToolbar';
 import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
@@ -52,6 +53,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const headerVisibleBeforeDrawRef = useRef(true);
   const viewShotRef = useRef<any>(null);
+  const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
 
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
@@ -360,9 +363,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
       </View>
 
       {isDrawing && (
-        <DrawingCanvas onClose={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
-          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
+        <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
+          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }}
+          onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })} />
       )}
+
+      <AnnotationToolbar visible={!isCapturing} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
+        onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
+        canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
+        onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
 
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
       {isHeaderVisible && <AudioPlayerBar onOpenQari={() => setShowQariModal(true)} onTogglePlay={togglePlayAudio} isPlaying={isPlaying} />}

@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "c16713f237054271661bec29816add1cd5bf7c00",
+    "indexed_at": "2026-07-30T09:12:24Z",
+    "project": "QuranMasterApp",
+    "nodes": 14239,
+    "edges": 14683,
+    "original_size": 9043968,
+    "compressed_size": 919615,
+    "compression_level": 9
+}

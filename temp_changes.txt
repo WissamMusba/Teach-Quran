@@ -1,501 +1,604 @@
-========================================
- TEMP CHANGES — Apply when instructed
-========================================
+================================================================================
+ TEMP CHANGES — Incremental rebuild plan
+================================================================================
+Apply in order. Build & test after each step.
 
-Apply these edits **in order**. Each section is adapted to match the actual
-codebase — column names, db handle pattern, import paths, existing wrappers.
+================================================================================
+ STEP 1 — drawingSlice.ts only
+================================================================================
+Replace src/store/drawingSlice.ts with:
 
-=====================================================================
- EDIT 1: src/api/sync.ts  (FULL FILE REPLACE)
-Coalesced sync — zero reads, server-timestamp, last-write-wins.
-Keeps our existing firebase wrapper import ({ firestore, getUserId }).
-=====================================================================
+----------[drawingSlice.ts]----------
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { firestore, getUserId } from './firebase';
-import { getPendingSyncStudents, clearSyncQueueForStudent, getStudentData } from '../database/localDB';
+type Tool = 'pen' | 'eraser' | 'underline' | 'laser';
 
-const serverNow = (): any => {
-  try {
-    const FV = (firestore as any).FieldValue;
-    if (FV && typeof FV.serverTimestamp === 'function') return FV.serverTimestamp();
-  } catch {}
-  return new Date().toISOString();
-};
-
-export const processSyncQueue = async (): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> => {
-  const userId = getUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-  try {
-    let dirtyIds: string[] = [];
-    try { dirtyIds = await getPendingSyncStudents(); } catch { return { success: false, error: 'queue read failed' }; }
-    if (!dirtyIds || dirtyIds.length === 0) return { success: true, synced: 0, failed: 0 };
-
-    let synced = 0, failed = 0;
-    for (const sid of dirtyIds) {
-      try {
-        const local = await getStudentData(sid);
-        if (!local) { try { await clearSyncQueueForStudent(sid); } catch {} continue; }
-        await firestore()
-          .collection('users').doc(userId)
-          .collection('students').doc(sid)
-          .collection('data').doc('studentData')
-          .set({ ...(local as object), updatedAt: serverNow() }, { merge: true });
-        try { await clearSyncQueueForStudent(sid); } catch {}
-        synced++;
-      } catch (e) { console.warn(`Sync failed for ${sid}:`, e); failed++; }
-    }
-    return { success: true, synced, failed };
-  } catch (e: any) {
-    console.warn('Sync failed:', e?.message);
-    return { success: false, error: e?.message };
-  }
-};
-
-
-=====================================================================
- EDIT 2: src/database/localDB.ts  (ADDITIVE — do NOT delete anything)
-New functions for coalesced sync + optional student-list cache.
-Adapted: sync_queue uses `synced` (0/1) not `status`, db handle is getDB().
-=====================================================================
-
---- 2a. Add auth import at top ---
-Find line 1:
-  import SQLite from 'react-native-sqlite-storage';
-Insert after it:
-  import auth from '@react-native-firebase/auth';
-
---- 2b. Add new table creation inside initDatabase ---
-Find line that says:
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages ...`);
-Insert after it:
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
-
---- 2c. Add four new exported functions at the end of the file (after purgeLocalStudent) ---
-
-export const getPendingSyncStudents = async (): Promise<string[]> => {
-  try {
-    const r = await getDB().executeSql(`SELECT DISTINCT studentId FROM sync_queue WHERE synced = 0`);
-    const ids: string[] = [];
-    for (let i = 0; i < r[0].rows.length; i++) ids.push(r[0].rows.item(i).studentId);
-    return ids;
-  } catch (e) { console.warn('getPendingSyncStudents failed', e); return []; }
-};
-
-export const clearSyncQueueForStudent = async (studentId: string): Promise<void> => {
-  try {
-    await getDB().executeSql(`DELETE FROM sync_queue WHERE studentId = ?`, [studentId]);
-  } catch (e) { console.warn('clearSyncQueueForStudent failed', e); }
-};
-
-export const getCachedStudentList = async (): Promise<any[] | null> => {
-  try {
-    const uid = auth().currentUser?.uid; if (!uid) return null;
-    const r = await getDB().executeSql(`SELECT students FROM student_list_cache WHERE uid = ?`, [uid]);
-    if (r[0].rows.length === 0) return null;
-    return JSON.parse(r[0].rows.item(0).students);
-  } catch { return null; }
-};
-
-export const cacheStudentList = async (students: any[]): Promise<void> => {
-  try {
-    const uid = auth().currentUser?.uid; if (!uid) return;
-    await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
-      [uid, JSON.stringify(students), new Date().toISOString()]);
-  } catch {}
-};
-
-
-=====================================================================
- EDIT 3: src/App.tsx  (FULL FILE REPLACE)
-Adds AppState background/foreground sync + 30-min interval.
-Keeps GestureHandlerRootView, ./src/ imports, syncSlice dispatches,
-and the isAuthenticated gate from the current version.
-=====================================================================
-
-import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider, useDispatch, useSelector } from 'react-redux';
-import { store, persistor, RootState } from './src/store';
-import { PersistGate } from 'redux-persist/integration/react';
-import { processSyncQueue } from './src/api/sync';
-import SplashScreen from './src/screens/SplashScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
-import DashboardScreen from './src/screens/DashboardScreen';
-import QuranViewScreen from './src/screens/QuranViewScreen';
-import BookmarksScreen from './src/screens/BookmarksScreen';
-import MistakesScreen from './src/screens/MistakesScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import NotesScreen from './src/screens/NotesScreen';
-import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-const SYNC_INTERVAL = 30 * 60 * 1000; // 30-min safety net defined locally
-const Stack = createNativeStackNavigator();
-
-const AppInner = () => {
-  const dispatch = useDispatch();
-  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
-  const appState = useRef<AppStateStatus>(AppState.currentState);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const initialSync = async () => {
-      dispatch(setSyncing());
-      const result = await processSyncQueue();
-      if (result.success) dispatch(setSynced(new Date().toISOString()));
-      else dispatch(setOffline());
-    };
-    initialSync();
-
-    const interval = setInterval(async () => {
-      dispatch(setSyncing());
-      const result = await processSyncQueue();
-      if (result.success) dispatch(setSynced(new Date().toISOString()));
-      else dispatch(setOffline());
-    }, SYNC_INTERVAL);
-
-    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      const prev = appState.current; appState.current = next;
-      if (prev === 'active' && next !== 'active') processSyncQueue().catch(() => {}); // leaving -> flush
-      if (prev !== 'active' && next === 'active') processSyncQueue().catch(() => {}); // returning -> flush
-    });
-
-    return () => { clearInterval(interval); sub.remove(); };
-  }, [isAuthenticated, dispatch]);
-
-  return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Splash">
-        <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Students', headerBackVisible: false }} />
-        <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
-        <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />
-        <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
-};
-
-const App = () => {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <SafeAreaProvider>
-          <Provider store={store}>
-            <PersistGate loading={null} persistor={persistor}>
-              <AppInner />
-            </PersistGate>
-          </Provider>
-        </SafeAreaProvider>
-      </ErrorBoundary>
-    </GestureHandlerRootView>
-  );
-};
-
-export default App;
-
-
-=====================================================================
- EDIT 4 (OPTIONAL): src/api/student.ts  — Replace getStudents body
-Cache-first student list. Keeps our existing import + getUserId pattern.
-SKIP this if you don't want the cache — app still works, just pays one
-read per dashboard open.
-=====================================================================
-
---- 4a. Add imports at top ---
-At line 1, after `import { firestore, getUserId } from './firebase';`, add:
-import { getCachedStudentList, cacheStudentList } from '../database/localDB';
-
---- 4b. Replace getStudents function body ---
-Replace lines 9-14 (the whole function body) with:
-
-export const getStudents = async () => {
-  const userId = getUserId();
-  if (!userId) return { success: false, error: 'No user' };
-  try {
-    const cached = await getCachedStudentList();
-    if (cached && cached.length > 0) { refreshInBackground(userId); return { success: true, students: cached }; }
-    const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
-    const students = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) }));
-    await cacheStudentList(students);
-    return { success: true, students };
-  } catch (e: any) {
-    const cached = await getCachedStudentList(); // offline fallback
-    if (cached && cached.length > 0) return { success: true, students: cached };
-    return { success: false, error: e?.message };
-  }
-};
-
-async function refreshInBackground(uid: string) {
-  try {
-    const snap = await firestore().collection('users').doc(uid).collection('students').orderBy('createdAt', 'desc').get();
-    await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
-  } catch {}
+interface DrawingState {
+  toolbarExpanded: boolean;
+  activeTool: Tool;
+  activeColor: string;
+  penSize: number;
 }
 
---- 4c (optional): Keep cache fresh after create/delete ---
-In createStudent, after the ref is created, optionally add:
-  const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
-  await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
-
-In deleteStudent, after deleting, optionally add:
-  const snap = await firestore().collection('users').doc(userId).collection('students').orderBy('createdAt', 'desc').get();
-  await cacheStudentList(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) })));
-
-
-=====================================================================
- EDIT 5: NEW FILE — src/components/audio/VoiceNoteRecorder.tsx
-Tiny config (mono/16kHz/24kbps/HE-AAC) + hard 60s cap.
-Enums loaded via guarded require() — cannot crash the reader.
-=====================================================================
-
-Place this at src/components/audio/VoiceNoteRecorder.tsx (create the audio
-directory if it doesn't exist):
-
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, PermissionsAndroid, Platform } from 'react-native';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
-
-let AudioEncoderAndroidType: any, OutputFormatAndroidType: any, AudioSourceAndroidType: any;
-try {
-  const mod = require('react-native-audio-recorder-player');
-  AudioEncoderAndroidType = mod.AudioEncoderAndroidType;
-  OutputFormatAndroidType = mod.OutputFormatAndroidType;
-  AudioSourceAndroidType = mod.AudioSourceAndroidType;
-} catch {}
-
-const recorder = new AudioRecorderPlayer();
-
-const buildAudioSets = (): any => {
-  const sets: any = { AudioSamplingRateAndroid: 16000, AudioEncodingBitRateAndroid: 24000, AudioChannelsAndroid: 1 };
-  try {
-    if (AudioSourceAndroidType && AudioSourceAndroidType.MIC !== undefined) sets.AudioSourceAndroid = AudioSourceAndroidType.MIC;
-    if (OutputFormatAndroidType && OutputFormatAndroidType.MPEG_4 !== undefined) sets.OutputFormatAndroid = OutputFormatAndroidType.MPEG_4;
-    if (AudioEncoderAndroidType) {
-      if (AudioEncoderAndroidType.HE_AAC !== undefined) sets.AudioEncoderAndroid = AudioEncoderAndroidType.HE_AAC;
-      else if (AudioEncoderAndroidType.AAC !== undefined) sets.AudioEncoderAndroid = AudioEncoderAndroidType.AAC;
-    }
-  } catch {}
-  return sets;
+const initialState: DrawingState = {
+  toolbarExpanded: false,
+  activeTool: 'pen',
+  activeColor: '#FF0000',
+  penSize: 4,
 };
 
-const fmt = (ms: number) => {
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-};
+export const drawingSlice = createSlice({
+  name: 'drawing',
+  initialState,
+  reducers: {
+    setToolbarExpanded: (state, action: PayloadAction<boolean>) => {
+      state.toolbarExpanded = action.payload;
+    },
+    toggleToolbarExpanded: (state) => {
+      state.toolbarExpanded = !state.toolbarExpanded;
+    },
+    setTool: (state, action: PayloadAction<Tool>) => {
+      state.activeTool = action.payload;
+    },
+    setColor: (state, action: PayloadAction<string>) => {
+      state.activeColor = action.payload;
+    },
+    setPenSize: (state, action: PayloadAction<number>) => {
+      state.penSize = action.payload;
+    },
+  },
+});
 
-const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (path: string, ms: number) => void; onCancel: () => void; maxMs?: number }) => {
-  const [recording, setRecording] = useState(false);
-  const [time, setTime] = useState('00:00');
-  const durRef = useRef(0);
-  const stoppingRef = useRef(false);
+export const {
+  setToolbarExpanded,
+  toggleToolbarExpanded,
+  setTool,
+  setColor,
+  setPenSize,
+} = drawingSlice.actions;
+export default drawingSlice.reducer;
+----------[end]----------
 
-  useEffect(() => () => { recorder.removeRecordBackListener(); }, []);
+Build & test. If it crashes, it's a persisted-state shape issue (unlikely since you cleared data).
 
-  const requestPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    try {
-      const g = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
-        title: 'Microphone',
-        message: 'Needed to record voice notes.',
-        buttonPositive: 'OK',
-      });
-      return g === PermissionsAndroid.RESULTS.GRANTED;
-    } catch { return false; }
-  };
 
-  const stop = async (auto = false) => {
-    if (stoppingRef.current) return;
-    stoppingRef.current = true;
-    try {
-      const res = await recorder.stopRecorder();
-      recorder.removeRecordBackListener();
-      setRecording(false);
-      const ms = durRef.current;
-      if (res && ms > 500) onSaved(res, ms);
-      else if (!auto) Alert.alert('Too short', 'Hold on a moment — the recording was too short.');
-    } catch (e: any) {
-      if (!auto) Alert.alert('Error', e?.message || 'Could not stop recording.');
-      setRecording(false);
-    } finally {
-      stoppingRef.current = false;
-    }
-  };
+================================================================================
+ STEP 2 — DrawingCanvas refactor + QVS wiring (no AnnotationToolbar)
+================================================================================
 
-  const start = async () => {
-    if (!(await requestPermission())) {
-      Alert.alert('Permission denied', 'Microphone access is required for voice notes.');
+2a. Replace src/components/drawing/DrawingCanvas.tsx
+
+----------[DrawingCanvas.tsx]----------
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { View, StyleSheet, PanResponder } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { useDispatch, useSelector } from 'react-redux';
+import { addAction, undo as undoHistory, redo as redoHistory } from '../../store/historySlice';
+
+export interface DrawingCanvasHandle {
+  undo: () => void;
+  redo: () => void;
+  clear: () => void;
+}
+
+interface Props {
+  visible: boolean;
+  initialPaths?: any[];
+  onSave: (paths: any[]) => void;
+  onStateChange: (canUndo: boolean, canRedo: boolean) => void;
+}
+
+const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initialPaths = [], onSave, onStateChange }, ref) => {
+  const dispatch = useDispatch();
+  const { activeTool, activeColor, penSize } = useSelector((state: any) => state.drawing);
+  const [paths, setPaths] = useState<any[]>(initialPaths);
+  const [redoStack, setRedoStack] = useState<any[]>([]);
+  const [currentPath, setCurrentPath] = useState<any>(null);
+
+  const pathsRef = useRef<any[]>(paths);
+  const stateRef = useRef({ activeTool, activeColor, penSize });
+  const currentPathRef = useRef<any>(null);
+  const saveTimerRef = useRef<any>(null);
+  const clearedSnapshotRef = useRef<any[] | null>(null);
+  const afterUndoClearRef = useRef(false);
+
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  const debouncedSave = useCallback((pathsToSave: any[]) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { onSaveRef.current(pathsToSave); }, 1500);
+  }, []);
+
+  useEffect(() => { pathsRef.current = paths; }, [paths]);
+  useEffect(() => { stateRef.current = { activeTool, activeColor, penSize }; }, [activeTool, activeColor, penSize]);
+  useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
+
+  useEffect(() => {
+    onStateChangeRef.current(paths.length > 0 || clearedSnapshotRef.current !== null, false);
+  }, []);
+
+  const handleUndo = () => {
+    if (clearedSnapshotRef.current !== null && !afterUndoClearRef.current) {
+      setPaths(clearedSnapshotRef.current);
+      pathsRef.current = clearedSnapshotRef.current;
+      afterUndoClearRef.current = true;
+      setRedoStack([]);
+      onStateChangeRef.current(true, true);
+      dispatch(addAction({ type: 'draw', action: 'undo-clear', timestamp: Date.now() }));
+      debouncedSave(clearedSnapshotRef.current);
       return;
     }
-    try {
-      await recorder.startRecorder(`audio_note_${Date.now()}.m4a`, buildAudioSets());
-      durRef.current = 0;
-      stoppingRef.current = false;
-      setRecording(true);
-      recorder.addRecordBackListener((e: any) => {
-        const pos = Math.min(e.currentPosition, maxMs);
-        durRef.current = pos;
-        setTime(fmt(pos));
-        if (e.currentPosition >= maxMs) stop(true);
-      });
-    } catch (e: any) {
-      Alert.alert('Recording error', e?.message || 'Could not start recording.');
+    if (pathsRef.current.length === 0) return;
+    const lastPath = pathsRef.current[pathsRef.current.length - 1];
+    const newPaths = pathsRef.current.slice(0, -1);
+    setPaths(newPaths);
+    pathsRef.current = newPaths;
+    setRedoStack(prev => [...prev, lastPath]);
+    dispatch(undoHistory());
+    onStateChangeRef.current(newPaths.length > 0 || clearedSnapshotRef.current !== null, true);
+    debouncedSave(newPaths);
+  };
+
+  const handleRedo = () => {
+    if (afterUndoClearRef.current && clearedSnapshotRef.current !== null) {
+      afterUndoClearRef.current = false;
+      setPaths([]);
+      pathsRef.current = [];
+      onStateChangeRef.current(true, false);
+      dispatch(redoHistory());
+      debouncedSave([]);
+      return;
     }
+    if (redoStack.length === 0) return;
+    const pathToRedo = redoStack[redoStack.length - 1];
+    const newPaths = [...pathsRef.current, pathToRedo];
+    setPaths(newPaths);
+    pathsRef.current = newPaths;
+    setRedoStack(prev => prev.slice(0, -1));
+    dispatch(redoHistory());
+    onStateChangeRef.current(true, redoStack.length - 1 > 0);
+    debouncedSave(newPaths);
   };
 
-  const cancel = async () => {
-    if (recording) { try { await recorder.stopRecorder(); recorder.removeRecordBackListener(); } catch {} }
-    onCancel();
+  const handleClear = () => {
+    if (pathsRef.current.length === 0) return;
+    clearedSnapshotRef.current = pathsRef.current;
+    afterUndoClearRef.current = false;
+    setPaths([]);
+    pathsRef.current = [];
+    setRedoStack([]);
+    onStateChangeRef.current(true, false);
+    dispatch(addAction({ type: 'draw', action: 'clear', timestamp: Date.now() }));
+    debouncedSave([]);
   };
 
-  const atMax = recording && durRef.current >= maxMs - 200;
+  const handleUndoRef = useRef(handleUndo);
+  handleUndoRef.current = handleUndo;
+  const handleRedoRef = useRef(handleRedo);
+  handleRedoRef.current = handleRedo;
+  const handleClearRef = useRef(handleClear);
+  handleClearRef.current = handleClear;
+
+  useImperativeHandle(ref, () => ({
+    undo: () => handleUndoRef.current(),
+    redo: () => handleRedoRef.current(),
+    clear: () => handleClearRef.current(),
+  }), []);
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      const s = stateRef.current;
+      if (s.activeTool === 'laser') {
+        const newPath = {
+          points: [`${e.nativeEvent.locationX},${e.nativeEvent.locationY}`],
+          color: s.activeColor,
+          width: s.penSize,
+          opacity: 0.6,
+          tool: 'laser',
+        };
+        setCurrentPath(newPath);
+        currentPathRef.current = newPath;
+        return;
+      }
+      const isEraser = s.activeTool === 'eraser';
+      const newPath = {
+        points: [`${e.nativeEvent.locationX},${e.nativeEvent.locationY}`],
+        color: isEraser ? '#121212' : s.activeColor,
+        width: isEraser ? s.penSize * 3 : s.penSize,
+        opacity: 1,
+        tool: s.activeTool,
+      };
+      setCurrentPath(newPath);
+      currentPathRef.current = newPath;
+    },
+    onPanResponderMove: (e) => {
+      if (stateRef.current.activeTool === 'eraser' || stateRef.current.activeTool === 'laser') return;
+      if (currentPathRef.current) {
+        const newPoint = `${e.nativeEvent.locationX},${e.nativeEvent.locationY}`;
+        const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
+        currentPathRef.current = updatedPath;
+        setCurrentPath(updatedPath);
+      }
+    },
+    onPanResponderRelease: (e) => {
+      const s = stateRef.current;
+      if (s.activeTool === 'laser') {
+        setCurrentPath(null);
+        currentPathRef.current = null;
+        return;
+      }
+      if (s.activeTool === 'eraser') {
+        const { locationX, locationY } = e.nativeEvent;
+        const newPaths = pathsRef.current.filter((p: any) =>
+          !p.points.some((pt: string) => {
+            const [x, y] = pt.split(',').map(Number);
+            return Math.abs(x - locationX) < 30 && Math.abs(y - locationY) < 30;
+          })
+        );
+        if (newPaths.length !== pathsRef.current.length) {
+          setPaths(newPaths);
+          pathsRef.current = newPaths;
+          debouncedSave(newPaths);
+        }
+      } else {
+        const pathToSave = currentPathRef.current;
+        if (pathToSave && pathToSave.points.length > 1) {
+          const newPaths = [...pathsRef.current, pathToSave];
+          setPaths(newPaths);
+          pathsRef.current = newPaths;
+          setRedoStack([]);
+          clearedSnapshotRef.current = null;
+          afterUndoClearRef.current = false;
+          dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
+          onStateChangeRef.current(true, false);
+          debouncedSave(newPaths);
+        }
+      }
+      setCurrentPath(null);
+      currentPathRef.current = null;
+    },
+  })).current;
+
+  const generatePathD = (points: string[], style?: string) => {
+    if (!points || points.length === 0) return '';
+    if (style === 'wavy') {
+      let d = `M ${points[0]}`;
+      for (let i = 1; i < points.length; i++) {
+        const p = points[i];
+        const prevP = points[i - 1];
+        const off = i % 2 === 0 ? 5 : -5;
+        d += ` Q ${prevP.split(',')[0]},${parseInt(prevP.split(',')[1]) + off} ${p}`;
+      }
+      return d;
+    }
+    return `M ${points[0]}` + points.slice(1).map(p => ` L ${p}`).join('');
+  };
+
+  if (!visible) return null;
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.box}>
-        <Text style={styles.title}>Voice Note</Text>
-        <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{recording ? time : 'Tap record to start'}</Text>
-        <Text style={styles.cap}>{recording ? `Max ${fmt(maxMs)}` : `Notes are capped at ${fmt(maxMs)} to save space`}</Text>
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={cancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          {!recording ? (
-            <TouchableOpacity style={styles.recBtn} onPress={start}>
-              <Text style={styles.recText}>Record</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.stopBtn} onPress={() => stop(false)}>
-              <Text style={styles.stopText}>Stop & Save</Text>
-            </TouchableOpacity>
+    <View style={styles.overlay} pointerEvents="box-none">
+      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+        <Svg style={StyleSheet.absoluteFill}>
+          {paths.map((p, i) => (
+            <React.Fragment key={i}>
+              <Path d={generatePathD(p.points, p.style)} stroke={p.color} strokeWidth={p.width} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" />
+              {p.style === 'double' && (
+                <Path d={generatePathD(p.points)} stroke={p.color} strokeWidth={p.width / 2} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" transform="translate(0, 3)" />
+              )}
+            </React.Fragment>
+          ))}
+          {currentPath && (
+            <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
           )}
-        </View>
+        </Svg>
       </View>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
-  box: { width: '82%', backgroundColor: '#1e1e1e', borderRadius: 14, padding: 24, alignItems: 'center' },
-  title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  timer: { color: '#00d4aa', fontSize: 34, fontWeight: 'bold', marginBottom: 6, fontVariant: ['tabular-nums'] as const },
-  cap: { color: '#888', fontSize: 12, marginBottom: 18 },
-  row: { flexDirection: 'row', width: '100%', gap: 10 },
-  cancelBtn: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#333', borderRadius: 10 },
-  cancelText: { color: '#fff', fontWeight: '600' },
-  recBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#FF4444', borderRadius: 10 },
-  recText: { color: '#fff', fontWeight: '700' },
-  stopBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 10 },
-  stopText: { color: '#000', fontWeight: '700' },
 });
 
-export default VoiceNoteRecorder;
+const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    elevation: 100,
+    zIndex: 100,
+  },
+});
+
+export default DrawingCanvas;
+----------[end]----------
 
 
-=====================================================================
- EDIT 6: src/store/quranSlice.ts — type union + default
-Add `alqalam` to type union, remove `harmattan` and `scheherazade`,
-change default textStyle from `'uthmani'` to `'alqalam'`.
-=====================================================================
+2b. Update QVS imports (lines 1, 11, add ref + state, update DrawingCanvas props):
 
---- 6a. Change initialization default ---
-Find line 12:
-  textStyle: 'uthmani' as 'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'scheherazade' | 'noto'
-Replace with:
-  textStyle: 'alqalam' as 'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto'
+Change line 1:
+  BEFORE: import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+  AFTER:  import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
---- 6b. Fix setTextStyle action payload type ---
-Find line 21:
-  setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'lateef' | 'harmattan' | 'scheherazade' | 'noto'>) => { state.textStyle = action.payload; }
-Replace with:
-  setTextStyle: (state, action: PayloadAction<'saleem' | 'uthmani' | 'mequran' | 'alqalam' | 'lateef' | 'noto'>) => { state.textStyle = action.payload; }
+(No change — Component not needed yet)
 
+Change line 11:
+  BEFORE: import DrawingCanvas from '../components/drawing/DrawingCanvas';
+  AFTER:  import DrawingCanvas, { DrawingCanvasHandle } from '../components/drawing/DrawingCanvas';
 
-=====================================================================
- EDIT 7: src/screens/SettingsScreen.tsx — font list
-Rename alqalam to "INDOPAK 1", remove harmattan + scheherazade.
-=====================================================================
+After line 54 (viewShotRef), add:
+  const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
 
---- 7a. Remove harmattan and scheherazade from font list, add INDOPAK 1 label ---
-Find line 40:
-  {['saleem', 'uthmani', 'mequran', 'alqalam', 'lateef', 'harmattan', 'scheherazade', 'noto'].map((style) => (
-Replace with:
-  {['saleem', 'uthmani', 'mequran', 'alqalam', 'lateef', 'noto'].map((style) => (
+Wrap the DrawingCanvas section (lines 362-365):
+  BEFORE:
+      {isDrawing && (
+        <DrawingCanvas onClose={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
+          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }} />
+      )}
 
-Find lines 42-43:
-  <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style === 'saleem' ? 'INDOPAK' : style === 'mequran' ? 'ME QURAN' : style === 'alqalam' ? 'AL QALAM' : style === 'lateef' ? 'LATEEF (WAQF)' : style.toUpperCase()}</Text>
-Replace with:
-  <Text style={textStyle === style ? styles.activeText : styles.inactiveText}>{style === 'alqalam' ? 'INDOPAK 1' : style === 'saleem' ? 'INDOPAK' : style === 'mequran' ? 'ME QURAN' : style === 'lateef' ? 'LATEEF (WAQF)' : style.toUpperCase()}</Text>
+  AFTER:
+      {isDrawing && (
+        <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing} initialPaths={studentData?.drawings?.[drawingKey]?.paths || []}
+          onSave={(paths: any) => { if (studentData) updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); }}
+          onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })} />
+      )}
+
+Build & test. If it crashes here, the DrawingCanvas refactor or the new QVS props are the cause.
 
 
-=====================================================================
- EDIT 8: src/components/quran/VerseDisplay.tsx — y-offset adjustments
-Me Quran 2px down (was 1), remove scheherazade entry.
-=====================================================================
+================================================================================
+ STEP 3 — Add AnnotationToolbar + full wire
+================================================================================
 
---- 8a. Update yAdj map ---
-Find line 20:
-  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
-Replace with:
-  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+3a. Create src/components/drawing/AnnotationToolbar.tsx
 
+----------[AnnotationToolbar.tsx]----------
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  Animated, View, Text, TouchableOpacity, StyleSheet, PanResponder,
+  useWindowDimensions, Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector, useDispatch } from 'react-redux';
+import Svg, { Path } from 'react-native-svg';
+import {
+  setToolbarExpanded, setTool, setColor, setPenSize,
+} from '../../store/drawingSlice';
 
-=====================================================================
- EDIT 9: src/components/quran/FlowingText.tsx — same y-offset adjustments
-=====================================================================
+const ROUND = 52, GAP = 8, COL = 46, MARGIN = 12;
+const DOCK_PEEK = 20, DOCK_THRESHOLD = 46, TAP = 7;
+const ACCENT = '#00D4AA', ICONC = '#E8E8E8', DIS = '#5A5A5A';
+const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
+const PEN_SIZES = [2, 4, 6, 8];
+const PAL_H = 140;
+const ST = { fill: 'none', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-Find line 16:
-  const yAdj: Record<string, number> = { mequran: 1, scheherazade: 1, noto: 1 };
-Replace with:
-  const yAdj: Record<string, number> = { mequran: 2, noto: 1 };
+const Pencil = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M14 4l3 3-9 9-3 1 1-3 8-8z" /></Svg>);
+const Chevron = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M6 9l6 6 6-6" /></Svg>);
+const Laser = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M4 20l9-9" /><Path d="M16 4l1.6 1.6L16 7.2 14.4 5.6z" /><Path d="M16 1.5v2M19.5 5h-2" /></Svg>);
+const Under = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M7 4v6a5 5 0 0 0 10 0V4" /><Path d="M5 20h14" /></Svg>);
+const Eraser = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M20 20H7L3 16a1.5 1.5 0 0 1 0-2.12l10-10a1.5 1.5 0 0 1 2.12 0l5 5a1.5 1.5 0 0 1 0 2.12L14 16.5" /><Path d="M10 6l8 8" /></Svg>);
+const UndoI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M9 7L4 12l5 5" /><Path d="M4 12h11a5 5 0 0 1 0 10h-3" /></Svg>);
+const RedoI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M15 7l5 5-5 5" /><Path d="M20 12H9a5 5 0 0 0 0 10h3" /></Svg>);
+const Trash = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6" /></Svg>);
+const CloseI = ({ c }: { c: string }) => (<Svg width={20} height={20} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M18 6L6 18M6 6l12 12" /></Svg>);
+const Zig = ({ w, active }: { w: number; active: boolean }) => (
+  <Svg width={34} height={14} viewBox="0 0 34 14"><Path d="M2 10L8 4l6 6 6-6 6 6 4-4" fill="none" stroke={active ? ACCENT : '#8A8A8A'} strokeWidth={Math.max(1, w * 0.55)} strokeLinecap="round" strokeLinejoin="round" /></Svg>
+);
 
+interface Props {
+  visible: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onClear: () => void;
+  onExit: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onActivateDraw?: () => void;
+}
 
-=====================================================================
- EDIT 10: src/components/quran/MushafPageView.tsx — header-aware font adjustment
-Replace static fontAdj object with a getFontAdj(headerVisible) function.
-=====================================================================
+const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
+  const dispatch = useDispatch();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const open = useSelector((s: any) => s.drawing.toolbarExpanded);
+  const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
 
---- 10a. Replace the static fontAdj declaration + adj lookup ---
-Find lines 16-27:
-  const fontAdj: Record<string, { size: number; y: number }> = {
-    saleem: { size: 2, y: 0 },
-    uthmani: { size: 0, y: 0 },
-    mequran: { size: 0, y: 1 },
-    alqalam: { size: 0, y: 0 },
-    lateef: { size: 4, y: 0 },
-    harmattan: { size: 0, y: 0 },
-    amiri: { size: 0, y: 0 },
-    scheherazade: { size: 0, y: 1 },
-    noto: { size: 0, y: 1 },
+  const [pal, setPal] = useState(false);
+  const [docked, setDocked] = useState(false);
+  const [cwidth, setCWidth] = useState(ROUND);
+
+  const pan = useRef(new Animated.ValueXY()).current;
+  const press = useRef(new Animated.Value(1)).current;
+  const pos = useRef({ x: 0, y: 0 });
+  const preDock = useRef({ x: 0, y: 0 });
+  const init = useRef(false);
+
+  const openR = useRef(open), dockedR = useRef(docked), cwR = useRef(cwidth);
+  const wR = useRef(width), hR = useRef(height), inR = useRef(insets);
+  useEffect(() => { openR.current = open; }, [open]);
+  useEffect(() => { dockedR.current = docked; }, [docked]);
+  useEffect(() => { cwR.current = cwidth; }, [cwidth]);
+  useEffect(() => { wR.current = width; hR.current = height; inR.current = insets; }, [width, height, insets.top, insets.bottom]);
+
+  const clampX = (x: number, w: number) => Math.max(MARGIN, Math.min(x, wR.current - w - MARGIN));
+  const clampY = (y: number) => Math.max(inR.current.top, Math.min(y, hR.current - ROUND - inR.current.bottom));
+  const clampP = (p: { x: number; y: number }, w: number) => ({ x: clampX(p.x, w), y: clampY(p.y) });
+
+  const animateTo = (t: { x: number; y: number }, dock: boolean) => {
+    const cur = { x: pos.current.x, y: pos.current.y };
+    pan.setOffset(t);
+    pan.setValue({ x: cur.x - t.x, y: cur.y - t.y });
+    Animated.timing(pan, { toValue: { x: 0, y: 0 }, duration: 170, useNativeDriver: true }).start();
+    pos.current = t;
+    setDocked(dock);
   };
-  const adj = fontAdj[textStyle] || { size: 0, y: 0 };
 
-Replace with:
-  const getFontAdj = (ts: string, hv: boolean) => {
-    switch (ts) {
-      case 'saleem': return { size: 2, y: 0 };
-      case 'alqalam': return { size: 0, y: 0 };
-      case 'uthmani': return { size: 0, y: 0 };
-      case 'mequran': return { size: hv ? -1 : 0, y: 2 };
-      case 'lateef': return { size: 4, y: 0 };
-      case 'noto': return { size: 0, y: hv ? 0 : 1 };
-      case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
-      default: return { size: 0, y: 0 };
-    }
+  useEffect(() => {
+    if (init.current) return;
+    const p = { x: width - ROUND - MARGIN, y: height - insets.bottom - 100 };
+    pos.current = p; preDock.current = p;
+    pan.setOffset(p); pan.setValue({ x: 0, y: 0 });
+    init.current = true;
+  }, [width, height, insets.bottom]);
+
+  useEffect(() => {
+    if (!init.current) return;
+    if (dockedR.current) setDocked(false);
+    const c = clampP(pos.current, cwR.current);
+    pos.current = c; preDock.current = c;
+    pan.setOffset(c); pan.setValue({ x: 0, y: 0 });
+  }, [cwidth, width, height, insets.top, insets.bottom]);
+
+  useEffect(() => { if (!open) setPal(false); }, [open]);
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      pan.setOffset(pos.current); pan.setValue({ x: 0, y: 0 });
+      Animated.spring(press, { toValue: 0.9, useNativeDriver: true, friction: 8 }).start();
+    },
+    onPanResponderMove: (_, g) => {
+      pan.x.setValue(g.dx);
+      pan.y.setValue(g.dy);
+    },
+    onPanResponderRelease: (_: any, g: any) => {
+      Animated.spring(press, { toValue: 1, useNativeDriver: true, friction: 8 }).start();
+      const abs = { x: pos.current.x + g.dx, y: pos.current.y + g.dy };
+      pos.current = abs;
+      if (Math.hypot(g.dx, g.dy) < TAP) {
+        if (dockedR.current) {
+          const t = clampP(preDock.current, ROUND);
+          pos.current = { x: pos.current.x, y: pos.current.y }; animateTo(t, false);
+        } else {
+          dispatch(setToolbarExpanded(!openR.current));
+          pan.setOffset(pos.current); pan.setValue({ x: 0, y: 0 });
+        }
+        return;
+      }
+      if (!openR.current) {
+        const cx = abs.x + ROUND / 2, cy = abs.y + ROUND / 2;
+        const W = wR.current, H = hR.current, ins = inR.current;
+        const dL = cx, dR = W - cx, dT = cy - ins.top, dB = (H - ins.bottom) - cy;
+        const m = Math.min(dL, dR, dT, dB);
+        if (m < DOCK_THRESHOLD) {
+          let t;
+          if (m === dL) t = { x: -(ROUND - DOCK_PEEK), y: clampY(abs.y) };
+          else if (m === dR) t = { x: W - DOCK_PEEK, y: clampY(abs.y) };
+          else if (m === dT) t = { x: clampX(abs.x, ROUND), y: -(ROUND - DOCK_PEEK) };
+          else t = { x: clampX(abs.x, ROUND), y: H - ins.bottom - DOCK_PEEK };
+          preDock.current = clampP(abs, ROUND);
+          animateTo(t, true);
+          return;
+        }
+      }
+      const t = clampP(abs, cwR.current);
+      animateTo(t, false);
+    },
+    onPanResponderTerminate: () => Animated.spring(press, { toValue: 1, useNativeDriver: true }).start(),
+  })).current;
+
+  if (!visible) return null;
+
+  const placeAbove = pos.current.y > height - 220;
+
+  const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
+    const a = activeTool === k;
+    return (<TouchableOpacity style={s.col} onPress={() => { dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
+      <Icon c={a ? ACCENT : ICONC} /><Text style={[s.lab, a && { color: ACCENT }]}>{label}</Text>
+    </TouchableOpacity>);
   };
-  const adj = getFontAdj(textStyle, headerVisible);
+  const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
+    <TouchableOpacity style={s.col} onPress={onPress} disabled={disabled} activeOpacity={0.5}>
+      <Icon c={disabled ? DIS : ICONC} /><Text style={[s.lab, disabled && { color: DIS }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Animated.View onLayout={(e) => setCWidth(e.nativeEvent.layout.width)}
+      style={[s.wrap, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]}>
+
+      <View {...panResponder.panHandlers} style={[s.grip, { transform: [{ scale: press }] }]}>
+        {open ? <Chevron c={ICONC} /> : <Pencil c={ICONC} />}
+      </View>
+
+      {open && (
+        <View style={s.bar}>
+          <ToolBtn k="laser" label="LASER" Icon={Laser} />
+          <ToolBtn k="pen" label="PEN" Icon={Pencil} />
+          <ToolBtn k="eraser" label="ERASE" Icon={Eraser} />
+          <ToolBtn k="underline" label="LINE" Icon={Under} />
+          <ActBtn label="UNDO" Icon={UndoI} disabled={!canUndo} onPress={onUndo} />
+          <ActBtn label="REDO" Icon={RedoI} disabled={!canRedo} onPress={onRedo} />
+          <ActBtn label="CLEAR" Icon={Trash} onPress={() =>
+            Alert.alert('Clear drawings', 'Delete all drawings on this page?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Clear', style: 'destructive', onPress: onClear },
+            ])} />
+          <TouchableOpacity style={s.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
+            <View style={[s.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : 'rgba(255,255,255,0.5)' }]} />
+            <Text style={[s.lab, pal && { color: ACCENT }]}>COLOR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.col} onPress={onExit} activeOpacity={0.5}>
+            <CloseI c={ICONC} /><Text style={s.lab}>EXIT</Text>
+          </TouchableOpacity>
+
+          {pal && (
+            <View style={[s.pal, { top: placeAbove ? -(PAL_H + 8) : ROUND + 8 }]}>
+              <View style={s.row}>{PEN_SIZES.map((w) => (
+                <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
+                  <Zig w={w} active={penSize === w} />
+                </TouchableOpacity>))}
+              </View>
+              <View style={s.grid}>{PALETTE.map((c) => (
+                <TouchableOpacity key={c} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
+                  style={[s.sw, { backgroundColor: c, borderColor: activeColor === c ? '#fff' : 'rgba(255,255,255,0.15)' }]} />
+              ))}</View>
+            </View>
+          )}
+        </View>
+      )}
+    </Animated.View>
+  );
+};
+
+const s = StyleSheet.create({
+  wrap: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
+  grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, backgroundColor: '#151517', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bar: { marginLeft: GAP, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(18,18,20,0.80)', borderRadius: 14, paddingHorizontal: 6, paddingVertical: 6, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  col: { width: COL, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
+  lab: { fontSize: 9, color: '#9A9A9A', marginTop: 2, fontWeight: '600' },
+  dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2 },
+  pal: { position: 'absolute', left: 0, width: 196, backgroundColor: 'rgba(20,20,22,0.92)', borderRadius: 14, padding: 12, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  wcol: { alignItems: 'center', paddingVertical: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  sw: { width: 40, height: 34, borderRadius: 9, borderWidth: 2, marginBottom: 8 },
+});
+
+export default AnnotationToolbar;
+----------[end]----------
 
 
-=====================================================================
- END OF CHANGES
-=====================================================================
+3b. Add AnnotationToolbar import to QVS (after line 11):
+  BEFORE: import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
+  AFTER:  import AnnotationToolbar from '../components/drawing/AnnotationToolbar';
+          import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
+
+3c. Add AnnotationToolbar to QVS render (after DrawingCanvas, before `{isCapturing && ...}`):
+
+Insert after the DrawingCanvas block:
+      <AnnotationToolbar visible={!isCapturing} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
+        onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
+        canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
+        onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
+
+Build & test.
+
+================================================================================
+ END
+================================================================================

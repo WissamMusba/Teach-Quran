@@ -1,57 +1,153 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, PanResponder } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { View, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useDispatch, useSelector } from 'react-redux';
-import { undo, redo, addAction } from '../../store/historySlice';
-import { setColor, setTool, setPenSize } from '../../store/drawingSlice';
-import { DRAWING_COLORS } from '../../utils/constants';
+import { addAction, undo as undoHistory, redo as redoHistory } from '../../store/historySlice';
 
-export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
+export interface DrawingCanvasHandle {
+  undo: () => void;
+  redo: () => void;
+  clear: () => void;
+}
+
+interface Props {
+  visible: boolean;
+  initialPaths?: any[];
+  onSave: (paths: any[]) => void;
+  onStateChange: (canUndo: boolean, canRedo: boolean) => void;
+}
+
+const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initialPaths = [], onSave, onStateChange }, ref) => {
   const dispatch = useDispatch();
-  const [paths, setPaths] = useState<any[]>(initialPaths || []);
+  const { activeTool, activeColor, penSize } = useSelector((state: any) => state.drawing);
+  const [paths, setPaths] = useState<any[]>(initialPaths);
   const [redoStack, setRedoStack] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState<any>(null);
-  const [showToolbar, setShowToolbar] = useState(true);
-
-  const { activeTool, activeColor, penSize } = useSelector((state: any) => state.drawing);
-  const [localOpacity, setLocalOpacity] = useState(1);
-  const [underlineStyle, setUnderlineStyle] = useState<'straight' | 'wavy' | 'double'>('straight');
 
   const pathsRef = useRef<any[]>(paths);
-  const stateRef = useRef({ activeTool, activeColor, penSize, localOpacity, underlineStyle });
+  const stateRef = useRef({ activeTool, activeColor, penSize });
   const currentPathRef = useRef<any>(null);
   const saveTimerRef = useRef<any>(null);
+  const clearedSnapshotRef = useRef<any[] | null>(null);
+  const afterUndoClearRef = useRef(false);
 
-  useEffect(() => { pathsRef.current = paths; }, [paths]);
-  useEffect(() => {
-    stateRef.current = { activeTool, activeColor, penSize, localOpacity, underlineStyle };
-  }, [activeTool, activeColor, penSize, localOpacity, underlineStyle]);
-  useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
 
   const debouncedSave = useCallback((pathsToSave: any[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { onSave(pathsToSave); }, 1500);
-  }, [onSave]);
+    saveTimerRef.current = setTimeout(() => { onSaveRef.current(pathsToSave); }, 1500);
+  }, []);
+
+  useEffect(() => { pathsRef.current = paths; }, [paths]);
+  useEffect(() => { stateRef.current = { activeTool, activeColor, penSize }; }, [activeTool, activeColor, penSize]);
+  useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
+
+  useEffect(() => {
+    onStateChangeRef.current(paths.length > 0 || clearedSnapshotRef.current !== null, false);
+  }, []);
+
+  const handleUndo = () => {
+    if (clearedSnapshotRef.current !== null && !afterUndoClearRef.current) {
+      setPaths(clearedSnapshotRef.current);
+      pathsRef.current = clearedSnapshotRef.current;
+      afterUndoClearRef.current = true;
+      setRedoStack([]);
+      onStateChangeRef.current(true, true);
+      dispatch(addAction({ type: 'draw', action: 'undo-clear', timestamp: Date.now() }));
+      debouncedSave(clearedSnapshotRef.current);
+      return;
+    }
+    if (pathsRef.current.length === 0) return;
+    const lastPath = pathsRef.current[pathsRef.current.length - 1];
+    const newPaths = pathsRef.current.slice(0, -1);
+    setPaths(newPaths);
+    pathsRef.current = newPaths;
+    setRedoStack(prev => [...prev, lastPath]);
+    dispatch(undoHistory());
+    onStateChangeRef.current(newPaths.length > 0 || clearedSnapshotRef.current !== null, true);
+    debouncedSave(newPaths);
+  };
+
+  const handleRedo = () => {
+    if (afterUndoClearRef.current && clearedSnapshotRef.current !== null) {
+      afterUndoClearRef.current = false;
+      setPaths([]);
+      pathsRef.current = [];
+      onStateChangeRef.current(true, false);
+      dispatch(redoHistory());
+      debouncedSave([]);
+      return;
+    }
+    if (redoStack.length === 0) return;
+    const pathToRedo = redoStack[redoStack.length - 1];
+    const newPaths = [...pathsRef.current, pathToRedo];
+    setPaths(newPaths);
+    pathsRef.current = newPaths;
+    setRedoStack(prev => prev.slice(0, -1));
+    dispatch(redoHistory());
+    onStateChangeRef.current(true, redoStack.length - 1 > 0);
+    debouncedSave(newPaths);
+  };
+
+  const handleClear = () => {
+    if (pathsRef.current.length === 0) return;
+    clearedSnapshotRef.current = pathsRef.current;
+    afterUndoClearRef.current = false;
+    setPaths([]);
+    pathsRef.current = [];
+    setRedoStack([]);
+    onStateChangeRef.current(true, false);
+    dispatch(addAction({ type: 'draw', action: 'clear', timestamp: Date.now() }));
+    debouncedSave([]);
+  };
+
+  const handleUndoRef = useRef(handleUndo);
+  handleUndoRef.current = handleUndo;
+  const handleRedoRef = useRef(handleRedo);
+  handleRedoRef.current = handleRedo;
+  const handleClearRef = useRef(handleClear);
+  handleClearRef.current = handleClear;
+
+  useImperativeHandle(ref, () => ({
+    undo: () => handleUndoRef.current(),
+    redo: () => handleRedoRef.current(),
+    clear: () => handleClearRef.current(),
+  }), []);
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (e) => {
       const s = stateRef.current;
+      if (s.activeTool === 'laser') {
+        const newPath = {
+          points: [`${e.nativeEvent.locationX},${e.nativeEvent.locationY}`],
+          color: s.activeColor,
+          width: s.penSize,
+          opacity: 0.6,
+          tool: 'laser',
+        };
+        setCurrentPath(newPath);
+        currentPathRef.current = newPath;
+        return;
+      }
       const isEraser = s.activeTool === 'eraser';
       const newPath = {
         points: [`${e.nativeEvent.locationX},${e.nativeEvent.locationY}`],
         color: isEraser ? '#121212' : s.activeColor,
         width: isEraser ? s.penSize * 3 : s.penSize,
-        opacity: isEraser ? 1 : s.localOpacity,
+        opacity: 1,
         tool: s.activeTool,
-        style: s.underlineStyle
       };
       setCurrentPath(newPath);
       currentPathRef.current = newPath;
     },
     onPanResponderMove: (e) => {
-      if (stateRef.current.activeTool === 'eraser') return;
+      if (stateRef.current.activeTool === 'eraser' || stateRef.current.activeTool === 'laser') return;
       if (currentPathRef.current) {
         const newPoint = `${e.nativeEvent.locationX},${e.nativeEvent.locationY}`;
         const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
@@ -60,52 +156,51 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
       }
     },
     onPanResponderRelease: (e) => {
-      if (stateRef.current.activeTool === 'eraser') {
+      const s = stateRef.current;
+      if (s.activeTool === 'laser') {
+        setCurrentPath(null);
+        currentPathRef.current = null;
+        return;
+      }
+      if (s.activeTool === 'eraser') {
         const { locationX, locationY } = e.nativeEvent;
-        const newPaths = pathsRef.current.filter((p: any) => !p.points.some((pt: string) => { const [x, y] = pt.split(',').map(Number); return Math.abs(x - locationX) < 30 && Math.abs(y - locationY) < 30; }));
-        if (newPaths.length !== pathsRef.current.length) { setPaths(newPaths); pathsRef.current = newPaths; debouncedSave(newPaths); }
+        const newPaths = pathsRef.current.filter((p: any) =>
+          !p.points.some((pt: string) => {
+            const [x, y] = pt.split(',').map(Number);
+            return Math.abs(x - locationX) < 30 && Math.abs(y - locationY) < 30;
+          })
+        );
+        if (newPaths.length !== pathsRef.current.length) {
+          setPaths(newPaths);
+          pathsRef.current = newPaths;
+          debouncedSave(newPaths);
+        }
       } else {
         const pathToSave = currentPathRef.current;
         if (pathToSave && pathToSave.points.length > 1) {
           const newPaths = [...pathsRef.current, pathToSave];
-          setPaths(newPaths); pathsRef.current = newPaths;
+          setPaths(newPaths);
+          pathsRef.current = newPaths;
           setRedoStack([]);
+          clearedSnapshotRef.current = null;
+          afterUndoClearRef.current = false;
           dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
+          onStateChangeRef.current(true, false);
           debouncedSave(newPaths);
         }
       }
       setCurrentPath(null);
       currentPathRef.current = null;
-    }
+    },
   })).current;
-
-  const handleUndo = () => {
-    if (pathsRef.current.length === 0) return;
-    const lastPath = pathsRef.current[pathsRef.current.length - 1];
-    const newPaths = pathsRef.current.slice(0, -1);
-    setPaths(newPaths); pathsRef.current = newPaths;
-    setRedoStack(prev => [...prev, lastPath]); dispatch(undo()); debouncedSave(newPaths);
-  };
-
-  const handleRedo = () => {
-    if (redoStack.length === 0) return;
-    const pathToRedo = redoStack[redoStack.length - 1];
-    const newPaths = [...pathsRef.current, pathToRedo];
-    setPaths(newPaths); pathsRef.current = newPaths;
-    setRedoStack(prev => prev.slice(0, -1)); dispatch(redo()); debouncedSave(newPaths);
-  };
-
-  const handleClear = () => {
-    setPaths([]); pathsRef.current = []; setRedoStack([]);
-    debouncedSave([]);
-  };
 
   const generatePathD = (points: string[], style?: string) => {
     if (!points || points.length === 0) return '';
     if (style === 'wavy') {
       let d = `M ${points[0]}`;
       for (let i = 1; i < points.length; i++) {
-        const p = points[i]; const prevP = points[i - 1];
+        const p = points[i];
+        const prevP = points[i - 1];
         const off = i % 2 === 0 ? 5 : -5;
         d += ` Q ${prevP.split(',')[0]},${parseInt(prevP.split(',')[1]) + off} ${p}`;
       }
@@ -114,52 +209,36 @@ export default function DrawingCanvas({ onClose, onSave, initialPaths }: any) {
     return `M ${points[0]}` + points.slice(1).map(p => ` L ${p}`).join('');
   };
 
+  if (!visible) return null;
+
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} pointerEvents="box-none">
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
         <Svg style={StyleSheet.absoluteFill}>
           {paths.map((p, i) => (
             <React.Fragment key={i}>
               <Path d={generatePathD(p.points, p.style)} stroke={p.color} strokeWidth={p.width} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" />
-              {p.style === 'double' && <Path d={generatePathD(p.points)} stroke={p.color} strokeWidth={p.width / 2} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" transform="translate(0, 3)" />}
+              {p.style === 'double' && (
+                <Path d={generatePathD(p.points)} stroke={p.color} strokeWidth={p.width / 2} strokeOpacity={p.opacity} fill="none" strokeLinecap="round" transform="translate(0, 3)" />
+              )}
             </React.Fragment>
           ))}
-          {currentPath && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />}
+          {currentPath && (
+            <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
+          )}
         </Svg>
       </View>
-
-      <TouchableOpacity style={styles.toggleBtn} onPress={() => setShowToolbar(!showToolbar)}>
-        <Text style={styles.btnText}>{showToolbar ? '▼' : '▲'}</Text>
-      </TouchableOpacity>
-
-      {showToolbar && (
-        <View style={styles.toolbar}>
-          <View style={styles.row}>
-            {DRAWING_COLORS.map(c => <TouchableOpacity key={c.id} style={[styles.colorBtn, { backgroundColor: c.hex, borderWidth: activeColor === c.hex ? 3 : 1, borderColor: '#fff' }]} onPress={() => dispatch(setColor(c.hex))} />)}
-            <TouchableOpacity onPress={handleUndo}><Text style={styles.btnText}>↩️</Text></TouchableOpacity>
-            <TouchableOpacity onPress={handleRedo}><Text style={styles.btnText}>↪️</Text></TouchableOpacity>
-            <TouchableOpacity onPress={handleClear}><Text style={styles.btnText}>🗑️</Text></TouchableOpacity>
-            <TouchableOpacity onPress={onClose}><Text style={styles.btnText}>✅</Text></TouchableOpacity>
-          </View>
-          <View style={styles.row}>
-            {['pen', 'eraser', 'underline'].map(t => <TouchableOpacity key={t} style={[styles.toolBtn, activeTool === t && styles.activeTool]} onPress={() => dispatch(setTool(t))}><Text style={styles.btnText}>{t}</Text></TouchableOpacity>)}
-            <TouchableOpacity onPress={() => dispatch(setPenSize(Math.max(2, penSize - 2)))}><Text style={styles.btnText}>➖</Text></TouchableOpacity>
-            <Text style={styles.btnText}>{penSize}px</Text>
-            <TouchableOpacity onPress={() => dispatch(setPenSize(Math.min(20, penSize + 2)))}><Text style={styles.btnText}>➕</Text></TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.15)', elevation: 10, zIndex: 100 },
-  toolbar: { backgroundColor: '#1e1e1e', padding: 10, borderTopWidth: 1, borderColor: '#333' },
-  row: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 10 },
-  colorBtn: { width: 30, height: 30, borderRadius: 15 },
-  toolBtn: { padding: 8, backgroundColor: '#333', borderRadius: 8 },
-  activeTool: { backgroundColor: '#0066FF' },
-  btnText: { color: '#fff', fontSize: 14 },
-  toggleBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 5, zIndex: 10 }
+  overlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    elevation: 100,
+    zIndex: 100,
+  },
 });
+
+export default DrawingCanvas;

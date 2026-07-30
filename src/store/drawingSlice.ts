@@ -1,12 +1,48 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+type Tool = 'pen' | 'eraser' | 'underline' | 'laser';
+
+interface DrawingState {
+  toolbarExpanded: boolean;
+  activeTool: Tool;
+  activeColor: string;
+  penSize: number;
+}
+
+const initialState: DrawingState = {
+  toolbarExpanded: false,
+  activeTool: 'pen',
+  activeColor: '#FF0000',
+  penSize: 4,
+};
+
 export const drawingSlice = createSlice({
-  name: 'drawing', initialState: { isDrawingMode: false, activeTool: 'pen' as 'pen' | 'eraser' | 'underline' | 'highlighter' | 'text', activeColor: '#FF0000', penSize: 4 },
+  name: 'drawing',
+  initialState,
   reducers: {
-    toggleDrawingMode: (state) => { state.isDrawingMode = !state.isDrawingMode; },
-    setTool: (state, action) => { state.activeTool = action.payload; },
-    setColor: (state, action) => { state.activeColor = action.payload; },
-    setPenSize: (state, action) => { state.penSize = action.payload; }
-  }
+    setToolbarExpanded: (state, action: PayloadAction<boolean>) => {
+      state.toolbarExpanded = action.payload;
+    },
+    toggleToolbarExpanded: (state) => {
+      state.toolbarExpanded = !state.toolbarExpanded;
+    },
+    setTool: (state, action: PayloadAction<Tool>) => {
+      state.activeTool = action.payload;
+    },
+    setColor: (state, action: PayloadAction<string>) => {
+      state.activeColor = action.payload;
+    },
+    setPenSize: (state, action: PayloadAction<number>) => {
+      state.penSize = action.payload;
+    },
+  },
 });
-export const { toggleDrawingMode, setTool, setColor, setPenSize } = drawingSlice.actions;
+
+export const {
+  setToolbarExpanded,
+  toggleToolbarExpanded,
+  setTool,
+  setColor,
+  setPenSize,
+} = drawingSlice.actions;
 export default drawingSlice.reducer;
