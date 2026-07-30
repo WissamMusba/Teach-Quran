@@ -203,7 +203,7 @@ const s = StyleSheet.create({
   dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },
   colorWrap: { position: 'relative' },
   pal: { position: 'absolute', left: -(180 - COL) / 2, width: 180, borderRadius: 12, padding: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
-  arr: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
+  arr: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 8, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   wcol: { alignItems: 'center', paddingVertical: 3 },
   zw: { fontSize: 9, color: '#8A8A8A', marginTop: 1, fontWeight: '700' },
