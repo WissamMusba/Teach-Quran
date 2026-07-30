@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable, Platform } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
@@ -368,10 +368,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
           onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })} />
       )}
 
-      <AnnotationToolbar visible={!isCapturing} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
-        onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
-        canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
-        onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
+      <ToolbarBoundary>
+        <AnnotationToolbar visible={!isCapturing} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
+          onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
+          canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
+          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
+      </ToolbarBoundary>
 
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
       {isHeaderVisible && <AudioPlayerBar onOpenQari={() => setShowQariModal(true)} onTogglePlay={togglePlayAudio} isPlaying={isPlaying} />}
@@ -412,6 +414,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
       )}
     </View>
   );
+}
+
+class ToolbarBoundary extends Component<any, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(e: any) { console.warn('[ToolbarBoundary] caught:', e?.message || e); }
+  render() { return this.state.hasError ? null : this.props.children; }
 }
 
 const styles = StyleSheet.create({

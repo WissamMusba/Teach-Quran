@@ -1,9 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   Animated, View, Text, TouchableOpacity, StyleSheet, PanResponder,
-  useWindowDimensions, Alert,
+  useWindowDimensions, Alert, Platform, StatusBar,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import {
@@ -45,7 +44,8 @@ interface Props {
 const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
   const dispatch = useDispatch();
   const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
+  const TOP = sbHeight, BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
 
@@ -60,14 +60,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
   const init = useRef(false);
 
   const openR = useRef(open), dockedR = useRef(docked), cwR = useRef(cwidth);
-  const wR = useRef(width), hR = useRef(height), inR = useRef(insets);
+  const wR = useRef(width), hR = useRef(height);
+  const topR = useRef(TOP), botR = useRef(BOT);
   useEffect(() => { openR.current = open; }, [open]);
   useEffect(() => { dockedR.current = docked; }, [docked]);
   useEffect(() => { cwR.current = cwidth; }, [cwidth]);
-  useEffect(() => { wR.current = width; hR.current = height; inR.current = insets; }, [width, height, insets.top, insets.bottom]);
+  useEffect(() => { wR.current = width; hR.current = height; }, [width, height]);
 
   const clampX = (x: number, w: number) => Math.max(MARGIN, Math.min(x, wR.current - w - MARGIN));
-  const clampY = (y: number) => Math.max(inR.current.top, Math.min(y, hR.current - ROUND - inR.current.bottom));
+  const clampY = (y: number) => Math.max(topR.current, Math.min(y, hR.current - ROUND - botR.current));
   const clampP = (p: { x: number; y: number }, w: number) => ({ x: clampX(p.x, w), y: clampY(p.y) });
 
   const animateTo = (t: { x: number; y: number }, dock: boolean) => {
@@ -81,11 +82,11 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
 
   useEffect(() => {
     if (init.current) return;
-    const p = { x: width - ROUND - MARGIN, y: height - insets.bottom - 100 };
+    const p = { x: width - ROUND - MARGIN, y: height - BOT - 100 };
     pos.current = p; preDock.current = p;
     pan.setOffset(p); pan.setValue({ x: 0, y: 0 });
     init.current = true;
-  }, [width, height, insets.bottom]);
+  }, [width, height]);
 
   useEffect(() => {
     if (!init.current) return;
@@ -93,7 +94,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
     const c = clampP(pos.current, cwR.current);
     pos.current = c; preDock.current = c;
     pan.setOffset(c); pan.setValue({ x: 0, y: 0 });
-  }, [cwidth, width, height, insets.top, insets.bottom]);
+  }, [cwidth, width, height]);
 
   useEffect(() => { if (!open) setPal(false); }, [open]);
 
@@ -124,15 +125,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, onUndo, onRedo, onClear, 
       }
       if (!openR.current) {
         const cx = abs.x + ROUND / 2, cy = abs.y + ROUND / 2;
-        const W = wR.current, H = hR.current, ins = inR.current;
-        const dL = cx, dR = W - cx, dT = cy - ins.top, dB = (H - ins.bottom) - cy;
+        const W = wR.current, H = hR.current, tp = topR.current, bt = botR.current;
+        const dL = cx, dR = W - cx, dT = cy - tp, dB = (H - bt) - cy;
         const m = Math.min(dL, dR, dT, dB);
         if (m < DOCK_THRESHOLD) {
           let t;
           if (m === dL) t = { x: -(ROUND - DOCK_PEEK), y: clampY(abs.y) };
           else if (m === dR) t = { x: W - DOCK_PEEK, y: clampY(abs.y) };
           else if (m === dT) t = { x: clampX(abs.x, ROUND), y: -(ROUND - DOCK_PEEK) };
-          else t = { x: clampX(abs.x, ROUND), y: H - ins.bottom - DOCK_PEEK };
+          else t = { x: clampX(abs.x, ROUND), y: H - bt - DOCK_PEEK };
           preDock.current = clampP(abs, ROUND);
           animateTo(t, true);
           return;
