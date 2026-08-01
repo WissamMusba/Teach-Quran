@@ -7,7 +7,7 @@ import WordHitArea from '../common/WordHitArea';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
-import { getArabicFont } from '../../utils/theme';
+import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
 const stripPua = (t: string) => (t || '').replace(/[\uE000-\uF8FF]/g, '');
@@ -33,13 +33,18 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
   return extra;
 };
 
-const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap }: any) => {
   const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
   
   if (!pageData || !pageData.lines) return <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]} />;
+  const firstWord = pageData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
+  const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
+  const juzInfo = pageNum > 0 ? getJuzInfoFromPage(pageNum) : { juz: 0, pagesLeft: 0 };
+  const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
+  const frameC = nightMode ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.14)';
   const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
   const getFontAdj = (ts: string, hv: boolean) => {
@@ -180,6 +185,17 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
           </Pressable>
         );
       })}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={[styles.frameOuter, { borderColor: frameC }]} />
+        <View style={[styles.frameInner, { borderColor: frameC }]} />
+        <View style={[styles.corner, { backgroundColor: frameC, top: 5, left: 5 }]} />
+        <View style={[styles.corner, { backgroundColor: frameC, top: 5, right: 5 }]} />
+        <View style={[styles.corner, { backgroundColor: frameC, bottom: 5, left: 5 }]} />
+        <View style={[styles.corner, { backgroundColor: frameC, bottom: 5, right: 5 }]} />
+        <Text style={[styles.overlayText, styles.topLeft, { color: grayC }]}>{firstSurahId > 0 ? `Juz ${juzInfo.juz} · ${surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} (${firstSurahId})` : ''}</Text>
+        <Text style={[styles.overlayText, styles.topMid, { color: grayC }]}>{pageNum > 0 ? `${juzInfo.pagesLeft} pages left in Juz` : ''}</Text>
+        <Text style={[styles.overlayText, styles.bottomMid, { color: grayC }]}>{pageNum > 0 ? `Page ${pageNum + 1}` : ''}</Text>
+      </View>
     </View>
   );
 };
@@ -197,7 +213,14 @@ const styles = StyleSheet.create({
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
-  noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 }
+  noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 },
+  frameOuter: { position: 'absolute', top: 5, bottom: 5, left: 5, right: 5, borderWidth: 1.2, borderRadius: 18 },
+  frameInner: { position: 'absolute', top: 10, bottom: 10, left: 10, right: 10, borderWidth: 1, borderRadius: 13 },
+  corner: { position: 'absolute', width: 8, height: 8, borderRadius: 2, transform: [{ rotate: '45deg' }] },
+  overlayText: { position: 'absolute', fontSize: 11, fontWeight: '600' },
+  topLeft: { top: 9, left: 18 },
+  topMid: { top: 9, left: 0, right: 0, textAlign: 'center' },
+  bottomMid: { bottom: 7, left: 0, right: 0, textAlign: 'center' }
 });
 
 export default memo(MushafPageView);
