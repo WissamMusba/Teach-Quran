@@ -47,7 +47,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
     native.stopAnimation();
     layout.stopAnimation();
     Animated.parallel([
-      Animated.timing(native, { toValue: p.visible ? 1 : 0, duration: p.visible ? 150 : 110, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(native, { toValue: p.visible ? 1 : 0, duration: p.visible ? 150 : 110, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
       Animated.timing(layout, { toValue: p.visible ? 1 : 0, duration: p.visible ? 150 : 110, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
     ]).start();
   }, [p.visible, native, layout]);
