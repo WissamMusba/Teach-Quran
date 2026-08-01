@@ -3,11 +3,11 @@ import { initDatabase, getDB } from './localDB';
 const SURAH_API = 'https://api.alquran.cloud/v1/surah';
 const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf';
 const TOTAL_VERSES = 6236;
+const MIN_USABLE_VERSES = 6000;
 
 let indopakVerseCache: Record<string, number> | null = null;
 let indopakReverseMap: Record<string, string[]> | null = null;
-let indopakPageVersesMap: Record<string, any[]> | null = null;
-let allVersesCache: any[] | null = null;
+const indopakPageVerseCache: Record<number, any[]> = {};
 const versesPageCache = new Map<string, { verses: any[]; total: number }>();
 const surahTotalCache = new Map<number, number>();
 
@@ -16,22 +16,29 @@ const isIndopakStyle = (mushaf?: string) => {
   return mushaf && indopakFonts.includes(mushaf);
 };
 
+let indopakPagesPromise: Promise<boolean> | null = null;
+
 export const importIndopakPages = async () => {
-  const db = getDB();
-  const check = await db.executeSql(`SELECT COUNT(*) as c FROM mushaf_pages_indopak`);
-  if (check && check.length > 0 && check[0].rows.item(0).c > 0) return true;
-  try {
-    const allPages = require('../assets/data/indopak_pages.json');
-    if (!allPages?.pages) return false;
-    const entries = Object.values(allPages.pages) as any[];
-    await db.transaction((tx: any) => {
-      for (const p of entries) {
-        tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
-          [p.page, JSON.stringify(p)]);
-      }
-    });
-    return true;
-  } catch (e) { console.warn('importIndopakPages failed', e); return false; }
+  if (!indopakPagesPromise) {
+    indopakPagesPromise = (async () => {
+      const db = getDB();
+      const check = await db.executeSql(`SELECT COUNT(*) as c FROM mushaf_pages_indopak`);
+      if (check && check.length > 0 && check[0].rows.item(0).c > 0) return true;
+      try {
+        const allPages = require('../assets/data/indopak_pages.json');
+        if (!allPages?.pages) return false;
+        const entries = Object.values(allPages.pages) as any[];
+        await db.transaction((tx: any) => {
+          for (const p of entries) {
+            tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
+              [p.page, JSON.stringify(p)]);
+          }
+        });
+        return true;
+      } catch (e) { console.warn('importIndopakPages failed', e); indopakPagesPromise = null; return false; }
+    })();
+  }
+  return indopakPagesPromise;
 };
 
 const getIndopakVersePage = (surahId: number, verseNum: number): number => {
@@ -50,11 +57,48 @@ export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
   return { lines: [] };
 };
 
+const fetchMissing = async () => {
+  const db = getDB();
+  try {
+    const metaData = await (await fetch(`${SURAH_API}`)).json();
+    const missing: any[] = [];
+    for (const s of metaData.data) {
+      const r = await db.executeSql(`SELECT COUNT(*) as c FROM verses WHERE surahId=?`, [s.number]);
+      const c = r && r.length > 0 ? r[0].rows.item(0).c : 0;
+      if (c < s.numberOfAyahs) missing.push(s);
+    }
+    if (missing.length === 0) return;
+    await db.transaction((tx: any) => {
+      missing.forEach(s => tx.executeSql(`DELETE FROM verses WHERE surahId=?`, [s.number]));
+    });
+    const chunkSize = 10;
+    for (let i = 0; i < missing.length; i += chunkSize) {
+      const chunk = missing.slice(i, i + chunkSize);
+      try {
+        const promises = chunk.map(s => fetch(`${SURAH_API}/${s.number}/editions/quran-uthmani,en.sahih,indo.pak`).then(r => r.json()));
+        const results = await Promise.all(promises);
+        await db.transaction((tx: any) => {
+          results.forEach((res) => {
+            const arRes = res.data[0], enRes = res.data[1], indopakRes = res.data[2];
+            for (let i = 0; i < arRes.ayahs.length; i++) {
+              const ayah = arRes.ayahs[i];
+              tx.executeSql(`INSERT INTO verses (surahId, verseNumber, textArabic, textIndopak, textTranslation, page) VALUES (?, ?, ?, ?, ?, ?)`,
+                [arRes.number, ayah.numberInSurah, ayah.text, indopakRes.ayahs[i]?.text || ayah.text, enRes.ayahs[i]?.text || '', ayah.page]);
+            }
+          });
+        });
+      } catch (e) { console.error(`Failed chunk starting at surah ${chunk[0].number}`, e); }
+    }
+  } catch (e) { console.error('Quran background fill failed:', e); }
+};
+
 export const downloadAndCacheQuran = async () => {
   await initDatabase();
   const db = getDB();
   const [verseCheck] = await Promise.all([db.executeSql(`SELECT COUNT(*) as c FROM verses`)]);
-  if (verseCheck && verseCheck.length > 0 && verseCheck[0].rows.item(0).c >= TOTAL_VERSES) return true;
+  const count = verseCheck && verseCheck.length > 0 ? verseCheck[0].rows.item(0).c : 0;
+  if (count >= TOTAL_VERSES) return true;
+  if (count >= MIN_USABLE_VERSES) { fetchMissing(); fetchMushafPages(); return true; }
 
   try {
     const metaData = await (await fetch(`${SURAH_API}`)).json();
@@ -89,36 +133,13 @@ export const downloadAndCacheQuran = async () => {
       });
     });
 
-    fetchRemainingQuran(missing.slice(10));
+    fetchMissing();
     fetchMushafPages();
 
     return true;
   } catch (e) {
     console.error('Quran download failed:', e);
     throw e;
-  }
-};
-
-const fetchRemainingQuran = async (surahs: any[]) => {
-  const db = getDB();
-  const chunkSize = 10;
-  for (let i = 0; i < surahs.length; i += chunkSize) {
-    const chunk = surahs.slice(i, i + chunkSize);
-    try {
-      const promises = chunk.map(s => fetch(`${SURAH_API}/${s.number}/editions/quran-uthmani,en.sahih,indo.pak`).then(r => r.json()));
-      const results = await Promise.all(promises);
-      
-      await db.transaction((tx: any) => {
-        results.forEach((res) => {
-          const arRes = res.data[0], enRes = res.data[1], indopakRes = res.data[2];
-          for (let i = 0; i < arRes.ayahs.length; i++) {
-            const ayah = arRes.ayahs[i];
-            tx.executeSql(`INSERT INTO verses (surahId, verseNumber, textArabic, textIndopak, textTranslation, page) VALUES (?, ?, ?, ?, ?, ?)`, 
-              [arRes.number, ayah.numberInSurah, ayah.text, indopakRes.ayahs[i]?.text || ayah.text, enRes.ayahs[i]?.text || '', ayah.page]);
-          }
-        });
-      });
-    } catch (e) { console.error(`Failed chunk starting at surah ${chunk[0].number}`, e); }
   }
 };
 
@@ -179,17 +200,10 @@ export const getVersePage = async (surahId: number, verseNum: number, mushaf?: s
 
 export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   if (isIndopakStyle(mushaf)) {
-    if (!allVersesCache) {
-      const db = getDB();
-      const res = await db.executeSql(`SELECT * FROM verses ORDER BY surahId, verseNumber`);
-      allVersesCache = [];
-      if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) allVersesCache.push(res[0].rows.item(i));
-    }
-    if (!indopakVerseCache) {
+    if (indopakPageVerseCache[pageNum]) return indopakPageVerseCache[pageNum];
+    if (!indopakReverseMap) {
       try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
       catch { indopakVerseCache = {}; }
-    }
-    if (!indopakReverseMap) {
       indopakReverseMap = {};
       for (const key of Object.keys(indopakVerseCache)) {
         const pg = indopakVerseCache[key];
@@ -197,18 +211,22 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
         indopakReverseMap[pg].push(key);
       }
     }
-    if (!indopakPageVersesMap) {
-      indopakPageVersesMap = {};
-      for (const v of allVersesCache) {
-        const key = `${v.surahId}:${v.verseNumber}`;
-        const pg = indopakVerseCache[key];
-        if (pg) {
-          if (!indopakPageVersesMap[pg]) indopakPageVersesMap[pg] = [];
-          indopakPageVersesMap[pg].push(v);
-        }
+    const keys = indopakReverseMap[pageNum] || [];
+    const out: any[] = [];
+    if (keys.length > 0) {
+      const bySurah: Record<number, number[]> = {};
+      keys.forEach(k => { const parts = k.split(':'); const s = parseInt(parts[0], 10); const v = parseInt(parts[1], 10); if (!bySurah[s]) bySurah[s] = []; bySurah[s].push(v); });
+      const db = getDB();
+      for (const surahId of Object.keys(bySurah)) {
+        const vs = bySurah[parseInt(surahId, 10)];
+        const placeholders = vs.map(() => '?').join(',');
+        const res = await db.executeSql(`SELECT * FROM verses WHERE surahId=? AND verseNumber IN (${placeholders}) ORDER BY verseNumber`, [parseInt(surahId, 10), ...vs]);
+        if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));
       }
+      out.sort((a, b) => (a.surahId - b.surahId) || (a.verseNumber - b.verseNumber));
     }
-    return indopakPageVersesMap[pageNum] || [];
+    indopakPageVerseCache[pageNum] = out;
+    return out;
   }
   const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
   const out: any[] = [];

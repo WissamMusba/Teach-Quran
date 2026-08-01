@@ -98,7 +98,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const ensurePageLoaded = useCallback(async (pageNum: number) => {
     if (pageCache[pageNum] || pagePromiseRef.current[pageNum]) return;
     pagePromiseRef.current[pageNum] = true;
-    if (isIndopak) await importIndopakPages();
+    if (isIndopak) importIndopakPages();
     getMushafPageData(pageNum, textStyleRef.current).then(data => {
       setPageCache(prev => {
         const next = { ...prev, [pageNum]: data };
