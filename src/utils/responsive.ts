@@ -17,7 +17,7 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
     if (SCREEN_WIDTH < 900) return 28;
     return 32;
   })();
-  if (headerVisible === false) return base + 3;
+  if (headerVisible === false) return base + (SCREEN_WIDTH < 500 ? 1 : 3);
   return base;
 };
 

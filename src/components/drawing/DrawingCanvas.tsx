@@ -154,10 +154,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       currentPathRef.current = newPath;
     },
     onPanResponderMove: (e) => {
-      if (stateRef.current.activeTool === 'eraser' || stateRef.current.activeTool === 'laser') return;
+      if (stateRef.current.activeTool === 'laser') return;
       if (currentPathRef.current) {
         const newPoint = `${e.nativeEvent.locationX},${e.nativeEvent.locationY}`;
-        if (stateRef.current.activeTool === 'underline') {
+        if (stateRef.current.activeTool === 'eraser') {
+          const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+        } else if (stateRef.current.activeTool === 'underline') {
           const updatedPath = { ...currentPathRef.current, points: [currentPathRef.current.points[0], newPoint] };
           currentPathRef.current = updatedPath;
           setCurrentPath(updatedPath);
@@ -177,13 +181,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
         return;
       }
       if (s.activeTool === 'eraser') {
-        const { locationX, locationY } = e.nativeEvent;
-        const newPaths = pathsRef.current.filter((p: any) =>
-          !p.points.some((pt: string) => {
+        const sweep = currentPathRef.current?.points || [];
+        const newPaths = pathsRef.current.filter((p: any) => {
+          for (const pt of sweep) {
             const [x, y] = pt.split(',').map(Number);
-            return Math.abs(x - locationX) < 30 && Math.abs(y - locationY) < 30;
-          })
-        );
+            if (distanceToPath(p.points, x, y) < 30) return false;
+          }
+          return true;
+        });
         if (newPaths.length !== pathsRef.current.length) {
           setPaths(newPaths);
           pathsRef.current = newPaths;
@@ -208,6 +213,28 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       currentPathRef.current = null;
     },
   })).current;
+
+  const distToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  };
+
+  const distanceToPath = (points: string[], px: number, py: number) => {
+    if (!points || points.length === 0) return Infinity;
+    let best = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const [x1, y1] = points[i].split(',').map(Number);
+      if (i === points.length - 1) {
+        best = Math.min(best, Math.hypot(px - x1, py - y1));
+        break;
+      }
+      const [x2, y2] = points[i + 1].split(',').map(Number);
+      best = Math.min(best, distToSegment(px, py, x1, y1, x2, y2));
+    }
+    return best;
+  };
 
   const generatePathD = (points: string[], style?: string) => {
     if (!points || points.length === 0) return '';
@@ -239,9 +266,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
             </React.Fragment>
           ))}
           {currentPath && currentPath.tool === 'laser' ? (
-            (() => { const [cx, cy] = currentPath.points[0].split(',').map(Number); return <Circle cx={cx} cy={cy} r={14} fill="#FF0000" opacity={0.85} />; })()
+            (() => { const [cx, cy] = currentPath.points[0].split(',').map(Number); return <Circle cx={cx} cy={cy} r={Math.max(4, currentPath.width)} fill="#FF0000" opacity={0.85} />; })()
           ) : (
-            currentPath && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
+            currentPath && currentPath.tool !== 'eraser' && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
           )}
         </Svg>
       </View>

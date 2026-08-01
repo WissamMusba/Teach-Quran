@@ -1,11 +1,12 @@
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { useSelector } from 'react-redux';
-import { FONT_SIZES } from '../../utils/constants';
+import { FONT_SIZES, WORD_TAP_FRACTION } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
+import WordHitArea from '../common/WordHitArea';
 
-const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, showTranslation, fontSize, bookmarks, notes, flashingVerse, readingMarkVerse }: any) => {
+const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, showTranslation, fontSize, bookmarks, notes, flashingVerse, readingMarkVerse, onDeadTap }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
@@ -30,15 +31,17 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
         const isReadingMark = readingMarkVerse === verse.verseNumber;
         return (
           <View key={vKey} style={[styles.verseBlock, { borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
-            <Text style={[styles.mainText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }]}>
+            <Pressable style={[styles.arabicRow, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} onPress={onDeadTap}>
               {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
               {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
               {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}
               {words.map((word: string, wIdx: number) => {
                 const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
                 return (
-                  <Text key={wIdx} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
-                    style={[styles.arabicText, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
+                  <WordHitArea key={wIdx} tapFraction={WORD_TAP_FRACTION} onWordPress={() => onWordPress(verse.verseNumber, wIdx)} onDeadTap={onDeadTap}
+                    onLongPress={() => onVerseLongPress(verse.verseNumber)}>
+                    <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word} </Text>
+                  </WordHitArea>
                 );
               })}
               <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber, verse.surahId)}>
@@ -46,7 +49,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
                   <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
                 </View>
               </TouchableOpacity>
-            </Text>
+            </Pressable>
             {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
           </View>
         );
@@ -57,7 +60,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
 const styles = StyleSheet.create({
   container: { width: '100%', padding: 12, backgroundColor: 'transparent' },
   verseBlock: { paddingVertical: 4, borderBottomWidth: 0, marginBottom: 2 },
-  mainText: { textAlign: 'center', width: '100%' },
+  arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
   bookmarkIcon: { color: '#ffd700', fontSize: 14 },
   noteIcon: { color: '#ffd700', fontSize: 11 },

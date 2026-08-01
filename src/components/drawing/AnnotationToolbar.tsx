@@ -12,6 +12,7 @@ import {
 const ROUND = 44, GAP = 5, COL = 32, MARGIN = 10;
 const BAR_W = 9 * COL + 12;
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
+const DRAG_SLOP = 8;
 const ACCENT = '#00D4AA';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
@@ -71,6 +72,14 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const onTouchStart = useCallback((e: any) => {
     dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y };
   }, [x, y]);
+
+  const onMoveShouldSetResponder = useCallback((e: any) => {
+    const s = dragStart.current;
+    if (!s) return false;
+    const dx = Math.abs(e.nativeEvent.pageX - s.x);
+    const dy = Math.abs(e.nativeEvent.pageY - s.y);
+    return dx >= DRAG_SLOP || dy >= DRAG_SLOP;
+  }, []);
 
   const onTouchMove = useCallback((e: any) => {
     const dx = e.nativeEvent.pageX - dragStart.current.x;
@@ -133,15 +142,18 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     }
   }, [open, docked, width, height, sbHeight, BOT, reclampOnExpand]);
 
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
+
   if (!visible) return null;
 
-  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const placeAbove = y > height - 220;
   const barBg = nightMode ? 'rgba(200,200,215,0.60)' : 'rgba(18,18,20,0.85)';
   const iconC = nightMode ? '#2A2A2A' : '#CFCFCF';
   const disC = nightMode ? '#6A6A6A' : '#5A5A5A';
   const labC = nightMode ? '#4A4A4A' : '#9A9A9A';
   const palBg = 'rgba(20,20,22,0.96)';
+  const colorWrapX = x + ROUND + GAP + 5 + 7 * COL;
+  const palLeft = Math.max(MARGIN, Math.min(colorWrapX - (180 - COL) / 2, width - 180 - MARGIN)) - colorWrapX;
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
@@ -168,8 +180,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
 
       {open && (
         <View style={[s.bar, { backgroundColor: barBg, marginLeft: GAP }]}
-          onStartShouldSetResponder={() => false}
-          onMoveShouldSetResponder={() => true}
+          onStartShouldSetResponder={(e: any) => { dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y }; return false; }}
+          onMoveShouldSetResponder={onMoveShouldSetResponder}
           onResponderGrant={onTouchStart}
           onResponderMove={onTouchMove}
           onResponderRelease={onTouchEnd}>
@@ -190,7 +202,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
               <Text style={[s.lab, { color: labC }, pal && { color: ACCENT }]}>COLOR</Text>
             </TouchableOpacity>
             {pal && (
-              <View style={[s.pal, { backgroundColor: palBg, top: placeAbove ? -(PAL_H + 18) : COL + 4, left: Math.min(Math.max(10 - x, -(180 - COL) / 2), width - 190 - x) }]}>
+              <View style={[s.pal, { backgroundColor: palBg, top: placeAbove ? -(PAL_H + 18) : COL + 4, left: palLeft }]}>
                 {placeAbove ? null : <View style={[s.arr, { borderBottomColor: palBg }]} />}
                 <View style={s.row}>{PEN_SIZES.map((w, i) => (
                   <TouchableOpacity key={w} style={s.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>

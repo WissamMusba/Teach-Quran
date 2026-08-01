@@ -1,6 +1,8 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { memo, useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
+import { WORD_TAP_FRACTION } from '../../utils/constants';
+import WordHitArea from '../common/WordHitArea';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
@@ -8,7 +10,30 @@ const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
 import { getArabicFont } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
-const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse }: any) => {
+const stripPua = (t: string) => (t || '').replace(/[\uE000-\uF8FF]/g, '');
+const hasArabicLetters = (t: string) => /[\u0621-\u064A\u0671-\u06D3\u06D5\u06FA-\u06FC\u0750-\u077F\u08A0-\u08FF]/u.test(t);
+
+const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any) => {
+  let extra = 0;
+  (line.words || []).forEach((w: any, i: number) => {
+    const loc = (w.location || ':').split(':');
+    const verseNum = parseInt(loc[1] || '0', 10);
+    const next = line.words[i + 1];
+    let boundary = false;
+    if (next && next.location) boundary = parseInt(next.location.split(':')[1], 10) !== verseNum;
+    else {
+      const nl = pageData?.lines?.[lineIdx + 1];
+      if (nl && nl.words && nl.words.length > 0) boundary = parseInt((nl.words[0].location || ':').split(':')[1] || '0', 10) !== verseNum;
+      else boundary = true;
+    }
+    if (!boundary) return;
+    extra += 40;
+    if (notes?.[`${loc[0] || '0'}_${verseNum}`]) extra += 16;
+  });
+  return extra;
+};
+
+const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap }: any) => {
   const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
@@ -29,6 +54,33 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   };
   const adj = getFontAdj(textStyle, headerVisible);
 
+  const [lineScale, setLineScale] = useState<Record<number, number>>({});
+  const scaleRef = useRef<Record<number, number>>({});
+  const widthsRef = useRef<Record<number, (number | undefined)[]>>({});
+  const lineExtraRef = useRef<Record<number, number>>({});
+
+  useEffect(() => {
+    scaleRef.current = {};
+    widthsRef.current = {};
+    lineExtraRef.current = {};
+    setLineScale({});
+  }, [headerVisible, textStyle]);
+
+  const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+    if (scaleRef.current[lineKey]) return;
+    if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
+    widthsRef.current[lineKey][wordIdx] = w;
+    const arr = widthsRef.current[lineKey];
+    if (arr.filter(v => v != null).length < expected) return;
+    const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
+    const lineW = SCREEN_WIDTH - 2 * HORIZ_PAD;
+    if (content > lineW + 2) {
+      const scale = Math.max(0.65, (lineW - 12) / content);
+      scaleRef.current[lineKey] = scale;
+      setLineScale(prev => ({ ...prev, [lineKey]: scale }));
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
@@ -36,22 +88,28 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
           return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>{line.type === 'basmala' ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : line.text}</Text></View>;
         }
         return (
-          <View key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }]}>
-            {line.words?.map((word: any, wordIdx: number) => {
+          <Pressable key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }]} onPress={onDeadTap}>
+            {(() => {
+              const renderableCount = (line.words || []).filter((w: any) => !(!!w.word && !hasArabicLetters(stripPua(w.word)))).length;
+              lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
+              return line.words?.map((word: any, wordIdx: number) => {
               const parts = word.location ? word.location.split(':') : [];
               const surahId = parts[0] || '0';
               const verseNum = parts.length > 1 ? parseInt(parts[1], 10) : 0;
               const wordPos = parts.length > 2 ? parseInt(parts[2], 10) : 0;
               const vKey = `${surahId}_${verseNum}`;
 
-              // Skip rendering verse-end marker entries (Private Use Area U+F500-F5FF)
+              // Skip rendering verse-end marker entries (Private Use Area U+E000-U+F8FF).
               // These are decorative verse-number circle glyphs meant for QPC fonts.
               // Standard fonts render them as garbled tofu. We hide them but keep
               // the layout entry intact so word positions and verse boundaries stay correct.
-              const isVerseEndMarker = word.word && /[\uF500-\uF5FF]/.test(word.word);
+              // Entries with real Arabic letters after stripping PUA are real words
+              // (PUA embedded mid-word) and must be rendered with the PUA removed.
+              const stripped = stripPua(word.word);
+              const isVerseEndMarker = !!word.word && !hasArabicLetters(stripped);
 
               const verseObj = versesForPage?.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
-              let displayText = word.word;
+              let displayText = stripped;
               const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
               const isBookmarked = !!bookmarks?.[vKey];
               const isFlashing = flashingVerseKey === vKey;
@@ -94,10 +152,14 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
 
               return (
                 <React.Fragment key={wordIdx}>
-                  <Text style={[styles.text, { fontSize: mushafFontSize + adj.size, lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]}
-                    onPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}>
-                    {displayText}{' '}
-                  </Text>
+                  <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles.wordBox}
+                    onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
+                    onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}
+                    onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, renderableCount)}>
+                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1), lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                      {displayText}{' '}
+                    </Text>
+                  </WordHitArea>
                   {isVerseBoundary && (
                     <View style={styles.verseBadgeContainer}>
                       <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
@@ -110,8 +172,9 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
                   )}
                 </React.Fragment>
               );
-            })}
-          </View>
+              });
+            })()}
+          </Pressable>
         );
       })}
     </View>
@@ -122,9 +185,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
   line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
-  text: { textAlign: 'center', flexShrink: 1 },
+  text: { textAlign: 'center' },
+  wordBox: { flexShrink: 0 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4 },
+  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4, flexShrink: 1, minWidth: 24 },
   verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },

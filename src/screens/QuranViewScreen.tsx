@@ -224,6 +224,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [studentData, currentSurahId]);
 
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
+  const toggleHeader = useCallback(() => setIsHeaderVisible((prev: boolean) => !prev), []);
   const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
   const handleVerseLongPress = useCallback((verseNum: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); }, []);
 
@@ -305,7 +306,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
                     onWordPress={onWordPress(item.verseNumber)} onBookmarkToggle={onBookmarkToggle(item.verseNumber)} onVerseLongPress={handleVerseLongPress}
-                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} />
+                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
                 onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
                 onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color="#00d4aa" /> : null}
@@ -325,7 +326,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarks={studentData?.bookmarks}
-                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} />
+                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 {loadingMore && <ActivityIndicator color="#00d4aa" />}
               </ScrollView>
             )}
@@ -359,7 +360,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
-                          flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} />
+                          flashingVerseKey={flashingVerse ? `${currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
                     </View>
                   );
@@ -382,7 +383,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
           onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
           canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
-          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); dispatch(setToolbarExpanded(false)); }}} />
+          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
       </ToolbarBoundary>
 
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}

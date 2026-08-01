@@ -1,11 +1,12 @@
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { useSelector } from 'react-redux';
-import { FONT_SIZES } from '../../utils/constants';
+import { FONT_SIZES, WORD_TAP_FRACTION } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
+import WordHitArea from '../common/WordHitArea';
 
-const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse }: any) => {
+const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse, onDeadTap }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
@@ -21,13 +22,13 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
-      <View style={styles.arabicRow}>
+      <Pressable style={styles.arabicRow} onPress={onDeadTap}>
         {words.map((word: string, index: number) => {
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
-            <TouchableOpacity key={index} onPress={() => onWordPress(index)} activeOpacity={0.7}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]}>{word}{' '}</Text>
-            </TouchableOpacity>
+            <WordHitArea key={index} tapFraction={WORD_TAP_FRACTION} onWordPress={() => onWordPress(index)} onDeadTap={onDeadTap}>
+              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]} maxFontSizeMultiplier={1}>{word}{' '}</Text>
+            </WordHitArea>
           );
         })}
         <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
@@ -35,7 +36,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
               <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && !isReadingMark && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
         </TouchableOpacity>
-      </View>
+      </Pressable>
       {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
     </View>
   );
