@@ -162,7 +162,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles.wordBox}
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
-                    onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}
+                    onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, renderableCount)}>
                     <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1), lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
