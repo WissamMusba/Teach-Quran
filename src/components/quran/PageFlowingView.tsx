@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { getMushafFontSize } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
+import { MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 
 const PageFlowingView = ({ verses, highlights, bookmarks, notes, readingMarkVerse, showTranslation, onWordPress, onVerseLongPress, onBookmarkToggle, flashingVerse, onInteractivePressIn }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -18,7 +19,7 @@ const PageFlowingView = ({ verses, highlights, bookmarks, notes, readingMarkVers
     <View style={styles.container}>
       {verses.map((verse: any) => {
         const displayText = (textStyle === 'saleem' || textStyle === 'indopak') ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
-        const words = displayText.replace(/۞/u, '').trim().split(' ');
+        const words = displayText.trim().split(' ').map(cleanQuranWord);
         const vKey = `${verse.surahId}_${verse.verseNumber}`;
         const verseHighs = highlights?.[vKey]?.highlights || [];
         const isBookmarked = !!bookmarks?.[vKey];
@@ -36,7 +37,7 @@ const PageFlowingView = ({ verses, highlights, bookmarks, notes, readingMarkVers
                 return (
                   <Text key={wIdx} onPressIn={onInteractivePressIn} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
                     style={[styles.arabicText, { fontSize: size, lineHeight, color: textColor, fontFamily },
-                      h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' },
+                      h && MISTAKE_HIGHLIGHT,
                       isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
                 );
               })}

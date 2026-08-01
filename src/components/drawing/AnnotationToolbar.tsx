@@ -16,12 +16,17 @@ const DRAG_SLOP = 8;
 const ACCENT = '#00D4AA';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
-const PAL_H = 120;
+const PAL_H = 112;
+const PAL_W = 150;
 
 const ST = { fill: 'none', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
 const Pencil = ({ c }: { c: string }) => (<Svg width={18} height={18} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M14 4l3 3-9 9-3 1 1-3 8-8z" /></Svg>);
-const Chevron = ({ c }: { c: string }) => (<Svg width={18} height={18} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M6 9l6 6 6-6" /></Svg>);
+const HandleIcon = ({ c }: { c: string }) => (<Svg width={18} height={18} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M4.5 6.5h15v9.2a2.8 2.8 0 0 1-2.8 2.8H7.3a2.8 2.8 0 0 1-2.8-2.8V6.5z" /><Path d="M9 11l3 3 3-3" /></Svg>);
+const ChevR = ({ c }: { c: string }) => (<Svg width={16} height={16} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M9 6l6 6-6 6" /></Svg>);
+const ChevL = ({ c }: { c: string }) => (<Svg width={16} height={16} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M15 6l-6 6 6 6" /></Svg>);
+const ChevD = ({ c }: { c: string }) => (<Svg width={16} height={16} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M6 9l6 6 6-6" /></Svg>);
+const ChevU = ({ c }: { c: string }) => (<Svg width={16} height={16} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M6 15l6-6 6 6" /></Svg>);
 const LaserI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M4 20l9-9" /><Path d="M16 4l1.6 1.6L16 7.2 14.4 5.6z" /><Path d="M16 1.5v2M19.5 5h-2" /></Svg>);
 const UnderI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M7 4v6a5 5 0 0 0 10 0V4" /><Path d="M5 20h14" /></Svg>);
 const EraserI = ({ c }: { c: string }) => (<Svg width={14} height={14} viewBox="0 0 24 24" {...ST} stroke={c}><Path d="M20 20H7L3 16a1.5 1.5 0 0 1 0-2.12l10-10a1.5 1.5 0 0 1 2.12 0l5 5a1.5 1.5 0 0 1 0 2.12L14 16.5" /><Path d="M10 6l8 8" /></Svg>);
@@ -108,6 +113,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         setDocked(null);
         dispatch(setToolbarExpanded(true));
       } else if (open) {
+        setPal(false);
         dispatch(setToolbarExpanded(false));
         onExit();
       } else {
@@ -153,7 +159,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const labC = nightMode ? '#4A4A4A' : '#9A9A9A';
   const palBg = 'rgba(20,20,22,0.96)';
   const colorWrapX = x + ROUND + GAP + 5 + 7 * COL;
-  const palLeft = Math.max(MARGIN, Math.min(colorWrapX - (180 - COL) / 2, width - 180 - MARGIN)) - colorWrapX;
+  const palLeft = Math.max(MARGIN, Math.min(colorWrapX - (PAL_W - COL) / 2, width - PAL_W - MARGIN)) - colorWrapX;
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
@@ -175,7 +181,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         onResponderGrant={onTouchStart}
         onResponderMove={onTouchMove}
         onResponderRelease={onTouchEnd}>
-        {open ? <Chevron c={iconC} /> : <Pencil c={iconC} />}
+        {open ? <HandleIcon c={iconC} /> : docked === 'left' ? <ChevR c={iconC} /> : docked === 'right' ? <ChevL c={iconC} /> : docked === 'top' ? <ChevD c={iconC} /> : docked === 'bottom' ? <ChevU c={iconC} /> : <Pencil c={iconC} />}
       </View>
 
       {open && (
@@ -235,13 +241,13 @@ const s = StyleSheet.create({
   lab: { fontSize: 7.5, marginTop: 1, fontWeight: '600' },
   dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },
   colorWrap: { position: 'relative' },
-  pal: { position: 'absolute', left: -(180 - COL) / 2, width: 180, borderRadius: 12, padding: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  pal: { position: 'absolute', left: -(PAL_W - COL) / 2, width: PAL_W, borderRadius: 12, padding: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   arr: { alignSelf: 'center', width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 8, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   wcol: { alignItems: 'center', paddingVertical: 3 },
   zw: { fontSize: 9, marginTop: 1, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  sw: { width: 36, height: 30, borderRadius: 8, borderWidth: 2, marginBottom: 6 },
+  sw: { width: 32, height: 26, borderRadius: 7, borderWidth: 2, marginBottom: 6 },
 });
 
 export default AnnotationToolbar;

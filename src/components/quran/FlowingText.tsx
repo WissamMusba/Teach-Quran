@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSelector } from 'react-redux';
-import { FONT_SIZES, WORD_TAP_FRACTION } from '../../utils/constants';
+import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import WordHitArea from '../common/WordHitArea';
@@ -22,7 +22,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
       {verses.map((verse: any) => {
         const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
         const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
-        const words = displayText.replace(/۞/u, '').trim().split(' ');
+        const words = displayText.trim().split(' ').map(cleanQuranWord);
         const vKey = `${verse.surahId}_${verse.verseNumber}`;
         const verseHighs = highlights?.[vKey]?.highlights || [];
         const isBookmarked = !!bookmarks?.[vKey];
@@ -38,17 +38,12 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
               {words.map((word: string, wIdx: number) => {
                 const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
                 return (
-                  <WordHitArea key={wIdx} tapFraction={WORD_TAP_FRACTION} onWordPress={() => onWordPress(verse.verseNumber, wIdx)} onDeadTap={onDeadTap}
+                  <WordHitArea key={wIdx} tapFraction={WORD_TAP_FRACTION} onWordPress={() => word && onWordPress(verse.verseNumber, wIdx)} onDeadTap={onDeadTap}
                     onLongPress={() => onVerseLongPress(verse.verseNumber)}>
-                    <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word} </Text>
+                    <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word} </Text>
                   </WordHitArea>
                 );
               })}
-              <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber, verse.surahId)}>
-                <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                  <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-                </View>
-              </TouchableOpacity>
             </Pressable>
             {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
           </View>
@@ -65,11 +60,6 @@ const styles = StyleSheet.create({
   bookmarkIcon: { color: '#ffd700', fontSize: 14 },
   noteIcon: { color: '#ffd700', fontSize: 11 },
   readingMarkIcon: { color: '#4a90d9', fontSize: 12 },
-  verseBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginLeft: 6, marginTop: 2, borderWidth: 1, borderColor: '#00d4aa', alignSelf: 'center' },
-  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
-  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { color: '#ffffff', fontSize: 12, fontWeight: '700', fontFamily: 'normal' },
-  bookmarkedBadgeText: { color: '#000000' },
   translation: { color: '#b0b0b0', fontStyle: 'italic', fontSize: 14, textAlign: 'center', marginTop: 2 },
 });
 export default memo(FlowingText);

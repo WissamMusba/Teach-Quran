@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSelector } from 'react-redux';
 import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
@@ -42,10 +42,6 @@ const styles = StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
-  verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginHorizontal: 10, marginTop: 4, borderWidth: 1, borderColor: '#00d4aa' },
-  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
-  verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
-  bookmarkedBadgeText: { color: '#000000' },
-  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
+  readingMarkIcon: { color: '#4a90d9', fontSize: 12, marginLeft: 6, marginTop: 4 },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });

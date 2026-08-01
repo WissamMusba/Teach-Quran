@@ -1,7 +1,7 @@
 import React, { memo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
-import { WORD_TAP_FRACTION } from '../../utils/constants';
+import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -84,8 +84,11 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
   return (
     <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
-        if (line.type === 'surah-header' || line.type === 'basmala') {
-          return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>{line.type === 'basmala' ? 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ' : line.text}</Text></View>;
+        if (line.type === 'surah-header') {
+          return null;
+        }
+        if (line.type === 'basmala') {
+          return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, {color: textColor, fontFamily}]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View>;
         }
         return (
           <Pressable key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }]} onPress={onDeadTap}>
@@ -156,7 +159,7 @@ const MushafPageView = ({ headerVisible = true, versesForPage, pageData, highlig
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, renderableCount)}>
-                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1), lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1), lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>

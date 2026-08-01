@@ -15,11 +15,12 @@ import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
-import AnimatedHeader from '../components/common/AnimatedHeader';
+import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
 import { getJuzInfoFromPage, getStartJuzOfSurah } from '../utils/theme';
+import { MISTAKE_COLOR } from '../utils/constants';
 import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -65,7 +66,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
   const { nightMode, bgBrightness } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
-  const activeColor = useSelector((s: any) => s.drawing.activeColor);
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
   const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
@@ -207,10 +207,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const cHigh = studentData.highlights || {};
     const vHighs = cHigh[vKey]?.highlights || [];
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
-    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: activeColor, createdAt: new Date().toISOString() }];
+    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
     updateData({ ...studentData, highlights: { ...cHigh, [vKey]: { highlights: newHighs } } });
     ReactNativeHapticFeedback.trigger('impactLight');
-  }, [studentData, activeColor, currentSurahId]);
+  }, [studentData, currentSurahId]);
 
   const handleBookmarkFlow = useCallback((verseNum: number, surahId?: number) => {
     if (!studentData) return;
@@ -290,8 +290,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
-        onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onBookmarks={() => navigation.navigate('Bookmarks')} onMistakes={() => navigation.navigate('Mistakes')}
+        onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onSettings={() => navigation.navigate('Settings')} />
+      <TouchableOpacity style={[styles.floatingBookmark, { backgroundColor: nightMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)' }]}
+        onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <BookmarkIcon c="#FFD700" size={16} />
+      </TouchableOpacity>
 
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
@@ -450,4 +454,5 @@ const styles = StyleSheet.create({
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 0, right: 0, height: '100%', zIndex: 1 },
+  floatingBookmark: { position: 'absolute', top: 8, right: 12, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', zIndex: 999, elevation: 999 },
 });
