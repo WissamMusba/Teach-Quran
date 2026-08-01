@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable, Platform } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable, Platform, AppState } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse } from '../store/quranSlice';
@@ -29,7 +29,7 @@ import Share from 'react-native-share';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
-import { playSurahFromVerse, pauseSurah, SURAH_VERSE_COUNTS } from '../utils/audioPlayback';
+import { playSurahFromVerse, pauseSurah, SURAH_VERSE_COUNTS, isSurahPlaying } from '../utils/audioPlayback';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
@@ -70,6 +70,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const viewShotRef = useRef<any>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
+  const pageCacheOrderRef = useRef<number[]>([]);
+  const pageVersesOrderRef = useRef<number[]>([]);
+  const currentPageNumRef = useRef(currentPageNum);
 
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
@@ -78,6 +81,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
   const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
+  const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
@@ -96,7 +100,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
     pagePromiseRef.current[pageNum] = true;
     if (isIndopak) await importIndopakPages();
     getMushafPageData(pageNum, textStyleRef.current).then(data => {
-      setPageCache(prev => ({ ...prev, [pageNum]: data }));
+      setPageCache(prev => {
+        const next = { ...prev, [pageNum]: data };
+        const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
+        order.push(pageNum);
+        const cp = currentPageNumRef.current;
+        while (order.length > 7) {
+          const idx = order.findIndex((k: number) => k !== cp - 1 && k !== cp && k !== cp + 1);
+          if (idx === -1) break;
+          delete next[order[idx]];
+          order.splice(idx, 1);
+        }
+        pageCacheOrderRef.current = order;
+        return next;
+      });
       delete pagePromiseRef.current[pageNum];
     });
   }, [pageCache, isIndopak]);
@@ -106,7 +123,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
     pageVersesPromiseRef.current[pageNum] = true;
     getVersesByPage(pageNum, textStyleRef.current).then(verses => {
-      setPageVersesCache(prev => ({ ...prev, [pageNum]: verses }));
+      setPageVersesCache(prev => {
+        const next = { ...prev, [pageNum]: verses };
+        const order = pageVersesOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
+        order.push(pageNum);
+        const cp = currentPageNumRef.current;
+        while (order.length > 7) {
+          const idx = order.findIndex((k: number) => k !== cp - 1 && k !== cp && k !== cp + 1);
+          if (idx === -1) break;
+          delete next[order[idx]];
+          order.splice(idx, 1);
+        }
+        pageVersesOrderRef.current = order;
+        return next;
+      });
       delete pageVersesPromiseRef.current[pageNum];
     });
   }, [pageVersesCache]);
@@ -147,6 +177,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => { versesRef.current = verses; }, [verses]);
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { textStyleRef.current = textStyle; }, [textStyle]);
+  useEffect(() => { currentPageNumRef.current = currentPageNum; }, [currentPageNum]);
 
   const loadSurah = async (surahId: number, resetPage: boolean = true) => {
     const currentPage = resetPage ? 1 : pageRef.current;
@@ -180,6 +211,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     setPageCache({});
     setPageVersesCache({});
+    pageCacheOrderRef.current = [];
+    pageVersesOrderRef.current = [];
     if (isIndopak) importIndopakPages();
   }, [textStyle]);
 
@@ -204,11 +237,40 @@ export default function QuranViewScreen({ navigation, route }: any) {
     }
   }, [studentData?.lastRead?.surah]);
 
-  const updateData = async (newData: any) => {
+  const pendingSaveRef = useRef<any>(null);
+  const saveTimerRef = useRef<any>(null);
+
+  const flushPendingSave = () => {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    const dataToSave = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (dataToSave && currentStudent?.id) {
+      saveStudentData(currentStudent.id, dataToSave).then(() => addToSyncQueue(currentStudent.id, dataToSave)).then(() => dispatch(addPendingChange())).catch(() => {});
+    }
+  };
+
+  const updateData = (newData: any) => {
     const dataToSave = { ...newData, updatedAt: new Date().toISOString() };
     dispatch(setStudentData(dataToSave));
-    if (currentStudent?.id) { await saveStudentData(currentStudent.id, dataToSave); await addToSyncQueue(currentStudent.id, dataToSave); dispatch(addPendingChange()); }
+    pendingSaveRef.current = dataToSave;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushPendingSave, 400);
   };
+
+  useEffect(() => {
+    const handleAppState = (state: string) => {
+      if (state === 'background' || state === 'inactive') {
+        flushPendingSave();
+        if (isSurahPlaying(surahIdRef.current)) { pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => {
+      sub.remove();
+      flushPendingSave();
+      if (isSurahPlaying(surahIdRef.current)) { pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
+    };
+  }, []);
 
   const handleWordFlow = useCallback((verseNum: number, wordIndex: number) => {
     if (!studentData) return;
@@ -372,7 +434,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {readingMode === 'page' && (
-              <FlatList ref={flatListRef} data={Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1)} keyExtractor={(item) => item.toString()}
+              <FlatList ref={flatListRef} data={pageNumbers} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: isHeaderVisible ? (IS_TABLET ? 20 : 10) : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
@@ -504,7 +566,7 @@ const styles = StyleSheet.create({
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
-  edgeTapRight: { position: 'absolute', top: 0, right: 0, height: '100%', zIndex: 1 },
+  edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
   pageBookmark: { position: 'absolute', top: 8, right: 0, width: 48, height: 48, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
 
 });

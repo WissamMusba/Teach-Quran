@@ -10,7 +10,16 @@ const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
-const stripPua = (t: string) => (t || '').replace(/[\uE000-\uF8FF]/g, '');
+const puaCache = new Map<string, string>();
+const PUA_CACHE_MAX = 2000;
+const stripPua = (t: string) => {
+  const cached = puaCache.get(t);
+  if (cached !== undefined) return cached;
+  const result = (t || '').replace(/[\uE000-\uF8FF]/g, '');
+  if (puaCache.size >= PUA_CACHE_MAX) puaCache.delete(puaCache.keys().next().value);
+  puaCache.set(t, result);
+  return result;
+};
 const hasArabicLetters = (t: string) => /[\u0621-\u064A\u0671-\u06D3\u06D5\u06FA-\u06FC\u0750-\u077F\u08A0-\u08FF]/u.test(t);
 
 const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any) => {
@@ -34,7 +43,9 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
 };
 
 const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap }: any) => {
-  const { nightMode, textBrightness, textStyle } = useSelector((s: any) => ({ nightMode: s.settings.nightMode, textBrightness: s.settings.textBrightness, textStyle: s.quran.textStyle }));
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const textBrightness = useSelector((s: any) => s.settings.textBrightness);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
@@ -63,20 +74,34 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
   const scaleRef = useRef<Record<number, number>>({});
   const widthsRef = useRef<Record<number, (number | undefined)[]>>({});
   const lineExtraRef = useRef<Record<number, number>>({});
+  const filledCountRef = useRef<Record<number, number>>({});
+
+  const verseByKey = new Map<string, any>();
+  if (versesForPage) {
+    for (const v of versesForPage) {
+      const key = `${v.surahId}_${v.verseNumber}`;
+      if (!verseByKey.has(key)) verseByKey.set(key, v);
+    }
+  }
+  const hlMap = new Map<string, any>(Object.entries(highlights || {}));
 
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
     lineExtraRef.current = {};
+    filledCountRef.current = {};
     setLineScale({});
   }, [headerVisible, textStyle]);
 
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (scaleRef.current[lineKey]) return;
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
+    if (widthsRef.current[lineKey][wordIdx] === undefined) {
+      filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
+    }
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
-    if (arr.filter(v => v != null).length < expected) return;
+    if ((filledCountRef.current[lineKey] || 0) < expected) return;
     const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
     const lineW = SCREEN_WIDTH - 2 * HORIZ_PAD;
     if (content > lineW + 2) {
@@ -116,9 +141,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
               const stripped = stripPua(word.word);
               const isVerseEndMarker = !!word.word && !hasArabicLetters(stripped);
 
-              const verseObj = versesForPage?.find((v: any) => `${v.surahId}_${v.verseNumber}` === vKey);
               let displayText = stripped;
-              const h = highlights?.[vKey]?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
+              const h = hlMap.get(vKey)?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
               const isBookmarked = !!bookmarks?.[vKey];
               const isFlashing = flashingVerseKey === vKey;
               const hasNote = !!notes?.[vKey];

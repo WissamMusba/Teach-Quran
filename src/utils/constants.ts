@@ -14,4 +14,13 @@ export const MISTAKE_HIGHLIGHT: { borderBottomWidth: number; borderBottomColor: 
   borderBottomColor: MISTAKE_COLOR,
   backgroundColor: `${MISTAKE_COLOR}AA`,
 };
-export const cleanQuranWord = (w: string) => (w || '').replace(/[\u06DD\u06DE\uFD3E\uFD3F]/gu, '');
+const cleanWordCache = new Map<string, string>();
+const CLEAN_WORD_CACHE_MAX = 2000;
+export const cleanQuranWord = (w: string) => {
+  const cached = cleanWordCache.get(w);
+  if (cached !== undefined) return cached;
+  const result = (w || '').replace(/[\u06DD\u06DE\uFD3E\uFD3F]/gu, '');
+  if (cleanWordCache.size >= CLEAN_WORD_CACHE_MAX) cleanWordCache.delete(cleanWordCache.keys().next().value);
+  cleanWordCache.set(w, result);
+  return result;
+};
