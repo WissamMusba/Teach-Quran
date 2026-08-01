@@ -9,7 +9,7 @@ import {
   setToolbarExpanded, setTool, setColor, setPenSize,
 } from '../../store/drawingSlice';
 
-const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
+const DOCK_PEEK = 20, DOCK_THRESHOLD = 50, DOCK_INSET = 16;
 const DRAG_SLOP = 8;
 const ACCENT = '#00D4AA';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
@@ -19,10 +19,10 @@ const ST = { fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'rou
 
 const Pencil = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M14 4l3 3-9 9-3 1 1-3 8-8z" /></Svg>);
 const HandleIcon = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M4.5 6.5h15v9.2a2.8 2.8 0 0 1-2.8 2.8H7.3a2.8 2.8 0 0 1-2.8-2.8V6.5z" /><Path d="M9 11l3 3 3-3" /></Svg>);
-const ChevR = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M9 6l6 6-6 6" /></Svg>);
-const ChevL = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M15 6l-6 6 6 6" /></Svg>);
-const ChevD = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M6 9l6 6 6-6" /></Svg>);
-const ChevU = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M6 15l6-6 6 6" /></Svg>);
+const ChevR = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M3 8h13l-3.5-4.5" /><Path d="M3 16h13l-3.5 4.5" /></Svg>);
+const ChevL = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M21 8H8l3.5-4.5" /><Path d="M21 16H8l3.5 4.5" /></Svg>);
+const ChevD = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M8 3v13l-4.5-3.5" /><Path d="M16 3v13l4.5-3.5" /></Svg>);
+const ChevU = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M8 21v-13l-4.5 3.5" /><Path d="M16 21v-13l4.5 3.5" /></Svg>);
 const LaserI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M4 20l9-9" /><Path d="M16 4l1.6 1.6L16 7.2 14.4 5.6z" /><Path d="M16 1.5v2M19.5 5h-2" /></Svg>);
 const UnderI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M7 4v6a5 5 0 0 0 10 0V4" /><Path d="M5 20h14" /></Svg>);
 const EraserI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M20 20H7L3 16a1.5 1.5 0 0 1 0-2.12l10-10a1.5 1.5 0 0 1 2.12 0l5 5a1.5 1.5 0 0 1 0 2.12L14 16.5" /><Path d="M10 6l8 8" /></Svg>);
@@ -153,10 +153,10 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     if (!open && min < DOCK_THRESHOLD) {
       preDockRef.current = { x: posRef.current.x, y: posRef.current.y };
       let nx = posRef.current.x, ny = posRef.current.y, edge: string | null = null;
-      if (min === dl) { nx = -(ROUND - DOCK_PEEK); edge = 'left'; }
-      else if (min === dr) { nx = width - DOCK_PEEK; edge = 'right'; }
-      else if (min === dt) { ny = sbHeight - (ROUND - DOCK_PEEK); edge = 'top'; }
-      else { ny = height - BOT - DOCK_PEEK; edge = 'bottom'; }
+      if (min === dl) { nx = DOCK_INSET; edge = 'left'; }
+      else if (min === dr) { nx = width - ROUND - DOCK_INSET; edge = 'right'; }
+      else if (min === dt) { ny = sbHeight + DOCK_INSET; edge = 'top'; }
+      else { ny = height - BOT - ROUND - DOCK_INSET; edge = 'bottom'; }
       setPos([nx, ny]);
       posRef.current = { x: nx, y: ny };
       setDocked(edge);

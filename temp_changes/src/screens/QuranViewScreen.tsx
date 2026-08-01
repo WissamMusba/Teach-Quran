@@ -15,7 +15,7 @@ import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
-import AnimatedHeader from '../components/common/AnimatedHeader';
+import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
@@ -288,6 +288,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
   const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
+  const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
+  const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
+  const pageLastBookmarked = pageLastKey ? !!studentData?.bookmarks?.[pageLastKey] : false;
 
   const startPlayFromVerse = async (verseNum: number) => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
@@ -407,6 +410,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {isCapturing && studentData?.drawings?.[drawingKey]?.paths?.length > 0 && (<StaticDrawingOverlay paths={studentData.drawings[drawingKey].paths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
+        {readingMode === 'page' && pageLastVerse && (
+          <TouchableOpacity style={[styles.pageBookmark, { backgroundColor: pageLastBookmarked ? 'rgba(255,215,0,0.28)' : nightMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)' }]}
+            onPress={() => handleBookmarkFlow(pageLastVerse.verseNumber, pageLastVerse.surahId)} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 6 }}>
+            <BookmarkIcon c="#FFD700" size={24} filled={pageLastBookmarked} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {isDrawing && (
@@ -496,6 +505,7 @@ const styles = StyleSheet.create({
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 0, right: 0, height: '100%', zIndex: 1 },
+  pageBookmark: { position: 'absolute', top: 8, right: 0, width: 48, height: 48, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
 
 });
 
