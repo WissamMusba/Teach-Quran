@@ -8,3 +8,10 @@ export const DRAWING_COLORS = [
 export const FONT_SIZES = { small: 22, medium: 26, large: 30, xl: 36 };
 export const WORD_TAP_FRACTION = 0.5;
 export const SYNC_INTERVAL = 5 * 60 * 1000;
+export const MISTAKE_COLOR = '#FF3B30';
+export const MISTAKE_HIGHLIGHT: { borderBottomWidth: number; borderBottomColor: string; backgroundColor: string } = {
+  borderBottomWidth: 3,
+  borderBottomColor: MISTAKE_COLOR,
+  backgroundColor: `${MISTAKE_COLOR}AA`,
+};
+export const cleanQuranWord = (w: string) => (w || '').replace(/[\u06DD\u06DE\uFD3E\uFD3F]/gu, '');

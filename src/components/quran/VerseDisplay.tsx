@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { useSelector } from 'react-redux';
-import { FONT_SIZES, WORD_TAP_FRACTION } from '../../utils/constants';
+import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
 import { getArabicFont } from '../../utils/theme';
 import WordHitArea from '../common/WordHitArea';
@@ -12,7 +12,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
   const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
-  const words = displayText.replace(/۞/u, '').trim().split(' ');
+  const words = displayText.trim().split(' ').map(cleanQuranWord);
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
   const isFlashing = flashingVerse === verse.verseNumber;
   const fontFamily = getArabicFont(textStyle);
@@ -26,16 +26,12 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
         {words.map((word: string, index: number) => {
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
-            <WordHitArea key={index} tapFraction={WORD_TAP_FRACTION} onWordPress={() => onWordPress(index)} onDeadTap={onDeadTap}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && { borderBottomWidth: 3, borderBottomColor: h.color, backgroundColor: h.color + 'AA' }]} maxFontSizeMultiplier={1}>{word}{' '}</Text>
+            <WordHitArea key={index} tapFraction={WORD_TAP_FRACTION} onWordPress={() => word && onWordPress(index)} onDeadTap={onDeadTap}>
+              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
             </WordHitArea>
           );
         })}
-        <TouchableOpacity onPress={() => onVerseLongPress(verse.verseNumber)} onLongPress={() => onBookmarkToggle(verse.verseNumber)}>
-          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-              <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && !isReadingMark && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-          </View>
-        </TouchableOpacity>
+        {isReadingMark && <Text style={styles.readingMarkIcon}>📍</Text>}
       </Pressable>
       {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
     </View>
