@@ -35,13 +35,13 @@ const PageFlowingView = ({ verses, highlights, bookmarks, notes, readingMarkVers
               {words.map((word: string, wIdx: number) => {
                 const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
                 return (
-                  <Text key={wIdx} onPressIn={onInteractivePressIn} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
+                  <Text key={wIdx} onPressIn={onInteractivePressIn} onPress={() => onWordPress(verse.verseNumber, wIdx)} onLongPress={(e: any) => onVerseLongPress(verse.verseNumber, e?.nativeEvent?.pageY)}
                     style={[styles.arabicText, { fontSize: size, lineHeight, color: textColor, fontFamily },
                       h && MISTAKE_HIGHLIGHT,
                       isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]}>{word} </Text>
                 );
               })}
-              <Text onPressIn={onInteractivePressIn} onPress={() => onBookmarkToggle(verse.verseNumber)} onLongPress={() => onVerseLongPress(verse.verseNumber)}
+              <Text onPressIn={onInteractivePressIn} onPress={() => onBookmarkToggle(verse.verseNumber)} onLongPress={(e: any) => onVerseLongPress(verse.verseNumber, e?.nativeEvent?.pageY)}
                 style={[styles.verseBadge, { backgroundColor: isReadingMark ? '#4a90d9' : isBookmarked ? '#ffd700' : (nightMode ? '#1e1e1e' : '#e8e8e8'), borderColor: isReadingMark ? '#4a90d9' : isBookmarked ? '#ffd700' : '#00d4aa', color: isBookmarked && !isReadingMark ? '#000' : '#fff' }]}>{` ${verse.verseNumber} `}</Text>
               {showTranslation && verse.textTranslation ? (<Text style={[styles.translation, { color: nightMode ? '#b0b0b0' : '#555' }]}>{'\n'}{verse.textTranslation}{'\n'}</Text>) : null}
             </Text>

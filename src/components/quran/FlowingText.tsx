@@ -39,7 +39,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
                 const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
                 return (
                   <WordHitArea key={wIdx} tapFraction={WORD_TAP_FRACTION} onWordPress={() => word && onWordPress(verse.verseNumber, wIdx)} onDeadTap={onDeadTap}
-                    onLongPress={() => onVerseLongPress(verse.verseNumber)}>
+                    onLongPress={(e: any) => onVerseLongPress(verse.verseNumber, e?.nativeEvent?.pageY)}>
                     <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word} </Text>
                   </WordHitArea>
                 );

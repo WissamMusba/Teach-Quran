@@ -8,6 +8,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
+import { BookmarkIcon } from '../common/AnimatedHeader';
 import { useSelector } from 'react-redux';
 
 const stripPua = (t: string) => (t || '').replace(/[\uE000-\uF8FF]/g, '');
@@ -43,6 +44,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
   const firstWord = pageData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
   const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
   const juzInfo = pageNum > 0 ? getJuzInfoFromPage(pageNum) : { juz: 0, pagesLeft: 0 };
+  const lastVerse = versesForPage?.[versesForPage.length - 1];
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = nightMode ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.14)';
   const mushafFontSize = getMushafFontSize(headerVisible);
@@ -162,7 +164,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles.wordBox}
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
-                    onLongPress={() => verseNum > 0 && onVerseLongPress(verseNum)} delayLongPress={300}
+                    onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, renderableCount)}>
                     <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1), lineHeight: mushafLineHeight, color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
@@ -192,10 +194,17 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
         <View style={[styles.corner, { backgroundColor: frameC, top: 5, right: 5 }]} />
         <View style={[styles.corner, { backgroundColor: frameC, bottom: 5, left: 5 }]} />
         <View style={[styles.corner, { backgroundColor: frameC, bottom: 5, right: 5 }]} />
-        <Text style={[styles.overlayText, styles.topLeft, { color: grayC }]}>{firstSurahId > 0 ? `Juz ${juzInfo.juz} · ${surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} (${firstSurahId})` : ''}</Text>
-        <Text style={[styles.overlayText, styles.topMid, { color: grayC }]}>{pageNum > 0 ? `${juzInfo.pagesLeft} pages left in Juz` : ''}</Text>
-        <Text style={[styles.overlayText, styles.bottomMid, { color: grayC }]}>{pageNum > 0 ? `Page ${pageNum + 1}` : ''}</Text>
+        <Text style={[styles.overlayText, styles.topLeft, { color: grayC }]}>{!headerVisible && firstSurahId > 0 ? `Juz ${juzInfo.juz}` : ''}</Text>
+        <Text style={[styles.overlayText, styles.topMid, { color: grayC }]}>{!headerVisible && pageNum > 0 ? `${juzInfo.pagesLeft} pages left in Juz` : ''}</Text>
+        <Text style={[styles.overlayText, styles.topRight, { color: grayC }]}>{!headerVisible && firstSurahId > 0 ? `${surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} (${firstSurahId})` : ''}</Text>
+        <Text style={[styles.overlayText, styles.bottomMid, { color: grayC }]}>{!headerVisible && pageNum > 0 ? `Page ${pageNum + 1}` : ''}</Text>
       </View>
+      {lastVerse && (
+        <TouchableOpacity style={[styles.pageBookmark, { backgroundColor: nightMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)' }]}
+          onPress={() => onBookmarkToggle(lastVerse.verseNumber, lastVerse.surahId)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10 }}>
+          <BookmarkIcon c="#FFD700" size={22} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -220,7 +229,9 @@ const styles = StyleSheet.create({
   overlayText: { position: 'absolute', fontSize: 11, fontWeight: '600' },
   topLeft: { top: 9, left: 18 },
   topMid: { top: 9, left: 0, right: 0, textAlign: 'center' },
-  bottomMid: { bottom: 7, left: 0, right: 0, textAlign: 'center' }
+  topRight: { top: 14, right: 52 },
+  bottomMid: { bottom: 7, left: 0, right: 0, textAlign: 'center' },
+  pageBookmark: { position: 'absolute', top: 6, right: 0, width: 44, height: 44, borderTopLeftRadius: 22, borderBottomLeftRadius: 22, alignItems: 'center', justifyContent: 'center', zIndex: 10, elevation: 10 }
 });
 
 export default memo(MushafPageView);

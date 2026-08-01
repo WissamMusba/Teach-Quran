@@ -15,7 +15,7 @@ import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
-import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
+import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, addToSyncQueue } from '../database/localDB';
@@ -26,10 +26,18 @@ import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
+import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
+import { playSurahFromVerse, pauseSurah, SURAH_VERSE_COUNTS } from '../utils/audioPlayback';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
+const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
+const MENU_BUBBLE_W = 6 * MENU_BTN_W + 12;
+const MENU_BUBBLE_H = 90;
+const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
+const MENU_ICON_C = '#CFCFCF';
+const MENU_LABEL_C = '#b0b0b0';
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
   const [isDrawing, setIsDrawing] = useState(false);
@@ -44,6 +52,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [headerSurahId, setHeaderSurahId] = useState(1);
   const [headerPage, setHeaderPage] = useState(0);
   const [menuVerse, setMenuVerse] = useState<number | null>(null);
+  const [menuY, setMenuY] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [recordingVerseKey, setRecordingVerseKey] = useState<string | null>(null);
@@ -226,7 +235,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
   const toggleHeader = useCallback(() => setIsHeaderVisible((prev: boolean) => !prev), []);
   const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
-  const handleVerseLongPress = useCallback((verseNum: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); }, []);
+  const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); }, []);
 
   const handleCopyVerse = (verseNum: number) => {
     let verse: any;
@@ -237,14 +246,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
       verse = verses.find((v: any) => v.verseNumber === verseNum);
     }
     if (verse) { Clipboard.setString(`${verse.textArabic}\n\n${verse.textTranslation}`); Alert.alert('Copied', 'Verse copied to clipboard!'); }
-    setMenuVerse(null);
+    setMenuVerse(null); setMenuY(null);
   };
   const openNoteModal = () => { setNoteText(studentData?.notes?.[`${currentSurahId}_${menuVerse}`] || ''); setShowNoteModal(true); };
   const saveNote = () => {
     if (!studentData || menuVerse === null) return;
     const vKey = `${currentSurahId}_${menuVerse}`;
     updateData({ ...studentData, notes: { ...(studentData.notes || {}), [vKey]: noteText } });
-    setShowNoteModal(false); setMenuVerse(null);
+    setShowNoteModal(false); setMenuVerse(null); setMenuY(null);
   };
   const handleVoiceNoteSaved = useCallback((path: string, _ms: number) => {
     if (!studentData || !recordingVerseKey) return;
@@ -280,23 +289,47 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
   const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
 
+  const startPlayFromVerse = async (verseNum: number) => {
+    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    if (isPlaying) { await pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
+    else {
+      const clamped = Math.max(1, Math.min(verseNum, SURAH_VERSE_COUNTS[currentSurahId - 1] || 1));
+      playSurahFromVerse(audioPlayer.current, qariId, currentSurahId, clamped, {
+        onVerseChange: (v) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
+        onEnd: () => dispatch(setPlaying(false)),
+      });
+      dispatch(setPlaying(true));
+    }
+  };
+
   const togglePlayAudio = async () => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
-    const url = `https://cdn.islamic.network/quran/audio-surah/128/${qariId}/${currentSurahId}.mp3`;
-    if (isPlaying) { await audioPlayer.current.pausePlayer(); dispatch(setPlaying(false)); }
-    else { await audioPlayer.current.startPlayer(url); dispatch(setPlaying(true)); }
+    if (isPlaying) { await pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
+    else {
+      const startVerse = readingMode === 'page' ? (pageVersesCache[currentPageNum]?.[0]?.verseNumber || 1) : 1;
+      playSurahFromVerse(audioPlayer.current, qariId, currentSurahId, startVerse, {
+        onVerseChange: (v) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
+        onEnd: () => dispatch(setPlaying(false)),
+      });
+      dispatch(setPlaying(true));
+    }
   };
+
+  const menuPos = useMemo(() => {
+    if (menuY === null) return null;
+    const { width: windowW, height: windowH } = Dimensions.get('window');
+    const upperHalf = menuY < windowH / 2;
+    let top = upperHalf ? menuY + 12 : menuY - 12 - MENU_BUBBLE_H;
+    if (top < 60) top = 60;
+    if (top + MENU_BUBBLE_H > windowH - 20) top = windowH - 20 - MENU_BUBBLE_H;
+    return { top, left: (windowW - MENU_BUBBLE_W) / 2, width: MENU_BUBBLE_W, arrowUp: upperHalf, arrowDown: !upperHalf };
+  }, [menuY]);
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onSettings={() => navigation.navigate('Settings')} />
-      <TouchableOpacity style={[styles.floatingBookmark, { backgroundColor: nightMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)' }]}
-        onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <BookmarkIcon c="#FFD700" size={16} />
-      </TouchableOpacity>
-
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
           <View style={{ flex: 1, position: 'relative' }}>
@@ -398,14 +431,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
 
 
-      <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => setMenuVerse(null)}>
-        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVerse(null)}>
-          <View style={styles.compactMenuContainer}>
-            <TouchableOpacity style={styles.compactBtn} onPress={() => { handleBookmarkFlow(menuVerse!); setMenuVerse(null); }}><Text style={styles.compactIcon}>🔖</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v } }); } }]); }}><Text style={styles.compactIcon}>📍</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={openNoteModal}><Text style={styles.compactIcon}>📝</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { try { await audioPlayer.current.pausePlayer(); } catch {} dispatch(setPlaying(false)); } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); setMenuVerse(null); } }}><Text style={styles.compactIcon}>🎤</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.compactBtn} onPress={() => handleCopyVerse(menuVerse!)}><Text style={styles.compactIcon}>📋</Text></TouchableOpacity>
+      <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => { setMenuVerse(null); setMenuY(null); }}>
+        <TouchableOpacity style={[styles.menuOverlay, menuY === null && styles.menuOverlayCentered]} activeOpacity={1} onPress={() => { setMenuVerse(null); setMenuY(null); }}>
+          <View style={menuY === null ? styles.bubbleCenteredWrap : [styles.bubbleWrap, { top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, width: menuPos?.width ?? 0 }]}>
+            {menuPos?.arrowUp && <View style={[styles.bubbleArrow, { top: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
+            {menuPos?.arrowDown && <View style={[styles.bubbleArrow, { bottom: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
+            <View style={styles.bubble}>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Play</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Bookmark</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Reading</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Note</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { try { await audioPlayer.current.pausePlayer(); } catch {} dispatch(setPlaying(false)); } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); } setMenuVerse(null); setMenuY(null); }}><IconMic c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Record</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.bubbleBtn} onPress={() => handleCopyVerse(menuVerse!)}><IconCopy c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Copy</Text></TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -442,10 +480,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   contentArea: { flex: 1 },
   capturingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
-  menuOverlay: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingBottom: 40 },
-  compactMenuContainer: { flexDirection: 'row', backgroundColor: '#1e1e1e', borderRadius: 35, padding: 5, elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10 },
-  compactBtn: { width: 55, height: 55, justifyContent: 'center', alignItems: 'center' },
-  compactIcon: { fontSize: 22 },
+  menuOverlay: { flex: 1, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  menuOverlayCentered: { justifyContent: 'center' },
+  bubbleCenteredWrap: { alignItems: 'center' },
+  bubbleWrap: { position: 'absolute', alignItems: 'center' },
+  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 16, padding: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  bubbleBtn: { width: MENU_BTN_W, height: 66, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  bubbleLabel: { fontSize: 9, color: MENU_LABEL_C, marginTop: 4, fontWeight: '600' },
+  bubbleArrow: { position: 'absolute', width: 12, height: 12, borderRadius: 2, transform: [{ rotate: '45deg' }] },
   noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
   noteContainer: { width: '80%', backgroundColor: '#1e1e1e', borderRadius: 10, padding: 20 },
   noteInput: { color: '#fff', borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 10, height: 100, textAlignVertical: 'top', marginBottom: 15 },
@@ -454,5 +496,26 @@ const styles = StyleSheet.create({
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 0, right: 0, height: '100%', zIndex: 1 },
-  floatingBookmark: { position: 'absolute', top: 8, right: 12, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', zIndex: 999, elevation: 999 },
+
 });
+
+const ICON_ST = { fill: 'none', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+
+const IconPlay = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M7 4.5v15l13-7.5L7 4.5z" /></Svg>
+);
+const IconBookmark = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M7 3h10v18l-5-3.6L7 21V3z" /></Svg>
+);
+const IconPin = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M12 2.5l1.6 5.9 5.9 1.6-5.9 1.6L12 17.5l-1.6-5.9-5.9-1.6 5.9-1.6L12 2.5z" /></Svg>
+);
+const IconNote = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M6 3h12v18l-4-2-4 2-4-2-2 2V3z" /><Path d="M9 8h6M9 12h6" /></Svg>
+);
+const IconMic = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M12 3a4 4 0 0 1 4 4v5a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z" /><Path d="M5 12a7 7 0 0 0 14 0M12 19v2" /></Svg>
+);
+const IconCopy = ({ c }: { c: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M9 9h11v11H9z" /><Path d="M5 15H3V3h12v2" /></Svg>
+);
