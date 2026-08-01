@@ -110,41 +110,55 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
 
   return (
     <View style={styles.overlay}>
-      <View style={styles.box}>
+      <View style={styles.content}>
         <Text style={styles.title}>Voice Note</Text>
-        <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{recording ? time : 'Tap record to start'}</Text>
-        <Text style={styles.cap}>{recording ? `Max ${fmt(maxMs)}` : `Notes are capped at ${fmt(maxMs)} to save space`}</Text>
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={cancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          {!recording ? (
-            <TouchableOpacity style={styles.recBtn} onPress={start}>
-              <Text style={styles.recText}>Record</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.stopBtn} onPress={() => stop(false)}>
-              <Text style={styles.stopText}>Stop & Save</Text>
-            </TouchableOpacity>
-          )}
+        <View style={styles.timerRow}>
+          <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{recording ? time : 'Tap to start'}</Text>
+          {recording && <Text style={styles.recIndicator}>● REC</Text>}
         </View>
+        <Text style={styles.cap}>{recording ? `Max ${fmt(maxMs)}` : `Notes are capped at ${fmt(maxMs)} to save space`}</Text>
+      </View>
+      <View style={styles.controls}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={cancel}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+        {!recording ? (
+          <TouchableOpacity style={styles.startBtn} onPress={start}>
+            <Text style={styles.startText}>Start</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.stopBtn} onPress={() => stop(false)}>
+            <Text style={styles.stopText}>Stop & Save</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
-  box: { width: '82%', backgroundColor: '#1e1e1e', borderRadius: 14, padding: 24, alignItems: 'center' },
-  title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  timer: { color: '#00d4aa', fontSize: 34, fontWeight: 'bold', marginBottom: 6, fontVariant: ['tabular-nums'] as const },
-  cap: { color: '#888', fontSize: 12, marginBottom: 18 },
-  row: { flexDirection: 'row', width: '100%', gap: 10 },
-  cancelBtn: { flex: 1, padding: 14, alignItems: 'center', backgroundColor: '#333', borderRadius: 10 },
-  cancelText: { color: '#fff', fontWeight: '600' },
-  recBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#FF4444', borderRadius: 10 },
-  recText: { color: '#fff', fontWeight: '700' },
-  stopBtn: { flex: 1.4, padding: 14, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 10 },
+  overlay: { flex: 1, backgroundColor: 'rgba(18,18,20,0.92)', alignItems: 'center', paddingBottom: 56 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  title: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+  timerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  timer: { color: '#00d4aa', fontSize: 64, fontWeight: 'bold', letterSpacing: 1, fontVariant: ['tabular-nums'] as const },
+  recIndicator: { color: '#FF4444', fontSize: 14, fontWeight: '700' },
+  cap: { color: '#888', fontSize: 12 },
+  controls: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: 'rgba(18,18,20,0.85)',
+    borderRadius: 16,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    elevation: 10,
+  },
+  cancelBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', borderRadius: 12 },
+  cancelText: { color: '#fff', fontWeight: '700' },
+  startBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF4444', borderRadius: 12 },
+  startText: { color: '#fff', fontWeight: '700' },
+  stopBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#00d4aa', borderRadius: 12 },
   stopText: { color: '#000', fontWeight: '700' },
 });
 

@@ -3,15 +3,22 @@ export const SURAH_VERSE_COUNTS: number[] = [7,286,200,176,120,165,206,75,129,10
 interface PlaybackCallbacks {
   onVerseChange?: (verse: number) => void;
   onEnd?: () => void;
+  onError?: (message: string) => void;
 }
 
 let currentSurahId = 0;
 let currentVerse = 1;
 let playing = false;
+let playToken = 0;
+let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+const STALL_TIMEOUT_MS = 12000;
 
 export const isSurahPlaying = (surahId: number): boolean => playing && currentSurahId === surahId;
 
 export const pauseSurah = async (player: any): Promise<void> => {
+  playToken++;
+  clearWatchdog();
   playing = false;
   try {
     player.removePlayBackListener();
@@ -19,33 +26,81 @@ export const pauseSurah = async (player: any): Promise<void> => {
   } catch {}
 };
 
-const playVerse = (player: any, qariId: string, surahId: number, verse: number, lastVerse: number, callbacks: PlaybackCallbacks) => {
+const clearWatchdog = (): void => {
+  if (stallTimer !== null) {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+  }
+};
+
+const stopPlayback = async (player: any): Promise<void> => {
+  clearWatchdog();
+  try {
+    player.removePlayBackListener();
+    await player.stopPlayer();
+  } catch {}
+};
+
+// Fires if no playback status event arrives while a verse is loading.
+const armWatchdog = (player: any, callbacks: PlaybackCallbacks): void => {
+  clearWatchdog();
+  stallTimer = setTimeout(() => {
+    stallTimer = null;
+    playToken++;
+    playing = false;
+    stopPlayback(player);
+    callbacks.onError?.('Audio is taking too long to load. Check your connection.');
+  }, STALL_TIMEOUT_MS);
+};
+
+const playVerse = async (player: any, qariId: string, surahId: number, verse: number, lastVerse: number, callbacks: PlaybackCallbacks): Promise<void> => {
+  const token = ++playToken;
   currentVerse = verse;
-  playing = true;
   callbacks.onVerseChange?.(verse);
+  player.removePlayBackListener();
+  // Status codes: 2 playing, 3 completed, 4 paused, 5 stopped, 6 interrupted, 7 unknown.
   player.addPlayBackListener((e: any) => {
-    if (e.status === 3) {
-      player.removePlayBackListener();
-      if (verse < lastVerse) playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks);
-      else {
+    clearWatchdog();
+    switch (e.status) {
+      case 3:
+        player.removePlayBackListener();
+        if (verse < lastVerse) playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks);
+        else {
+          playing = false;
+          callbacks.onEnd?.();
+        }
+        break;
+      case 5:
+      case 6:
+        playToken++;
+        player.removePlayBackListener();
         playing = false;
-        callbacks.onEnd?.();
-      }
+        break;
     }
   });
-  player.startPlayer(`https://cdn.islamic.network/quran/audio/128/${qariId}/${surahId}:${verse}.mp3`);
+  const url = `https://cdn.islamic.network/quran/audio/128/${qariId}/${surahId}:${verse}.mp3`;
+  try {
+    const start = player.startPlayer(url);
+    armWatchdog(player, callbacks);
+    await start;
+    if (token !== playToken) return;
+    playing = true;
+    try {
+      await player.setVolume(1.0);
+    } catch {}
+  } catch {
+    if (token !== playToken) return;
+    clearWatchdog();
+    playing = false;
+    callbacks.onError?.('Failed to start audio playback.');
+  }
 };
 
 export const playSurahFromVerse = async (player: any, qariId: string, surahId: number, startVerse: number, callbacks: PlaybackCallbacks = {}): Promise<void> => {
   const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
-  const verse = playing && currentSurahId === surahId ? currentVerse : Math.max(1, Math.min(startVerse || 1, lastVerse));
+  const verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
   if (verse > lastVerse) return;
-  if (!(playing && currentSurahId === surahId)) {
-    try {
-      player.removePlayBackListener();
-      await player.stopPlayer();
-    } catch {}
-    currentSurahId = surahId;
-  }
+  await stopPlayback(player);
+  currentSurahId = surahId;
   playVerse(player, qariId, surahId, verse, lastVerse, callbacks);
 };

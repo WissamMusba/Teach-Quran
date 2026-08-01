@@ -105,8 +105,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
         const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
         order.push(pageNum);
         const cp = currentPageNumRef.current;
-        while (order.length > 7) {
-          const idx = order.findIndex((k: number) => k !== cp - 1 && k !== cp && k !== cp + 1);
+        while (order.length > 40) {
+          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 12);
           if (idx === -1) break;
           delete next[order[idx]];
           order.splice(idx, 1);
@@ -115,7 +115,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         return next;
       });
       delete pagePromiseRef.current[pageNum];
-    });
+    }).catch(() => { delete pagePromiseRef.current[pageNum]; });
   }, [pageCache, isIndopak]);
 
   // ---- load verses for a page (for SQLite text mapping) ----
@@ -128,8 +128,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
         const order = pageVersesOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
         order.push(pageNum);
         const cp = currentPageNumRef.current;
-        while (order.length > 7) {
-          const idx = order.findIndex((k: number) => k !== cp - 1 && k !== cp && k !== cp + 1);
+        while (order.length > 40) {
+          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 12);
           if (idx === -1) break;
           delete next[order[idx]];
           order.splice(idx, 1);
@@ -138,7 +138,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         return next;
       });
       delete pageVersesPromiseRef.current[pageNum];
-    });
+    }).catch(() => { delete pageVersesPromiseRef.current[pageNum]; });
   }, [pageVersesCache]);
 
   // ---- deep link from Bookmarks/Mistakes/Notes ----
@@ -358,12 +358,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
     if (isPlaying) { await pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
     else {
-      const clamped = Math.max(1, Math.min(verseNum, SURAH_VERSE_COUNTS[currentSurahId - 1] || 1));
-      playSurahFromVerse(audioPlayer.current, qariId, currentSurahId, clamped, {
-        onVerseChange: (v) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
+      const surahId = readingMode === 'page'
+        ? (pageVersesCache[currentPageNum]?.find((v: any) => v.verseNumber === verseNum)?.surahId || currentSurahId)
+        : currentSurahId;
+      const clamped = Math.max(1, Math.min(verseNum, SURAH_VERSE_COUNTS[surahId - 1] || 1));
+      const callbacks = {
+        onVerseChange: (v: number) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
         onEnd: () => dispatch(setPlaying(false)),
-      });
-      dispatch(setPlaying(true));
+        onError: (msg: string) => { dispatch(setPlaying(false)); Alert.alert('Playback error', msg); },
+      };
+      try {
+        await playSurahFromVerse(audioPlayer.current, qariId, surahId, clamped, callbacks);
+        dispatch(setPlaying(true));
+      } catch { dispatch(setPlaying(false)); }
     }
   };
 
@@ -371,12 +378,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
     if (isPlaying) { await pauseSurah(audioPlayer.current); dispatch(setPlaying(false)); }
     else {
-      const startVerse = readingMode === 'page' ? (pageVersesCache[currentPageNum]?.[0]?.verseNumber || 1) : 1;
-      playSurahFromVerse(audioPlayer.current, qariId, currentSurahId, startVerse, {
-        onVerseChange: (v) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
+      const firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
+      const startVerse = firstVerse?.verseNumber || 1;
+      const surahId = firstVerse?.surahId || currentSurahId;
+      const callbacks = {
+        onVerseChange: (v: number) => { dispatch(setFlashingVerse(v)); setTimeout(() => dispatch(setFlashingVerse(null)), 2500); },
         onEnd: () => dispatch(setPlaying(false)),
-      });
-      dispatch(setPlaying(true));
+        onError: (msg: string) => { dispatch(setPlaying(false)); Alert.alert('Playback error', msg); },
+      };
+      try {
+        await playSurahFromVerse(audioPlayer.current, qariId, surahId, startVerse, callbacks);
+        dispatch(setPlaying(true));
+      } catch { dispatch(setPlaying(false)); }
     }
   };
 
@@ -438,11 +451,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: isHeaderVisible ? (IS_TABLET ? 20 : 10) : 0 }}
                 getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
-                initialNumToRender={3} maxToRenderPerBatch={5} windowSize={5}
+                initialNumToRender={5} maxToRenderPerBatch={10} windowSize={7}
+                onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * Dimensions.get('window').width, animated: false })}
                 onMomentumScrollEnd={(e) => {
                   const p = Math.round(e.nativeEvent.contentOffset.x / Dimensions.get('window').width) + 1;
                   if (p !== currentPageNum) {
-                    setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p + 1); ensurePageLoaded(p - 1);
+                    setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p + 1); ensurePageLoaded(p - 1); ensurePageLoaded(p + 2); ensurePageLoaded(p - 2);
                     const pData = pageCache[p];
                     if (pData) {
                       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
@@ -551,7 +565,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   contentArea: { flex: 1 },
   capturingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
-  menuOverlay: { flex: 1, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  menuOverlay: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },
   bubbleWrap: { position: 'absolute', alignItems: 'center' },
