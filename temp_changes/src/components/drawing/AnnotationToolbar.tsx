@@ -132,12 +132,10 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
 
     if (dx < 8 && dy < 8) {
       if (docked) {
-        const p = preDockRef.current;
-        const clamped = reclampOnExpand(p.x, p.y);
-        setPos([clamped.x, clamped.y]);
-        posRef.current = clamped;
         setDocked(null);
-        dispatch(setToolbarExpanded(true));
+        setPal(false);
+        dispatch(setToolbarExpanded(false));
+        onExit();
       } else if (open) {
         setPal(false);
         dispatch(setToolbarExpanded(false));

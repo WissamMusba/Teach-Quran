@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
@@ -377,14 +377,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [studentData, currentSurahId]);
 
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
-  const EDGE_ZONE = Math.max(80, Math.min(170, Math.round(winH * 0.15)));
   const toggleHeader = useCallback(() => setIsHeaderVisible((prev: boolean) => !prev), []);
-  const handleDeadTap = useCallback((pageY?: number) => {
-    if (pageY == null) return;
-    const zoneTop = isHeaderVisible ? EDGE_ZONE + 90 : EDGE_ZONE;
-    const zoneBottom = isHeaderVisible ? EDGE_ZONE + 70 : EDGE_ZONE;
-    if (pageY <= zoneTop || pageY >= winH - zoneBottom) toggleHeader();
-  }, [toggleHeader, winH, isHeaderVisible]);
   const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
   const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); }, []);
 
@@ -518,8 +511,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')} />
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
-        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={readingMode === 'page' ? [1000, 1000] : [-25, 25]} enabled={!isDrawing}>
+        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
+            <Pressable style={[styles.edgeTapLeft, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
+            <Pressable style={[styles.edgeTapRight, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
 
             {readingMode === 'ayah' && (
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
@@ -528,7 +523,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   <VerseDisplay verse={item} highlights={studentData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
                     onWordPress={onWordPress(item.verseNumber)} onBookmarkToggle={onBookmarkToggle(item.verseNumber)} onVerseLongPress={handleVerseLongPress}
-                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={handleDeadTap} />
+                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
                 onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
                 onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color="#00d4aa" /> : null}
@@ -548,7 +543,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <FlowingText verses={verses} highlights={studentData?.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarks={studentData?.bookmarks}
-                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={handleDeadTap} />
+                  notes={studentData?.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 {loadingMore && <ActivityIndicator color="#00d4aa" />}
               </ScrollView>
             )}
@@ -582,7 +577,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
                     highlights={studentData?.highlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress}
                     bookmarks={studentData?.bookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
-                    notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={handleDeadTap}
+                    notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded} fixNonce={fixNonce} onFixFont={handleFixFont}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                 ) : ({ item }: any) => {
@@ -594,7 +589,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
-                          flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={handleDeadTap} fixNonce={fixNonce} onFixFont={handleFixFont}
+                          flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader} fixNonce={fixNonce} onFixFont={handleFixFont}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
                     </View>
@@ -706,6 +701,8 @@ const styles = StyleSheet.create({
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   pageBookmark: { position: 'absolute', top: 0, right: 0, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
+  edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 
 });
 

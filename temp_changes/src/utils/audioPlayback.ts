@@ -22,6 +22,7 @@ let resumeSession: { surahId: number; verse: number; positionMs: number } | null
 const ATTEMPT_TIMEOUT_MS = 10000;
 const STREAM_TIMEOUT_MS = 20000;
 const TIMELINE_TIMEOUT_MS = 6000;
+const SEEK_START_BIAS_MS = 600;
 
 const STREAM_SOURCES: Record<string, { mp3quran: (s3: string) => string; quranComRecId: number }> = {
   'ar.alafasy': { mp3quran: (s3: string) => `https://server8.mp3quran.net/afs/${s3}.mp3`, quranComRecId: 7 },
@@ -423,7 +424,7 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
           seekApplied = true;
         }
         if (start > 0) {
-          try { await player.seekToPlayer(start); } catch {}
+          try { await player.seekToPlayer(start + (verseIndex > 0 ? SEEK_START_BIAS_MS : 0)); } catch {}
         }
         if (resumePositionMs > 0) {
           try { await player.seekToPlayer(resumePositionMs); } catch {}
