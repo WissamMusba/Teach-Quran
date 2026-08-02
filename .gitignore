@@ -21,6 +21,9 @@ build/
 *.swp
 *.swo
 
+# Secrets / Firebase
+android/app/google-services.json
+
 # Temporary / Zips
 *.zip
 *.log
