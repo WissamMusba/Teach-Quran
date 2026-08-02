@@ -409,7 +409,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onSettings={() => navigation.navigate('Settings')} />
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
-        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing}>
+        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
             <Pressable style={[styles.edgeTapLeft, { width: IS_TABLET ? 50 : 24 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
             <Pressable style={[styles.edgeTapRight, { width: IS_TABLET ? 50 : 24 }]} onPress={() => setIsHeaderVisible((prev: boolean) => !prev)} />
@@ -449,12 +449,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={flatListRef} data={pageNumbers} keyExtractor={(item) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
+                removeClippedSubviews decelerationRate="fast" scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: isHeaderVisible ? (IS_TABLET ? 20 : 10) : 0 }}
-                getItemLayout={(data, index) => ({ length: Dimensions.get('window').width, offset: Dimensions.get('window').width * index, index })}
+                getItemLayout={(data, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
                 initialNumToRender={5} maxToRenderPerBatch={10} windowSize={7}
-                onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * Dimensions.get('window').width, animated: false })}
+                onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * SCREEN_WIDTH, animated: false })}
                 onMomentumScrollEnd={(e) => {
-                  const p = Math.round(e.nativeEvent.contentOffset.x / Dimensions.get('window').width) + 1;
+                  const p = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH) + 1;
                   if (p !== currentPageNum) {
                     setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p + 1); ensurePageLoaded(p - 1); ensurePageLoaded(p + 2); ensurePageLoaded(p - 2);
                     const pData = pageCache[p];
@@ -472,7 +473,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   ensurePageVersesLoaded(item);
                   const pData = pageCache[item];
                   return (
-                    <View style={{ width: Dimensions.get('window').width, flex: 1, overflow: 'hidden' }}>
+                    <View style={{ width: SCREEN_WIDTH, flex: 1, overflow: 'hidden' }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
@@ -486,9 +487,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {isCapturing && studentData?.drawings?.[drawingKey]?.paths?.length > 0 && (<StaticDrawingOverlay paths={studentData.drawings[drawingKey].paths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
-        {readingMode === 'page' && pageLastVerse && (
-          <TouchableOpacity style={[styles.pageBookmark, { backgroundColor: pageLastBookmarked ? 'rgba(255,215,0,0.28)' : nightMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)' }]}
-            onPress={() => handleBookmarkFlow(pageLastVerse.verseNumber, pageLastVerse.surahId)} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 6 }}>
+        {readingMode === 'page' && !isCapturing && pageLastVerse && (
+          <TouchableOpacity style={styles.pageBookmark}
+            onPress={() => handleBookmarkFlow(pageLastVerse.verseNumber, pageLastVerse.surahId)} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6 }}>
             <BookmarkIcon c="#FFD700" size={24} filled={pageLastBookmarked} />
           </TouchableOpacity>
         )}
@@ -581,7 +582,7 @@ const styles = StyleSheet.create({
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
-  pageBookmark: { position: 'absolute', top: 8, right: 0, width: 48, height: 48, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  pageBookmark: { position: 'absolute', top: 0, right: 0, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
 
 });
 
