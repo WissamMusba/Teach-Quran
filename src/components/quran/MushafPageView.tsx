@@ -110,7 +110,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     cacheWrittenRef.current = false;
     setLineScale({});
     setCacheState('loading');
-  }, [headerVisible, textStyle, pageWidth, fixNonce]);
+  }, [pageNum, headerVisible, textStyle, pageWidth, fixNonce]);
 
   useEffect(() => {
     if (!pageData || !pageData.lines || pageData.lines.length === 0) return;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Pressable, Platform, AppState, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
@@ -437,8 +437,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const translatePaths = (paths: any[], dx: number): any[] => paths.map((p: any) => ({ ...p, points: (p.points || []).map((pt: string) => { const [x, y] = pt.split(',').map(Number); return `${Math.round(x + dx)},${Math.round(y)}`; }) }));
   const midXOf = (p: any): number => { const pts = (p.points || []).map((pt: string) => Number(pt.split(',')[0])); return pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0; };
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
-  const oddPartnerKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum + 1}` : null;
-  const capturePaths = splitOn ? [...translatePaths(studentData?.drawings?.[drawingKey]?.paths || [], halfOrigin), ...(oddPartnerKey ? (studentData?.drawings?.[oddPartnerKey]?.paths || []) : [])] : studentData?.drawings?.[drawingKey]?.paths;
+  const spreadOddKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum}` : null;
+  const spreadEvenKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1}` : null;
+  const composeSpreadPaths = () => splitOn
+    ? [...(studentData?.drawings?.[spreadOddKey!]?.paths || []), ...translatePaths(studentData?.drawings?.[spreadEvenKey!]?.paths || [], halfOrigin)]
+    : studentData?.drawings?.[drawingKey]?.paths;
+  const capturePaths = composeSpreadPaths();
   const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
   const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
@@ -601,15 +605,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {isDrawing && (
         <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing}
-          initialPaths={splitOn
-            ? [...translatePaths(studentData?.drawings?.[drawingKey]?.paths || [], halfOrigin), ...(oddPartnerKey ? (studentData?.drawings?.[oddPartnerKey]?.paths || []) : [])]
-            : (studentData?.drawings?.[drawingKey]?.paths || [])}
+          initialPaths={composeSpreadPaths()}
           onSave={(paths: any) => {
             if (!studentData) return;
             if (!splitOn) { updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } }); return; }
             const even: any[] = []; const odd: any[] = [];
             for (const p of paths) { if (midXOf(p) >= splitMidX) even.push(p); else odd.push(p); }
-            updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, ...(oddPartnerKey ? { [oddPartnerKey]: { paths: odd, updatedAt: new Date() } } : {}) } });
+            updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
           }}
           onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
           onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />

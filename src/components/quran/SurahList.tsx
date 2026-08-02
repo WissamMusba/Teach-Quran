@@ -117,7 +117,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage }: 
         {results.length === 0 && query.length > 0 ? (
           <View style={styles.emptyWrap}><Text style={styles.emptyText}>No surahs found</Text></View>
         ) : (
-          <FlatList data={results} keyExtractor={(item: any) => item.id.toString()} keyboardShouldPersistTaps="handled"
+          <FlatList data={results} keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : `surah-${item.id}`)} keyboardShouldPersistTaps="handled"
             renderItem={({ item }: any) => (
               <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>

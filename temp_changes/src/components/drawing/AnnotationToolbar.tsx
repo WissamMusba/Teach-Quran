@@ -9,7 +9,7 @@ import {
   setToolbarExpanded, setTool, setColor, setPenSize,
 } from '../../store/drawingSlice';
 
-const DOCK_PEEK = 20, DOCK_THRESHOLD = 50, DOCK_INSET = 0;
+const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
 const DRAG_SLOP = 8;
 const SAFETY = 12;
 const HS = 6;
@@ -260,7 +260,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
                   <TouchableOpacity key={c} hitSlop={HS} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
                     style={[d.sw, { backgroundColor: c, borderColor: activeColor === c ? '#fff' : 'rgba(255,255,255,0.15)' }]} />
                 ))}</View>
-              <View style={[d.arr, palFitsAbove ? { borderTopColor: palBg } : { borderBottomColor: palBg, position: 'absolute', top: -Math.max(6, Math.round(TAB * 0.25)) }]} />
+              <View style={[d.arr, palFitsAbove ? { borderTopColor: palBg, position: 'absolute', bottom: -Math.max(6, Math.round(TAB * 0.25)) } : { borderBottomColor: palBg, position: 'absolute', top: -Math.max(6, Math.round(TAB * 0.25)) }]} />
               </View>
             )}
           </View>

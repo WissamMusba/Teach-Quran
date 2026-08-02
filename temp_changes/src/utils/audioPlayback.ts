@@ -157,7 +157,7 @@ const getPlaybackDuration = async (player: any, url: string, recId: number, sura
   }
   if (dur <= 0) {
     const probe = await probeDurationFromUrl(url);
-    if (probe > 0) dur = Math.round(probe * 1000);
+    if (probe > 0) dur = probe;
   }
   if (dur > 0) {
     durationCache[key] = dur;

@@ -70,10 +70,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const titleColor = p.nightMode ? '#fff' : '#1a1a1a';
   const subColor = p.nightMode ? '#8a8a8a' : '#777';
 
-  const Btn = ({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) => (
+  const Btn = ({ icon, label, onPress, active }: { icon: React.ReactNode; label: string; onPress: () => void; active?: boolean }) => (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
       {icon}
-      <Text style={[s.iconLab, { color: subColor }]} numberOfLines={1}>{label}</Text>
+      <Text style={[s.iconLab, { color: active ? ACCENT : subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -101,7 +101,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <Btn label="SHARE" icon={<IconShare c={C_SHARE} />} onPress={p.onShare} />
             <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
-            <Btn label="SPREAD" icon={<IconSpread c={ACCENT} />} onPress={p.onSpread} />
+            <Btn label="SPREAD" icon={<IconSpread c={ACCENT} />} onPress={p.onSpread} active={!!p.spread} />
             <Btn label="SETTINGS" icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
           </View>
         </View>

@@ -1,0 +1,78 @@
+AUDIT: correctness review of uncommitted changes (now HEAD 79a7869 "Release v40") — read-only audit
+=====================================================================================================
+Reviewer verdicts:
+  Item 1 SPLIT MATH        : OK (2 MINOR: transient flash on toggle race; self-corrected by 120ms effect)
+  Item 2 DRAWING SPLIT     : BLOCKER
+  Item 3 CACHE CORRECTNESS : OK (1 MINOR: pageNum missing from reset-effect deps)
+  Item 4 AUDIO UNITS       : MAJOR
+  Item 5 TOOLBAR           : OK
+  Item 6 EDGE ZONES        : OK (pageY is window-relative; no header-offset bug)
+  Item 7 HEADER            : OK (buttons are direct children; no keys, no duplicates)
+  Item 8 SEARCH            : MAJOR
+Typecheck: 3 errors, all pre-existing SettingsScreen Switch lines 22/57/75 (excluded per audit). 0 new errors.
+Mirror check: 13/13 touched files identical between src/ and temp_changes/src/.
+
+The 3 fixes below MUST be applied before emulator smoke testing.
+
+=====================================================================================================
+TARGET FILE: src/screens/QuranViewScreen.tsx  (line 440)
+-----------------------------------------------------------------------------------------------------
+PROBLEM: oddPartnerKey is inverted. Pairing from pagePairsFor is [1],[2,3],[4,5]... and SpreadItem
+renders the ODD page on the LEFT half and the EVEN (anchor) page on the RIGHT half. For an even
+currentPageNum the displayed partner is currentPageNum+1, but the code computes currentPageNum-1
+(i.e., the previous pair's odd page). Left-half strokes are therefore saved under the wrong page
+key, the left half of the canvas shows the wrong page's drawing, and for an odd currentPageNum
+(e.g. via page list/deep link) the current page's paths are shifted +halfOrigin onto the wrong
+(right) half. Also contradicts prefetchPartner (correct +1/-1) at line 188.
+
+CURRENT CODE:
+  const oddPartnerKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum + 1}` : null;
+
+PROPOSED CODE (one-line swap of the ternary branches):
+  const oddPartnerKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum + 1 : currentPageNum - 1}` : null;
+
+AUDIT SUMMARY: sign/parity inversion in split-mode drawing composition; data misattribution to
+wrong page keys. Fix is a pure swap; no other call sites depend on the old (wrong) value.
+Non-breaking: single-mode drawing unchanged; even-anchor placement/shift signs already correct.
+
+=====================================================================================================
+TARGET FILE: src/utils/audioPlayback.ts  (line 160)
+-----------------------------------------------------------------------------------------------------
+PROBLEM: probeDurationFromUrl already returns MILLISECONDS — getDurationFromBytes = bytes*8/128 is
+bits / (128 bits/ms) at 128kbps (e.g. 4.8MB -> 300,000 ms). The extra *1000 inflates the duration
+1000x, breaking buildEstimatedTimeline's verse boundaries (verse tracking never advances) and the
+inflated value is cached in audio:duration2, persisting across sessions.
+
+CURRENT CODE:
+  const probe = await probeDurationFromUrl(url);
+  if (probe > 0) dur = Math.round(probe * 1000);
+
+PROPOSED CODE (drop the double unit conversion):
+  const probe = await probeDurationFromUrl(url);
+  if (probe > 0) dur = probe;
+
+AUDIT SUMMARY: unit mismatch ms -> us in the fallback-of-fallback path; all other timeline/seek
+math is already ms-consistent. Non-breaking: only affects the duration estimate value; timeline
+entries, seekToPlayer, and cache keys unchanged.
+
+=====================================================================================================
+TARGET FILE: src/components/quran/SurahList.tsx  (line 101)
+-----------------------------------------------------------------------------------------------------
+PROBLEM: the synthetic page row uses id: qNum, which collides with the exact surah match's id for
+numeric queries 1..114 (keyExtractor = item.id.toString() at line 120) -> duplicate FlatList keys,
+React warning, and the "Page N" row is dropped/misrendered for the most common numeric queries.
+
+CURRENT CODE:
+  if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
+
+PROPOSED CODE (namespace the synthetic id):
+  if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: `page-${qNum}`, page: qNum, englishName: `Page ${qNum}`, name: '' });
+
+AUDIT SUMMARY: unique keys restored for both surah rows (1..114) and page rows (page-1..page-610);
+scoring/ordering logic untouched. Non-breaking: onPress already branches on item.type === 'page'.
+
+=====================================================================================================
+OPTIONAL MINOR (recommended, not blocking smoke test):
+  TARGET: src/components/quran/MushafPageView.tsx line 113
+  Add pageNum to the reset-effect deps so recycled FlatList cells clear refs (cacheWrittenRef,
+  layoutContentRef) when pageNum changes; otherwise write-back silently stops on recycled cells.
