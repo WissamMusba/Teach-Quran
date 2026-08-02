@@ -110,19 +110,19 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     cacheWrittenRef.current = false;
     setLineScale({});
     setCacheState('loading');
-  }, [pageNum, headerVisible, textStyle, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, pageWidth, fixNonce]);
 
   useEffect(() => {
     if (!pageData || !pageData.lines || pageData.lines.length === 0) return;
     let cancelled = false;
-    getPageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0, Math.round(pageWidth))
+    getPageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth))
       .then((cached) => {
         if (cancelled) return;
         if (cached) { layoutContentRef.current = cached; setCacheState('hit'); }
         else setCacheState('miss');
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, headerVisible, fs, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
 
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (layoutContentRef.current) return;
@@ -154,7 +154,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        savePageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0,
+        savePageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0,
           Math.round(pageWidth), sums);
       }
     }

@@ -553,7 +553,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
                 horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
                 removeClippedSubviews decelerationRate="fast" scrollEventThrottle={16}
-                contentContainerStyle={{ paddingBottom: isHeaderVisible ? (IS_TABLET ? 20 : 10) : 0 }}
+                contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 initialNumToRender={5} maxToRenderPerBatch={10} windowSize={7}
                 onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false })}

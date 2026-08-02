@@ -126,29 +126,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     return { x: clapXOnOpen(px), y: clampY(py) };
   }, [width, height, sbHeight, BOT]);
 
-  const onTouchEnd = useCallback((e: any) => {
-    const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
-    const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
-
-    if (dx < 8 && dy < 8) {
-      if (docked) {
-        setDocked(null);
-        setPal(false);
-        dispatch(setToolbarExpanded(false));
-        onExit();
-      } else if (open) {
-        setPal(false);
-        dispatch(setToolbarExpanded(false));
-        onExit();
-      } else {
-        const clamped = reclampOnExpand(posRef.current.x, posRef.current.y);
-        setPos([clamped.x, clamped.y]);
-        posRef.current = clamped;
-        dispatch(setToolbarExpanded(true));
-      }
-      return;
-    }
-
+  const onDragEnd = useCallback((e: any) => {
     const cx = posRef.current.x + ROUND / 2;
     const cy = posRef.current.y + ROUND / 2;
     const dl = cx;
@@ -171,7 +149,32 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     } else {
       setDocked(null);
     }
-  }, [open, docked, width, height, sbHeight, BOT, reclampOnExpand]);
+  }, [open, width, height, sbHeight, BOT]);
+
+  const onTouchEnd = useCallback((e: any) => {
+    const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
+    const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
+
+    if (dx < 8 && dy < 8) {
+      if (docked) {
+        setDocked(null);
+        setPal(false);
+        dispatch(setToolbarExpanded(false));
+        onExit();
+      } else if (open) {
+        setPal(false);
+        dispatch(setToolbarExpanded(false));
+        onExit();
+      } else {
+        const clamped = reclampOnExpand(posRef.current.x, posRef.current.y);
+        setPos([clamped.x, clamped.y]);
+        posRef.current = clamped;
+        dispatch(setToolbarExpanded(true));
+      }
+      return;
+    }
+    onDragEnd(e);
+  }, [docked, open, onDragEnd, reclampOnExpand, onExit, dispatch]);
 
   if (!visible) return null;
 
@@ -213,7 +216,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   );
 
   return (
-    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: drawingGestureActive ? 50 : 200, zIndex: drawingGestureActive ? 50 : 200 }]}>
+    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}>
       <View style={[d.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
@@ -227,9 +230,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         <View style={[d.bar, { backgroundColor: barBg, marginLeft: GAP }]}
           onStartShouldSetResponder={(e: any) => { dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y }; return false; }}
           onMoveShouldSetResponder={onMoveShouldSetResponder}
-          onResponderGrant={onTouchStart}
           onResponderMove={onTouchMove}
-          onResponderRelease={onTouchEnd}>
+          onResponderRelease={onDragEnd}>
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
           <ToolBtn k="pen" label="PEN" Icon={Pencil} />
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
