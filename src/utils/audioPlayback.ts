@@ -16,6 +16,8 @@ let currentVerse = 1;
 let playing = false;
 let playToken = 0;
 let stallTimer: ReturnType<typeof setTimeout> | null = null;
+let lastPositionMs = 0;
+let resumeSession: { surahId: number; verse: number; positionMs: number } | null = null;
 
 const ATTEMPT_TIMEOUT_MS = 10000;
 const STREAM_TIMEOUT_MS = 20000;
@@ -44,6 +46,35 @@ export const pauseSurah = async (player: any): Promise<void> => {
   try {
     Promise.resolve(player.pausePlayer()).catch(() => {});
   } catch {}
+};
+
+export const getPlaybackPosition = (): number => lastPositionMs;
+
+export const isResumable = (): boolean => resumeSession !== null;
+
+export const pauseSurahWithResume = async (player: any): Promise<void> => {
+  const session = { surahId: currentSurahId, verse: currentVerse, positionMs: lastPositionMs };
+  playToken++;
+  clearWatchdog();
+  playing = false;
+  try {
+    player.removePlayBackListener();
+  } catch {}
+  try {
+    Promise.resolve(player.pausePlayer()).catch(() => {});
+  } catch {}
+  resumeSession = session;
+};
+
+export const resumeSurah = async (player: any, qariId: string, callbacks: PlaybackCallbacks = {}): Promise<boolean> => {
+  const session = resumeSession;
+  if (!session) return false;
+  const lastVerse = SURAH_VERSE_COUNTS[session.surahId - 1] || 1;
+  resumeSession = null;
+  await stopPlayback(player);
+  currentSurahId = session.surahId;
+  playSurahStream(player, qariId, session.surahId, session.verse, lastVerse, callbacks, session.positionMs);
+  return true;
 };
 
 const clearWatchdog = (): void => {
@@ -236,6 +267,8 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
     player.addPlayBackListener((e: any) => {
       if (attemptToken !== playToken) return;
       clearWatchdog();
+      const pos = e.currentPosition;
+      if (typeof pos === 'number' && pos >= 0) lastPositionMs = pos;
       switch (e.status) {
         case 2:
           started = true;
@@ -283,7 +316,7 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
   nextAttempt(0);
 };
 
-const playSurahStream = (player: any, qariId: string, surahId: number, startVerse: number, lastVerse: number, callbacks: PlaybackCallbacks): void => {
+const playSurahStream = (player: any, qariId: string, surahId: number, startVerse: number, lastVerse: number, callbacks: PlaybackCallbacks, resumePositionMs: number = 0): void => {
   const { url, quranComRecId } = getStreamSource(qariId, surahId);
   playToken++;
   const token = playToken;
@@ -326,6 +359,7 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
         playing = false;
         try { player.removePlayBackListener(); } catch {}
         callbacks.onEnd?.();
+        resumeSession = null;
         return;
       }
       if (e.status === 5 || e.status === 6) {
@@ -334,17 +368,23 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
         return;
       }
       const pos = e.currentPosition;
+      if (typeof pos === 'number' && pos >= 0) lastPositionMs = pos;
       if (typeof pos !== 'number' || Date.now() < seekGuardUntil || !timeline) return;
       if (!snapped && seekApplied) {
         snapped = true;
         const before = verseIndex;
-        while (verseIndex < timeline.length - 1 && timeline[verseIndex + 1].start <= pos + 250) {
+        while (verseIndex < timeline.length - 1 && timeline[verseIndex + 1].start <= pos + 600) {
           verseIndex++;
         }
         if (verseIndex !== before) {
           currentVerse = timeline[verseIndex].verse;
           callbacks.onVerseChange?.(currentVerse, currentSurahId);
         }
+      }
+      if (!firstFired && timeline[verseIndex] && pos + 200 >= timeline[verseIndex].start) {
+        firstFired = true;
+        currentVerse = timeline[verseIndex].verse;
+        callbacks.onVerseChange?.(currentVerse, currentSurahId);
       }
       while (verseIndex < timeline.length - 1 && pos + 200 >= timeline[verseIndex].end) {
         verseIndex++;
@@ -378,14 +418,15 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
           return;
         }
         const start = timeline[verseIndex] ? timeline[verseIndex].start : 0;
-        if (start > 0) {
-          seekGuardUntil = Date.now() + 800;
+        if (start > 0 || resumePositionMs > 0) {
+          seekGuardUntil = Date.now() + 1200;
           seekApplied = true;
+        }
+        if (start > 0) {
           try { await player.seekToPlayer(start); } catch {}
         }
-        if (!firstFired) {
-          firstFired = true;
-          callbacks.onVerseChange?.(currentVerse, currentSurahId);
+        if (resumePositionMs > 0) {
+          try { await player.seekToPlayer(resumePositionMs); } catch {}
         }
       }).catch(() => {
         if (token !== playToken) return;
@@ -403,6 +444,7 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
 };
 
 export const playSurahFromVerse = async (player: any, qariId: string, surahId: number, startVerse: number, callbacks: PlaybackCallbacks = {}): Promise<void> => {
+  resumeSession = null;
   const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
   const verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
   if (verse > lastVerse) return;

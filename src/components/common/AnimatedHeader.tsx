@@ -13,7 +13,6 @@ interface Props {
   visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean;
   onBack: () => void; onOpenList: () => void; onMistakes: () => void;
   onShare: () => void; onNotes: () => void; onBookmarks: () => void; onSettings: () => void;
-  onSpread?: () => void; spread?: boolean;
 }
 
 const st = { fill: 'none' as const, strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -32,9 +31,6 @@ const IconNote = ({ c }: any) => (
 );
 const IconSettings = ({ c }: any) => (
   <Svg width={20} height={20} viewBox="0 0 24 24" {...st} stroke={c}><Circle cx="12" cy="12" r="3.2" /><Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" /></Svg>
-);
-const IconSpread = ({ c }: any) => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" {...st} stroke={c}><Path d="M4 5h7v14H4zM13 5h7v14h-7z" /></Svg>
 );
 
 export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?: string; size?: number; filled?: boolean }) => (
@@ -70,10 +66,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const titleColor = p.nightMode ? '#fff' : '#1a1a1a';
   const subColor = p.nightMode ? '#8a8a8a' : '#777';
 
-  const Btn = ({ icon, label, onPress, active }: { icon: React.ReactNode; label: string; onPress: () => void; active?: boolean }) => (
+  const Btn = ({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) => (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
       {icon}
-      <Text style={[s.iconLab, { color: active ? ACCENT : subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text>
+      <Text style={[s.iconLab, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -101,7 +97,6 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <Btn label="SHARE" icon={<IconShare c={C_SHARE} />} onPress={p.onShare} />
             <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
-            <Btn label="SPREAD" icon={<IconSpread c={ACCENT} />} onPress={p.onSpread} active={!!p.spread} />
             <Btn label="SETTINGS" icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
           </View>
         </View>
@@ -120,9 +115,9 @@ const s = StyleSheet.create({
   titleBlock: { flex: 1, paddingVertical: 2 },
   surahName: { fontSize: 17, fontWeight: 'bold' },
   surahSub: { fontSize: 11, marginTop: 2 },
-  iconsRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
-  iconBtn: { flex: 1, minWidth: 0, maxWidth: 66, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
-  iconLab: { fontSize: 9, marginTop: 2, fontWeight: '600' },
+  iconsRow: { flex: 1.8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
+  iconBtn: { flex: 1, minWidth: 0, maxWidth: 60, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  iconLab: { fontSize: 8.5, marginTop: 2, fontWeight: '600' },
   infoLine: { fontSize: 11, paddingHorizontal: 12, paddingBottom: 8, paddingTop: 2 },
 });
 

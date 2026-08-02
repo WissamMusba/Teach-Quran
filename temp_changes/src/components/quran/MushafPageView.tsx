@@ -46,7 +46,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
   return extra;
 };
 
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onFixFont }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onFixFont, onSpread, spread }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -195,11 +195,21 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     </View>
   );
 
-  const fixFontPill = onFixFont && !headerVisible ? (
-    <TouchableOpacity style={[styles.badgePill, styles.bottomLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
-      onPress={() => onFixFont()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-      <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Fix font</Text>
-    </TouchableOpacity>
+  const actionPills = (onFixFont || onSpread) && !headerVisible ? (
+    <View style={styles.bottomLeftRow}>
+      {onSpread && (
+        <TouchableOpacity style={[styles.badgePill, styles.actionPillGap, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
+          onPress={() => onSpread()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={[styles.badgeText, { color: spread ? '#00D4AA' : grayC }, compact && styles.badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
+        </TouchableOpacity>
+      )}
+      {onFixFont && (
+        <TouchableOpacity style={[styles.badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
+          onPress={() => onFixFont()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Fix font</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   ) : null;
 
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
@@ -234,7 +244,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
           })}
         </View>
         {overlayLayer}
-        {fixFontPill}
+        {actionPills}
       </View>
     );
   }
@@ -341,7 +351,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
         );
       })}
       {overlayLayer}
-      {fixFontPill}
+      {actionPills}
     </View>
   );
 };
@@ -372,7 +382,8 @@ const styles = StyleSheet.create({
   topRight: { position: 'absolute', top: 2, right: 40 },
   bottomMid: { position: 'absolute', bottom: 2, alignSelf: 'center' },
   bottomRight: { position: 'absolute', bottom: 2, right: 10 },
-  bottomLeft: { position: 'absolute', bottom: 2, left: 10 }
+  bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
+  actionPillGap: { marginRight: 6 }
 });
 
 export default memo(MushafPageView);

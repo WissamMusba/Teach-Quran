@@ -30,7 +30,7 @@ import Share from 'react-native-share';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
-import { playSurahFromVerse, pauseSurah, SURAH_VERSE_COUNTS, isSurahPlaying } from '../utils/audioPlayback';
+import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying } from '../utils/audioPlayback';
 import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_TABLET = SCREEN_WIDTH >= 600;
@@ -40,7 +40,7 @@ const MENU_BUBBLE_H = 90;
 const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, fixNonce, onFixFont }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, fixNonce, onFixFont, onSpread, spread }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
@@ -52,7 +52,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
           pageCache[odd] ? (
             <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} bookmarks={bookmarks}
-              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} fixNonce={fixNonce} onFixFont={onFixFont} />
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} fixNonce={fixNonce} onFixFont={onFixFont} onSpread={onSpread} spread={spread} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)
         ) : null}
       </View>
@@ -60,7 +60,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
         {pageCache[even] ? (
           <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
             onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} bookmarks={bookmarks}
-            flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} fixNonce={fixNonce} onFixFont={onFixFont} />
+            flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} fixNonce={fixNonce} onFixFont={onFixFont} onSpread={onSpread} spread={spread} />
         ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
       </View>
     </View>
@@ -115,6 +115,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
   const { width: winW, height: winH } = useWindowDimensions();
   const splitOn = !!(useSelector((s: any) => s.settings)?.mushafSplit && winW >= SPLIT_MIN_WIDTH);
+  const splitCapable = winW >= SPLIT_MIN_WIDTH;
   const pageW = Math.round((winW - GUTTER) / 2);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
@@ -188,6 +189,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
     if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
   };
+
+  const handleToggleSpread = useCallback(() => dispatch(setMushafSplit(!splitOn)), [splitOn]);
 
   const handleFixFont = useCallback(async () => {
     const RANGE = 3;
@@ -378,8 +381,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const toggleHeader = useCallback(() => setIsHeaderVisible((prev: boolean) => !prev), []);
   const handleDeadTap = useCallback((pageY?: number) => {
     if (pageY == null) return;
-    if (pageY <= EDGE_ZONE || pageY >= winH - EDGE_ZONE) toggleHeader();
-  }, [toggleHeader, winH]);
+    const zoneTop = isHeaderVisible ? EDGE_ZONE + 90 : EDGE_ZONE;
+    const zoneBottom = isHeaderVisible ? EDGE_ZONE + 70 : EDGE_ZONE;
+    if (pageY <= zoneTop || pageY >= winH - zoneBottom) toggleHeader();
+  }, [toggleHeader, winH, isHeaderVisible]);
   const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
   const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); }, []);
 
@@ -473,19 +478,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const togglePlayAudio = async () => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
-    if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
+    if (isPlaying) { dispatch(setPlaying(false)); pauseSurahWithResume(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
     else {
+      const callbacks = {
+        onVerseChange: (v: number, sId?: number) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); },
+        onEnd: () => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); },
+        onError: (msg: string) => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); Alert.alert('Playback error', msg); },
+      };
+      if (isResumable()) {
+        const ok = await resumeSurah(audioPlayer.current, qariId, callbacks);
+        if (ok) { dispatch(setPlaying(true)); return; }
+      }
       let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
       if (!firstVerse && readingMode === 'page') {
         try { const [vs] = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
       }
       const startVerse = firstVerse?.verseNumber || 1;
       const surahId = firstVerse?.surahId || currentSurahId;
-      const callbacks = {
-        onVerseChange: (v: number, sId?: number) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); },
-        onEnd: () => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); },
-        onError: (msg: string) => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); Alert.alert('Playback error', msg); },
-      };
       try {
         await playSurahFromVerse(audioPlayer.current, qariId, surahId, startVerse, callbacks);
         dispatch(setPlaying(true));
@@ -507,10 +516,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
         onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
-        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
-        onSpread={() => dispatch(setMushafSplit(!splitOn))} spread={splitOn} />
+        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')} />
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
-        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
+        <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={readingMode === 'page' ? [1000, 1000] : [-25, 25]} enabled={!isDrawing}>
           <View style={{ flex: 1, position: 'relative' }}>
 
             {readingMode === 'ayah' && (
@@ -575,7 +583,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     highlights={studentData?.highlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress}
                     bookmarks={studentData?.bookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={handleDeadTap}
-                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded} fixNonce={fixNonce} onFixFont={handleFixFont} />
+                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded} fixNonce={fixNonce} onFixFont={handleFixFont}
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                 ) : ({ item }: any) => {
                   ensurePageLoaded(item);
                   ensurePageVersesLoaded(item);
@@ -585,7 +594,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={studentData?.highlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
-                          flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={handleDeadTap} fixNonce={fixNonce} onFixFont={handleFixFont} />
+                          flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={studentData?.notes} readingMarkVerse={readingMarkVerse} onDeadTap={handleDeadTap} fixNonce={fixNonce} onFixFont={handleFixFont}
+                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
                     </View>
                   );
@@ -619,7 +629,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       <ToolbarBoundary>
         <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
-          onClear={() => canvasRef.current?.clear()} onExit={() => { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }}
+          onClear={() => canvasRef.current?.clear()} onExit={() => { if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); } else { dispatch(setToolbarExpanded(false)); } }}
           canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
           onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
       </ToolbarBoundary>
