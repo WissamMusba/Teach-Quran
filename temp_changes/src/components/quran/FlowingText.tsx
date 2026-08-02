@@ -31,7 +31,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, onBook
         const isReadingMark = readingMarkVerse === verse.verseNumber;
         return (
           <View key={vKey} style={[styles.verseBlock, { borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
-            <Pressable style={[styles.arabicRow, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} onPress={onDeadTap}>
+            <Pressable style={[styles.arabicRow, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
               {isBookmarked && <Text style={styles.bookmarkIcon}> 🔖 </Text>}
               {hasNote && <Text style={styles.noteIcon}> 📝 </Text>}
               {isReadingMark && <Text style={styles.readingMarkIcon}> 📍 </Text>}

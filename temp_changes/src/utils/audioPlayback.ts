@@ -1,9 +1,10 @@
 import { getDB } from '../database/localDB';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const SURAH_VERSE_COUNTS: number[] = [7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
 
 interface PlaybackCallbacks {
-  onVerseChange?: (verse: number) => void;
+  onVerseChange?: (verse: number, surahId?: number) => void;
   onEnd?: () => void;
   onError?: (message: string) => void;
 }
@@ -39,7 +40,9 @@ export const pauseSurah = async (player: any): Promise<void> => {
   playing = false;
   try {
     player.removePlayBackListener();
-    await player.pausePlayer();
+  } catch {}
+  try {
+    Promise.resolve(player.pausePlayer()).catch(() => {});
   } catch {}
 };
 
@@ -58,23 +61,110 @@ const stopPlayback = async (player: any): Promise<void> => {
   } catch {}
 };
 
-const fetchQuranComTimeline = (recId: number, surahId: number): Promise<{ duration: number; entries: TimelineEntry[] } | null> =>
-  new Promise((resolve) => {
-    let done = false;
-    const t = setTimeout(() => { if (!done) { done = true; resolve(null); } }, TIMELINE_TIMEOUT_MS);
-    fetch(`https://api.quran.com/api/v4/recitations/${recId}/by_surah/${surahId}`)
+interface TimelineData { duration: number; entries: TimelineEntry[] }
+
+const timelineCache: Record<string, TimelineData | null> = {};
+const durationCache: Record<string, number> = {};
+
+const fetchWithTimeout = (url: string, ms: number): Promise<any> =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    fetch(url)
       .then(r => r.json())
-      .then((j: any) => {
-        if (done) return;
-        done = true;
-        clearTimeout(t);
-        const af = j && j.audio_files && j.audio_files[0];
-        const segs = af && Array.isArray(af.segments) && af.segments.length > 0 ? af.segments : null;
-        if (!segs) { resolve(null); return; }
-        resolve({ duration: af.duration || 0, entries: segs.map((s: any[]) => ({ verse: s[0], start: s[1], end: s[2] })) });
-      })
-      .catch(() => { if (!done) { done = true; clearTimeout(t); resolve(null); } });
+      .then((j) => { clearTimeout(t); resolve(j); })
+      .catch((e) => { clearTimeout(t); reject(e); });
   });
+
+const fetchQuranComTimeline = async (recId: number, surahId: number): Promise<TimelineData | null> => {
+  const key = `audio:tl3:${recId}:${surahId}`;
+  if (timelineCache[key] !== undefined) return timelineCache[key];
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (c && Array.isArray(c.entries) && c.entries.length > 0) {
+        timelineCache[key] = c;
+        return c;
+      }
+    }
+  } catch {}
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const j = await fetchWithTimeout(`https://api.quran.com/api/v4/recitations/${recId}/by_surah/${surahId}`, TIMELINE_TIMEOUT_MS);
+      const af = j && j.audio_files && j.audio_files[0];
+      const segs = af && Array.isArray(af.segments) && af.segments.length > 0 ? af.segments : null;
+      if (segs) {
+        const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
+        const maxV = segs.reduce((m: number, s: any[]) => Math.max(m, s[0]), 0);
+        const isZeroBased = maxV < lastVerse;
+        let entries: TimelineEntry[] = segs.map((s: any[]) => ({
+          verse: isZeroBased ? s[0] + 1 : s[0],
+          start: Math.round(s[1] * 1000),
+          end: Math.round(s[2] * 1000),
+        })).filter((e) => e.verse >= 1);
+        const data: TimelineData = { duration: Math.round((af.duration || 0) * 1000), entries };
+        timelineCache[key] = data;
+        AsyncStorage.setItem(key, JSON.stringify(data)).catch(() => {});
+        const durKey = `audio:duration2:${recId}:${surahId}`;
+        const durN = Number(af.duration);
+        if (durN > 0) {
+          durationCache[durKey] = Math.round(durN * 1000);
+          AsyncStorage.setItem(durKey, String(Math.round(durN * 1000))).catch(() => {});
+        }
+        return data;
+      }
+    } catch {}
+  }
+  timelineCache[key] = null;
+  return null;
+};
+
+const getDurationFromBytes = (bytes: number): number =>
+  bytes > 0 ? Math.round((bytes * 8) / 128) : 0;
+
+const probeDurationFromUrl = async (url: string): Promise<number> => {
+  try {
+    const head = await fetch(url, { method: 'HEAD' });
+    const len = Number(head.headers.get('Content-Length') || 0);
+    const d = getDurationFromBytes(len);
+    if (d > 0) return d;
+  } catch {}
+  try {
+    const range = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+    const cr = range.headers.get('Content-Range') || '';
+    const m = cr.match(/bytes 0-0\/(\d+)/);
+    if (m) {
+      const d = getDurationFromBytes(Number(m[1]));
+      if (d > 0) return d;
+    }
+  } catch {}
+  return 0;
+};
+
+const getPlaybackDuration = async (player: any, url: string, recId: number, surahId: number): Promise<number> => {
+  const key = `audio:duration2:${recId}:${surahId}`;
+  if (durationCache[key]) return durationCache[key];
+  let dur = 0;
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) {
+      const n = parseInt(raw, 10);
+      if (!isNaN(n) && n > 0) dur = n;
+    }
+  } catch {}
+  if (dur <= 0) {
+    try { dur = Number(await player.getDuration()) || 0; } catch {}
+  }
+  if (dur <= 0) {
+    const probe = await probeDurationFromUrl(url);
+    if (probe > 0) dur = Math.round(probe * 1000);
+  }
+  if (dur > 0) {
+    durationCache[key] = dur;
+    AsyncStorage.setItem(key, String(dur)).catch(() => {});
+  }
+  return dur;
+};
 
 const buildEstimatedTimeline = async (surahId: number, lastVerse: number, totalDurMs: number): Promise<TimelineEntry[]> => {
   const out: TimelineEntry[] = [];
@@ -129,7 +219,7 @@ const markStarted = (player: any): void => {
 
 const playVerse = (player: any, qariId: string, surahId: number, verse: number, lastVerse: number, callbacks: PlaybackCallbacks): void => {
   currentVerse = verse;
-  callbacks.onVerseChange?.(verse);
+  callbacks.onVerseChange?.(verse, currentSurahId);
   const sources = getAudioSources(qariId, surahId, verse);
   playToken++;
   const nextAttempt = (index: number): void => {
@@ -198,14 +288,17 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
   playToken++;
   const token = playToken;
   currentVerse = startVerse;
-  callbacks.onVerseChange?.(startVerse);
+  let tlData: TimelineData | null = null;
   let timeline: TimelineEntry[] | null = null;
   let verseIndex = Math.max(0, startVerse - 1);
   let seekGuardUntil = 0;
+  let seekApplied = false;
+  let snapped = false;
+  let firstFired = false;
   let ended = false;
 
   const timelinePromise = fetchQuranComTimeline(quranComRecId, surahId)
-    .then((t) => { if (token === playToken && t && t.entries && t.entries.length > 0) timeline = t.entries; })
+    .then((t) => { if (token === playToken && t && t.entries && t.entries.length > 0) tlData = t; })
     .catch(() => {});
 
   const fallbackPerAyah = (): void => {
@@ -241,13 +334,22 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
         return;
       }
       const pos = e.currentPosition;
-      if (typeof pos !== 'number' || Date.now() < seekGuardUntil) return;
-      if (timeline) {
-        while (verseIndex < timeline.length - 1 && pos >= timeline[verseIndex].end) {
+      if (typeof pos !== 'number' || Date.now() < seekGuardUntil || !timeline) return;
+      if (!snapped && seekApplied) {
+        snapped = true;
+        const before = verseIndex;
+        while (verseIndex < timeline.length - 1 && timeline[verseIndex + 1].start <= pos + 250) {
           verseIndex++;
-          currentVerse = timeline[verseIndex].verse;
-          callbacks.onVerseChange?.(currentVerse);
         }
+        if (verseIndex !== before) {
+          currentVerse = timeline[verseIndex].verse;
+          callbacks.onVerseChange?.(currentVerse, currentSurahId);
+        }
+      }
+      while (verseIndex < timeline.length - 1 && pos + 200 >= timeline[verseIndex].end) {
+        verseIndex++;
+        currentVerse = timeline[verseIndex].verse;
+        callbacks.onVerseChange?.(currentVerse, currentSurahId);
       }
     });
     try {
@@ -255,20 +357,35 @@ const playSurahStream = (player: any, qariId: string, surahId: number, startVers
       (p || Promise.resolve()).then(async () => {
         if (token !== playToken) return;
         clearWatchdog();
-        if (!timeline) await timelinePromise;
-        if (token !== playToken) return;
-        try { await player.setVolume(1.0); } catch {}
-        if (!timeline) {
-          let dur = 0;
-          try { dur = await player.getDuration() || 0; } catch {}
-          timeline = await buildEstimatedTimeline(surahId, lastVerse, dur);
-        }
-        if (token !== playToken || !timeline) return;
         playing = true;
+        try { await player.setVolume(1.0); } catch {}
+        if (!tlData) {
+          try { await timelinePromise; } catch {}
+        }
+        if (token !== playToken) return;
+        if (tlData) {
+          timeline = tlData.entries;
+        } else {
+          const dur = await getPlaybackDuration(player, url, quranComRecId, surahId);
+          if (dur > 0) timeline = await buildEstimatedTimeline(surahId, lastVerse, dur);
+        }
+        if (token !== playToken) return;
+        if (!timeline) {
+          if (!firstFired) {
+            firstFired = true;
+            callbacks.onVerseChange?.(currentVerse, currentSurahId);
+          }
+          return;
+        }
         const start = timeline[verseIndex] ? timeline[verseIndex].start : 0;
         if (start > 0) {
           seekGuardUntil = Date.now() + 800;
+          seekApplied = true;
           try { await player.seekToPlayer(start); } catch {}
+        }
+        if (!firstFired) {
+          firstFired = true;
+          callbacks.onVerseChange?.(currentVerse, currentSurahId);
         }
       }).catch(() => {
         if (token !== playToken) return;

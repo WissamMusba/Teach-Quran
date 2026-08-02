@@ -1,0 +1,418 @@
+================================================================================
+ PAGE LAYOUT CACHE (per-device rendered-layout cache) + SPLIT VIEW DESIGN
+ QuranMasterApp — standalone rebuild reference (02-Aug-2026)
+ IMPORTANT: the current folder is under active rebuild — do NOT modify the
+ existing app sources from this spec. Port these changes into the rebuild.
+================================================================================
+
+TABLE OF CONTENTS
+  0. AGENT REVIEW + IMPLEMENT PROMPT (copy-paste handoff)
+  1. Problem: the two-pass measure dance (why page flips jank)
+  2. Cache design (key, value, collision rules)
+  3. Code: localDB.ts additions + MushafPageView.tsx changes (ready to port)
+  4. Split view (side-by-side two-page spread, tablet) — design from research
+  5. Risks + roadmap
+
+================================================================================
+ 0. AGENT REVIEW + IMPLEMENT PROMPT
+================================================================================
+COPY-PASTE THIS TO YOUR AGENT:
+
+You are reviewing and implementing a performance feature for QuranMasterApp
+(React Native 0.72, Redux, react-native-sqlite-storage). This project is being
+REBUILT — port these changes into the new codebase, do not patch the old one.
+
+CONTEXT: src/components/quran/MushafPageView.tsx does a two-pass
+"measure-then-scale" on every mount: every word mounts a WordHitArea whose
+onMeasured (handleWordMeasured, lines ~105-121) accumulates native widths, and
+when a line's content exceeds lineW it computes lineScale =
+max(0.65, (lineW-12)/content) and calls setLineScale -> full-page re-render.
+That dance is the main page-flip jank. The result is DETERMINISTIC per device
+given (page, textStyle, headerVisible, font-size, sparse, page-width), so we
+cache it per-device in SQLite and render cached pages single-pass.
+
+PART A — REVIEW (deliver a verdict on each):
+1. Cache key (pageNumber, textStyle, headerVisible, fs, sparse, screenW) —
+   confirm it covers every rendering variant and that fs (effective mushaf
+   font size incl. getFontAdj + SPARSE_FONT_BOOST) truly prevents the
+   phone-vs-tablet collision described in section 2.
+2. Caching per-line CONTENT SUMS (raw word widths, excluding lineExtra)
+   instead of final scales — confirm the scale is re-derived at render with a
+   fresh lineExtra (so new notes re-scale without re-measuring).
+3. The cacheState gate ('loading'|'miss'|'hit') — confirm it eliminates the
+   unscaled-flash frame and the race between async cache load and in-flight
+   measurements (measure events can only fire after content renders, which is
+   gated on cacheState resolving).
+4. Staleness: if the device font rendering ever changes (rare), the cached
+   sums are wrong. Decide: version the table on app version bump, or add a
+   "Clear layout cache" dev tool in Settings. Recommend one.
+5. Write-back correctness: completedLinesRef counts only lines WITH words
+   (surah-header/basmala lines render as Views, no onMeasured). Confirm the
+   guard and the skip for 0-word-lines pages.
+6. Split view (section 4): confirm the page-pair FlatList + native half-width
+   layout + hybrid font rule is feasible with this exact codebase and that the
+   cache key (screenW = page width, fs = device-derived font) makes split and
+   single modes coexist without collisions.
+
+PART B — IMPLEMENT into the rebuild:
+1. localDB.ts: page_layout_cache table + getPageLayoutCache/savePageLayoutCache.
+2. MushafPageView.tsx: the exact diff in section 3 (pageWidth prop, hPad(),
+   cacheState gate, scaleForLine, cache write-back on complete).
+3. Split view per section 4's file list (QuranViewScreen pair FlatList,
+   MushafPageView pageWidth/compact props, settingsSlice mushafSplit,
+   SettingsScreen + AnimatedHeader toggle, pure pair-mapping helpers).
+Deliver: review verdicts + the implemented code.
+
+================================================================================
+ 1. PROBLEM: THE TWO-PASS MEASURE DANCE
+================================================================================
+Page mode = horizontal inverted paging FlatList over 604/610 pages
+(QuranViewScreen.tsx:449-485). Each page mounts <MushafPageView> which:
+  - renders ~15 lines x 8-13 words = 120-180 WordHitArea components
+  - every word reports its native width via onMeasured
+  - when a line overflows lineW (= screen width - 2*pad), computes a per-line
+    scale and setLineScale() -> re-renders the page (MushafPageView.tsx:105-121)
+This happens on EVERY mount: page flip, scroll-back into windowSize, header
+toggle (resets state, line 97-103), textStyle change (lineCache cleared).
+
+WHY IT IS CACHEABLE: word widths depend only on (fontFamily, fontSize,
+device font rasterizer) and the page's fixed word list. fontFamily/fontSize are
+derived deterministically from (textStyle, headerVisible, device width,
+sparse). So the measured sums are a pure function of
+(page, textStyle, headerVisible, fs, sparse, pageWidth) — stable per device
+forever. Cache the OUTPUT (sums), never the React tree, never images.
+
+================================================================================
+ 2. CACHE DESIGN
+================================================================================
+KEY (6 parts, all required):
+  pageNumber   int    1..604 (or 610 indopak)
+  textStyle    text   saleem | uthmani | alqalam | lateef
+  headerVisible int   0|1   (font gets +1..+3 and lineHeight changes)
+  fs           int    Math.round((mushafFontSize + adj.size) * (sparse?1.3:1))
+  sparse       int    0|1   SPARSE_FONT_BOOST multiplies glyph size
+  screenW      int    Math.round(pageWidth)  <- the RENDERED width, not device
+
+WHY fs MUST BE IN THE KEY (the collision the design kills):
+  A phone at 508pt renders font 22. An iPad's split page is also 508pt wide
+  but renders font 32 (getMushafFontSize is device-width-based, NOT
+  page-width-based). Without fs in the key, the iPad would reuse the phone's
+  font-22 sums at font 32 -> lines don't scale -> overflow. With fs in the
+  key, they are separate rows. Same for sparse: a sparse page (boost 1.3)
+  measures 30% wider content than its dense twin would.
+
+VALUE: JSON array of per-line raw content sums (word widths only, EXCLUDING
+lineExtra). Scale is derived at render:
+    total = sum[line] + lineExtra(line)      // lineExtra = +40 verse-boundary
+                                              // badges, +16 if the verse has a
+                                              // note (student-data-dependent!)
+    scale = total > lineW + 2 ? max(0.65, (lineW - 12) / total) : 1
+  Deriving at render (not storing scales) means a newly-added note re-scales
+  the line instantly without any re-measure, and the same row is valid for any
+  pageWidth that yields the same fs (e.g. tablet split 508 = phone full 508).
+
+SIZE: 604 pages x 4 styles x 2 headers x ~2 sparse-states ~= 4,800-9,600 rows
+  max, ~200-300 bytes each -> ~1.5-2.5 MB on device. Trivial for SQLite.
+  (sparse is actually deterministic per page, so real-world ~4,800 rows.)
+
+LIFETIME: per-device (SQLite is local) — persists across restarts. Survives
+  textStyle/header toggles. Only invalidated if the device font rasterizer
+  changes (app update with a different .ttf, rare) -> see risk 1 in section 5.
+
+================================================================================
+ 3. CODE (READY TO PORT)
+================================================================================
+--------------------------------------------------------------------------------
+ 3.1 src/database/localDB.ts  (ADD to initDatabase + two helpers)
+--------------------------------------------------------------------------------
+// in initDatabase(), after the sync_last_push CREATE:
+await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS page_layout_cache (
+    pageNumber INTEGER NOT NULL, textStyle TEXT NOT NULL, headerVisible INTEGER NOT NULL,
+    fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
+    lines TEXT NOT NULL,
+    PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
+
+// ---- page layout cache (per-device render output) ----
+export const getPageLayoutCache = async (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  fs: number, sparse: number, screenW: number,
+): Promise<number[] | null> => {
+  try {
+    const r = await getDB().executeSql(
+      `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
+    if (r && r[0].rows.length > 0) return JSON.parse(r[0].rows.item(0).lines);
+  } catch { /* cache is best-effort */ }
+  return null;
+};
+
+export const savePageLayoutCache = async (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  fs: number, sparse: number, screenW: number, lines: number[],
+) => {
+  try {
+    await getDB().executeSql(
+      `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW, JSON.stringify(lines)]);
+  } catch { /* best-effort */ }
+};
+
+--------------------------------------------------------------------------------
+ 3.2 src/components/quran/MushafPageView.tsx  (targeted diff)
+--------------------------------------------------------------------------------
+(a) IMPORTS — add:
+import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB';
+
+(b) MODULE CONSTS — replace lines 8-10 (keep SCREEN_WIDTH only):
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const hPad = (w: number) => (w >= 600 ? w * 0.08 : 16);   // was IS_TABLET/HORIZ_PAD
+
+(c) PROPS — add pageWidth (default = full width, so single-page callers are
+    byte-identical):
+({ headerVisible = true, pageNum = 0, ..., pageWidth = SCREEN_WIDTH, ... }: any)
+
+(d) AFTER `const adj = getFontAdj(textStyle, headerVisible);` (line ~75) — add
+    the effective font size (this is the cache's fs; sparse boost included):
+const fs = Math.round((mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1));
+
+(e) REFS — next to lineScale/scaleRef (lines 82-86) add:
+const layoutContentRef = useRef<number[] | null>(null);   // cached sums (raw)
+const completedLinesRef = useRef<Set<number>>(new Set()); // lines finished measuring
+const cacheWrittenRef = useRef(false);
+const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
+
+(f) RESET EFFECT (lines 97-103) — extend deps + clear new refs:
+useEffect(() => {
+  scaleRef.current = {};
+  widthsRef.current = {};
+  lineExtraRef.current = {};
+  filledCountRef.current = {};
+  layoutContentRef.current = null;
+  completedLinesRef.current = new Set();
+  cacheWrittenRef.current = false;
+  setLineScale({});
+  setCacheState('loading');
+}, [headerVisible, textStyle, pageWidth]);
+
+(g) CACHE LOAD EFFECT — NEW, right after (f):
+useEffect(() => {
+  if (!pageData || !pageData.lines || pageData.lines.length === 0) return; // fallback path
+  let cancelled = false;
+  getPageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0, Math.round(pageWidth))
+    .then((cached) => {
+      if (cancelled) return;
+      if (cached) { layoutContentRef.current = cached; setCacheState('hit'); }
+      else setCacheState('miss');
+    });
+  return () => { cancelled = true; };
+}, [pageNum, textStyle, headerVisible, fs, pageWidth]);   // sparse is deterministic per page
+
+(h) handleWordMeasured — gate on cache + write back on page-complete:
+const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+  if (layoutContentRef.current) return;                       // cached: no measure pass
+  if (scaleRef.current[lineKey]) return;
+  if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
+  if (widthsRef.current[lineKey][wordIdx] === undefined) {
+    filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
+  }
+  widthsRef.current[lineKey][wordIdx] = w;
+  const arr = widthsRef.current[lineKey];
+  const lineW = pageWidth - 2 * hPad(pageWidth);
+  const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
+  const complete = (filledCountRef.current[lineKey] || 0) >= expected;
+  if (content > (complete ? lineW + 2 : lineW)) {
+    const scale = Math.max(0.65, (lineW - 12) / content);
+    scaleRef.current[lineKey] = scale;
+    setLineScale(prev => ({ ...prev, [lineKey]: scale }));
+  }
+  if (complete && !cacheWrittenRef.current) {
+    completedLinesRef.current.add(lineKey);
+    const totalLines = (pageData?.lines || []).reduce(
+      (a: number, l: any) => a + (l.words && l.words.length ? 1 : 0), 0);
+    if (completedLinesRef.current.size >= totalLines) {
+      cacheWrittenRef.current = true;
+      const keys = Object.keys(widthsRef.current).map(Number);
+      if (keys.length === 0) return;
+      const sums: number[] = [];
+      for (let k = 0; k <= Math.max(...keys); k++) {
+        const arr = widthsRef.current[k];
+        sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
+      }
+      savePageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0,
+        Math.round(pageWidth), sums);
+    }
+  }
+};
+
+(i) scaleForLine — NEW helper (reads cached sums + fresh lineExtra at render):
+const scaleForLine = (lineIdx: number) => {
+  if (layoutContentRef.current) {
+    const lineW = pageWidth - 2 * hPad(pageWidth);
+    const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
+    return total > lineW + 2 ? Math.max(0.65, (lineW - 12) / total) : 1;
+  }
+  return lineScale[lineIdx] || 1;
+};
+
+(j) RENDER — two small changes:
+  - container padding: `paddingHorizontal: HORIZ_PAD` -> `paddingHorizontal: hPad(pageWidth)`
+    (lines 151 and 186 — the fallback path and the main path)
+  - line map (line 261): replace `(lineScale[lineIdx] || 1)` with `(scaleForLine(lineIdx))`
+  - gate before the main return (cacheState resolves in ~1-3 ms; no unscaled flash):
+    if (cacheState === 'loading') {
+      return <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]} />;
+    }
+    (place it AFTER the existing !pageData fallback return, BEFORE the main return)
+
+WHAT THIS BUYS:
+  - first-ever view of a (page, font, header) combo: measure once (as today), then
+    the sums are persisted
+  - every later mount (flip back, windowSize re-entry, header toggle, font switch):
+    zero measurement, zero setLineScale, single-pass render
+  - split view (section 4): two pages per item, each cached independently by
+    its own pageWidth/fs key
+
+================================================================================
+ 4. SPLIT VIEW — TWO-PAGE SPREAD (research design, tablet-first)
+================================================================================
+GOAL: two facing mushaf pages side by side (like a printed mushaf), NOT stacked,
+for tablets (iPad). Font size stays device-derived — the "squeeze" is native
+half-width layout; the existing per-line scale mechanism absorbs the overflow
+(scale floor 0.65), never a global font shrink, never scaleX transforms.
+
+4.1 ITEM STRUCTURE — FlatList of page-PAIRS (chosen over 2 synced FlatLists
+    [can't stay frame-locked; momentum fires twice] and over scaleX(0.5)
+    transforms [distorts glyphs; breaks measurement math]):
+    - data = spreads: index 0 -> [1] alone; index i>=1 -> [2i, 2i+1]
+      (604 pages -> 302 items; 610 indopak -> 305; last item [610, null])
+    - item width stays SCREEN_WIDTH -> getItemLayout/pagingEnabled/inverted
+      all unchanged; only data.length halves
+    - RTL order preserved: with `inverted`, item 0 (page 1) sits rightmost;
+      inside an item, EVEN page on the RIGHT (read first)
+    - PURE helpers (unit-test these):
+        pairIndexForPage(p) = p <= 1 ? 0 : Math.floor(p / 2)
+        anchorFromIndex(i)  = i === 0 ? 1 : 2 * i
+    - deep links: scrollToIndex({ index: pairIndexForPage(p) }),
+      set currentPageNum = p (the target page, may be the odd/left page)
+    - each half: width PAGE_W = (SCREEN_WIDTH - GUTTER) / 2, GUTTER ~12px spine,
+      overflow hidden; badges/pills are absolutely positioned per half -> work
+      unchanged (optionally a compact style when pageWidth < 600)
+
+4.2 THE SQUEEZE (why no font-shrink and no transform are needed):
+    lineScale multiplies FONT SIZE (MushafPageView.tsx:261) -> the Text
+    re-lays-out at the smaller size: aspect-correct, no distortion. At width
+    W/2 the lineScale math (threshold lineW) does all the work. Quantified on
+    real tablets:
+      iPad 1024 (10.2"/11"): PAGE_W 508, font 32/35 -> scales trigger above
+      476px content (~55% of full lineW); pin at floor 0.65 above ~714px
+      iPad Pro 1366 (12.9"): 679 / font 32/35 -> triggers above 570 (~50%)
+      iPad 810 (9.7"): 401 / font 28/31 -> triggers above 369 (~54%)
+    -> dense pages will have many lines pinned at 0.65 (~21px effective glyphs
+       on an iPad — exactly today's phone glyph sizes, so readable), but mixed
+       0.65/0.72/0.85/1.0 lines look like a font-size mosaic.
+
+4.3 HYBRID FONT RULE (recommended default, kills the mosaic):
+    per page compute worst = min over lines of (lineW - 12) / content   (cached)
+      - worst >= 0.7 -> pure per-line scaling, font untouched
+      - worst < 0.7  -> global page font scale pageFontScale = min(1, worst / 0.7)
+        applied to mushafFontSize; per-line residual scales capped at 1
+      Result: every line ends >= 0.7 x base (e.g. 22.4px on iPad vs 20.8px at
+      floor), uniform glyph size per page, and the 0.65 floor effectively never
+      fires. This is the "squeeze instead of shrink": moderate pages keep the
+      full font; only dense pages get a modest uniform reduction.
+    Note: lineHeight is NOT multiplied by lineScale today -> scaled lines keep
+    full-height boxes, rows stay grid-aligned (a feature, keep it).
+
+4.4 CACHE INTERACTION (why section 2's design is split-ready):
+    - each half renders at screenW = PAGE_W -> its own cache rows; single mode
+      at SCREEN_WIDTH -> separate rows. No clobbering.
+    - fs stays DEVICE-derived (getMushafFontSize uses device width) -> the
+      tablet-split-vs-phone full-width collision is exactly what the fs key
+      part of the key prevents (same 508pt, fonts 32 vs 22 -> different rows).
+    - toggle split on/off: page data caches (pageCache/pageVersesCache) are
+      width-independent -> do NOT clear them; only the layout cache re-keys.
+
+4.5 TAP / HIT-TARGET MATH:
+    WordHitArea is transform-free (onLayout width + measureInWindow x + localX
+    subtraction, WordHitArea.tsx:15-28) -> native half-width layout needs ZERO
+    compensation. Long-press menu uses window coords -> unchanged. Drawings
+    save under the anchor page key as today; share capture captures both pages
+    (acceptable, document it).
+
+4.6 STATE / UI:
+    - boolean mushafSplit in settingsSlice (persisted; quranSlice is NOT
+      persisted -> don't put it there). Default true when device width >= 768,
+      else false; hide toggle below 768.
+    - toggles: (1) AnimatedHeader icon row — add "SPREAD" button (6th icon);
+      (2) SettingsScreen — "Spread view (two pages side by side)" Switch,
+      tablet-only.
+    - on toggle: idx = pairIndexForPage(currentPageNum) ->
+      scrollToOffset({ offset: idx * SCREEN_WIDTH }) after layout.
+    - orientation: QuranViewScreen width via useWindowDimensions() (single
+      change; the rest of the app uses module constants — out of scope);
+      on width change the cache re-keys (screenW) and the reset effect fires
+      (deps include pageWidth); re-snap to the same pair idx (width-independent).
+
+4.7 PREFETCH: today p±1, p±2 (QuranViewScreen.tsx:460). In split mode, on
+    momentum end at pair idx, ensurePageLoaded + ensurePageVersesLoaded for
+    BOTH pages of pairs idx-2 .. idx+2 (9 pages: visible spread + 2 each side).
+    LRU eviction (|k - cp| > 12) unchanged.
+
+4.8 FILES CHANGED (per research):
+    - src/screens/QuranViewScreen.tsx: useWindowDimensions; pairData useMemo +
+      pure helpers; split branch of the page FlatList; SpreadItem (memoized)
+      with two MushafPageView at PAGE_W + GUTTER; momentum handler via
+      anchorFromIndex + pair-based prefetch; all 4 scrollToIndex sites ->
+      pairIndexForPage (lines 151, 200, 231, 456); pass pageWidth + compact.
+    - src/components/quran/MushafPageView.tsx: pageWidth prop, hPad(pageWidth),
+      optional compact styling at pageWidth < 600 (badgePill/verseBadge).
+    - src/utils/responsive.ts: optionally accept explicit device width param.
+    - src/utils/constants.ts (or new src/utils/mushafLayout.ts): GUTTER = 12,
+      SPLIT_MIN_WIDTH = 768, hPad(w) (or keep hPad in MushafPageView).
+    - src/store/settingsSlice.ts: mushafSplit + setMushafSplit (persisted).
+    - src/screens/SettingsScreen.tsx + src/components/common/AnimatedHeader.tsx:
+      toggle switch + SPREAD button.
+    NOT changed: quranData.ts, WordHitArea.tsx, useHeaderSwipe.ts, LRU policy.
+
+================================================================================
+ 5. RISKS + ROADMAP
+================================================================================
+RISKS (cache):
+  1. Device font change (app update swaps .ttf) makes cached sums stale ->
+     version the table key on app version bump, or a "Clear layout cache" row
+     in Settings (dev tool). Cheap insurance: delete rows where textStyle maps
+     to a changed font only.
+  2. Async cache load vs measurements: eliminated by design (content render is
+     gated on cacheState; onMeasured can only fire after words mount).
+  3. Write-back storm: one tiny INSERT per page-complete, fire-and-forget,
+     best-effort try/catch. No batching needed at ~1 write per page view.
+  4. Sparse-mismatch: sparse is deterministic per page (pageData word count),
+     but a changed pageData would change sparse without changing the key ->
+     include sparse in the key (done) so rows can't cross-contaminate.
+
+RISKS (split view):
+  1. Measure dance doubles per item (two pages) on first mounts -> the layout
+     cache makes cached mounts single-pass; keep maxToRenderPerBatch/windowSize,
+     memoize SpreadItem, keep removeClippedSubviews.
+  2. Scroll math drift on toggle/rotation -> all mapping through the two pure
+     helpers + scrollToOffset(idx * currentWidth) after width change.
+  3. Cache collision (tablet split width == phone width, different font) ->
+     fs in the key (done, section 2).
+  4. Deep link to odd (left) page -> anchor semantics report the even page in
+     the header; per-page surah badges disambiguate; optional: header follows
+     the left page when it starts a new surah.
+  5. RTL/order regression -> unit-test pairIndexForPage/anchorFromIndex
+     (1->0, 2/3->1, 4/5->2, 604->302); dev-only page-number overlay on each
+     half; smoke-test both 604 (uthmani) and 610 (indopak) styles.
+
+ROADMAP:
+  Phase 1 (cache): localDB + MushafPageView diff (section 3). Measurable win
+    alone: all page flips single-pass after first visit per combo.
+  Phase 2 (split): section 4 in order 4.8 — settings flag, pair FlatList,
+    MushafPageView pageWidth, toggles, orientation.
+  Phase 3 (perf polish): hybrid font rule (4.3) cached alongside sums (add a
+    worst-content column), compact half-page styles.
+
+================================================================================
+ END OF FILE
+================================================================================

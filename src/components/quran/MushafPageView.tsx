@@ -4,10 +4,10 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame from './OrnamentalFrame';
+import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const IS_TABLET = SCREEN_WIDTH >= 600;
-const HORIZ_PAD = IS_TABLET ? SCREEN_WIDTH * 0.08 : 16;
+const hPad = (w: number) => (w >= 600 ? w * 0.08 : 16);
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -46,7 +46,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
   return extra;
 };
 
-const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onFixFont }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -73,17 +73,23 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
     }
   };
   const adj = getFontAdj(textStyle, headerVisible);
+  const compact = pageWidth < 600;
 
   const totalWords = pageData?.lines
     ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
     : (versesForPage || []).reduce((a: number, v: any) => a + ((v.textArabic || '').trim().split(/\s+/).filter(Boolean).length), 0);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
+  const fs = Math.round((mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1));
 
   const [lineScale, setLineScale] = useState<Record<number, number>>({});
   const scaleRef = useRef<Record<number, number>>({});
   const widthsRef = useRef<Record<number, (number | undefined)[]>>({});
   const lineExtraRef = useRef<Record<number, number>>({});
   const filledCountRef = useRef<Record<number, number>>({});
+  const layoutContentRef = useRef<number[] | null>(null);
+  const completedLinesRef = useRef<Set<number>>(new Set());
+  const cacheWrittenRef = useRef(false);
+  const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
 
   const verseByKey = new Map<string, any>();
   if (versesForPage) {
@@ -99,10 +105,27 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
     widthsRef.current = {};
     lineExtraRef.current = {};
     filledCountRef.current = {};
+    layoutContentRef.current = null;
+    completedLinesRef.current = new Set();
+    cacheWrittenRef.current = false;
     setLineScale({});
-  }, [headerVisible, textStyle]);
+    setCacheState('loading');
+  }, [headerVisible, textStyle, pageWidth, fixNonce]);
+
+  useEffect(() => {
+    if (!pageData || !pageData.lines || pageData.lines.length === 0) return;
+    let cancelled = false;
+    getPageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0, Math.round(pageWidth))
+      .then((cached) => {
+        if (cancelled) return;
+        if (cached) { layoutContentRef.current = cached; setCacheState('hit'); }
+        else setCacheState('miss');
+      });
+    return () => { cancelled = true; };
+  }, [pageNum, textStyle, headerVisible, fs, pageWidth, fixNonce]);
 
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+    if (layoutContentRef.current) return;
     if (scaleRef.current[lineKey]) return;
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
@@ -110,45 +133,78 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
     }
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
+    const lineW = pageWidth - 2 * hPad(pageWidth);
     const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
-    const lineW = SCREEN_WIDTH - 2 * HORIZ_PAD;
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     if (content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.65, (lineW - 12) / content);
       scaleRef.current[lineKey] = scale;
       setLineScale(prev => ({ ...prev, [lineKey]: scale }));
     }
+    if (complete && !cacheWrittenRef.current) {
+      completedLinesRef.current.add(lineKey);
+      const totalLines = (pageData?.lines || []).reduce(
+        (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
+      if (completedLinesRef.current.size >= totalLines) {
+        cacheWrittenRef.current = true;
+        const keys = Object.keys(widthsRef.current).map(Number);
+        if (keys.length === 0) return;
+        const sums: number[] = [];
+        for (let k = 0; k <= Math.max(...keys); k++) {
+          const arr = widthsRef.current[k];
+          sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
+        }
+        savePageLayoutCache(pageNum, textStyle, headerVisible, fs, sparse ? 1 : 0,
+          Math.round(pageWidth), sums);
+      }
+    }
+  };
+
+  const scaleForLine = (lineIdx: number) => {
+    if (layoutContentRef.current) {
+      const lineW = pageWidth - 2 * hPad(pageWidth);
+      const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
+      return total > lineW + 2 ? Math.max(0.65, (lineW - 12) / total) : 1;
+    }
+    return lineScale[lineIdx] || 1;
   };
 
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
       {!headerVisible && firstSurahId > 0 && (
-        <View style={[styles.badgePill, styles.topLeft, { borderColor: frameC, backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: grayC }]}>Juz {juzInfo.juz}</Text>
+        <View style={[styles.badgePill, styles.topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
+          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
       {!headerVisible && pageNum > 0 && (
-        <View style={[styles.badgePill, styles.topMid, { borderColor: frameC, backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: grayC }]}>{juzInfo.pagesLeft} pages left in Juz</Text>
+        <View style={[styles.badgePill, styles.bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
+          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
         </View>
       )}
       {!headerVisible && firstSurahId > 0 && (
-        <View style={[styles.badgePill, styles.topRight, { borderColor: frameC, backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: grayC }]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
+        <View style={[styles.badgePill, styles.topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
+          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
       {!headerVisible && pageNum > 0 && (
-        <View style={[styles.badgePill, styles.bottomMid, { borderColor: frameC, backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: grayC }]}>Page {pageNum + 1}</Text>
+        <View style={[styles.badgePill, styles.bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
+          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Page {pageNum + 1}</Text>
         </View>
       )}
     </View>
   );
 
+  const fixFontPill = onFixFont && !headerVisible ? (
+    <TouchableOpacity style={[styles.badgePill, styles.bottomLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
+      onPress={() => onFixFont()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Fix font</Text>
+    </TouchableOpacity>
+  ) : null;
+
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
+      <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
         <View style={styles.fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -156,7 +212,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
             const fReadingMark = readingMarkVerse === v.verseNumber;
             const fHasNote = !!notes?.[fKey];
             return (
-              <Pressable key={`${fKey}_${i}`} style={styles.fallbackRow} onPress={onDeadTap}>
+              <Pressable key={`${fKey}_${i}`} style={styles.fallbackRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
                 <Pressable style={styles.fallbackTextZone}
                   onPress={() => onWordPress(v.verseNumber, 0)}
                   onLongPress={(e: any) => onVerseLongPress(v.verseNumber, e?.nativeEvent?.pageY)}
@@ -178,12 +234,17 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
           })}
         </View>
         {overlayLayer}
+        {fixFontPill}
       </View>
     );
   }
 
+  if (cacheState === 'loading') {
+    return <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]} />;
+  }
+
   return (
-    <View style={[styles.container, { paddingHorizontal: HORIZ_PAD }]}>
+    <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         if (line.type === 'surah-header') {
           return null;
@@ -192,7 +253,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
           return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View>;
         }
         return (
-          <Pressable key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={onDeadTap}>
+          <Pressable key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -257,8 +318,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles.wordBox}
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
-                    onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).length)}>
-                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (lineScale[lineIdx] || 1) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
+                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
@@ -280,6 +341,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, surahNames = {}, ve
         );
       })}
       {overlayLayer}
+      {fixFontPill}
     </View>
   );
 };
@@ -302,12 +364,15 @@ const styles = StyleSheet.create({
   verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
   noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 },
-  badgePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
-  badgeText: { fontSize: 11, fontWeight: '600' },
-  topLeft: { position: 'absolute', top: 6, left: 30 },
-  topMid: { position: 'absolute', top: 6, alignSelf: 'center' },
-  topRight: { position: 'absolute', top: 6, right: 52 },
-  bottomMid: { position: 'absolute', bottom: 6, alignSelf: 'center' }
+  badgePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+  badgeText: { fontSize: 9.5, fontWeight: '600' },
+  badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
+  badgeTextCompact: { fontSize: 8.5 },
+  topLeft: { position: 'absolute', top: 2, left: 10 },
+  topRight: { position: 'absolute', top: 2, right: 40 },
+  bottomMid: { position: 'absolute', bottom: 2, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: 2, right: 10 },
+  bottomLeft: { position: 'absolute', bottom: 2, left: 10 }
 });
 
 export default memo(MushafPageView);

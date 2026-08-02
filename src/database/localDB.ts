@@ -17,6 +17,11 @@ export const initDatabase = async () => {
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages_indopak (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS page_layout_cache (
+    pageNumber INTEGER NOT NULL, textStyle TEXT NOT NULL, headerVisible INTEGER NOT NULL,
+    fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
+    lines TEXT NOT NULL,
+    PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
 
   await dbInstance.executeSql(`DELETE FROM sync_queue WHERE id NOT IN (SELECT MIN(id) FROM sync_queue GROUP BY studentId)`);
   await dbInstance.executeSql(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_queue_student ON sync_queue (studentId)`);
@@ -93,4 +98,39 @@ export const cacheStudentList = async (students: any[]): Promise<void> => {
     await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
       [uid, JSON.stringify(students), new Date().toISOString()]);
   } catch {}
+};
+
+export const getPageLayoutCache = async (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  fs: number, sparse: number, screenW: number,
+): Promise<number[] | null> => {
+  try {
+    const r = await getDB().executeSql(
+      `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
+    if (r && r[0].rows.length > 0) return JSON.parse(r[0].rows.item(0).lines);
+  } catch { /* cache is best-effort */ }
+  return null;
+};
+
+export const savePageLayoutCache = async (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  fs: number, sparse: number, screenW: number, lines: number[],
+) => {
+  try {
+    await getDB().executeSql(
+      `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW, JSON.stringify(lines)]);
+  } catch { /* best-effort */ }
+};
+
+export const clearPageLayoutCacheRange = async (from: number, to: number): Promise<void> => {
+  try {
+    await getDB().executeSql(
+      `DELETE FROM page_layout_cache WHERE pageNumber >= ? AND pageNumber <= ?`,
+      [from, to],
+    );
+  } catch {
+    // best-effort invalidation
+  }
 };

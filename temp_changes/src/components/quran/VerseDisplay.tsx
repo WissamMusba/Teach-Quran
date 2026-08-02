@@ -22,7 +22,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
-      <Pressable style={styles.arabicRow} onPress={onDeadTap}>
+      <Pressable style={styles.arabicRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
         {words.map((word: string, index: number) => {
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (

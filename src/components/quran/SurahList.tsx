@@ -65,7 +65,7 @@ const juzsOfSurah = (s: number): number[] => {
 
 const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106,127],[128,150],[151,176],[177,186],[187,207],[208,221],[221,235],[235,248],[249,255],[255,261],[261,267],[267,281],[282,292],[293,305],[305,312],[312,321],[322,331],[331,341],[342,349],[350,359],[359,366],[366,376],[376,385],[385,396],[396,404],[404,411],[411,414],[415,417],[418,427],[428,434],[434,440],[440,445],[445,452],[452,458],[458,467],[467,476],[477,482],[483,489],[489,495],[495,498],[498,501],[502,506],[506,510],[511,515],[515,517],[518,520],[520,523],[523,525],[526,528],[528,531],[531,534],[534,537],[537,541],[542,545],[545,548],[549,551],[551,553],[553,554],[554,555],[556,557],[558,559],[560,561],[562,564],[564,567],[567,569],[569,571],[571,573],[573,576],[576,577],[578,580],[580,581],[582,584],[584,585],[586,587],[587,589],[589,590],[590,591],[591,592],[592,594],[594,595],[595,596],[596,596],[597,597],[597,598],[598,599],[600,600],[600,601],[601,602],[602,602],[602,602],[603,603],[603,604],[604,604],[604,605],[605,605],[605,606],[606,606],[606,606],[607,607],[607,607],[607,607],[608,608],[608,608],[608,608],[608,609],[609,609],[609,609],[609,609],[610,610],[610,610]];
 
-export default function SurahList({ visible, onClose, onSelect }: any) {
+export default function SurahList({ visible, onClose, onSelect, onSelectPage }: any) {
   const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   useEffect(() => { if (visible) { setQuery(''); getSurahs().then(s => setSurahs(s as any)); } }, [visible]);
@@ -94,6 +94,14 @@ export default function SurahList({ visible, onClose, onSelect }: any) {
       if (score > 0) scored.push({ item: s, score });
     }
     scored.sort((a, b) => b.score - a.score || a.item.id - b.item.id);
+    if (qNum > 0) {
+      const out: any[] = [];
+      const exactIdx = scored.findIndex(x => x.item.id === qNum);
+      if (exactIdx >= 0) out.push(scored[exactIdx].item);
+      if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
+      scored.forEach((x, i) => { if (i !== exactIdx) out.push(x.item); });
+      return out;
+    }
     return scored.map(x => x.item);
   }, [data, query]);
   return (
@@ -111,13 +119,22 @@ export default function SurahList({ visible, onClose, onSelect }: any) {
         ) : (
           <FlatList data={results} keyExtractor={(item: any) => item.id.toString()} keyboardShouldPersistTaps="handled"
             renderItem={({ item }: any) => (
-              <TouchableOpacity style={styles.item} onPress={() => { onSelect(item.id); onClose(); }}>
+              <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>
-                  <Text style={styles.itemNum}>{item.id}</Text>
+                  <Text style={styles.itemNum}>{item.type === 'page' ? item.page : item.id}</Text>
                   <View>
                     <Text style={styles.itemText}>{item.englishName}</Text>
-                    <Text style={styles.itemJuz}>Juz {item.startJuz} · {item.verses} ayahs</Text>
-                    <Text style={styles.itemPages}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
+                    {item.type === 'page' ? (
+                      <>
+                        <Text style={styles.pageTag}>PAGE</Text>
+                        <Text style={styles.itemJuz}>Go to page {item.page}</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.itemJuz}>Juz {item.startJuz} · {item.verses} ayahs</Text>
+                        <Text style={styles.itemPages}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
+                      </>
+                    )}
                   </View>
                 </View>
                 <Text style={styles.itemArabic}>{item.name}</Text>
@@ -143,5 +160,6 @@ const styles = StyleSheet.create({
   itemText: { fontSize: 17, color: '#fff' },
   itemJuz: { fontSize: 12, color: '#8a8a8a', marginTop: 2 },
   itemPages: { fontSize: 12, color: '#8a8a8a', marginTop: 2 },
+  pageTag: { color: '#00d4aa', fontSize: 10, fontWeight: '700', borderWidth: 1, borderColor: '#00d4aa', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
   itemArabic: { fontSize: 20, color: '#fff' },
 });
