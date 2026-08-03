@@ -95,7 +95,6 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const posRef = useRef({ x: MARGIN, y: initY });
   const preDockRef = useRef({ x: MARGIN, y: initY });
 
-  const clampXDrag = (v: number) => Math.max(-(expandedWidth - DOCK_PEEK), Math.min(v, width - DOCK_PEEK));
   const clapXOnOpen = (v: number) => Math.max(MARGIN, Math.min(v, width - expandedWidth - MARGIN));
   const clampXDock = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - Math.round(ROUND / 2)));
   const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK) - V_EXTRA, Math.min(v, height - BOT - V_EXTRA - DOCK_PEEK));
@@ -104,19 +103,11 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y };
   }, [x, y]);
 
-  const onMoveShouldSetResponder = useCallback((e: any) => {
-    const s = dragStart.current;
-    if (!s) return false;
-    const dx = Math.abs(e.nativeEvent.pageX - s.x);
-    const dy = Math.abs(e.nativeEvent.pageY - s.y);
-    return dx >= DRAG_SLOP || dy >= DRAG_SLOP;
-  }, []);
-
   const onTouchMove = useCallback((e: any) => {
     const dx = e.nativeEvent.pageX - dragStart.current.x;
     const dy = e.nativeEvent.pageY - dragStart.current.y;
     const newPx = dragStart.current.px + dx;
-    const nx = open ? clampXDrag(newPx) : clampXDock(newPx);
+    const nx = open ? clapXOnOpen(newPx) : clampXDock(newPx);
     const ny = clampY(dragStart.current.py + dy);
     setPos([nx, ny]);
     posRef.current = { x: nx, y: ny };
@@ -227,11 +218,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
       </View>
 
       {open && (
-        <View style={[d.bar, { backgroundColor: barBg, marginLeft: GAP }]}
-          onStartShouldSetResponder={(e: any) => { dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y }; return false; }}
-          onMoveShouldSetResponder={onMoveShouldSetResponder}
-          onResponderMove={onTouchMove}
-          onResponderRelease={onDragEnd}>
+        <View style={[d.bar, { backgroundColor: barBg, marginLeft: GAP }]}>
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
           <ToolBtn k="pen" label="PEN" Icon={Pencil} />
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
