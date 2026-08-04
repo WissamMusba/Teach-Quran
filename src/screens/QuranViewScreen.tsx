@@ -842,11 +842,30 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: New-surah-on-page detection for the footer NEW SURAH button: the
    *   first verse of a page that is verse 1 of its surah (i.e. the surah
-   *   starts on this page). Flowing/ayah modes have no pages -> null.
+   *   starts on this page). In split view both halves of the visible spread
+   *   are scanned (left odd page first, then the even page) and the FIRST new
+   *   surah in reading order wins — a page with 2 surahs (end of one + start
+   *   of the next) yields the one that actually starts there. Flowing/ayah
+   *   modes have no pages -> null -> button greyed out.
    * CALLS: none.
    * CALLED BY: footer render (canPlayNewSurah) + playNewSurah.
    */
-  const newSurahOnPage = readingMode === 'page' ? (pageVersesCache[currentPageNum] || []).find((v: any) => v.verseNumber === 1) : null;
+  const newSurahOnPage = readingMode === 'page'
+    ? (() => {
+        const pagesToScan = [currentPageNum];
+        if (splitOn) {
+          const left = currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum;
+          const right = currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1;
+          pagesToScan[0] = left;
+          if (right >= 1 && right <= pageNumbers.length) pagesToScan.push(right);
+        }
+        for (const pg of pagesToScan) {
+          const found = (pageVersesCache[pg] || []).find((v: any) => v.verseNumber === 1);
+          if (found) return found;
+        }
+        return null;
+      })()
+    : null;
 
   /**
    * WHAT: Footer PLAY button — starts playback from the page's first verse
