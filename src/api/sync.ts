@@ -51,8 +51,11 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       const canvasKeys = slice.filter((k: string) => k !== '_manifest');
       const includesManifest = slice.includes('_manifest');
 
-      for (const k of canvasKeys) {
-        const local = await getChunk(sid, k);
+      // Fetch all local chunks concurrently to avoid UI freezes from sequential SQLite reads
+      const chunkPromises = canvasKeys.map(k => getChunk(sid, k).then(local => ({ k, local })));
+      const chunks = await Promise.all(chunkPromises);
+
+      for (const { k, local } of chunks) {
         if (!local) { await markSynced(sid, k); continue; }
         batch.set(drawsCol.doc(k), {
           ...local.data,
@@ -86,7 +89,7 @@ const pushAllDirty = async (userId: string): Promise<number> => {
         for (const k of slice) await markSynced(sid, k);
       } catch (e) {
         console.warn(`push failed ${sid}`, e);
-        for (const k of slice) { await bumpAttempt(sid, k); await markSynced(sid, k); } // give up -> manual retry
+        for (const k of slice) { await bumpAttempt(sid, k); } // give up -> retry later, do NOT delete from queue
       }
     }
   }
@@ -117,15 +120,37 @@ const pullRemote = async (userId: string): Promise<number> => {
     }
 
     const pages = cloudMeta.pages || {};
-    for (const [canvasKey, info] of Object.entries(pages) as Array<[string, any]>) {
-      const local = await getChunk(sid, canvasKey);
-      if (local && local.v >= (info.v || 0)) continue;     // targeted download only
-      const dSnap = await firestore().collection('users').doc(userId)
-        .collection('students').doc(sid).collection('draws').doc(canvasKey).get();
-      if (dSnap.exists) {
-        await saveChunk(sid, canvasKey, dSnap.data(), info.v || 0);
-        pulled++;
-      }
+    const pageEntries = Object.entries(pages) as Array<[string, any]>;
+    
+    // Fetch local chunks concurrently to check which ones need downloading
+    const localChecks = await Promise.all(
+      pageEntries.map(async ([canvasKey, info]) => {
+        const local = await getChunk(sid, canvasKey);
+        if (!local || local.v < (info.v || 0)) return { canvasKey, v: info.v || 0 };
+        return null;
+      })
+    );
+    const neededChunks = localChecks.filter(Boolean) as { canvasKey: string, v: number }[];
+
+    // Fetch from Firestore in batches of 30 (Firestore 'in' query limit)
+    const BATCH_SIZE = 30;
+    for (let i = 0; i < neededChunks.length; i += BATCH_SIZE) {
+      const batchNeeded = neededChunks.slice(i, i + BATCH_SIZE);
+      const batchKeys = batchNeeded.map(n => n.canvasKey);
+      
+      const snaps = await firestore().collection('users').doc(userId)
+        .collection('students').doc(sid).collection('draws')
+        .where(firestore.FieldPath.documentId(), 'in', batchKeys).get();
+        
+      // saveChunk can be done concurrently too for more speed
+      await Promise.all(
+        snaps.docs.map(async (doc) => {
+          const canvasKey = doc.id;
+          const targetV = batchNeeded.find(n => n.canvasKey === canvasKey)?.v || 0;
+          await saveChunk(sid, canvasKey, doc.data(), targetV);
+        })
+      );
+      pulled += snaps.docs.length;
     }
   }
   return pulled;
