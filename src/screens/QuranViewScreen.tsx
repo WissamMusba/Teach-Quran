@@ -910,7 +910,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       onError: (msg: string) => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); Alert.alert('Playback error', msg); },
     };
     try {
-      await playSurahFromVerse(audioPlayer.current, qariId, newSurahOnPage.surahId, 1, callbacks, { playBasmala: !!playBasmala });
+      await playSurahFromVerse(audioPlayer.current, qariId, newSurahOnPage.surahId, 1, callbacks, { playBasmala: true });
       dispatch(setPlaying(true));
     } catch { dispatch(setPlaying(false)); }
   };
@@ -1002,8 +1002,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={flatListRef} data={splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers}
                 keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
-                horizontal inverted pagingEnabled showsHorizontalScrollIndicator={false}
-                removeClippedSubviews decelerationRate="fast" scrollEventThrottle={16}
+                horizontal inverted showsHorizontalScrollIndicator={false}
+                snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
+                removeClippedSubviews scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 initialNumToRender={5} maxToRenderPerBatch={10} windowSize={7}
@@ -1088,7 +1089,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* share spinner overlay */}
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
       {/* bottom playback bar — visible only while the header is visible */}
-      {isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} />}
+      {isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} />}
 
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}
       <SurahList visible={showList} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} onSelectPage={handleSelectPage} />

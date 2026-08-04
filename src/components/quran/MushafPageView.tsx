@@ -19,7 +19,7 @@ import OrnamentalFrame from './OrnamentalFrame';
 import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const hPad = (w: number) => (w >= 600 ? w * 0.08 : 16);
+const hPad = (w: number) => (w >= 600 ? w * 0.08 : 8);
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
