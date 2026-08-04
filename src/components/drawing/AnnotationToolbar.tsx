@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   useWindowDimensions, Alert, Platform, StatusBar,
@@ -10,7 +10,6 @@ import {
 } from '../../store/drawingSlice';
 
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
-const DRAG_SLOP = 8;
 const SAFETY = 12;
 const HS = 6;
 const ACCENT = '#00D4AA';
@@ -56,24 +55,24 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
   const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
 
-  const TAB = Math.min(60, Math.max(28, Math.floor((width - SAFETY) / 10.75)));
-  const ROUND = Math.max(44, Math.round(TAB * 1.3));
+  const TAB = Math.min(52, Math.max(26, Math.floor((width - SAFETY) / 11.5)));
+  const ROUND = Math.max(40, Math.round(TAB * 1.3));
   const GAP = Math.max(4, Math.round(TAB * 0.15));
   const COL = TAB;
   const MARGIN = 6;
   const pad = GAP;
-  const barPadV = Math.min(pad, 4);
+  const barPadV = Math.min(pad, 5);
   const colPadV = 6;
   const palPad = Math.max(8, Math.round(TAB * 0.25));
   const swGap = Math.max(2, Math.round(TAB * 0.06));
-  const swW = Math.max(40, Math.min(48, Math.round(TAB * 1.25)));
+  const swW = Math.max(36, Math.min(44, Math.round(TAB * 1.2)));
   const PAL_W = Math.min(Math.round(4 * swW + 3 * swGap + 2 * palPad), width - 2 * MARGIN);
   const PAL_H = Math.max(Math.round(TAB * 3.5), 104);
   const BAR_W = 9 * TAB + 2 * pad;
-  const SZ1 = 28;
-  const SZ2 = 26;
-  const SZ3 = 28;
-  const LAB_SZ = Math.min(12, Math.max(9, Math.round(TAB * 0.36)));
+  const SZ1 = 22;
+  const SZ2 = 20;
+  const SZ3 = 22;
+  const LAB_SZ = Math.min(10, Math.max(8, Math.round(TAB * 0.32)));
   const ZIG_W = Math.min(42, Math.round(swW * 0.95));
   const ZIG_H = Math.min(22, Math.round(swW * 0.5));
   const swt = Math.max(1.7, Math.round(TAB * 0.055 * 10) / 10);
@@ -90,6 +89,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const [pal, setPal] = useState(false);
   const [selectedTool, setSelectedTool] = useState('');
   const [docked, setDocked] = useState<string | null>(null);
+
+  useEffect(() => { if (!open) setSelectedTool(''); }, [open]);
   const [[x, y], setPos] = useState([MARGIN, initY]);
   const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const posRef = useRef({ x: MARGIN, y: initY });
@@ -167,6 +168,12 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     onDragEnd(e);
   }, [docked, open, onDragEnd, reclampOnExpand, onExit, dispatch]);
 
+  const onWrapEnd = useCallback((e: any) => {
+    const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
+    const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
+    if (dx >= 8 || dy >= 8) onDragEnd(e);
+  }, [onDragEnd]);
+
   if (!visible) return null;
 
   const barBg = nightMode ? 'rgba(200,200,215,0.60)' : 'rgba(18,18,20,0.85)';
@@ -196,8 +203,17 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
+    const lblC = sel ? ACCENT : labC;
     return (<TouchableOpacity style={d.col} hitSlop={HS} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
-      <Icon c={sel ? ACCENT : iconC} sz={SZ1} sw={swt} /><Text numberOfLines={1} style={[d.lab, { color: labC }, sel && { color: ACCENT }]}>{label}</Text>
+      <Icon c={sel ? ACCENT : iconC} sz={SZ1} sw={swt} />
+      {k === 'underline' ? (
+        <>
+          <Text numberOfLines={1} style={[d.lab, { color: lblC }]}>UNDER</Text>
+          <Text numberOfLines={1} style={[d.lab, { marginTop: 1, color: lblC }]}>LINE</Text>
+        </>
+      ) : (
+        <Text numberOfLines={1} style={[d.lab, { color: lblC }]}>{label}</Text>
+      )}
     </TouchableOpacity>);
   };
   const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
@@ -207,7 +223,11 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   );
 
   return (
-    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}>
+    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={onTouchStart}
+      onResponderMove={onTouchMove}
+      onResponderRelease={onWrapEnd}>
       <View style={[d.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
@@ -251,7 +271,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
               </View>
             )}
           </View>
-          <TouchableOpacity style={d.col} hitSlop={HS} onPress={() => { setPal(false); dispatch(setToolbarExpanded(false)); }} activeOpacity={0.5}>
+          <TouchableOpacity style={d.col} hitSlop={HS} onPress={() => { setPal(false); dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
             <CloseI c={iconC} sz={SZ2} sw={swt} /><Text style={[d.lab, { color: labC }]}>EXIT</Text>
           </TouchableOpacity>
         </View>
