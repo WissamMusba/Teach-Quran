@@ -4,15 +4,25 @@
  *       prefetches the next 2 verses to disk (RNFS, OPTIONAL — playback works without it), and fires onVerseChange
  *       exactly at each verse start (no timeline/seek math at all).
  *       Optionally plays the basmala (the reciter's own 1:1 file) before verse 1 of a surah (surah 1 & 9 excluded).
+ *       RESUME continues mid-verse: pauseSurahWithResume keeps the native player paused at the exact position and
+ *       resumeSurah calls the native resumePlayer (fallback: clean restart of the same verse).
  * DEPENDS ON: react-native-fs (RNFS) -> optional on-disk ayah cache under DocumentDirectoryPath/ayahCache;
  *             an AudioRecorderPlayer instance passed by the caller; qariId one of 'ar.alafasy' | 'ar.abdulbasit'
  *             (else defaults to abdulbasit); network access to everyayah.com (primary) + cdn.islamic.network (last resort).
- * USED BY: QuranViewScreen.tsx:33 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable,
+ * USED BY: QuranViewScreen.tsx:53 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable,
  *          SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse).
  * WHY PER-AYAH (history): the old whole-surah streamer (mp3quran 001.mp3 + quran.com by_surah segment timeline)
  *          drifted badly — api.quran.com/v4/recitations/{id}/by_surah/{n} now returns 404, so the timeline fell back
  *          to text-length-proportional estimates, landing the seek ~15-30s (1-2 verses) before the tapped verse.
  *          Per-ayah files always start exactly at the verse's first word, and no longer play audhu/basmala at surah start.
+ * WHY isFinished (v49 fix): react-native-audio-recorder-player's PlayBackType is ONLY {currentPosition, duration,
+ *          isFinished} — there is NO `status` field (verified in the installed module: android/.../Module.kt emits
+ *          duration/currentPosition/isFinished; index.ts PlayBackType). The v48 listener switched on e.status, which
+ *          never matched -> no verse ever advanced -> "as soon as one ayah is done it stops". ALSO the library's
+ *          startPlayer() JS guard (`if (!this._isPlaying || this._hasPaused)`) silently no-ops while the previous
+ *          player is still flagged playing, and its internal stopPlayer() runs right after every isFinished event —
+ *          so every verse advance first awaits OUR stopPlayback() (clears the flag, lets the internal stop land)
+ *          before startPlayer() of the next verse.
  */
 import RNFS from 'react-native-fs';
 
@@ -79,9 +89,34 @@ export const resumeSurah = async (player: any, qariId: string, callbacks: Playba
   if (!session) return false;
   const lastVerse = SURAH_VERSE_COUNTS[session.surahId - 1] || 1;
   resumeSession = null;
-  await stopPlayback(player);
   currentSurahId = session.surahId;
-  playVerse(player, qariId, session.surahId, session.verse, lastVerse, callbacks, false);
+  currentVerse = session.verse;
+  playToken++;
+  clearWatchdog();
+  try {
+    player.removePlayBackListener();
+  } catch {}
+  // 1) Native resume: pauseSurahWithResume left the media player paused at the EXACT mid-verse
+  //    position; resumePlayer() (seekTo(currentPosition) + start) continues from there.
+  let resumed = false;
+  try {
+    const r: any = await Promise.race([
+      Promise.resolve(player.resumePlayer()),
+      new Promise((res) => setTimeout(() => res('__resume_timeout'), 2500)),
+    ]);
+    // Success resolves 'resume player'; failure modes resolve 'No audio playing'/'Already playing'.
+    resumed = typeof r === 'string' && r !== 'No audio playing' && r !== 'Already playing' && r !== '__resume_timeout';
+  } catch {
+    resumed = false;
+  }
+  if (!resumed) {
+    // Paused native player was lost (stopped/released meanwhile) — restart the verse cleanly, no basmala.
+    await stopPlayback(player);
+    playVerse(player, qariId, session.surahId, session.verse, lastVerse, callbacks, false);
+    return true;
+  }
+  attachResumeListener(player, qariId, session.surahId, session.verse, lastVerse, callbacks);
+  markStarted(player);
   return true;
 };
 
@@ -199,9 +234,36 @@ const markStarted = (player: any): void => {
 };
 
 /**
+ * Verse completion: cleanup + advance to verse+1 (or onEnd at the last verse).
+ * The advance MUST first await our stopPlayback(): the library's internal stopPlayer() fires
+ * right after every isFinished event and its startPlayer() guard silently no-ops while the
+ * previous player is still flagged playing. Token check aborts if a pause/restart landed meanwhile.
+ */
+const advanceToNext = (
+  player: any,
+  qariId: string,
+  surahId: number,
+  verse: number,
+  lastVerse: number,
+  callbacks: PlaybackCallbacks,
+): void => {
+  cleanupAyahCache(qariId, surahId, verse - PREFETCH_AHEAD - 1);
+  if (verse < lastVerse) {
+    const t = playToken;
+    stopPlayback(player).then(() => {
+      if (t !== playToken) return;
+      playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks, false);
+    });
+  } else {
+    playing = false;
+    callbacks.onEnd?.();
+  }
+};
+
+/**
  * Shared attempt chain: plays ONE audio file through `sources` (cached local file first),
  * with a stall watchdog per attempt and token-based cancellation.
- * onComplete(status3) / onExhausted(all mirrors failed, no error fired by this helper).
+ * onComplete(isFinished) / onExhausted(all mirrors failed, no error fired by this helper).
  */
 const startAttemptChain = (
   player: any,
@@ -218,29 +280,22 @@ const startAttemptChain = (
       return;
     }
     const attemptToken = playToken;
-    player.removePlayBackListener();
+    try {
+      player.removePlayBackListener();
+    } catch {}
     let started = false;
-    // Status codes: 2 playing, 3 completed, 4 paused, 5 stopped, 6 interrupted, 7 unknown.
+    // Native events carry ONLY {currentPosition, duration, isFinished} — no status field.
     player.addPlayBackListener((e: any) => {
       if (attemptToken !== playToken) return;
       clearWatchdog();
       const pos = e.currentPosition;
       if (typeof pos === 'number' && pos >= 0) lastPositionMs = pos;
-      switch (e.status) {
-        case 2:
-          started = true;
-          markStarted(player);
-          break;
-        case 3:
+      if (e.isFinished === true) {
+        try {
           player.removePlayBackListener();
-          onComplete();
-          break;
-        case 5:
-        case 6:
-          playToken++;
-          player.removePlayBackListener();
-          playing = false;
-          break;
+        } catch {}
+        playToken++;
+        onComplete();
       }
     });
     stallTimer = setTimeout(() => {
@@ -285,6 +340,49 @@ const startAttemptChain = (
   nextAttempt(0);
 };
 
+/**
+ * Listener re-attachment for the native-resume path (resumeSurah success): the paused native
+ * player continues mid-verse; we only re-arm the listener (completion -> advance) + watchdog
+ * (stalled resume -> clean restart of the verse). No basmala on resume.
+ */
+const attachResumeListener = (
+  player: any,
+  qariId: string,
+  surahId: number,
+  verse: number,
+  lastVerse: number,
+  callbacks: PlaybackCallbacks,
+): void => {
+  playToken++;
+  const token = playToken;
+  try {
+    player.removePlayBackListener();
+  } catch {}
+  player.addPlayBackListener((e: any) => {
+    if (token !== playToken) return;
+    clearWatchdog();
+    const pos = e.currentPosition;
+    if (typeof pos === 'number' && pos >= 0) lastPositionMs = pos;
+    if (e.isFinished === true) {
+      try {
+        player.removePlayBackListener();
+      } catch {}
+      playToken++;
+      advanceToNext(player, qariId, surahId, verse, lastVerse, callbacks);
+    }
+  });
+  stallTimer = setTimeout(() => {
+    stallTimer = null;
+    if (token !== playToken) return;
+    playToken++;
+    playing = false;
+    stopPlayback(player).then(() => {
+      if (currentSurahId !== surahId) return;
+      playVerse(player, qariId, surahId, verse, lastVerse, callbacks, false);
+    });
+  }, ATTEMPT_TIMEOUT_MS);
+};
+
 const playVerse = (
   player: any,
   qariId: string,
@@ -300,12 +398,13 @@ const playVerse = (
     prefetchAyah(qariId, 1, 1);
     prefetchAyah(qariId, surahId, 1);
     prefetchAyah(qariId, surahId, 2);
+    const goVerse1 = () => stopPlayback(player).then(() => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false));
     startAttemptChain(
       player,
       getAudioSources(qariId, 1, 1),
       cachedPath(qariId, 1, 1),
-      () => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false),
-      () => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false),
+      goVerse1,
+      goVerse1,
     );
     return;
   }
@@ -317,14 +416,7 @@ const playVerse = (
     player,
     getAudioSources(qariId, surahId, verse),
     cachedPath(qariId, surahId, verse),
-    () => {
-      cleanupAyahCache(qariId, surahId, verse - PREFETCH_AHEAD - 1);
-      if (verse < lastVerse) playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks, false);
-      else {
-        playing = false;
-        callbacks.onEnd?.();
-      }
-    },
+    () => advanceToNext(player, qariId, surahId, verse, lastVerse, callbacks),
     () => {
       playing = false;
       callbacks.onError?.('Audio could not be played from any server. Please check your connection.');

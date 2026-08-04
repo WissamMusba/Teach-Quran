@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "f622880af2c7d092cebb064f0393a8a3f7866185",
-    "indexed_at": "2026-08-04T13:03:41Z",
+    "commit": "9b015381df15829713666bf6d0ab9d2409fa6ebe",
+    "indexed_at": "2026-08-04T13:41:33Z",
     "project": "C-Users-wissa-Downloads-QuranMasterApp",
-    "nodes": 7949,
-    "edges": 9174,
-    "original_size": 12517376,
-    "compressed_size": 1125444,
+    "nodes": 7952,
+    "edges": 9190,
+    "original_size": 12582912,
+    "compressed_size": 1134954,
     "compression_level": 3
 }
