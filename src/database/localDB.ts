@@ -67,6 +67,14 @@ export const initDatabase = async () => {
     lines TEXT NOT NULL,
     PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
 
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+  const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
+  const ver = r && r[0] && r[0].rows && r[0].rows.length ? parseInt(r[0].rows.item(0).value, 10) : 0;
+  if (ver < 2) {
+    await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','2')`);
+  }
+
   // dedup DELETE: collapse legacy multi-row queues — keeps the OLDEST row per student
   await dbInstance.executeSql(`DELETE FROM sync_queue WHERE id NOT IN (SELECT MIN(id) FROM sync_queue GROUP BY studentId)`);
   // UNIQUE index: enforces one queue row per student, matches the INSERT OR REPLACE semantics of persistStudentData

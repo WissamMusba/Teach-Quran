@@ -10,7 +10,7 @@
  * USED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem
  */
 
-import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
@@ -209,6 +209,14 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const completedLinesRef = useRef<Set<number>>(new Set());
   const cacheWrittenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
+  const [fontReady, setFontReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    setFontReady(false);
+    const t = setTimeout(() => { if (mounted) setFontReady(true); }, 150);
+    return () => { mounted = false; clearTimeout(t); };
+  }, [fontFamily, pageNum, fixNonce]);
 
   // DEAD CODE: verseByKey is built from versesForPage but never referenced below.
   // hlMap indexes highlights by "surahId_verseNumber" for per-word mistake lookups.
@@ -242,16 +250,45 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   // scaleForLine switches to the arithmetic single-pass path; 'miss' → measurement path. The
   // cancellation flag guards the unmount race. Deps mirror the reset effect (no headerVisible).
   useEffect(() => {
-    if (!pageData || !pageData.lines || pageData.lines.length === 0) return;
+    if (!fontReady || !pageData?.lines?.length) return;
     let cancelled = false;
     getPageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth))
       .then((cached) => {
         if (cancelled) return;
-        if (cached) { layoutContentRef.current = cached; setCacheState('hit'); }
-        else setCacheState('miss');
+        if (cached) {
+          layoutContentRef.current = cached;
+          setCacheState('hit');
+          scheduleVerify();
+        } else {
+          setCacheState('miss');
+        }
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, fs, pageWidth, fixNonce, fontReady]);
+
+  const scheduleVerify = useCallback(() => {
+    setTimeout(() => commitVerify(), 350);
+  }, []);
+
+  const commitVerify = useCallback(() => {
+    const fresh = widthsRef.current;
+    const keys = Object.keys(fresh).map(Number);
+    if (keys.length === 0) return;
+    const lineW = pageWidth - 2 * hPad(pageWidth);
+    const sums: number[] = [];
+    for (let k = 0; k <= Math.max(...keys); k++) {
+      const arr = fresh[k];
+      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) + (lineExtraRef.current[k] || 0) : 0;
+    }
+    const saved = layoutContentRef.current || [];
+    const differs = sums.length !== saved.length ||
+      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > 1.5);
+    if (differs) {
+      layoutContentRef.current = sums;
+      setLineScale({});
+      savePageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth), sums);
+    }
+  }, [pageNum, textStyle, fs, pageWidth, sparse]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -279,6 +316,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
    *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+    if (!fontReady) return;
     if (layoutContentRef.current) return;
     if (scaleRef.current[lineKey]) return;
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
