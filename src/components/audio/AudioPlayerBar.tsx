@@ -50,16 +50,16 @@ const AudioPlayerBar = ({ onOpenQari, onResume, onPlayPageStart, onPlayNewSurah,
           <Text style={[styles.ctrlIcon, canStep ? theme.ctrlText : { color: dimC }]}>◀</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.resumeBtn, theme.resumeBtn]} onPress={onResume}>
-          <Text style={styles.resumeText}>{isPlaying ? '⏸ RESUME' : '▶ RESUME'}</Text>
+          <Text style={styles.resumeText}>{isPlaying ? '⏸ PAUSE' : '▶ RESUME'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrl, canStep ? theme.ctrl : styles.ctrlOff]} onPress={onNextVerse} disabled={!canStep}>
           <Text style={[styles.ctrlIcon, canStep ? theme.ctrlText : { color: dimC }]}>▶</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrl, styles.ctrlWide, theme.ctrl]} onPress={onPlayPageStart}>
-          <Text style={[styles.ctrlText, theme.ctrlText]}>PLAY</Text>
+          <Text style={[styles.ctrlText, theme.ctrlText]}>▶ PLAY PAGE</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrl, styles.ctrlWide, canPlayNewSurah ? theme.ctrl : styles.ctrlOff]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah}>
-          <Text style={[styles.ctrlText, canPlayNewSurah ? theme.ctrlText : { color: dimC }]}>NEW SURAH</Text>
+          <Text style={[styles.ctrlText, canPlayNewSurah ? theme.ctrlText : { color: dimC }]}>▶ PLAY SURAH</Text>
         </TouchableOpacity>
       </View>
     </View>
