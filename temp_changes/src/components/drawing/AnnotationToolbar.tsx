@@ -11,7 +11,6 @@ import {
 
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
 const SAFETY = 12;
-const HS = 6;
 const ACCENT = '#00D4AA';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
@@ -72,7 +71,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const SZ1 = 22;
   const SZ2 = 20;
   const SZ3 = 22;
-  const LAB_SZ = Math.min(10, Math.max(8, Math.round(TAB * 0.32)));
+  const LAB_SZ = Math.min(8, Math.max(7, Math.round(TAB * 0.24)));
   const ZIG_W = Math.min(42, Math.round(swW * 0.95));
   const ZIG_H = Math.min(22, Math.round(swW * 0.5));
   const swt = Math.max(1.7, Math.round(TAB * 0.055 * 10) / 10);
@@ -96,8 +95,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const posRef = useRef({ x: MARGIN, y: initY });
   const preDockRef = useRef({ x: MARGIN, y: initY });
 
-  const clapXOnOpen = (v: number) => Math.max(MARGIN, Math.min(v, width - expandedWidth - MARGIN));
-  const clampXDock = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - Math.round(ROUND / 2)));
+  const clampX = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - Math.round(ROUND / 2)));
+  const clampXOpen = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - expandedWidth - MARGIN));
   const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK) - V_EXTRA, Math.min(v, height - BOT - V_EXTRA - DOCK_PEEK));
 
   const onTouchStart = useCallback((e: any) => {
@@ -108,14 +107,14 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     const dx = e.nativeEvent.pageX - dragStart.current.x;
     const dy = e.nativeEvent.pageY - dragStart.current.y;
     const newPx = dragStart.current.px + dx;
-    const nx = open ? clapXOnOpen(newPx) : clampXDock(newPx);
+    const nx = clampX(newPx);
     const ny = clampY(dragStart.current.py + dy);
     setPos([nx, ny]);
     posRef.current = { x: nx, y: ny };
-  }, [width, height, open]);
+  }, [width, height]);
 
   const reclampOnExpand = useCallback((px: number, py: number) => {
-    return { x: clapXOnOpen(px), y: clampY(py) };
+    return { x: clampXOpen(px), y: clampY(py) };
   }, [width, height, sbHeight, BOT]);
 
   const onDragEnd = useCallback((e: any) => {
@@ -190,26 +189,26 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const d = {
     grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 0, alignItems: 'center' as const, justifyContent: 'center' as const, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
     bar: { flexDirection: 'row' as const, alignItems: 'center' as const, borderRadius: Math.round(TAB * 0.3), paddingHorizontal: pad, paddingVertical: barPadV, borderWidth: 0, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-    col: { width: COL, minHeight: 56, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: colPadV },
-    lab: { fontSize: LAB_SZ, marginTop: 3, fontWeight: '600' as const },
+    col: { width: COL, minHeight: 40, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: colPadV },
+    lab: { fontSize: LAB_SZ, marginTop: 2, fontWeight: '600' as const },
     dot: { width: Math.min(26, Math.max(22, Math.round(TAB * 0.6))), height: Math.min(26, Math.max(22, Math.round(TAB * 0.6))), borderRadius: Math.min(13, Math.max(11, Math.round(TAB * 0.3))), borderWidth: Math.max(2, Math.round(TAB * 0.06)) },
     pal: { position: 'absolute' as const, left: -(PAL_W - COL) / 2, width: PAL_W, borderRadius: Math.round(TAB * 0.375), padding: palPad, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
     arr: { alignSelf: 'center' as const, width: 0, height: 0, borderLeftWidth: Math.max(5, Math.round(TAB * 0.22)), borderRightWidth: Math.max(5, Math.round(TAB * 0.22)), borderTopWidth: Math.max(6, Math.round(TAB * 0.25)), borderBottomWidth: Math.max(6, Math.round(TAB * 0.25)), borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
     row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, marginBottom: Math.round(TAB * 0.25) },
     wcol: { alignItems: 'center' as const, paddingVertical: Math.max(4, Math.round(TAB * 0.14)) },
-    zw: { fontSize: LAB_SZ, marginTop: 2, fontWeight: '700' as const },
+    zw: { fontSize: LAB_SZ, marginTop: 1, fontWeight: '700' as const },
     sw: { width: swW, height: Math.round(swW * 0.8), borderRadius: Math.round(swW * 0.22), borderWidth: 2, marginBottom: Math.round(TAB * 0.19) },
   };
 
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
     const lblC = sel ? ACCENT : labC;
-    return (<TouchableOpacity style={d.col} hitSlop={HS} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
+    return (<TouchableOpacity style={d.col} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
       <Icon c={sel ? ACCENT : iconC} sz={SZ1} sw={swt} />
       {k === 'underline' ? (
         <>
           <Text numberOfLines={1} style={[d.lab, { color: lblC }]}>UNDER</Text>
-          <Text numberOfLines={1} style={[d.lab, { marginTop: 1, color: lblC }]}>LINE</Text>
+          <Text numberOfLines={1} style={[d.lab, { marginTop: 0, color: lblC }]}>LINE</Text>
         </>
       ) : (
         <Text numberOfLines={1} style={[d.lab, { color: lblC }]}>{label}</Text>
@@ -217,7 +216,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     </TouchableOpacity>);
   };
   const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
-    <TouchableOpacity style={d.col} hitSlop={HS} onPress={onPress} disabled={disabled} activeOpacity={0.5}>
+    <TouchableOpacity style={d.col} onPress={onPress} disabled={disabled} activeOpacity={0.5}>
       <Icon c={disabled ? disC : iconC} sz={SZ2} sw={swt} /><Text numberOfLines={1} style={[d.lab, { color: labC }, disabled && { color: disC }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -251,27 +250,27 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
               { text: 'Clear', style: 'destructive', onPress: onClear },
             ])} />
           <View style={s.colorWrap}>
-            <TouchableOpacity style={d.col} hitSlop={HS} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
+            <TouchableOpacity style={d.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
               <View style={[d.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : iconC }]} />
               <Text numberOfLines={1} style={[d.lab, { color: labC }, pal && { color: ACCENT }]}>COLOR</Text>
             </TouchableOpacity>
             {pal && (
               <View style={[d.pal, { backgroundColor: palBg, top: palTop, left: palLeft }]}>
                 <View style={d.row}>{PEN_SIZES.map((w, i) => (
-                  <TouchableOpacity key={w} style={d.wcol} hitSlop={HS} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
+                  <TouchableOpacity key={w} style={d.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
                     <ZigZag w={w} active={penSize === w} zw={ZIG_W} zh={ZIG_H} />
                     <Text style={[d.zw, { color: labC }, penSize === w && { color: ACCENT }]}>{['S','M','L','XL'][i]}</Text>
                   </TouchableOpacity>))}
                 </View>
                 <View style={s.grid}>{PALETTE.map((c) => (
-                  <TouchableOpacity key={c} hitSlop={HS} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
+                  <TouchableOpacity key={c} onPress={() => dispatch(setColor(c))} activeOpacity={0.7}
                     style={[d.sw, { backgroundColor: c, borderColor: activeColor === c ? '#fff' : 'rgba(255,255,255,0.15)' }]} />
                 ))}</View>
               <View style={[d.arr, palFitsAbove ? { borderTopColor: palBg, position: 'absolute', bottom: -Math.max(6, Math.round(TAB * 0.25)) } : { borderBottomColor: palBg, position: 'absolute', top: -Math.max(6, Math.round(TAB * 0.25)) }]} />
               </View>
             )}
           </View>
-          <TouchableOpacity style={d.col} hitSlop={HS} onPress={() => { setPal(false); dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
+          <TouchableOpacity style={d.col} onPress={() => { setPal(false); dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
             <CloseI c={iconC} sz={SZ2} sw={swt} /><Text style={[d.lab, { color: labC }]}>EXIT</Text>
           </TouchableOpacity>
         </View>
