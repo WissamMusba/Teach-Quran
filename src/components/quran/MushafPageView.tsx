@@ -1,3 +1,15 @@
+/**
+ * FILE: src/components/quran/MushafPageView.tsx
+ * ROLE: Full-page mushaf renderer: lays out page lines right-to-left word-by-word, hides PUA
+ *       verse-end markers, measures words and scale-shrinks overflowing lines, and persists/
+ *       replays a per-page per-font layout cache (SQLite page_layout_cache).
+ * DEPENDS ON: src/utils/responsive.ts (getMushafFontSize/LineHeight), src/utils/constants.ts
+ *             (WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT), src/utils/theme.ts (getArabicFont,
+ *             getJuzInfoFromPage), src/database/localDB.ts (get/savePageLayoutCache),
+ *             ../common/WordHitArea, ./OrnamentalFrame, react-redux (settings/quran slices)
+ * USED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem
+ */
+
 import React, { memo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
@@ -11,8 +23,23 @@ const hPad = (w: number) => (w >= 600 ? w * 0.08 : 16);
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
+// PUA (Private-Use-Area, U+E000-U+F8FF) glyph handling: QPC mushaf fonts encode decorative
+// verse-number circle glyphs in the PUA; standard fonts render them as tofu. stripPua() removes
+// them via a FIFO memo cache keyed by exact input string (bounded at PUA_CACHE_MAX 2000);
+// hasArabicLetters() then tells real words (PUA embedded mid-word) from verse-end markers
+// (PUA-only), which must be hidden instead of rendered.
 const puaCache = new Map<string, string>();
 const PUA_CACHE_MAX = 2000;
+/**
+ * stripPua(t) — strips PUA glyphs from a word string, with a memo cache.
+ * FLOW: 1) puaCache lookup on the exact input string (hit → return cached);
+ *       2) regex-strip all U+E000-U+F8FF chars from (t || '') — the '' guard covers undefined
+ *          word.word; 3) evict the oldest entry (first-inserted key — Map insertion order makes
+ *          eviction FIFO) when size >= PUA_CACHE_MAX, then store.
+ * CALLED BY: isVerseEndMarker decision, WordHitArea expected-count filter, cache-completion
+ *            totalLines, and every word render below. Never touches the DB.
+ * NOTES: runs on every render but is cached by exact input string — fine for a bounded cache.
+ */
 const stripPua = (t: string) => {
   const cached = puaCache.get(t);
   if (cached !== undefined) return cached;
@@ -21,11 +48,33 @@ const stripPua = (t: string) => {
   puaCache.set(t, result);
   return result;
 };
+/**
+ * hasArabicLetters(t) — true when t contains any real Arabic letter
+ * (U+0621-U+064A, U+0671-U+06D3, U+06D5, U+06FA-U+06FC, U+0750-U+077F, U+08A0-U+08FF).
+ * PUA-only strings (verse-end markers) return false → hidden; strings with PUA embedded mid-word
+ * return true → rendered with the PUA stripped.
+ */
 const hasArabicLetters = (t: string) => /[\u0621-\u064A\u0671-\u06D3\u06D5\u06FA-\u06FC\u0750-\u077F\u08A0-\u08FF]/u.test(t);
 
+// Sparse-page heuristic: pages with fewer than SPARSE_WORD_THRESHOLD (50) words get
+// SPARSE_FONT_BOOST (1.3x) applied to fontSize AND lineHeight, plus space-around justification
+// at the line level — typically short surah-opening pages that would otherwise look lost.
 const SPARSE_WORD_THRESHOLD = 50;
 const SPARSE_FONT_BOOST = 1.3;
 
+/**
+ * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
+ * word widths: +40 per verse boundary inside the line, +16 more when that verse has a note.
+ * FLOW: for each word parse location "surah:verse[:wordPos]"; a word ends a verse when the next
+ *       word's verse differs, else the next line's first word differs, else true for the last
+ *       line of the page.
+ * CALLED BY: the per-line render IIFE below — executes during render, writes
+ *            lineExtraRef.current[lineIdx].
+ * AFFECTS: the overflow math in handleWordMeasured and the scale in scaleForLine; NOT persisted
+ *          in the layout cache (notes can change, so extra is re-derived live per render).
+ * NOTES: the boundary rule is duplicated by the isVerseBoundary logic in the word render below —
+ *        two implementations of one rule, keep them in sync.
+ */
 const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any) => {
   let extra = 0;
   (line.words || []).forEach((w: any, i: number) => {
@@ -46,6 +95,56 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
   return extra;
 };
 
+/**
+ * MushafPageView — full-page mushaf renderer; orchestrates the measure-then-scale mechanism
+ * and the layout-cache pipeline.
+ * FLOW:
+ *   1. Derive per-font colors/size from redux (textStyle, nightMode, textBrightness).
+ *   2. Sparse-page boost when total words < SPARSE_WORD_THRESHOLD.
+ *   3. Reset effect clears all measurement refs + lineScale + cacheState('loading') when
+ *      pageNum/textStyle/pageWidth/fixNonce change (headerVisible is NOT among the deps — see
+ *      NOTES). Cache-load effect then async-reads the page_layout_cache row keyed by
+ *      (pageNum, textStyle, headerVisible=false, fs, sparse, rounded pageWidth); headerVisible
+ *      is hardcoded false at BOTH the get and save call sites, so header toggling does not
+ *      invalidate the cache (it still shifts fs, which IS in the cache key).
+ *   4. Render gate: cacheState 'loading' → empty container; no measurement starts before the
+ *      cache verdict arrives.
+ *   5. Lines render row-reverse RTL: per word stripPua → isVerseEndMarker? badge-only fragment :
+ *      WordHitArea (onMeasured → handleWordMeasured) wrapping a Text scaled by scaleForLine().
+ *   6. overlayLayer (frame + juz/surah/page badges, pointerEvents="none") + actionPills append.
+ *
+ * Props (all `any`-typed, mostly optional):
+ *   - headerVisible (default true) — feeds getMushafFontSize/getMushafLineHeight; hides the
+ *     juz/surah/page badges + actionPills when false. Layout cache ignores it (see FLOW 3).
+ *   - pageNum (default 0) — cache key + juz badge lookup; 0 → no juz/page badges.
+ *   - pageWidth (default SCREEN_WIDTH) — layout width; rounded into the cache key
+ *     (half-screen width in split/two-page mode).
+ *   - surahNames — map id → name for the surah pill (redux quran.surahNames).
+ *   - versesForPage — fallback verse rows (pageVersesCache) used only when pageData is missing.
+ *   - pageData — mushaf page object { lines: [{type, words:[{word, location}]}] }.
+ *   - highlights — { "surah_verse": { highlights: [{wordIndex,...}] } } → mistake underlines.
+ *   - onWordPress(verseNum, wordPos) — word tap → toggle mistake highlight.
+ *   - onVerseLongPress(verseNum, pageY) — verse action menu (parent handleVerseLongPress).
+ *   - onBookmarkToggle(verseNum, surahId) — bookmark toggle from the verse badge.
+ *   - bookmarks, notes, readingMarkVerse, flashingVerseKey — per-verse badge state.
+ *   - onDeadTap(pageY) — tap on line background/word margins → toggle header.
+ *   - fixNonce (default 0) — bump to force full re-measure + cache reload ("Fix font").
+ *   - onFixFont — "Fix font" pill → clearPageLayoutCacheRange ±3 pages in the parent.
+ *   - onSpread / spread — tablet spread-mode toggle pill (split mode only).
+ * CALLED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem.
+ * NOTES:
+ *   - memo() export is largely ineffective: pageData/highlights/bookmarks/notes prop identities
+ *     change on parent re-renders; versesForPage comes from a state cache so it stays stable.
+ *   - verseByKey (below) is DEAD CODE — built from versesForPage but never referenced.
+ *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
+ *     measurements for it early-return, so the persisted sum for that line is partial; restored
+ *     scales on a cache hit may differ from first-visit ones until "Fix font" re-measures.
+ *   - headerVisible is absent from BOTH effect dep arrays: toggling the header shifts fs (cache
+ *     key) but does NOT clear measurement refs — a stale-measure/cache mismatch window for which
+ *     the fixNonce bump is the recovery path.
+ *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
+ *     not re-inflate text sizes.
+ */
 const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onFixFont, onSpread, spread }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
@@ -62,6 +161,13 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)';
   const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
+  /**
+   * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
+   * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
+   * -1/+2y when the header is visible, default +0. The result feeds fs (and thus the cache key)
+   * and the word Text translateY transform (transform array only when adj.y is non-zero).
+   * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
+   */
   const getFontAdj = (ts: string, hv: boolean) => {
     switch (ts) {
       case 'saleem': return { size: 2, y: 0 };
@@ -75,12 +181,25 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const adj = getFontAdj(textStyle, headerVisible);
   const compact = pageWidth < 600;
 
+  // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
+  // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
+  // cache key — any font-size shift (textStyle, header visibility, sparse flag) reloads the row.
   const totalWords = pageData?.lines
     ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
     : (versesForPage || []).reduce((a: number, v: any) => a + ((v.textArabic || '').trim().split(/\s+/).filter(Boolean).length), 0);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
   const fs = Math.round((mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1));
 
+  // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
+  //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
+  //   scaleRef                — same multipliers without triggering re-renders (used mid-measure)
+  //   widthsRef               — measured word widths per line
+  //   lineExtraRef            — live computeLineExtra result per line (re-derived every render)
+  //   filledCountRef          — number of words measured so far per line
+  //   layoutContentRef        — loaded cache row (number[] of per-line sums); non-null → cache-hit
+  //   completedLinesRef       — lines whose measured count reached the expected word count
+  //   cacheWrittenRef         — one-shot guard for the completion write-back
+  //   cacheState ('loading'|'miss'|'hit') — render gate; 'loading' renders an empty container
   const [lineScale, setLineScale] = useState<Record<number, number>>({});
   const scaleRef = useRef<Record<number, number>>({});
   const widthsRef = useRef<Record<number, (number | undefined)[]>>({});
@@ -91,6 +210,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const cacheWrittenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
 
+  // DEAD CODE: verseByKey is built from versesForPage but never referenced below.
+  // hlMap indexes highlights by "surahId_verseNumber" for per-word mistake lookups.
   const verseByKey = new Map<string, any>();
   if (versesForPage) {
     for (const v of versesForPage) {
@@ -100,6 +221,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   }
   const hlMap = new Map<string, any>(Object.entries(highlights || {}));
 
+  // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
+  // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
+  // from the deps (and from the cache key — hardcoded false at both DB call sites), yet it still
+  // shifts fs which IS in the cache key; a fixNonce bump is the recovery path (see component
+  // NOTES).
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
@@ -112,6 +238,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
 
+  // Cache-load effect — async SQLite read of the layout sums; 'hit' → layoutContentRef set and
+  // scaleForLine switches to the arithmetic single-pass path; 'miss' → measurement path. The
+  // cancellation flag guards the unmount race. Deps mirror the reset effect (no headerVisible).
   useEffect(() => {
     if (!pageData || !pageData.lines || pageData.lines.length === 0) return;
     let cancelled = false;
@@ -124,6 +253,31 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     return () => { cancelled = true; };
   }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
 
+  /**
+   * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
+   * Accumulates measured word widths per line; on overflow computes a shrink scale; when every
+   * line is complete and nothing written yet, persists the sums to the layout cache.
+   * FLOW:
+   *   1. Bail when the cache already loaded (cache-hit path needs no measuring) or the line is
+   *      already scaled.
+   *   2. Record the width; filledCountRef increments only for previously-unrecorded word indices.
+   *   3. content = Σ widths + live lineExtra; overflow when content > lineW+2 on a complete line,
+   *      or > lineW on a PARTIAL one — the partial check pre-empts the overflow flash before the
+   *      line finishes measuring.
+   *   4. On overflow: scale = max(0.65, (lineW-12)/content) → scaleRef + lineScale state, which
+   *      re-renders the line with the scaled font.
+   *   5. On complete: track in completedLinesRef; when ALL lines (counted only where the line
+   *      holds any real Arabic word) are done and nothing written yet → build sums[] indexed
+   *      0..maxLineIdx and savePageLayoutCache. Write-back omits lineExtra — correct, because
+   *      extra is notes-dependent and re-derived per render.
+   * NOTES/QUIRKS:
+   *   - expected comes from the render-time closure (words where hasArabicLetters(stripPua(word)))
+   *     and matches the rendered WordHitArea count exactly, so completeness is exact.
+   *   - Once a line scales, later measurements for it early-return (step 1) → its width is never
+   *     recorded → the persisted sums can UNDER-COUNT that line. First visit = estimate; a cache
+   *     hit later fixes it. Known two-pass vs one-pass trade-off.
+   *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
+   */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (layoutContentRef.current) return;
     if (scaleRef.current[lineKey]) return;
@@ -160,6 +314,12 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     }
   };
 
+  /**
+   * scaleForLine(lineIdx) — the font multiplier for a line.
+   * Cache-hit path: total = persisted sum + live lineExtra → single-pass arithmetic scale (no
+   * measuring at all). Miss path: measured lineScale state || 1. Clamped at 0.65; 1 when the
+   * content fits within lineW+2. Applied to the fontSize of the word Text below.
+   */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
       const lineW = pageWidth - 2 * hPad(pageWidth);
@@ -169,6 +329,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     return lineScale[lineIdx] || 1;
   };
 
+  // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
+  // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
+  // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). All badges are
+  // hidden while headerVisible and gated on pageNum > 0 / firstSurahId > 0 (firstSurahId parsed
+  // from the first word's location "surah:verse"); compact (<600px) shrinks the pill styles.
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
@@ -195,6 +360,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     </View>
   );
 
+  // actionPills — bottom-left pill cluster, shown ONLY when the header is hidden AND at least one
+  // of onFixFont/onSpread is provided: "Fix font" (always, when onFixFont → parent clears the
+  // layout-cache range ±3 pages + bumps fixNonce) and the tablet spread toggle (when onSpread).
+  // NOTE: the spread pill renders the same 'Spread' label for both states — the active/inactive
+  // label distinction is not implemented here.
   const actionPills = (onFixFont || onSpread) && !headerVisible ? (
     <View style={styles.bottomLeftRow}>
       {onSpread && (
@@ -212,6 +382,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     </View>
   ) : null;
 
+  // Fallback path — pageData (or its lines) missing: simple per-verse rows from versesForPage
+  // using the verse's own text. No word-level measurement, no highlights (no wordIndex
+  // granularity), no layout-cache interaction. The font uses the sparse boost too; each row is a
+  // Pressable → onDeadTap, the inner text zone → onWordPress(verseNum, 0) / onVerseLongPress,
+  // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
       <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
@@ -249,10 +424,16 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     );
   }
 
+  // Render gate — hold at an empty container until the cache verdict ('hit'/'miss') arrives so
+  // no measurement starts before it.
   if (cacheState === 'loading') {
     return <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]} />;
   }
 
+  // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
+  // verse-boundary badge after the word that ends each verse. 'surah-header' lines are skipped
+  // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
+  // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
     <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
@@ -267,6 +448,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
+              // Per-word render: location "surah:verse:wordPos" parsed into surahId/verseNum/
+              // wordPos; vKey "surahId_verseNum" drives the highlight/badge lookups; a word is
+              // highlighted when hl.wordIndex === wordPos - 1.
               const parts = word.location ? word.location.split(':') : [];
               const surahId = parts[0] || '0';
               const verseNum = parts.length > 1 ? parseInt(parts[1], 10) : 0;
@@ -288,6 +472,10 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
               const isFlashing = flashingVerseKey === vKey;
               const hasNote = !!notes?.[vKey];
               const isReadingMark = readingMarkVerse === verseNum;
+              // Verse-boundary detection: this word ends a verse when the next word belongs to a
+              // different verse; else the next line's first word does; else the very last line of
+              // the page ends a verse. NOTE: mirrors the rule inside computeLineExtra — two
+              // copies of one rule, keep them in sync.
               const nextWord = line.words[wordIdx + 1];
               let isVerseBoundary = false;
               if (nextWord && nextWord.location) {
@@ -356,6 +544,10 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   );
 };
 
+// Shared style constants — no per-page memoization needed because the text scale lives inline in
+// the Text style prop. line: row-reverse + flex:1 so each line fills one vertical slot;
+// wordBox flexShrink:0 keeps words intact; container uses space-around (sparse pages get an
+// additional line-level space-around).
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
   line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
@@ -386,4 +578,6 @@ const styles = StyleSheet.create({
   actionPillGap: { marginRight: 6 }
 });
 
+// memo export — see component NOTES: largely ineffective due to prop identity churn
+// (pageData/highlights/bookmarks/notes change on parent re-renders).
 export default memo(MushafPageView);

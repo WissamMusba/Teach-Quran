@@ -1,3 +1,11 @@
+/**
+ * FILE: App.tsx
+ * ROLE: App shell — wires Redux Provider + PersistGate + ErrorBoundary + SafeArea, hosts
+ *       the root Stack navigator, and runs the global periodic/foreground sync scheduler.
+ * DEPENDS ON: src/store (redux-persist + all 8 slices), src/api/sync.ts (processSyncQueue),
+ *             src/store/syncSlice.ts, src/screens/* (all 9), src/components/ErrorBoundary.tsx
+ * USED BY: index.js (import App) — AppInner is internal, exported nowhere.
+ */
 import React, { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -20,16 +28,43 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Module constants: 30-min safety-net cadence (local, not in settingsSlice) + root stack builder.
+// GOTCHA: the interval is duplicated-in-spirit by DashboardScreen's own pull-to-refresh sync —
+// two independent sync loops can overlap.
 const SYNC_INTERVAL = 30 * 60 * 1000; // 30-min safety net defined locally
 const Stack = createNativeStackNavigator();
 
+/**
+ * WHAT: The tree inside Provider/PersistGate: reads auth + sync state, owns the global
+ *       sync scheduler lifecycle, and renders the navigation stack.
+ * FLOW: 1) typed useSelector on auth.isAuthenticated — the ONLY typed selector in the app
+ *          (all other screens use `(s: any) => ...`); 2) useRef<AppStateStatus> tracks the
+ *          previous app-state for edge detection; 3) effect below schedules sync; 4) renders stack.
+ * CALLS: dispatch, useSelector; sync scheduler effect.
+ * CALLED BY: App() root render.
+ * AFFECTS: redux `sync` state; Firestore + SQLite sync_queue (via processSyncQueue).
+ * NOTES: (no props)
+ */
 const AppInner = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
+  /**
+   * WHAT: Global sync scheduler — runs three sync triggers while the user is authenticated.
+   * FLOW: 1) early-return when !isAuthenticated (no timers/listeners); 2) TRIGGER #1 —
+   *          initialSync() immediately on effect run; 3) TRIGGER #2 — setInterval re-runs the
+   *          same routine every SYNC_INTERVAL (30 min); 4) TRIGGER #3 — AppState listener syncs
+   *          on every transition between 'active' and any other state; 5) cleanup clears both.
+   * CALLS: dispatch(setSyncing/setSynced/setOffline), processSyncQueue.
+   * AFFECTS: sync.status ('syncing'|'synced'|'offline'), pendingChanges; Firestore
+   *          users/{uid}/students/{sid}/data/studentData; SQLite sync_queue (cleared per student).
+   * NOTES: Runs are fire-and-forget — an in-flight promise resolving after unmount still
+   *        dispatches (harmless with redux, but double-syncs are possible at app-state edges).
+   */
   useEffect(() => {
     if (!isAuthenticated) return;
+    // TRIGGER #1 — immediate sync on mount/authenticate.
     const initialSync = async () => {
       dispatch(setSyncing());
       const result = await processSyncQueue();
@@ -38,6 +73,7 @@ const AppInner = () => {
     };
     initialSync();
 
+    // TRIGGER #2 — periodic safety-net sync every 30 min.
     const interval = setInterval(async () => {
       dispatch(setSyncing());
       const result = await processSyncQueue();
@@ -45,24 +81,36 @@ const AppInner = () => {
       else dispatch(setOffline());
     }, SYNC_INTERVAL);
 
+    // TRIGGER #3 — foreground/background edge sync (active <-> background/inactive).
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appState.current; appState.current = next;
       if ((prev === 'active' && next !== 'active') || (prev !== 'active' && next === 'active')) {
+        // GOTCHA: setSynced() here omits the timestamp arg used in triggers #1/#2 — `syncedAt`
+        // is never set anywhere, so any UI relying on it would be stale.
         (async () => { dispatch(setSyncing()); const r = await processSyncQueue(); if (r.success) dispatch(setSynced()); else dispatch(setOffline()); })();
       }
     });
 
+    // Cleanup — clears timer + listener when isAuthenticated flips or AppInner unmounts.
     return () => { clearInterval(interval); sub.remove(); };
   }, [isAuthenticated, dispatch]);
 
+  // NavigationContainer + Stack.Navigator — registers the 9-screen native stack, Splash is initial.
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Splash">
+        {/* Splash: gate screen — downloads+caches Quran, resolves auth, replaces to Dashboard|Login. */}
         <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
+        {/* Login: replace('Dashboard') on success, navigate('Register'). */}
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        {/* Register: navigate('Login') on success. */}
         <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+        {/* Dashboard: navigate('QuranView') per student card, replace('Login') on logout. */}
         <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+        {/* QuranView: hub — navigates to Dashboard|Mistakes|Notes|Bookmarks|Settings via page toolbar. */}
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
+        {/* GOTCHA: QuranView is navigated to with `{ surahId, scrollToVerse }` cast `as any` from
+            Bookmarks/Mistakes/Notes — no RootStackParamList exists, params are untyped. */}
         <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
         <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />
         <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
@@ -72,6 +120,19 @@ const AppInner = () => {
   );
 };
 
+/**
+ * WHAT: Root render — wraps everything in the gesture-handler root, error boundary,
+ *       safe-area provider, redux Provider, and PersistGate.
+ * FLOW: 1) GestureHandlerRootView flex:1 — required parent for RNGH gestures; 2) ErrorBoundary —
+ *          renders "App Crashed!" fallback with error text + console.error; 3) SafeAreaProvider —
+ *          insets for headerShown:false screens; 4) Provider store — app-wide redux; 5) PersistGate
+ *          loading={null} — blocks AppInner until AsyncStorage rehydration completes.
+ * CALLS: (rendering only)
+ * CALLED BY: index.js
+ * AFFECTS: (none — structural)
+ * NOTES: loading={null} renders nothing while rehydrating; a corrupt/oversized persisted state
+ *        would blank the app with no timeout/fallback.
+ */
 const App = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

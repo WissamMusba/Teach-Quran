@@ -1,6 +1,23 @@
+/**
+ * FILE: src/components/ErrorBoundary.tsx
+ * ROLE: App-wide crash shield — renders an "App Crashed" screen instead of unmounting the tree on uncaught render errors.
+ * DEPENDS ON: nothing (react-native View/Text/ScrollView for the crash UI).
+ * USED BY: App.tsx:20,78 — wraps SafeAreaProvider > Provider > PersistGate, i.e. the whole app.
+ */
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
+/**
+ * ErrorBoundary — class component catching render/lifecycle errors of all children.
+ * WHAT: Catches errors thrown while rendering the tree below; shows a fallback screen instead of a white-screen crash.
+ * FLOW: 1) getDerivedStateFromError sets hasError + errorText; 2) componentDidCatch logs "App Crashed:" to console.error
+ *        (surfaces in Android ADB logs); 3) when hasError, renders title + scrollable error text; otherwise this.props.children.
+ * CALLS: none.
+ * CALLED BY: App.tsx:78-86 (wraps the entire app).
+ * AFFECTS: Rendering of the whole app on uncaught render errors.
+ * NOTES: No reset/retry button — the app must be restarted. Only catches render/lifecycle errors,
+ *        NOT async errors or event-handler exceptions.
+ */
 export class ErrorBoundary extends React.Component<any, { hasError: boolean; errorText: string }> {
   constructor(props: any) {
     super(props);

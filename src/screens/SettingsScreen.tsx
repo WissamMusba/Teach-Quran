@@ -1,17 +1,31 @@
+/**
+ * FILE: src/screens/SettingsScreen.tsx
+ * ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and display toggles that dispatch to settingsSlice (nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit).
+ * DEPENDS ON: ../store/quranSlice (toggleTranslation/setFontSize/setReadingMode/setTextStyle, quranSlice.ts:16-21); ../store/settingsSlice (toggleNightMode/setTextBrightness/setBgBrightness/toggleShowPageInfo/setMushafSplit, settingsSlice.ts:16-21); ../utils/mushafLayout SPLIT_MIN_WIDTH (768, mushafLayout.ts:2); ../store RootState; @react-native-community/slider. Redux only â€” quranSlice state is NOT persisted; settingsSlice state IS persisted (redux-persist whitelist ['auth','drawing','sync','settings','audio'], src/store/index.ts:16).
+ * USED BY: QuranView toolbar `onSettings` (QuranViewScreen.tsx:510).
+ */
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setTextBrightness, setBgBrightness, toggleShowPageInfo, setMushafSplit } from '../store/settingsSlice';
+import { toggleNightMode, setTextBrightness, setBgBrightness, toggleShowPageInfo, setMushafSplit, togglePlayBasmala } from '../store/settingsSlice';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import Slider from '@react-native-community/slider';
 import { RootState } from '../store';
 
+/**
+ * WHAT: Screen component: three sections of settings controls that dispatch Redux actions on change. Wrapped in memo() (line 111).
+ * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit. 2) "Reading Settings": Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Text Style ['saleem'|'uthmani'|'alqalam'|'lateef'] (labels INDOPAK 1/2/3 + UTHMANI) -> setTextStyle(style). 3) "Night Mode": Night mode Switch -> toggleNightMode(); Text brightness Slider 0-255 -> setTextBrightness(Math.round(v)); Background brightness Slider 0-255 -> setBgBrightness(Math.round(v)). 4) "Reading Preferences": Show page info Switch -> toggleShowPageInfo(); Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v).
+ * CALLS: toggleTranslation / setFontSize / setReadingMode / setTextStyle (quranSlice); toggleNightMode / setTextBrightness / setBgBrightness / toggleShowPageInfo / setMushafSplit (settingsSlice).
+ * CALLED BY: React Navigation; via QuranViewScreen.tsx:510.
+ * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.
+ * NOTES: QARI IS NOT A SETTING HERE â€” no qari control exists on this screen. Qari lives in audioSlice.currentQari ('Mishary Al-Afasy' default, audioSlice.ts:5), set via QariSelector modal from AudioPlayerBar in QuranView; audio slice IS persisted. showPageInfo toggle persists settingsSlice.showPageInfo but NO component reads it (dead setting; the header overlay renders unconditionally). translationTextSize exists in settingsSlice (settingsSlice.ts:7,19) but has NO UI here and NO dispatcher/reader anywhere (dead state). quranSlice settings reset on every app restart (not whitelisted): showTranslation/fontSize/readingMode/textStyle default back to false/'medium'/'page'/'lateef'. Text style labels are misleading: saleem="INDOPAK 2", alqalam="INDOPAK 1", lateef="INDOPAK 3"; uthmani renders "UTHMANI". Whole screen adapts to nightMode via inline backgroundColor + label colors, but sliders/rows keep fixed styles.
+ */
 const SettingsScreen = () => {
   const dispatch = useDispatch();
   const { width } = useWindowDimensions();
   const { showTranslation, fontSize, readingMode, textStyle } = useSelector((state: RootState) => state.quran);
-  const { nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit } = useSelector((state: RootState) => state.settings);
+  const { nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: nightMode ? '#121212' : '#FFFFFF' }]}>
@@ -19,7 +33,7 @@ const SettingsScreen = () => {
         <Text style={styles.sectionTitle}>Reading Settings</Text>
         <View style={styles.row}>
           <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Show Translation</Text>
-          <Switch value={showTranslation} onValueChange={() => dispatch(toggleTranslation())} trackColor={{ false: '#333', true: '#00d4aa' }} />
+          <Switch value={showTranslation} onValueChange={() => { dispatch(toggleTranslation()); }} trackColor={{ false: '#333', true: '#00d4aa' }} />
         </View>
         <Text style={[styles.label, { color: nightMode ? '#fff' : '#000' }]}>Reading Mode</Text>
         <View style={styles.modeContainer}>
@@ -54,7 +68,7 @@ const SettingsScreen = () => {
         <Text style={styles.sectionTitle}>Night Mode</Text>
         <View style={styles.row}>
           <View style={styles.settingInfo}><Text style={[styles.settingTitle, { color: nightMode ? '#fff' : '#000' }]}>Night mode</Text><Text style={styles.settingDesc}>Use dark background and light fonts</Text></View>
-          <Switch value={nightMode} onValueChange={() => dispatch(toggleNightMode())} trackColor={{ false: '#333', true: '#00d4aa' }} />
+          <Switch value={nightMode} onValueChange={() => { dispatch(toggleNightMode()); }} trackColor={{ false: '#333', true: '#00d4aa' }} />
         </View>
         <View style={styles.sliderRow}>
           <Text style={styles.sliderLabel}>Text brightness</Text>
@@ -72,7 +86,7 @@ const SettingsScreen = () => {
         <Text style={styles.sectionTitle}>Reading Preferences</Text>
         <View style={styles.row}>
           <View style={styles.settingInfo}><Text style={[styles.settingTitle, { color: nightMode ? '#fff' : '#000' }]}>Show page info</Text><Text style={styles.settingDesc}>Overlay page number, surah name, and juz' number while reading</Text></View>
-          <Switch value={showPageInfo} onValueChange={() => dispatch(toggleShowPageInfo())} trackColor={{ false: '#333', true: '#00d4aa' }} />
+          <Switch value={showPageInfo} onValueChange={() => { dispatch(toggleShowPageInfo()); }} trackColor={{ false: '#333', true: '#00d4aa' }} />
         </View>
         {width >= SPLIT_MIN_WIDTH && (
           <View style={styles.row}>
@@ -80,6 +94,10 @@ const SettingsScreen = () => {
             <Switch value={mushafSplit} onValueChange={(v) => { dispatch(setMushafSplit(v)); }} trackColor={{ false: '#333', true: '#00d4aa' }} />
           </View>
         )}
+        <View style={styles.row}>
+          <View style={styles.settingInfo}><Text style={[styles.settingTitle, { color: nightMode ? '#fff' : '#000' }]}>Basmala before verse 1</Text><Text style={styles.settingDesc}>Play the basmala before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text></View>
+          <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: '#333', true: '#00d4aa' }} />
+        </View>
       </View>
     </ScrollView>
   );

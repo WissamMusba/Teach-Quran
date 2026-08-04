@@ -1,3 +1,9 @@
+/**
+ * FILE: src/components/drawing/AnnotationToolbar.tsx
+ * ROLE: Floating, draggable, dockable draw-tool UI (LASER/PEN/ERASE/LINE + UNDO/REDO/CLEAR + color palette + pen-size + EXIT) — talks to DrawingCanvas exclusively through parent-supplied callbacks and the drawingSlice.
+ * DEPENDS ON: Redux drawingSlice (toolbarExpanded/activeTool/activeColor/penSize); settings.nightMode (theming); react-native-svg for the inline icon set.
+ * USED BY: src/screens/QuranViewScreen.tsx:626-628 inside <ToolbarBoundary> (an error boundary that renders null if the toolbar throws — toolbar bugs must not crash the reader).
+ */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -9,6 +15,7 @@ import {
   setToolbarExpanded, setTool, setColor, setPenSize,
 } from '../../store/drawingSlice';
 
+// Layout/dock constants — DOCK_PEEK/DOCK_THRESHOLD control half-off-screen docking; ACCENT is the active-tool highlight; PALETTE + PEN_SIZES drive the color palette.
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
 const SAFETY = 12;
 const ACCENT = '#00D4AA';
@@ -17,6 +24,7 @@ const PEN_SIZES = [2, 4, 6, 8];
 
 const ST = { fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
+// Inline SVG icon set (stroke-based, recolored via the `c` prop) — one per button; ZigZag doubles as the pen-size preview glyph in the palette.
 const Pencil = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M14 4l3 3-9 9-3 1 1-3 8-8z" /></Svg>);
 const HandleIcon = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M4.5 6.5h15v9.2a2.8 2.8 0 0 1-2.8 2.8H7.3a2.8 2.8 0 0 1-2.8-2.8V6.5z" /><Path d="M9 11l3 3 3-3" /></Svg>);
 const ChevR = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M9 4.5L16.5 12 9 19.5" /></Svg>);
@@ -36,6 +44,9 @@ const ZigZag = ({ w, active, zw, zh }: { w: number; active: boolean; zw: number;
   </Svg>
 );
 
+/**
+ * Props — visible gates mounting; drawingGestureActive is passed by the parent but NO LONGER changes elevation (the wrap is a constant zIndex 200, so a stroke can never be trapped under the toolbar); canUndo/canRedo are fed by canvas onStateChange; onActivateDraw lets the parent enter drawing mode on the first tool tap.
+ */
 interface Props {
   visible: boolean;
   drawingGestureActive: boolean;
@@ -48,12 +59,20 @@ interface Props {
   onActivateDraw?: () => void;
 }
 
+/**
+ * AnnotationToolbar — draggable/dockable toolbar.
+ * FLOW: responder negotiation is deepest-first — touches on buttons or the grip are claimed by that child, so the wrap only becomes responder for frame touches. Grip tap toggles open/docked; EXIT collapses + onExit() (parent exits drawing mode). Drag clamps the toolbar on-screen.
+ * CALLS: dispatch(setTool/setColor/setPenSize/setToolbarExpanded); onActivateDraw; onUndo/onRedo/onClear -> canvasRef.current?.undo()/redo()/clear() (QuranViewScreen); onExit -> parent drawing mode.
+ * AFFECTS: drawingSlice (tool/color/size/expanded), parent's isDrawing/isHeaderVisible, the canvas via the imperative handle.
+ * NOTES: position (x/y) is NOT persisted across restarts; `open` is global Redux state, so surah/page changes collapse the toolbar externally (also triggering the selection-reset effect).
+ */
 const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
   const dispatch = useDispatch();
   const { width, height } = useWindowDimensions();
   const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
   const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
 
+  // Layout geometry — all sizes derive from window width (TAB/ROUND/GAP/COL...); BAR_W = 9*TAB + 2*pad; initial Y sits below the top edge; position is not persisted across mounts.
   const TAB = Math.min(52, Math.max(26, Math.floor((width - SAFETY) / 11.5)));
   const ROUND = Math.max(40, Math.round(TAB * 1.3));
   const GAP = Math.max(4, Math.round(TAB * 0.15));
@@ -85,20 +104,27 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
 
+  // Local state — pal = color palette open; selectedTool drives the ACCENT highlight on the active tool button; docked = 'left'|'right'|'top'|'bottom'|null.
   const [pal, setPal] = useState(false);
   const [selectedTool, setSelectedTool] = useState('');
   const [docked, setDocked] = useState<string | null>(null);
 
+  // Selection reset — every time the toolbar collapses (EXIT, grip tap, page change) the highlight clears, so reopening looks brand new (no "pen selected" ghost even though drawingSlice.activeTool still holds 'pen').
   useEffect(() => { if (!open) setSelectedTool(''); }, [open]);
   const [[x, y], setPos] = useState([MARGIN, initY]);
   const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const posRef = useRef({ x: MARGIN, y: initY });
   const preDockRef = useRef({ x: MARGIN, y: initY });
 
+  // Clamps — when open the toolbar can never leave the screen (clampXOpen); when collapsed, half-off-screen docking positions are allowed; clampY guards status-bar and bottom edges.
   const clampX = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - Math.round(ROUND / 2)));
   const clampXOpen = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - expandedWidth - MARGIN));
   const clampY = (v: number) => Math.max(sbHeight - (ROUND - DOCK_PEEK) - V_EXTRA, Math.min(v, height - BOT - V_EXTRA - DOCK_PEEK));
 
+  /**
+   * Drag plumbing — a FRESH anchor {finger position + current toolbar pos} is recorded at every grant, then onTouchMove applies dx/dy from it.
+   * The v44 "stale finger memory" teleport bug is impossible here: there is NO onMoveShouldSetResponder anywhere in this file, so nothing can steal a gesture mid-drag.
+   */
   const onTouchStart = useCallback((e: any) => {
     dragStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, px: x, py: y };
   }, [x, y]);
@@ -113,10 +139,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     posRef.current = { x: nx, y: ny };
   }, [width, height]);
 
+  // Reclamp into open bounds when expanding from a (possibly half-off-screen) collapsed/docked position.
   const reclampOnExpand = useCallback((px: number, py: number) => {
     return { x: clampXOpen(px), y: clampY(py) };
   }, [width, height, sbHeight, BOT]);
 
+  /**
+   * onDragEnd — when collapsed and the grip's center is within DOCK_THRESHOLD (50px) of an edge, snap half-off-screen and setDocked(edge); otherwise setDocked(null).
+   * preDockRef stores the pre-snap position so undocking can restore it. (Vertical docking reuses the same half-offset math as left/right.)
+   */
   const onDragEnd = useCallback((e: any) => {
     const cx = posRef.current.x + ROUND / 2;
     const cy = posRef.current.y + ROUND / 2;
@@ -142,6 +173,13 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     }
   }, [open, width, height, sbHeight, BOT]);
 
+  /**
+   * onTouchEnd (grip release) — movement <8px counts as a TAP (the only tap that toggles):
+   *   docked -> undock + collapse + onExit()   (FIRST press on a docked chevron exits drawing mode — no expand-first)
+   *   open   -> collapse + onExit()            (closes the canvas too)
+   *   closed -> reclamp into open bounds + expand
+   * Movement >=8px is treated as a drag end.
+   */
   const onTouchEnd = useCallback((e: any) => {
     const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
     const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
@@ -167,14 +205,17 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     onDragEnd(e);
   }, [docked, open, onDragEnd, reclampOnExpand, onExit, dispatch]);
 
+  // onWrapEnd (frame release) — <8px movement does NOTHING (tapping the frame neither collapses nor exits); >=8px = drag end.
   const onWrapEnd = useCallback((e: any) => {
     const dx = Math.abs(e.nativeEvent.pageX - dragStart.current.x);
     const dy = Math.abs(e.nativeEvent.pageY - dragStart.current.y);
     if (dx >= 8 || dy >= 8) onDragEnd(e);
   }, [onDragEnd]);
 
+  // Not mounted when hidden — the parent passes visible={!isCapturing}, so the toolbar is absent during share capture.
   if (!visible) return null;
 
+  // Theming + palette placement — barBg/iconC flip with nightMode; palFitsAbove flips the palette above the bar when there's no room below; palLeft keeps it clamped on-screen.
   const barBg = nightMode ? 'rgba(200,200,215,0.60)' : 'rgba(18,18,20,0.85)';
   const iconC = nightMode ? '#2A2A2A' : '#CFCFCF';
   const disC = nightMode ? '#6A6A6A' : '#5A5A5A';
@@ -200,6 +241,11 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
     sw: { width: swW, height: Math.round(swW * 0.8), borderRadius: Math.round(swW * 0.22), borderWidth: 2, marginBottom: Math.round(TAB * 0.19) },
   };
 
+  /**
+   * ToolBtn — LASER/PEN/ERASE/LINE. onPress: setPal(false) + setSelectedTool(k) + dispatch(setTool(k)) + onActivateDraw?.().
+   * onActivateDraw fires on EVERY tool tap (no first-tap dedup), and setTool dispatches even if the tool is already active.
+   * The UNDERLINE button is the only one with a two-line label ("UNDER"/"LINE"); all others are single-line.
+   */
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
     const lblC = sel ? ACCENT : labC;
@@ -215,18 +261,23 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
       )}
     </TouchableOpacity>);
   };
+  /**
+   * ActBtn — UNDO/REDO/CLEAR/EXIT. UNDO/REDO are disabled via canUndo/canRedo (fed by canvas onStateChange); CLEAR confirms via Alert.alert before calling onClear.
+   */
   const ActBtn = ({ label, Icon, onPress, disabled }: any) => (
     <TouchableOpacity style={d.col} onPress={onPress} disabled={disabled} activeOpacity={0.5}>
       <Icon c={disabled ? disC : iconC} sz={SZ2} sw={swt} /><Text numberOfLines={1} style={[d.lab, { color: labC }, disabled && { color: disC }]}>{label}</Text>
     </TouchableOpacity>
   );
 
+  // WRAP - the whole toolbar. Responder negotiation is deepest-first: touches on a button or the grip are claimed by that child, so the wrap only ever receives frame touches (padding/gaps/corners). Elevation is ALWAYS 200 (constant) - above the DrawingCanvas (zIndex 100) even while drawing.
   return (
     <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}
       onStartShouldSetResponder={() => true}
       onResponderGrant={onTouchStart}
       onResponderMove={onTouchMove}
       onResponderRelease={onWrapEnd}>
+      {/* GRIP — keeps its own full responder chain: drag it, or tap to toggle (see onTouchEnd); the chevron reflects the docked edge when collapsed. */}
       <View style={[d.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
@@ -238,10 +289,12 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
 
       {open && (
         <View style={[d.bar, { backgroundColor: barBg, marginLeft: GAP }]}>
+          {/* Tool buttons — LASER/PEN/ERASE/LINE: dispatch setTool(k) + onActivateDraw?.() (parent enters drawing mode) */}
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
           <ToolBtn k="pen" label="PEN" Icon={Pencil} />
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
           <ToolBtn k="underline" label="LINE" Icon={UnderI} />
+          {/* Action buttons — UNDO/REDO/CLEAR: call through the parent -> canvasRef.current?.undo()/redo()/clear() */}
           <ActBtn label="UNDO" Icon={UndoI} disabled={!canUndo} onPress={onUndo} />
           <ActBtn label="REDO" Icon={RedoI} disabled={!canRedo} onPress={onRedo} />
           <ActBtn label="CLEAR" Icon={TrashI} onPress={() =>
@@ -254,6 +307,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
               <View style={[d.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : iconC }]} />
               <Text numberOfLines={1} style={[d.lab, { color: labC }, pal && { color: ACCENT }]}>COLOR</Text>
             </TouchableOpacity>
+            {/* Color palette — S/M/L/XL pen sizes (dispatch setPenSize) + 8-color grid (dispatch setColor); flips above/below the bar and stays clamped on-screen */}
             {pal && (
               <View style={[d.pal, { backgroundColor: palBg, top: palTop, left: palLeft }]}>
                 <View style={d.row}>{PEN_SIZES.map((w, i) => (
@@ -270,6 +324,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
               </View>
             )}
           </View>
+          {/* EXIT — setPal(false) + dispatch(setToolbarExpanded(false)) + onExit(): NOW closes the drawing canvas (parent onExit: if isDrawing -> exit drawing mode + restore the remembered header; else just collapse). The old "EXIT leaves the canvas live" quirk is gone. */}
           <TouchableOpacity style={d.col} onPress={() => { setPal(false); dispatch(setToolbarExpanded(false)); onExit(); }} activeOpacity={0.5}>
             <CloseI c={iconC} sz={SZ2} sw={swt} /><Text style={[d.lab, { color: labC }]}>EXIT</Text>
           </TouchableOpacity>
@@ -279,6 +334,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   );
 };
 
+// Styles — wrap is the positioned draggable frame (constant elevation 200); colorWrap anchors the absolutely-positioned palette; grid lays out the 8-color swatches.
 const s = StyleSheet.create({
   wrap: { position: 'absolute', alignItems: 'center', elevation: 200, zIndex: 200 },
   colorWrap: { position: 'relative' },

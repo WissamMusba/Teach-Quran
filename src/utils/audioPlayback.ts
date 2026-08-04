@@ -1,3 +1,19 @@
+/**
+ * FILE: src/utils/audioPlayback.ts
+ * ROLE: Per-ayah playback engine — each verse streams from its own MP3 (verified CDN mirrors, everyayah.com first),
+ *       prefetches the next 2 verses to disk (RNFS, OPTIONAL — playback works without it), and fires onVerseChange
+ *       exactly at each verse start (no timeline/seek math at all).
+ *       Optionally plays the basmala (the reciter's own 1:1 file) before verse 1 of a surah (surah 1 & 9 excluded).
+ * DEPENDS ON: react-native-fs (RNFS) -> optional on-disk ayah cache under DocumentDirectoryPath/ayahCache;
+ *             an AudioRecorderPlayer instance passed by the caller; qariId one of 'ar.alafasy' | 'ar.abdulbasit'
+ *             (else defaults to abdulbasit); network access to everyayah.com (primary) + cdn.islamic.network (last resort).
+ * USED BY: QuranViewScreen.tsx:33 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable,
+ *          SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse).
+ * WHY PER-AYAH (history): the old whole-surah streamer (mp3quran 001.mp3 + quran.com by_surah segment timeline)
+ *          drifted badly — api.quran.com/v4/recitations/{id}/by_surah/{n} now returns 404, so the timeline fell back
+ *          to text-length-proportional estimates, landing the seek ~15-30s (1-2 verses) before the tapped verse.
+ *          Per-ayah files always start exactly at the verse's first word, and no longer play audhu/basmala at surah start.
+ */
 import RNFS from 'react-native-fs';
 
 export const SURAH_VERSE_COUNTS: number[] = [7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
@@ -8,6 +24,10 @@ interface PlaybackCallbacks {
   onError?: (message: string) => void;
 }
 
+interface PlaybackOptions {
+  playBasmala?: boolean;
+}
+
 let currentSurahId = 0;
 let currentVerse = 1;
 let playing = false;
@@ -16,11 +36,17 @@ let stallTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPositionMs = 0;
 let resumeSession: { surahId: number; verse: number; positionMs: number } | null = null;
 
-const ATTEMPT_TIMEOUT_MS = 10000;
+const ATTEMPT_TIMEOUT_MS = 8000;
 const PREFETCH_AHEAD = 2;
 const CACHE_SUBDIR = 'ayahCache';
 
 export const isSurahPlaying = (surahId: number): boolean => playing && currentSurahId === surahId;
+
+export const getPlaybackPosition = (): number => lastPositionMs;
+
+export const getCurrentPlaybackVerse = (): number => currentVerse;
+
+export const isResumable = (): boolean => resumeSession !== null;
 
 export const pauseSurah = async (player: any): Promise<void> => {
   playToken++;
@@ -33,10 +59,6 @@ export const pauseSurah = async (player: any): Promise<void> => {
     Promise.resolve(player.pausePlayer()).catch(() => {});
   } catch {}
 };
-
-export const getPlaybackPosition = (): number => lastPositionMs;
-
-export const isResumable = (): boolean => resumeSession !== null;
 
 export const pauseSurahWithResume = async (player: any): Promise<void> => {
   const session = { surahId: currentSurahId, verse: currentVerse, positionMs: lastPositionMs };
@@ -59,7 +81,7 @@ export const resumeSurah = async (player: any, qariId: string, callbacks: Playba
   resumeSession = null;
   await stopPlayback(player);
   currentSurahId = session.surahId;
-  playVerse(player, qariId, session.surahId, session.verse, lastVerse, callbacks);
+  playVerse(player, qariId, session.surahId, session.verse, lastVerse, callbacks, false);
   return true;
 };
 
@@ -74,26 +96,49 @@ const stopPlayback = async (player: any): Promise<void> => {
   clearWatchdog();
   try {
     player.removePlayBackListener();
-    await player.stopPlayer();
+  } catch {}
+  try {
+    await Promise.race([
+      Promise.resolve(player.stopPlayer()),
+      new Promise((res) => setTimeout(res, 3000)),
+    ]);
   } catch {}
 };
 
-// ---------- per-ayah cache (prefetch 2 verses ahead) ----------
-const cacheDir = (): string => `${RNFS.DocumentDirectoryPath}/${CACHE_SUBDIR}`;
+// ---------- per-ayah cache (RNFS, OPTIONAL — every call degrades to streaming) ----------
+const fsOk = (() => {
+  try {
+    return !!RNFS && !!RNFS.DocumentDirectoryPath && typeof RNFS.exists === 'function' && typeof RNFS.downloadFile === 'function';
+  } catch {
+    return false;
+  }
+})();
+
+const cacheDir = (): string | null => (fsOk ? `${RNFS.DocumentDirectoryPath}/${CACHE_SUBDIR}` : null);
 const cacheKey = (qariId: string, surahId: number, verse: number): string =>
   `${qariId.replace(/[^a-zA-Z0-9]/g, '_')}_${surahId}_${verse}.mp3`;
-const cachedPath = (qariId: string, surahId: number, verse: number): string =>
-  `${cacheDir()}/${cacheKey(qariId, surahId, verse)}`;
+const cachedPath = (qariId: string, surahId: number, verse: number): string | null =>
+  fsOk ? `${cacheDir()}/${cacheKey(qariId, surahId, verse)}` : null;
 
 let cacheDirReady: Promise<void> | null = null;
 const ensureCacheDir = (): Promise<void> => {
-  if (!cacheDirReady) cacheDirReady = RNFS.mkdir(cacheDir()).catch(() => {});
+  if (!fsOk) return Promise.resolve();
+  if (!cacheDirReady) {
+    try {
+      cacheDirReady = Promise.resolve(RNFS.mkdir(cacheDir())).catch(() => {});
+    } catch {
+      cacheDirReady = Promise.resolve();
+    }
+  }
   return cacheDirReady;
 };
 
 const wipeAyahCache = async (): Promise<void> => {
+  if (!fsOk) return;
   cacheDirReady = null;
-  await RNFS.unlink(cacheDir()).catch(() => {});
+  try {
+    await Promise.resolve(RNFS.unlink(cacheDir())).catch(() => {});
+  } catch {}
   cacheDirReady = ensureCacheDir();
   await cacheDirReady;
 };
@@ -101,7 +146,7 @@ const wipeAyahCache = async (): Promise<void> => {
 const prefetchJobs: Record<string, Promise<void>> = {};
 
 const prefetchAyah = (qariId: string, surahId: number, verse: number): void => {
-  if (verse < 1) return;
+  if (!fsOk || verse < 1) return;
   const key = cacheKey(qariId, surahId, verse);
   if (prefetchJobs[key]) return;
   prefetchJobs[key] = (async () => {
@@ -122,26 +167,26 @@ const prefetchAyah = (qariId: string, surahId: number, verse: number): void => {
 };
 
 const cleanupAyahCache = async (qariId: string, surahId: number, verse: number): Promise<void> => {
-  if (verse < 1) return;
+  if (!fsOk || verse < 1) return;
   try { await RNFS.unlink(cachedPath(qariId, surahId, verse)); } catch {}
 };
 
+// ---------- sources (ORDER = priority; everyayah verified 200, cdn.islamic.network 403s fast — last resort) ----------
 const getAudioSources = (qariId: string, surahId: number, verse: number): string[] => {
   const s3 = String(surahId).padStart(3, '0');
   const v3 = String(verse).padStart(3, '0');
   if (qariId === 'ar.alafasy') {
     return [
-      `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${surahId}:${verse}.mp3`,
       `https://everyayah.com/data/Alafasy_128kbps/${s3}${v3}.mp3`,
-      `https://download.quranicaudio.com/quran/alafasy_128kbps/${s3}${v3}.mp3`,
-      `https://verses.quran.com/Alafasy/128/mp3/${s3}${v3}.mp3`,
+      `https://everyayah.com/data/Alafasy_64kbps/${s3}${v3}.mp3`,
+      `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${surahId}:${verse}.mp3`,
     ];
   }
   return [
+    `https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps/${s3}${v3}.mp3`,
+    `https://everyayah.com/data/Abdul_Basit_Murattal_192kbps/${s3}${v3}.mp3`,
+    `https://everyayah.com/data/Abdul_Basit_Murattal_64kbps/${s3}${v3}.mp3`,
     `https://cdn.islamic.network/quran/audio/128/ar.abdulbasit/${surahId}:${verse}.mp3`,
-    `https://everyayah.com/data/AbdulBaset_128kbps/${s3}${v3}.mp3`,
-    `https://download.quranicaudio.com/quran/abdul_baset_mujawwad_128kbps/${s3}${v3}.mp3`,
-    `https://verses.quran.com/AbdulBaset/Mujawwad/mp3/${s3}${v3}.mp3`,
   ];
 };
 
@@ -153,19 +198,23 @@ const markStarted = (player: any): void => {
   } catch {}
 };
 
-const playVerse = (player: any, qariId: string, surahId: number, verse: number, lastVerse: number, callbacks: PlaybackCallbacks): void => {
-  currentVerse = verse;
-  callbacks.onVerseChange?.(verse, currentSurahId);
-  prefetchAyah(qariId, surahId, verse + 1);
-  prefetchAyah(qariId, surahId, verse + 2);
-  const sources = getAudioSources(qariId, surahId, verse);
-  const localPath = cachedPath(qariId, surahId, verse);
+/**
+ * Shared attempt chain: plays ONE audio file through `sources` (cached local file first),
+ * with a stall watchdog per attempt and token-based cancellation.
+ * onComplete(status3) / onExhausted(all mirrors failed, no error fired by this helper).
+ */
+const startAttemptChain = (
+  player: any,
+  sources: string[],
+  localPath: string | null,
+  onComplete: () => void,
+  onExhausted: () => void,
+): void => {
   playToken++;
   const nextAttempt = (index: number): void => {
     clearWatchdog();
     if (index >= sources.length) {
-      playing = false;
-      callbacks.onError?.('Audio could not be played from any server. Please check your connection.');
+      onExhausted();
       return;
     }
     const attemptToken = playToken;
@@ -184,12 +233,7 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
           break;
         case 3:
           player.removePlayBackListener();
-          cleanupAyahCache(qariId, surahId, verse - PREFETCH_AHEAD - 1);
-          if (verse < lastVerse) playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks);
-          else {
-            playing = false;
-            callbacks.onEnd?.();
-          }
+          onComplete();
           break;
         case 5:
         case 6:
@@ -203,11 +247,12 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
       stallTimer = null;
       if (attemptToken !== playToken) return;
       playToken++;
+      try { Promise.resolve(player.stopPlayer()).catch(() => {}); } catch {}
       nextAttempt(index + 1);
     }, ATTEMPT_TIMEOUT_MS);
     (async () => {
       let src = sources[index];
-      if (index === 0) {
+      if (index === 0 && localPath) {
         try {
           if (await RNFS.exists(localPath)) src = localPath;
         } catch {}
@@ -221,7 +266,7 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
           markStarted(player);
         }).catch(() => {
           if (attemptToken !== playToken || started) return;
-          if (src === localPath) {
+          if (src === localPath && localPath) {
             RNFS.unlink(localPath).catch(() => {});
             playToken++;
             nextAttempt(index + 1);
@@ -240,7 +285,61 @@ const playVerse = (player: any, qariId: string, surahId: number, verse: number, 
   nextAttempt(0);
 };
 
-export const playSurahFromVerse = async (player: any, qariId: string, surahId: number, startVerse: number, callbacks: PlaybackCallbacks = {}): Promise<void> => {
+const playVerse = (
+  player: any,
+  qariId: string,
+  surahId: number,
+  verse: number,
+  lastVerse: number,
+  callbacks: PlaybackCallbacks,
+  playBasmala: boolean,
+): void => {
+  if (verse === 1 && playBasmala && surahId !== 1 && surahId !== 9) {
+    // Basmala prelude: the reciter's own 1:1 file, NO onVerseChange yet (highlight appears with verse 1).
+    currentVerse = 1;
+    prefetchAyah(qariId, 1, 1);
+    prefetchAyah(qariId, surahId, 1);
+    prefetchAyah(qariId, surahId, 2);
+    startAttemptChain(
+      player,
+      getAudioSources(qariId, 1, 1),
+      cachedPath(qariId, 1, 1),
+      () => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false),
+      () => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false),
+    );
+    return;
+  }
+  currentVerse = verse;
+  callbacks.onVerseChange?.(verse, currentSurahId);
+  prefetchAyah(qariId, surahId, verse + 1);
+  prefetchAyah(qariId, surahId, verse + 2);
+  startAttemptChain(
+    player,
+    getAudioSources(qariId, surahId, verse),
+    cachedPath(qariId, surahId, verse),
+    () => {
+      cleanupAyahCache(qariId, surahId, verse - PREFETCH_AHEAD - 1);
+      if (verse < lastVerse) playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks, false);
+      else {
+        playing = false;
+        callbacks.onEnd?.();
+      }
+    },
+    () => {
+      playing = false;
+      callbacks.onError?.('Audio could not be played from any server. Please check your connection.');
+    },
+  );
+};
+
+export const playSurahFromVerse = async (
+  player: any,
+  qariId: string,
+  surahId: number,
+  startVerse: number,
+  callbacks: PlaybackCallbacks = {},
+  opts?: PlaybackOptions,
+): Promise<void> => {
   resumeSession = null;
   const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
   const verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
@@ -248,7 +347,7 @@ export const playSurahFromVerse = async (player: any, qariId: string, surahId: n
   await stopPlayback(player);
   if (currentSurahId !== surahId) {
     currentSurahId = surahId;
-    await wipeAyahCache();
+    wipeAyahCache();
   }
-  playVerse(player, qariId, surahId, verse, lastVerse, callbacks);
+  playVerse(player, qariId, surahId, verse, lastVerse, callbacks, !!opts?.playBasmala);
 };

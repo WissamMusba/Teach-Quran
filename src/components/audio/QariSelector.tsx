@@ -1,8 +1,16 @@
+/**
+ * FILE: src/components/audio/QariSelector.tsx
+ * ROLE: Slide-in modal listing the 4 supported reciters grouped by Gapless/Gapped style; selection dispatches setQari and the chosen name lands in audioSlice.currentQari.
+ * DEPENDS ON: props visible/onClose; Redux audioSlice.currentQari (for the ✓ checkmark); static QARIS array.
+ * USED BY: src/screens/QuranViewScreen.tsx:631 — `<QariSelector visible={showQariModal} onClose={...} />`, opened via AudioPlayerBar's onOpenQari (line 628).
+ */
 import React, { memo } from 'react';
 import { View, Text, SectionList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { setQari } from '../../store/audioSlice';
 
+// The 4 supported reciters. `style` ('gapped'/'gapless') is used ONLY for section grouping —
+// it never influences playback behavior.
 const QARIS = [
   { id: 'mishary', name: 'Mishary Al-Afasy', style: 'gapped' },
   { id: 'abdulbasit', name: 'Abd Al-Basit', style: 'gapless' },
@@ -10,6 +18,22 @@ const QARIS = [
   { id: 'suwaid', name: 'Dr. Ayman Suwaid', style: 'gapped' },
 ];
 
+/**
+ * QariSelector (memoized) — full-screen slide-in Modal with a SectionList of reciters.
+ * WHAT: Groups QARIS into "Gapless" (Abd Al-Basit) and "Gapped" (Mishary, Ayyoub, Suwaid) sections;
+ *       tapping a row dispatches setQari(item.name), closes the modal, and ✓ marks the current pick.
+ * FLOW: 1) rows = QARIS filtered by style into two sections; 2) renderItem onPress -> dispatch(setQari(item.name)) + onClose();
+ *       3) currentQari === item.name renders the ✓ checkmark.
+ * PROPS: visible — modal visibility; onClose — dismiss callback.
+ * CALLS: dispatch(setQari(item.name)) -> audioSlice.currentQari (store/audioSlice.ts:17).
+ * CALLED BY: QuranViewScreen.tsx:631 (showQariModal toggled at line 628 via AudioPlayerBar's qari area / expand button).
+ * AFFECTS: Redux audioSlice.currentQari (default 'Mishary Al-Afasy') — consumed by QuranViewScreen's playback
+ *          (startPlayFromVerse/togglePlayAudio) to pick the reciter ID and displayed by AudioPlayerBar.
+ * NOTES: Only the NAME is stored. The audio engine maps name -> qariId with a binary
+ *        `currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit'` test (QuranViewScreen.tsx:452,475),
+ *        so Ayyoub and Suwaid BOTH fall back to ar.abdulbasit — they always play Basit audio, and
+ *        Abd Al-Basit maps correctly only by luck of that test. 4 selectable qaris, binary playback.
+ */
 const QariSelector = ({ visible, onClose }: any) => {
   const dispatch = useDispatch();
   const { currentQari } = useSelector((s: any) => s.audio);

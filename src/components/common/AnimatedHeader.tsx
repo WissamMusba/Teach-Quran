@@ -1,7 +1,14 @@
+/**
+ * FILE: src/components/common/AnimatedHeader.tsx
+ * ROLE: The Quran reader's top bar — surah name/info line, 5 labeled action buttons (MISTAKES/SHARE/NOTES/BOOKMARKS/SETTINGS), and an animated hide/show (slide-up + height collapse).
+ * DEPENDS ON: nothing external — pure presentational; all data and callbacks arrive via props. react-native Animated/Easing; react-native-svg for inline vector icons (no icon lib); LayoutChangeEvent measures own content height for the collapse animation.
+ * USED BY: src/screens/QuranViewScreen.tsx:19 (import), :508 (render)
+ */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 
+// Per-button accent colors; MISTAKES is #FF3B30 — same as MISTAKE_COLOR in constants.ts.
 const ACCENT = '#00D4AA';
 const C_MISTAKES = '#FF3B30';
 const C_SHARE = '#00D4AA';
@@ -9,12 +16,24 @@ const C_NOTES = '#FF9F0A';
 const C_BOOKMARKS = '#FFD700';
 const C_SETTINGS = '#8A8A8A';
 
+/**
+ * PROPS — all data/callbacks supplied by QuranViewScreen.tsx:508:
+ *   visible: 1 = show / 0 = hide — drives the parallel slide-up + height-collapse animation.
+ *   surahName: current surah display name (header title).
+ *   surahId / juz / page / pagesLeftInJuz: info-line values; the "· Page N · X left in Juz" suffix is hidden when page <= 0 (ayah/continuous mode passes page=0).
+ *   nightMode: theme switch — background (#1a1a2e / #f5f5f5), title and subtitle colors.
+ *   onBack → navigation.navigate('Dashboard'); onOpenList → setShowList(true) (in-screen surah list);
+ *   onMistakes → 'Mistakes'; onShare → handleSharePage (screenshot via viewShot + Share.open); onNotes → 'Notes';
+ *   onBookmarks → 'Bookmarks'; onSettings → 'Settings'.
+ *   NOTE: the SPREAD toggle is NOT in the header anymore — it lives in MushafPageView's bottom-left actionPills (tablet only).
+ */
 interface Props {
   visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean;
   onBack: () => void; onOpenList: () => void; onMistakes: () => void;
   onShare: () => void; onNotes: () => void; onBookmarks: () => void; onSettings: () => void;
 }
 
+// Inline SVG icons (no icon lib) — shared stroke config `st`; back arrow is 28px, the rest 20px.
 const st = { fill: 'none' as const, strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
 const IconBack = ({ c }: { c: string }) => (
@@ -33,17 +52,37 @@ const IconSettings = ({ c }: any) => (
   <Svg width={20} height={20} viewBox="0 0 24 24" {...st} stroke={c}><Circle cx="12" cy="12" r="3.2" /><Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" /></Svg>
 );
 
+/**
+ * BookmarkIcon — exported standalone bookmark SVG icon (outline or filled), default #FFD700 / 16px.
+ * Used by: the header BOOKMARKS button (size 20, line 99); QuranViewScreen.tsx:601 → `filled={pageLastBookmarked}` (24px)
+ * marks the last verse of the current page in the spread/mushaf toolbar.
+ */
 export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?: string; size?: number; filled?: boolean }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? c : 'none'} stroke={c} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M7 3h10v18l-5-3.6L7 21V3z" />
   </Svg>
 );
 
+/**
+ * AnimatedHeader — presentational header that collapses to zero height when `visible` is false, using two parallel Animated.Values.
+ * FLOW: 1) `measured` state is set from the inner view's onLayout (the content's real height).
+ *       2) Two Animated.Values created once: `native` (drives opacity + translateY) and `layout` (drives the container height).
+ *       3) On `visible` change both animate in parallel: 150ms show / 110ms hide, Easing.out(cubic).
+ *       4) translateY interpolates -measured → 0, so the content slides up out of the (overflow:hidden) wrapper.
+ *       5) heightStyle interpolates 0 → measured; before first layout it falls back to undefined (visible) or 0 (hidden).
+ *       6) pointerEvents = 'auto'/'none' so a hidden header never intercepts taps.
+ * CALLED BY: QuranViewScreen.tsx:508 → rendered with headerInfo + isHeaderVisible + nightMode.
+ * AFFECTS: Layout/render only — the `layout` height change pushes/pulls the reader content (mushaf font size is
+ *          separately boosted when hidden, see responsive.ts).
+ * NOTES/GOTCHA: the value named `native` uses useNativeDriver: false — it is a LAYOUT-driven animation (translateY/height
+ *          are non-native props); the name is misleading, there is NO native-driver animation here.
+ */
 const AnimatedHeader: React.FC<Props> = (p) => {
   const [measured, setMeasured] = useState(0);
   const native = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
   const layout = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
 
+  // Hide/show: run both values in parallel — slide/fade on `native`, height collapse on `layout`.
   useEffect(() => {
     native.stopAnimation();
     layout.stopAnimation();
@@ -53,6 +92,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
     ]).start();
   }, [p.visible, native, layout]);
 
+  // Animated styles derived from the measured height: slide-up translateY and 0↔measured height collapse.
   const translateY = useMemo(
     () => (measured > 0 ? native.interpolate({ inputRange: [0, 1], outputRange: [-measured, 0], extrapolate: 'clamp' }) : 0),
     [measured, native],
@@ -66,6 +106,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const titleColor = p.nightMode ? '#fff' : '#1a1a1a';
   const subColor = p.nightMode ? '#8a8a8a' : '#777';
 
+  // Per-action button: icon above label, hitSlop padded; wired to the matching prop callback below.
   const Btn = ({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) => (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
       {icon}

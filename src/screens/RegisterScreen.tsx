@@ -1,3 +1,11 @@
+/**
+ * FILE: src/screens/RegisterScreen.tsx
+ * ROLE: Account creation form; validates, creates Firebase user + Firestore user
+ *       doc, shows a success dialog, then sends the user back to Login.
+ * DEPENDS ON: src/api/auth.ts (registerUser), src/components/common/AlertModal.tsx
+ * USED BY: registered as stack screen "Register" in App.tsx:107; navigated to
+ *          from LoginScreen.tsx:39 ("Create Account" link)
+ */
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { registerUser } from '../api/auth';
@@ -5,6 +13,40 @@ import AlertModal from '../components/common/AlertModal';
 export default function RegisterScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', isSuccess: false });
+
+  /**
+   * WHAT: Validates username/password, creates the Firebase account + Firestore
+   *       profile, and reports success or a mapped error.
+   * FLOW: 1) Empty username or password -> AlertModal error (line 9)
+   *       2) password < 6 chars -> AlertModal "Password must be at least 6
+   *          characters." (mirrors firebase weak-password message)
+   *       3) setLoading(true); const res = await registerUser(u.trim(), p) —
+   *          formatUsernameToEmail -> createUserWithEmailAndPassword ->
+   *          firestore().collection('users').doc(uid).set({username, createdAt:
+   *          serverTimestamp()}); throws caught and mapped
+   *       4) setLoading(false)
+   *       5) success -> AlertModal "Account created! You can now log in." with
+   *          isSuccess flag; navigation to Login happens via the dialog's
+   *          "Log In" button and/or onClose (line 35-36)
+   *       6) failure -> AlertModal "Registration Failed" with res.error
+   * CALLS: registerUser -> formatUsernameToEmail ->
+   *        auth().createUserWithEmailAndPassword ->
+   *        firestore().collection('users').doc(uid).set(...);
+   *        navigation.navigate('Login') -> back to login (never auto-logins-in)
+   * CALLED BY: "Register" button onPress (line 30)
+   * AFFECTS: Firebase Auth users collection; Firestore users/{uid} profile doc;
+   *          navigation stack (Register -> Login)
+   * NOTES: Registration does NOT auto-login — the user must sign in on the
+   *        Login screen (deliberate design). Usernames are sanitized to [a-z0-9]
+   *        and lowercased, so "Ahmed_1" and "ahmed1" collide
+   *        (formatUsernameToEmail, firebase.ts:3). AlertModal fires btn.onPress()
+   *        then onClose() (AlertModal.tsx:49), so on success BOTH the button
+   *        handler and onClose navigate('Login') — the second navigate is a
+   *        harmless no-op but a double-navigation code smell. isSuccess is never
+   *        reset after setAlert(visible:false) — harmless because visible gates it.
+   *        "Back to Login" link uses navigation.goBack() while the dialog uses
+   *        navigate — two different unwinding paths.
+   */
   const handleReg = useCallback(async () => {
     if (!u.trim() || !p.trim()) { setAlert({ visible: true, title: 'Error', message: 'Please enter both username and password.' }); return; }
     if (p.length < 6) { setAlert({ visible: true, title: 'Error', message: 'Password must be at least 6 characters.' }); return; }

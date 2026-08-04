@@ -1,8 +1,16 @@
+/**
+ * FILE: src/components/quran/SurahList.tsx
+ * ROLE: Full-screen modal surah picker with fuzzy search (name/number/juz/page) used from the Quran screen header.
+ * DEPENDS ON: getSurahs (database/quranData.ts:171 — SELECT * FROM surahs ORDER BY id); getStartJuzOfSurah + JUZ_MAP (utils/theme.ts)
+ * USED BY: src/screens/QuranViewScreen.tsx:630 (modal over the whole screen; header "list" button at :509 sets showList)
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { getSurahs } from '../../database/quranData';
 import { getStartJuzOfSurah, JUZ_MAP } from '../../utils/theme';
 
+// Search-normalization: lowercase, strip diacritics, unify alif/hamza/teh-marbuta, keep only ASCII+Arabic, collapse spaces; memoized by input.
+// FLOW: NFD normalize → strip combining marks + Arabic tashkeel ranges → drop tatweel → fold أإآٱ→ا / ؤ→و / ئ→ي / ة→ه → filter chars → collapse whitespace → trim.
 const normCache: Record<string, string> = {};
 const norm = (s: string): string => {
   if (normCache[s] !== undefined) return normCache[s];
@@ -18,6 +26,9 @@ const norm = (s: string): string => {
   return out;
 };
 
+// Similarity scoring for name search: exact 100, prefix 90, substring 80-idx, levenshtein ≤2 → 60-5d, subsequence → 40.
+// levenshtein early-exits when |len diff| > 2 (returns 3); isSubsequence scans greedily; scoreName normalizes both sides and combines.
+// O(n·m) with n,m up to ~30 — negligible for 114 items.
 const levenshtein = (a: string, b: string): number => {
   if (a === b) return 0;
   if (!a.length) return b.length;
@@ -55,6 +66,7 @@ const scoreName = (name: string, q: string): number => {
   return 0;
 };
 
+// All juz numbers a surah spans, by scanning the 30 {j,s,v} JUZ_MAP boundaries; feeds "juz N" search matching and the list subtitle.
 const juzsOfSurah = (s: number): number[] => {
   const out: number[] = [];
   for (let i = 0; i < JUZ_MAP.length; i++) {
@@ -63,8 +75,22 @@ const juzsOfSurah = (s: number): number[] => {
   return out;
 };
 
+// Hardcoded 114-entry [startPage, endPage] pairs for the 610-page indopak pagination; feeds the "Pages a–b" subtitle and numeric page search.
+// A rebuild should generate this from the indopak pages table instead of hardcoding.
 const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106,127],[128,150],[151,176],[177,186],[187,207],[208,221],[221,235],[235,248],[249,255],[255,261],[261,267],[267,281],[282,292],[293,305],[305,312],[312,321],[322,331],[331,341],[342,349],[350,359],[359,366],[366,376],[376,385],[385,396],[396,404],[404,411],[411,414],[415,417],[418,427],[428,434],[434,440],[440,445],[445,452],[452,458],[458,467],[467,476],[477,482],[483,489],[489,495],[495,498],[498,501],[502,506],[506,510],[511,515],[515,517],[518,520],[520,523],[523,525],[526,528],[528,531],[531,534],[534,537],[537,541],[542,545],[545,548],[549,551],[551,553],[553,554],[554,555],[556,557],[558,559],[560,561],[562,564],[564,567],[567,569],[569,571],[571,573],[573,576],[576,577],[578,580],[580,581],[582,584],[584,585],[586,587],[587,589],[589,590],[590,591],[591,592],[592,594],[594,595],[595,596],[596,596],[597,597],[597,598],[598,599],[600,600],[600,601],[601,602],[602,602],[602,602],[603,603],[603,604],[604,604],[604,605],[605,605],[605,606],[606,606],[606,606],[607,607],[607,607],[607,607],[608,608],[608,608],[608,608],[608,609],[609,609],[609,609],[609,609],[610,610],[610,610]];
 
+/**
+ * SurahList — full-screen modal surah picker with fuzzy search.
+ * PROPS: visible (show/hide modal), onClose (dismiss), onSelect(id) (surah chosen), onSelectPage(pageNum) (page-type row chosen).
+ * FLOW: 1) On visible→true: clear query, fetch surahs from SQLite. 2) data memo enriches each surah with startJuz / juzs / pageRange.
+ *       3) results memo scores every surah — exact surah id 110, juz containment 105, page-range digit-substring 70/65, name
+ *          similarity via scoreName — sorts desc by score then id; pure-number queries also inject a synthetic { type:'page', page:N }
+ *          row for 1..610 right after an exact id match. 4) FlatList rows (keyboardShouldPersistTaps) tap → onSelectPage/onSelect + onClose.
+ * CALLED BY: QuranViewScreen.tsx:630 — onSelect dispatches setSurah({surahId, verses:[]}); onSelectPage → handleSelectPage
+ *            (QuranViewScreen.tsx:200-215 — switches readingMode to 'page' and scrolls the page-mode FlatList).
+ * AFFECTS: redux quran.currentSurahId / readingMode; page-mode FlatList scroll position.
+ * NOTES: Not memoized (plain function) — fine, it re-renders only when the parent re-renders.
+ */
 export default function SurahList({ visible, onClose, onSelect, onSelectPage }: any) {
   const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');

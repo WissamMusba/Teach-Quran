@@ -1,9 +1,31 @@
+/**
+ * FILE: src/screens/BookmarksScreen.tsx
+ * ROLE: Lists the current student's bookmarks (newest first) plus a pinned "LAST READ" card;
+ *       tapping any item deep-links back into QuranView at that verse.
+ * DEPENDS ON: Redux s.student.studentData.bookmarks (keyed `surah_verse`) + studentData.lastRead
+ *             (studentData is hydrated only by QuranViewScreen's mount effect via getStudentData
+ *             in src/database/localDB.ts — this screen never calls SQLite itself), s.quran.surahNames,
+ *             src/utils/theme.ts (JUZ_MAP).
+ * USED BY: Opened from the QuranView toolbar `onBookmarks` (QuranViewScreen.tsx); NOT
+ *          reachable from Dashboard.
+ */
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { JUZ_MAP } from '../utils/theme';
 
+/**
+ * WHAT: Returns the Juz (1-30) containing a given surah/verse by linear-scanning JUZ_MAP
+ *       (first entry whose (s,v) >= target wins).
+ * FLOW: 1) juz starts at 1; 2) loop JUZ_MAP entries ({j,s,v}), keeping the last entry where
+ *       entry.s < surahId, or (entry.s === surahId && entry.v <= verseNum); 3) return juz.
+ * CALLS: none (reads JUZ_MAP, src/utils/theme.ts).
+ * CALLED BY: renderBookmark (juz badge) and the pinned LAST READ card.
+ * AFFECTS: UI only.
+ * NOTES: O(30) scan per row — fine for list sizes. Duplicated logic exists as
+ *        getStartJuzOfSurah (src/utils/theme.ts) but that one only checks surah, not verse.
+ */
 const getJuzForVerse = (surahId: number, verseNum: number): number => {
   let juz = 1;
   for (const entry of JUZ_MAP) {
@@ -14,6 +36,14 @@ const getJuzForVerse = (surahId: number, verseNum: number): number => {
   return juz;
 };
 
+/**
+ * WHAT: Formats an ISO timestamp as "Mon D, YYYY  h:mm AM/PM"; returns '' for falsy input.
+ * FLOW: Parse Date, build month/day/year, 12-hour clock with padded minutes + AM/PM.
+ * CALLS: none.
+ * CALLED BY: renderBookmark (card timestamp).
+ * AFFECTS: UI only.
+ * NOTES: Duplicated verbatim in MistakesScreen.tsx — shared util candidate.
+ */
 const formatDateTime = (ts: string): string => {
   if (!ts) return '';
   const d = new Date(ts);
@@ -28,6 +58,27 @@ const formatDateTime = (ts: string): string => {
   return `${month} ${day}, ${year}  ${h12}:${minutes} ${ampm}`;
 };
 
+/**
+ * WHAT: Screen component: derives the sorted bookmark list + last read from Redux, renders
+ *       empty state, pinned card, or FlatList of bookmark cards.
+ * FLOW: 1) useSelector s.student.studentData and s.quran.surahNames; 2) sortedBookmarks
+ *          useMemo: Object.values(studentData.bookmarks) sorted desc by createdAt (sort()
+ *          MUTATES the values array in place); 3) lastRead = studentData?.lastRead;
+ *          4) renderBookmark: computes juz + surah name, onPress -> handleNavigate(item.surah,
+ *          item.verse); 5) renders pinned "LAST READ" card if lastRead exists, else empty
+ *          state or FlatList.
+ * CALLS: handleNavigate -> navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
+ *        deep-link contract (QuranViewScreen consumes these params); getJuzForVerse /
+ *        formatDateTime for badges + timestamps.
+ * CALLED BY: React Navigation (registered in the root stack; opened via QuranViewScreen.tsx
+ *            toolbar onBookmarks).
+ * AFFECTS: Redux: none. Navigation: pushes QuranView with {surahId, scrollToVerse}.
+ * NOTES: keyExtractor uses the array index — safe here (no reordering between renders) but
+ *        fragile if deletes are added. If studentData is null (QuranView never mounted this
+ *        session), both lists render empty — no loading/refresh path in this screen. The
+ *        empty-state hint "Long-press a verse to bookmark it" refers to QuranViewScreen's
+ *        handleBookmarkFlow, not to any action in this screen.
+ */
 export default function BookmarksScreen() {
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);

@@ -870,9 +870,7 @@ DEPENDS ON: nothing in src/ (leaf module); runtime: SQLite native module,
             Firebase auth initialized by App.tsx
 USED BY: src/api/sync.ts, src/api/student.ts, src/database/quranData.ts,
          src/screens/QuranViewScreen.tsx, src/screens/DashboardScreen.tsx,
-         src/components/quran/MushafPageView.tsx, src/utils/audioPlayback.ts
-         (audioPlayback reads `verses` directly via getDB() at
-         src/utils/audioPlayback.ts:172)
+         src/components/quran/MushafPageView.tsx
 
 #### initDatabase()
 WHAT: Idempotent one-time DB bootstrap: opens quran.db (WAL mode) and creates
@@ -926,8 +924,7 @@ NOTES:
 
 #### getDB()
 WHAT: Returns the singleton dbInstance; callers use it for ad-hoc SQL.
-CALLED BY: quranData.ts:24/55/61/97/147/181/219/231, audioPlayback.ts:172
-           (buildEstimatedTimeline reads verses.textArabic lengths),
+CALLED BY: quranData.ts:24/55/61/97/147/181/219/231,
            and every localDB helper internally.
 AFFECTS: none (accessor)
 NOTES: Returns null if initDatabase never ran — no guard. Since the only
@@ -1503,6 +1500,7 @@ initialState (settingsSlice.ts:3-10), every field:
   - translationTextSize: 16 -> DEAD: setter exists, no dispatcher, no reader
   - showPageInfo: true     -> DEAD: only read by its own Settings switch
   - mushafSplit: false     -> tablet two-page spread
+  - playBasmala: true      -> play the reciter's basmala before verse 1 (surah 1 & 9 excluded)
 
 #### toggleNightMode()
 WHAT: Flips nightMode.
@@ -1537,6 +1535,14 @@ CALLED BY: SettingsScreen.tsx:75 (Show page info switch).
 AFFECTS: Only the switch UI itself (SettingsScreen.tsx:14/:75). No reader in
          QuranViewScreen/MushafPageView — page info is instead controlled by
          `headerVisible` local state. Dead setting.
+
+#### togglePlayBasmala()
+WHAT: Flips playBasmala (audio prelude setting).
+CALLED BY: SettingsScreen.tsx:99 (Basmala before verse 1 switch).
+AFFECTS: QuranViewScreen.tsx:162 reads playBasmala and passes
+  `{ playBasmala }` to every playSurahFromVerse call (:798/:836/:873/:894) ->
+  playVerse's basmala branch (audioPlayback.ts:297-311). PERSISTED like the
+  other settings.
 
 #### setMushafSplit(v)
 WHAT: Sets two-page spread flag.
@@ -2184,24 +2190,35 @@ NOTES: While capturing, DrawingCanvas is unmounted (isDrawing && !isCapturing,
   translating even-page paths by +halfOrigin (:437-445). Page bookmark button
   is INSIDE the captured region (:598-603).
 
-#### Playback — startPlayFromVerse / togglePlayAudio (:451-494)
+#### Playback — startPlayFromVerse / togglePlayAudio / footer handlers (:780-918)
 WHAT: startPlayFromVerse plays from a given verse (menu Play); togglePlayAudio
-  toggles play/pause of the current surah starting from the current page's
-  first verse (page mode) or verse 1.
+  toggles play/pause (pause-with-resume / resume / fresh start); playPageStart
+  (PLAY button), playNewSurah (NEW SURAH button), stepVerse (◀/▶) complete the
+  footer set (AudioPlayerBar render :1072).
 FLOW: qariId = currentQari includes 'Afasy' ? ar.alafasy : ar.abdulbasit
-  (:452) — the ONLY two qaris wired (see audioPlayback.ts:24-27). If playing:
+  (:781) — the ONLY two qaris wired (see audioPlayback.ts:178-190). If playing:
   setPlaying(false) + pauseSurah (removes listener, bumps playToken) +
   clear flashingVerse. Verse->surah resolution in page mode: pageVersesCache
   lookup, falling back to a fresh getVersesByPage fetch, then currentSurahId
-  (:456-460). Clamp with SURAH_VERSE_COUNTS. callbacks: onVerseChange ->
+  (:786-789). Clamp with SURAH_VERSE_COUNTS. callbacks: onVerseChange ->
   setFlashingSurah + setFlashingVerse; onEnd/onError -> playing=false, flash
-  cleared, Alert on error. playSurahFromVerse(audioPlayer.current, ...).
-CALLED BY: menu Play (:641); AudioPlayerBar onTogglePlay (:628)
+  cleared, Alert on error. playSurahFromVerse(audioPlayer.current, ...,
+  { playBasmala }) — false only when stepping with ◀/▶ (opts override).
+  playPageStart: page mode -> pageVersesCache[currentPageNum][0] (fresh fetch
+  fallback), else surah verse 1 (:858-881). playNewSurah: guarded by
+  newSurahOnPage (page mode: first verse with verseNumber===1, :849); starts
+  at verse 1 of that surah (:884-899). stepVerse: getCurrentPlaybackVerse()±1
+  clamped to SURAH_VERSE_COUNTS; back at verse 1 = no-op; forward past the
+  last verse = stop playback (:906-918).
+CALLED BY: menu Play (:800); AudioPlayerBar onResume/onPlayPageStart/
+  onPlayNewSurah/onPrevVerse/onNextVerse (:1072)
 AFFECTS: s.audio.isPlaying; s.quran.flashingVerse/flashingSurah (flash during
-  playback); plays from streaming timeline (quran.com API) with per-ayah
-  fallback (audioPlayback.ts:286-403)
+  playback; nothing highlights during the basmala prelude — onVerseChange
+  fires only when verse 1 starts); per-ayah streaming (audioPlayback.ts:288)
 NOTES: Toggle double-guards pause (dispatch + pauseSurah). qari change comes
-  from QariSelector modal (:631).
+  from QariSelector modal (:631). End of surah STOPS (no auto-advance).
+  "make sure the highlighting is proper" — onVerseChange is the single source
+  for the flash; verify visually that verse N lights when N's audio starts.
 
 #### SurahList modal (:630) / handleSelectPage (:200-215)
 WHAT: SurahList onSelect -> dispatch setSurah (reload via :264-280 effect);
@@ -2863,13 +2880,13 @@ NOTES:
   - notes map is keyed by verseKey; empty-string notes (created then cleared) are filtered out at render, but the key remains in studentData.notes and will still be synced/persisted.
 
 ### FILE: src/screens/SettingsScreen.tsx
-ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and display toggles that dispatch to settingsSlice (nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit).
+ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and display toggles that dispatch to settingsSlice (nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit, playBasmala).
 IMPORTS:
   React memo -> memo(SettingsScreen) at line 111
   react-native primitives + Switch + ScrollView + useWindowDimensions -> UI + conditional tablet layout
   react-redux useDispatch/useSelector -> dispatch actions + read state
   ../store/quranSlice toggleTranslation/setFontSize/setReadingMode/setTextStyle -> READING settings (quranSlice)
-  ../store/settingsSlice toggleNightMode/setTextBrightness/setBgBrightness/toggleShowPageInfo/setMushafSplit -> DISPLAY settings (settingsSlice)
+  ../store/settingsSlice toggleNightMode/setTextBrightness/setBgBrightness/toggleShowPageInfo/setMushafSplit/togglePlayBasmala -> DISPLAY settings (settingsSlice)
   ../utils/mushafLayout SPLIT_MIN_WIDTH (768, mushafLayout.ts:2) -> only render Spread-view switch on tablets (width >= 768)
   @react-native-community/slider Slider -> brightness sliders
   ../store RootState -> typed useSelector
@@ -2879,13 +2896,13 @@ USED BY: QuranView toolbar `onSettings` (QuranViewScreen.tsx:510).
 #### SettingsScreen (default export memo, line 10)
 WHAT: Screen component: three sections of settings controls that dispatch Redux actions on change.
 FLOW:
-  1. useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle (line 13); from state.settings -> nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit (line 14).
+  1. useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle (line 27); from state.settings -> nightMode, textBrightness, bgBrightness, showPageInfo, mushafSplit, playBasmala (line 28).
   2. "Reading Settings" (line 18): Show Translation Switch -> dispatch(toggleTranslation()) (line 22); Reading Mode segmented ['ayah'|'continuous'|'page'] -> dispatch(setReadingMode(mode)) (line 27); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> dispatch(setFontSize(size)) (line 35); Text Style ['saleem'|'uthmani'|'alqalam'|'lateef'] (labels INDOPAK 1/2/3 + UTHMANI) -> dispatch(setTextStyle(style)) (line 43).
   3. "Night Mode" (line 53): Night mode Switch -> dispatch(toggleNightMode()) (line 57); Text brightness Slider 0-255 -> dispatch(setTextBrightness(Math.round(v))) (line 61); Background brightness Slider 0-255 -> dispatch(setBgBrightness(Math.round(v))) (line 66).
-  4. "Reading Preferences" (line 71): Show page info Switch -> dispatch(toggleShowPageInfo()) (line 75); Spread view (two pages) Switch, rendered ONLY when width >= SPLIT_MIN_WIDTH -> dispatch(setMushafSplit(v)) (lines 77-82).
+  4. "Reading Preferences" (line 71): Show page info Switch -> dispatch(toggleShowPageInfo()) (line 75); Spread view (two pages) Switch, rendered ONLY when width >= SPLIT_MIN_WIDTH -> dispatch(setMushafSplit(v)) (lines 77-82); Basmala before verse 1 Switch -> dispatch(togglePlayBasmala()) (line 85).
 CALLS:
   toggleTranslation / setFontSize / setReadingMode / setTextStyle -> quranSlice (quranSlice.ts:16-21)
-  toggleNightMode / setTextBrightness / setBgBrightness / toggleShowPageInfo / setMushafSplit -> settingsSlice (settingsSlice.ts:16-21)
+  toggleNightMode / setTextBrightness / setBgBrightness / toggleShowPageInfo / setMushafSplit / togglePlayBasmala -> settingsSlice (settingsSlice.ts:16-21)
 CALLED BY: React Navigation; via QuranViewScreen.tsx:510.
 AFFECTS:
   Redux state.quran: showTranslation, fontSize, readingMode, textStyle — NOT persisted (quranSlice not in persist whitelist).
@@ -2926,7 +2943,8 @@ SETTINGS MATRIX (setting -> slice -> persisted? -> readers)
   textBrightness   -> settingsSlice (setTextBrightness, settingsSlice.ts:17) -> PERSISTED -> VerseDisplay.tsx:12, MushafPageView.tsx:51, FlowingText.tsx:12
   bgBrightness     -> settingsSlice (setBgBrightness, settingsSlice.ts:18) -> PERSISTED -> QuranViewScreen.tsx:110 (screen bg)
   showPageInfo     -> settingsSlice (toggleShowPageInfo, settingsSlice.ts:20) -> PERSISTED -> NO READERS (dead setting)
-  mushafSplit      -> settingsSlice (setMushafSplit, settingsSlice.ts:21) -> PERSISTED -> QuranViewScreen.tsx:117 (splitOn, only when width >= SPLIT_MIN_WIDTH=768)
+  mushafSplit      -> settingsSlice (setMushafSplit, settingsSlice.ts:21) -> PERSISTED -> QuranViewScr
+playBasmala      -> settingsSlice (togglePlayBasmala, settingsSlice.ts:85) -> PERSISTED -> QuranViewScreen playSurahFromVerse opts (:162/:798)een.tsx:117 (splitOn, only when width >= SPLIT_MIN_WIDTH=768)
   translationTextSize -> settingsSlice (setTranslationTextSize, settingsSlice.ts:19) -> PERSISTED but action NEVER dispatched, NO UI in SettingsScreen, NO readers (dead state)
   currentQari      -> audioSlice (setQari, audioSlice.ts:17) -> PERSISTED -> AudioPlayerBar.tsx:6, QariSelector.tsx:15, QuranViewScreen.tsx:111 -> utils/audioPlayback.ts qariId mapping (line 452/475)
 
@@ -3484,26 +3502,31 @@ NOTES:
 
 ================================================================================
 ### FILE: src/components/audio/AudioPlayerBar.tsx
-ROLE: Bottom playback bar (60px) showing play/pause toggle, current Qari name + "Surah N" label, and an expand button that opens the QariSelector; fully controlled by props.
+ROLE: Bottom playback bar, two rows: (1) qari name + "Surah N" + expand button (opens QariSelector); (2) controls — ◀ prev, RESUME (play/pause toggle, renamed from the old single toggle), ▶ next, PLAY (page-first-verse / surah start), NEW SURAH (plays the surah beginning on this page; greyed when none). Fully controlled by props.
 IMPORTS:
   - react (memo) -> shallow-prop memoization
   - react-native View/Text/TouchableOpacity/StyleSheet -> bar layout
   - react-redux useSelector -> reads audioSlice.currentQari for display
-DEPENDS ON: props onOpenQari/onTogglePlay/isPlaying/nightMode/surahId; Redux audioSlice.currentQari
+DEPENDS ON: props onOpenQari/onResume/onPlayPageStart/onPlayNewSurah/canPlayNewSurah/onPrevVerse/onNextVerse/canStep/isPlaying/nightMode/surahId; Redux audioSlice.currentQari
 USED BY:
-  - src/screens/QuranViewScreen.tsx:628 — `{isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onTogglePlay={togglePlayAudio} isPlaying={isPlaying} />}`
+  - src/screens/QuranViewScreen.tsx:1072 — `{isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} />}`
 
 #### AudioPlayerBar (component, memoized)
-WHAT: Renders play/pause glyph (⏸/▶ from isPlaying prop), qari name (from Redux), "Surah {surahId}", and an expand affordance; both the name area and the expand button trigger onOpenQari.
-FLOW: 1) theme = nightMode ? darkTheme : lightTheme (7). 2) Play button -> onTogglePlay (10-12). 3) qariInfo + expandBtn -> onOpenQari (13-19).
+WHAT: Renders the qari row (name + "Surah {surahId}", both tappable -> onOpenQari) and the control row. RESUME shows ⏸ when isPlaying else ▶ (still the play/pause toggle — relabeled per user request); ◀/▶ greyed unless canStep (isPlaying); NEW SURAH greyed unless canPlayNewSurah; PLAY always enabled.
+FLOW: 1) theme = nightMode ? darkTheme : lightTheme. 2) RESUME -> onResume. 3) ◀/▶ -> onPrevVerse/onNextVerse, disabled when !canStep. 4) PLAY -> onPlayPageStart. 5) NEW SURAH -> onPlayNewSurah, disabled when !canPlayNewSurah. 6) qari area/expand -> onOpenQari.
 CALLS: (none directly — pure presentational)
-  - onTogglePlay -> QuranViewScreen.togglePlayAudio (QuranViewScreen.tsx:474-494)
-  - onOpenQari -> setShowQariModal(true) (QuranViewScreen.tsx:628)
-CALLED BY: QuranViewScreen.tsx:628, gated on isHeaderVisible
-AFFECTS: Nothing directly (read-only component); indirectly drives audioSlice.isPlaying via the parent's togglePlayAudio and the QariSelector modal
+  - onResume -> QuranViewScreen.togglePlayAudio (:816-854)
+  - onPlayPageStart -> QuranViewScreen.playPageStart (:858-881)
+  - onPlayNewSurah -> QuranViewScreen.playNewSurah (:884-899)
+  - onPrevVerse/onNextVerse -> QuranViewScreen.stepVerse(±1) (:906-918)
+  - onOpenQari -> setShowQariModal(true) (QuranViewScreen.tsx:1072)
+CALLED BY: QuranViewScreen.tsx:1072, gated on isHeaderVisible
+AFFECTS: Nothing directly (read-only component); indirectly drives audioSlice.isPlaying via the parent handlers and the QariSelector modal
 NOTES:
-  - The play/pause icon uses the prop isPlaying, not the Redux value — parent must keep it in sync (dispatch(setPlaying) happens in togglePlayAudio/startPlayFromVerse and audioPlayback callbacks).
+  - The RESUME glyph uses the prop isPlaying, not the Redux value — parent must keep it in sync (dispatch(setPlaying) happens in togglePlayAudio/startPlayFromVerse and audioPlayback callbacks).
   - Bar disappears when the header is hidden (isHeaderVisible gate) — including mid-playback.
+  - memo() is effectively defeated: QuranViewScreen passes fresh inline arrows every render — harmless at this size, but flagging it.
+
 
 ================================================================================
 FEATURE MAP
@@ -3523,11 +3546,13 @@ FEATURE MAP
    d. Cancel / unmount -> recorder stopped; file left orphaned.
 
 3. PLAYBACK FLOW
-   a. AudioPlayerBar play toggle (628) -> togglePlayAudio (474) -> playSurahFromVerse (audioPlayback.ts:405) with qariId mapped from currentQari via includes('Afasy') test (452/475).
-   b. audioPlayback streams full-surah mp3 (mp3quran) + quran.com timeline (fetchQuranComTimeline, 78-120); onVerseChange callback -> dispatch(setFlashingVerse(v)) + setFlashingSurah (485) -> verse highlight flashes; per-ayah fallback (playVerse, 220-284) retries 4 CDN mirrors per verse.
-   c. pauseSurah (37-47) invalidates playToken, removes listener; isSurahPlaying() used in AppState background handler (343) to auto-pause.
-   d. End of stream -> onEnd -> setPlaying(false), flashing cleared (486); errors -> Alert (487).
-   e. Qari switch: bar expand -> QariSelector modal -> setQari(name) -> audioSlice.currentQari (read at 111, 452, 475); next playback uses the new mapping.
+   a. AudioPlayerBar RESUME (:1072) -> togglePlayAudio (:816) -> playSurahFromVerse (audioPlayback.ts:335) with qariId mapped from currentQari via includes('Afasy') test (:781). Pause branch uses pauseSurahWithResume -> RESUME restarts that verse via resumeSurah (no basmala on resume).
+   b. Every verse streams from its own per-ayah MP3 (verified mirrors, everyayah.com first; audioPlayback.ts:175-191); playVerse (:288) prefetches verse+1/+2 via RNFS (optional cache), fires onVerseChange exactly at verse start -> dispatch(setFlashingVerse(v)) + setFlashingSurah -> golden verse highlight.
+   c. Basmala prelude (:297-311): when starting at verse 1 with playBasmala (settings toggle, default ON; surah 1 & 9 excluded) the reciter's own 1:1 file plays first — NO onVerseChange during it, so nothing highlights until verse 1 itself; any failure falls through to verse 1.
+   d. Footer extras: PLAY -> playPageStart (:858) (page's first verse in page mode, surah verse 1 otherwise); NEW SURAH -> playNewSurah (:884) (verse 1 of the surah starting on the page; disabled via newSurahOnPage when none); ◀/▶ -> stepVerse (:906) restart playback at verse±1 (no basmala), stopping at the surah's last verse.
+   e. pauseSurah (:51) invalidates playToken, removes listener; isSurahPlaying() used in AppState background handler (:587) to auto-pause; stopPlayback (:95) races stopPlayer against a 3s timeout so a hanging native stop can never freeze the app.
+   f. End of stream -> onEnd -> setPlaying(false), flashing cleared; errors -> Alert (onError, audioPlayback.ts:330). End-of-surah keeps STOPPING (no auto-advance — user decision).
+   g. Qari switch: bar expand -> QariSelector modal -> setQari(name) -> audioSlice.currentQari (read at :781); next playback uses the new mapping.
 
 SURPRISES / RISKS FOUND
   - generatePathD is copy-pasted in DrawingCanvas.tsx:255 and StaticDrawingOverlay.tsx:8 (must be fixed twice; 'wavy' style is dead code — nothing ever sets style).
@@ -3791,74 +3816,91 @@ AFFECTS: Which string is rendered/tapped; keeps the PUA-stripped word in sync wi
 NOTES: GOTCHA: the cache evicts `cleanWordCache.keys().next().value` (first inserted), so on cache overflow the oldest entry is dropped — fine for a pure function, but the cache is per-session only.
 
 ### FILE: src/utils/audioPlayback.ts
-ROLE: Per-ayah playback engine — each verse streams from its own MP3 (4 CDN mirrors), prefetches the next 2 verses to disk (RNFS) for smooth transitions, and fires onVerseChange exactly at each verse start (no timeline/seek math at all).
-IMPORTS: RNFS (react-native-fs) -> on-disk ayah cache under DocumentDirectoryPath/ayahCache.
-DEPENDS ON: an AudioRecorderPlayer instance passed by the caller; qariId one of 'ar.alafasy' | 'ar.abdulbasit' (else defaults to abdulbasit); network access to cdn.islamic.network / everyayah.com / download.quranicaudio.com / verses.quran.com.
-USED BY: QuranViewScreen.tsx:33 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying).
-WHY PER-AYAH (history): the old whole-surah streamer (mp3quran 001.mp3 + quran.com by_surah segment timeline) drifted badly — api.quran.com/v4/recitations/{id}/by_surah/{n} now returns 404, so the timeline silently fell back to text-length-proportional estimates, landing the seek ~15-30s (1-2 verses) before the tapped verse (offset varied by reciter). Per-ayah files always start exactly at the verse's first word, and no longer play the audhu/basmala when starting a surah.
+ROLE: Per-ayah playback engine — each verse streams from its own MP3 (VERIFIED CDN mirrors, everyayah.com first), optionally prefetches the next 2 verses to disk (RNFS — the cache is fully optional, every call degrades to streaming), fires onVerseChange exactly at each verse start (no timeline/seek math at all), and optionally plays the basmala (the reciter's own 1:1 file) before verse 1 of a surah (surah 1 & 9 excluded).
+IMPORTS: RNFS (react-native-fs) -> optional on-disk ayah cache under DocumentDirectoryPath/ayahCache.
+DEPENDS ON: an AudioRecorderPlayer instance passed by the caller; qariId one of 'ar.alafasy' | 'ar.abdulbasit' (else defaults to abdulbasit); network access to everyayah.com (primary) + cdn.islamic.network (last resort — it 403s but fails FAST so it costs ~nothing).
+USED BY: QuranViewScreen.tsx:53 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse).
+WHY PER-AYAH (history): the old whole-surah streamer (mp3quran 001.mp3 + quran.com by_surah segment timeline) drifted badly — api.quran.com/v4/recitations/{id}/by_surah/{n} now returns 404, so the timeline silently fell back to text-length-proportional estimates, landing the seek ~15-30s (1-2 verses) before the tapped verse (offset varied by reciter). Per-ayah files always start exactly at the verse's first word, and no longer play audhu/basmala at surah start (now an optional, user-controlled prelude instead).
+WHY V2 (v47 was broken): the first per-ayah rewrite shipped mirrors that 403/404 in practice — cdn.islamic.network blocks all per-ayah requests (403, hotlink protection) and the abdulbasit folder was guessed as `AbdulBaset_128kbps` (real: `Abdul_Basit_Mujawwad_128kbps` etc., everyayah listing verified by curl). Result: "audio doesnt work at all". ALSO: `await player.stopPlayer()` could hang forever (native stop not resolving) — the app froze whenever audio failed to load. Fixes: verified mirror order below, 3s Promise.race around stopPlayer (:101-104), 8s stall watchdog, and fsOk runtime guard.
 
-#### SURAH_VERSE_COUNTS (number[114]) — line 3
+#### SURAH_VERSE_COUNTS (number[114]) — line 19
 WHAT: Hardcoded verse count of every surah (index 0 = surah 1). Single source of truth for clamping the start verse and per-ayah end-of-surah detection.
-CALLED BY: QuranViewScreen.tsx:460 (clamp in startPlayFromVerse); internally resumeSurah / playSurahFromVerse.
+CALLED BY: QuranViewScreen.tsx:791 (clamp in startPlayFromVerse) and internally resumeSurah / playSurahFromVerse.
 NOTES: Must stay in sync with the DB's verses table — a mismatch silently clips playback range.
 
-#### isSurahPlaying(surahId): boolean — line 31
+#### PlaybackCallbacks / PlaybackOptions — lines 21-29
+WHAT: onVerseChange?(v, sId) / onEnd?() / onError?(msg); PlaybackOptions = { playBasmala?: boolean } (5th arg of playSurahFromVerse).
+
+#### isSurahPlaying(surahId): boolean — line 43
 WHAT: `playing && currentSurahId === surahId` — module-level singleton check.
-CALLED BY: QuranViewScreen.tsx:343,350 (AppState background + unmount), 451,474 (before starting/pausing in startPlayFromVerse/togglePlayAudio).
+CALLED BY: QuranViewScreen.tsx:587,594 (AppState background + unmount), 782/818/862/887 (stop before restart in startPlayFromVerse/togglePlayAudio/playPageStart/playNewSurah).
 AFFECTS: Guards against double-start; used to decide whether pause + setPlaying(false) is needed.
 NOTES: Module-global state — one playback at a time app-wide.
 
-#### pauseSurah(player): Promise<void> — line 33-42
+#### getPlaybackPosition() / getCurrentPlaybackVerse() / isResumable() — lines 45-49
+WHAT: lastPositionMs (per-verse position, informational), currentVerse (the verse currently playing — during a basmala prelude it is 1), resumeSession !== null.
+CALLED BY: getCurrentPlaybackVerse -> QuranViewScreen.stepVerse (:908) for ◀/▶ navigation; isResumable -> togglePlayAudio (:825).
+
+#### pauseSurah(player): Promise<void> — line 51-61
 WHAT: Bumps `playToken` (invalidates every pending listener/watchdog), clears the stall timer, removes the playback listener, and best-effort pauses the player.
-CALLED BY: QuranViewScreen.tsx:343,350 (AppState background/inactive + unmount cleanup), 451 (stop before (re)start).
+CALLED BY: QuranViewScreen.tsx:587,594 (AppState background/inactive + unmount cleanup), 782/818/862/887 (stop before (re)start).
 AFFECTS: `playing=false` module flag; UI `setPlaying(false)` is the caller's job (callbacks don't fire on pause).
-NOTES: All three internal player calls are try/catch-swallowed — pause is fire-and-forget.
+NOTES: All internal player calls are try/catch-swallowed — pause is fire-and-forget.
 
-#### pauseSurahWithResume(player): Promise<void> — line 47-56
-WHAT: pauseSurah + stores {surahId, verse, positionMs} in `resumeSession` for the play/pause toggle.
-CALLED BY: QuranViewScreen.tsx:474 (togglePlayAudio pause branch).
+#### pauseSurahWithResume(player): Promise<void> — line 63-75
+WHAT: pauseSurah + stores {surahId, verse, positionMs} in `resumeSession` for the RESUME button.
+CALLED BY: QuranViewScreen.tsx:818 (togglePlayAudio pause branch).
 
-#### resumeSurah(player, qariId, callbacks): Promise<boolean> — line 58-68
-WHAT: restarts playback of the stored session's verse (from the verse start — mid-verse position is deliberately not preserved in per-ayah mode; `positionMs` is stored but ignored).
-CALLED BY: QuranViewScreen.tsx:482 (togglePlayAudio resume branch).
+#### resumeSurah(player, qariId, callbacks): Promise<boolean> — line 77-86
+WHAT: restarts playback of the stored session's verse (from the verse start — mid-verse position is deliberately not preserved in per-ayah mode; `positionMs` is stored but ignored). Passes playBasmala=false — resuming never replays the basmala.
+CALLED BY: QuranViewScreen.tsx:826 (togglePlayAudio resume branch).
 
-#### playVerse(player, qariId, surahId, verse, lastVerse, callbacks) — line 193-267
-WHAT: Plays ONE verse: prefetches verse+1 and verse+2, tries the cached local file first (index 0), then the 4 CDN mirrors; on status 3 advances to verse+1; on the last verse fires onEnd.
-FLOW:
-1. `onVerseChange(verse)` fires immediately — the verse highlight can never lag the audio.
-2. `prefetchAyah(verse+1)` + `prefetchAyah(verse+2)` (RNFS downloads, see cache below).
-3. `playToken++` (a new verse cancels the previous verse's listener).
-4. `nextAttempt(i)`: removePlayBackListener + add listener (status 2 started / 3 completed / 5,6 stopped), 10s stall watchdog -> next mirror.
-5. Source for index 0 = cached file if `RNFS.exists(localPath)`; if startPlayer fails on the cached file, it is unlinked and the next mirror is tried.
-6. Status 3: `cleanupAyahCache(verse - 3)` (keep the last 3 files for replays/back-jumps), then `playVerse(verse+1)` or `playing=false; onEnd()`.
+#### stopPlayback(player): Promise<void> — line 95-106
+WHAT: clears watchdog, removes the listener, then `await Promise.race([stopPlayer(), 3s timeout])` — a hanging native stop can never block the JS thread.
+CALLED BY: playSurahFromVerse (:347), resumeSurah (:82).
+NOTES: This race is THE freeze fix — the v47 hang was an un-awaitable stopPlayer before every new start.
+
+#### fsOk / cache helpers — lines 109-172
+WHAT: `fsOk` is a one-time runtime probe (`!!RNFS && !!RNFS.DocumentDirectoryPath && typeof exists/downloadFile === 'function'`, try/catch -> false). cacheDir/cachedPath return `string | null` when fsOk is false. ensureCacheDir memoizes the mkdir; wipeAyahCache unlinks+recreates the dir; prefetchAyah is one job per file (skips existing + running jobs, tries the mirrors, unlinks partials, deletes itself on completion so failures retry on later passes); cleanupAyahCache unlinks `verse - PREFETCH_AHEAD - 1`.
+NOTES: Every cache call is guarded and swallows errors — the engine streams without the cache, always.
+
+#### getAudioSources(qariId, surahId, verse): string[] — line 175-191
+WHAT: Per-ayah mirror lists, order = priority. VERIFIED via curl (Android UA) — everyayah 200s:
+  - ar.alafasy: everyayah.com/data/Alafasy_128kbps/{sss}{vvv}.mp3, Alafasy_64kbps, then cdn.islamic.network/.../ar.alafasy/{s}:{v}.mp3 (403s fast — kept as a last resort only).
+  - ar.abdulbasit (default): everyayah.com/data/Abdul_Basit_Mujawwad_128kbps, Abdul_Basit_Murattal_192kbps, Abdul_Basit_Murattal_64kbps, then cdn.islamic.network last.
+NOTES: 404/403 sources from the first rewrite (download.quranicaudio.com, verses.quran.com, `AbdulBaset_*` folder names, mp3quran per-ayah) were all deleted.
+
+#### startAttemptChain(player, sources, localPath, onComplete, onExhausted) — line 206-286
+WHAT: Plays ONE audio file through `sources` (cached local file first at index 0), with per-attempt token + 8s stall watchdog. Status codes: 2 playing (markStarted), 3 completed (remove listener + onComplete), 5/6 stop/interrupt (token bump, silent). startPlayer failure on the cached file unlinks it and moves to the next mirror. onExhausted fires with NO error (the caller decides).
+NOTES: Every attempt re-checks `attemptToken !== playToken` before acting — pause/restart cancels mid-flight attempts.
+
+#### playVerse(player, qariId, surahId, verse, lastVerse, callbacks, playBasmala) — line 288-333
+WHAT: Plays ONE verse (recursive for successive verses). Basmala branch (:297-311): when verse===1 && playBasmala && surahId !== 1 && surahId !== 9, plays the reciter's own 1:1 file (shared across surahs; prefetches 1:1 + s:v1 + s:v2) with currentVerse=1 and NO onVerseChange — the highlight only appears when verse 1 actually starts; onComplete AND onExhausted both fall through to playVerse(verse=1, playBasmala=false) so a failed basmala never loses the verse.
+Normal branch: onVerseChange(verse) fires immediately (highlight can never lag); prefetchAyah(verse+1/+2); startAttemptChain; on status 3 cleanupAyahCache(verse-3), then advance to verse+1 or `playing=false; onEnd()` at the last verse; onExhausted -> playing=false + onError('Audio could not be played from any server...').
 CALLED BY: playSurahFromVerse, resumeSurah (recursion for successive verses).
-AFFECTS: onVerseChange/onEnd/onError callbacks; `lastPositionMs` (per-verse position); `playing` flag.
+AFFECTS: onVerseChange/onEnd/onError callbacks; `lastPositionMs`; `playing` flag.
 
-#### playSurahFromVerse(player, qariId, surahId, startVerse, callbacks): Promise<void> — line 269-283
-WHAT: Entry point — clamps startVerse to [1, SURAH_VERSE_COUNTS], stops any current playback, wipes the ayah cache when switching surahs, then starts playVerse.
-FLOW:
-1. `resumeSession = null`; `verse = clamp(startVerse, 1, lastVerse)`.
-2. `await stopPlayback(player)` — removes listener + stopPlayer.
-3. If `currentSurahId !== surahId`: `await wipeAyahCache()` (unlink + recreate the dir) — prevents old-surah files accumulating.
-4. `playVerse(player, qariId, surahId, verse, lastVerse, callbacks)`.
-CALLED BY: QuranViewScreen.tsx:467 (startPlayFromVerse) and :492 (togglePlayAudio); both then `dispatch(setPlaying(true))` and both pass the same callback trio:
-  - onVerseChange: `(v, sId) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); }` (:462)
-  - onEnd: `setPlaying(false) + setFlashingVerse(null)` (:463)
-  - onError: `setPlaying(false) + setFlashingVerse(null) + Alert.alert('Playback error', msg)` (:464)
+#### playSurahFromVerse(player, qariId, surahId, startVerse, callbacks?, opts?) — line 335-353
+WHAT: Entry point — clamps startVerse to [1, SURAH_VERSE_COUNTS], stops any current playback, wipes the ayah cache when switching surahs (fire-and-forget, not awaited), then starts playVerse with `!!opts?.playBasmala`.
+FLOW: 1) resumeSession = null; verse = clamp. 2) await stopPlayback(player) (3s-raced). 3) If currentSurahId !== surahId: wipeAyahCache() un-awaited. 4) playVerse(...).
+CALLED BY: QuranViewScreen.tsx:798 (startPlayFromVerse — with `{ playBasmala: opts?.playBasmala ?? !!playBasmala }`, i.e. false for ◀/▶ steps), :836 (togglePlayAudio fresh branch), :873 (playPageStart), :894 (playNewSurah); both pass the same callback trio (:806-809):
+  - onVerseChange: `(v, sId) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); }`
+  - onEnd: `setPlaying(false) + setFlashingVerse(null)`
+  - onError: `setPlaying(false) + setFlashingVerse(null) + Alert.alert('Playback error', msg)`
 AFFECTS: Redux audio slice (`setPlaying`), flashing verse highlight in the reader (`setFlashingVerse`), and the reader's `flashingSurah` banner.
 
-#### Per-ayah cache (RNFS) — lines 87-142
+#### Per-ayah cache (RNFS) — lines 109-172
 WHAT: `ayahCache` dir under DocumentDirectoryPath; file name `{qariId sanitized}_{surahId}_{verse}.mp3` (e.g. ar_alafasy_5_19.mp3).
-- prefetchAyah (105-124): one job per verse; skips if the file is already cached or a job is running; tries the 4 mirrors in order; on non-2xx status or throw it unlinks the partial file; the job removes itself on completion so a failed prefetch retries on a later pass.
-- cleanupAyahCache (126-131): unlink the verse file for verse-3 — keeps the current verse + previous 2 for replays/back-jumps.
-- wipeAyahCache (96-102): unlink + recreate the whole dir when switching surahs (before the first verse plays).
-NOTES: Disk cost stays bounded (~2 MP3s ahead, ~0.5-1MB each at 128kbps). A corrupt cached file self-heals: startPlayer failure unlinks it and falls through to the next mirror.
+- prefetchAyah (148-167): one job per verse; skips if the file is already cached or a job is running; tries the mirrors in order; on non-2xx status or throw it unlinks the partial file; the job removes itself on completion so a failed prefetch retries on a later pass.
+- cleanupAyahCache (169-172): unlink the verse file for verse-3 — keeps the current verse + previous 2 for replays/back-jumps.
+- wipeAyahCache (136-144): unlink + recreate the whole dir when switching surahs (before the first verse plays).
+NOTES: Disk cost stays bounded (~2 MP3s ahead, ~0.5-1MB each at 128kbps). A corrupt cached file self-heals: startPlayer failure unlinks it and falls through to the next mirror. Every call guarded by fsOk — the cache is a convenience, never a dependency.
 
 #### Cancellation & watchdog
 - `playToken` is the concurrency primitive: pauseSurah / pauseSurahWithResume / stopPlayback / verse-advance / source-fallback all bump it; every listener and pending attempt re-checks `token !== playToken` before acting.
-- Stall watchdog: 10s ATTEMPT_TIMEOUT_MS per attempt -> tries the next mirror.
+- Stall watchdog: 8s ATTEMPT_TIMEOUT_MS per attempt -> tries the next mirror.
 - Status 5/6 (stop/interrupt): token bump + playing=false (silent, no onError).
-- IMPORTANT (task correction): the "pause on background" lives in QuranViewScreen.tsx:339-352 (AppState listener + unmount cleanup), NOT in App.tsx — App.tsx imports only ErrorBoundary from this component set.
+- IMPORTANT (task correction): the "pause on background" lives in QuranViewScreen.tsx:581-594 (AppState listener + unmount cleanup), NOT in App.tsx — App.tsx imports only ErrorBoundary from this component set.
 
 ### FILE: src/hooks/useHeaderSwipe.ts
 ROLE: PanResponder that toggles header visibility from vertical swipes near the top/bottom screen edges (edge-zone 80px, min swipe 40px, needs dy > 1.5×dx).
@@ -3904,13 +3946,14 @@ FONT MATRIX (textStyle key -> font family -> where applied):
   Per-style render adjustments (MushafPageView.tsx:65-74): saleem +2, lateef +4, scheherazade -1/+2y, others 0.
 
 AUDIO PLAYBACK CONTRACT (audioPlayback.ts <-> QuranViewScreen):
-  Player: single `new AudioRecorderPlayer()` ref (QuranViewScreen.tsx:98) shared by startPlayFromVerse (:451-472) and togglePlayAudio (:474-494).
-  qariId: currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit' (both entry points).
+  Player: single `new AudioRecorderPlayer()` ref (QuranViewScreen.tsx:98) shared by startPlayFromVerse (:780-801), togglePlayAudio (:816-854), playPageStart (:858-881), playNewSurah (:884-899) and stepVerse (:906-918).
+  qariId: currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit' (:781).
+  playBasmala: settings.playBasmala (settingsSlice, default true) — passed as `{ playBasmala }` at :798/:836/:873/:894; stepVerse passes `{ playBasmala: false }`.
   Callbacks (passed to playSurahFromVerse):
-    onVerseChange(v, sId) -> setFlashingSurah(sId || currentSurahId) + dispatch(setFlashingVerse(v))  [drives the golden flash on the current verse]
+    onVerseChange(v, sId) -> setFlashingSurah(sId || currentSurahId) + dispatch(setFlashingVerse(v))  [drives the golden flash on the current verse; NOT fired during the basmala prelude]
     onEnd                -> dispatch(setPlaying(false)) + setFlashingVerse(null)
     onError(msg)         -> dispatch(setPlaying(false)) + setFlashingVerse(null) + Alert.alert('Playback error', msg)
-  Lifecycle: start -> dispatch(setPlaying(true)); stop/pause -> pauseSurah + dispatch(setPlaying(false)) (also on AppState background/inactive + unmount, :339-352); isSurahPlaying guards double operations.
+  Lifecycle: start -> dispatch(setPlaying(true)); stop/pause -> pauseSurah/pauseSurahWithResume + dispatch(setPlaying(false)) (also on AppState background/inactive + unmount, :581-594); isSurahPlaying guards double operations.
   Redux affected: audio slice (isPlaying, currentQari), quran slice (flashingVerse), QuranViewScreen local flashingSurah.
 
 ================================================================================
@@ -3918,10 +3961,13 @@ AUDIO PLAYBACK CONTRACT (audioPlayback.ts <-> QuranViewScreen):
 ================================================================================
 - DEAD FILE: src/hooks/useHeaderSwipe.ts — never imported; header toggling is done by the inline PanGestureHandler (QuranViewScreen.tsx:417-433) + dead-tap toggleHeader (:380) + edge-strip Pressables (:516-517).
 - DEAD EXPORTS: theme.ts scaleW/scaleFont (duplicated by responsive.ts scaleFont, which is the one actually used), constants.ts DRAWING_COLORS and SYNC_INTERVAL, theme.ts COLORS (no consumers).
-- FIXED (v45+): dead taps now always toggle the header (toggleHeader, no pageY filter); the toolbar's EXIT button closes the drawing canvas; the toolbar can be dragged by grip/frame but NEVER stolen from a button press (no onMoveShouldSetResponder); its elevation is constant 200; selection highlight resets every time the toolbar closes.
+- FIXED (v48): audio playback rewritten to per-ayah streaming with VERIFIED mirrors — the v47 build shipped a mirror list that 403s/404s in practice (cdn.islamic.network blocks per-ayah requests; the abdulbasit folder is `Abdul_Basit_Mujawwad_128kbps`, NOT the guessed `AbdulBaset_128kbps`) → "audio doesnt work at all". Also fixed the app FREEZE when audio fails to load: stopPlayback now races stopPlayer against a 3s timeout (a hanging native stop used to block every new start forever).
+- Basmala prelude: plays the reciter's 1:1 file before verse 1 (surah 1 & 9 excluded; Settings toggle playBasmala, default ON); nothing highlights during it.
+- Footer (AudioPlayerBar) is now 2 rows: RESUME (renamed play/pause) + PLAY + NEW SURAH + ◀/▶; end-of-surah still STOPS (no auto-advance — user decision).
 - "native" Animated.Value in AnimatedHeader actually uses useNativeDriver:false (it drives layout height + translateY).
-- Audio "pause on background" lives in QuranViewScreen.tsx:339-352, not App.tsx.
+- Audio "pause on background" lives in QuranViewScreen.tsx:581-594, not App.tsx.
 - SURAH_VERSE_COUNTS and JUZ_PAGE_START/JUZ_MAP are hand-maintained tables that must stay in sync with the DB.
-- SEEK_START_BIAS_MS (audioPlayback.ts:25) is a tuning knob for verse-start alignment (+600ms when jumping to verseIndex > 0).
+- tsc GOTCHA (v48): a JSX comment `{/* ... */}` directly after `return (` fails with TS1005 in the repo's tsc invocation (Babel/metro accepts it — that's how one survived into a build); keep comments in `//` form there.
+- Toolbar (v44-fix): dead taps toggle the header; EXIT closes the canvas; drag by grip/frame but never stolen from a button (no onMoveShouldSetResponder); elevation constant 200; selection highlight resets on close; labels ≤8px (LAB_SZ = TAB*0.24 capped at 8), no hitSlop anywhere; closed-state drag clamp ±ROUND/2 keeps the chevron always accessible while the bar can sit half off-screen; expanding re-clamps fully on-screen so the colour menu never hangs off-screen.
 
 

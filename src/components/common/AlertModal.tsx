@@ -1,6 +1,13 @@
+/**
+ * FILE: src/components/common/AlertModal.tsx
+ * ROLE: Reusable centered alert dialog (dark/light aware) with up to N buttons and a default OK; self-contained.
+ * DEPENDS ON: nothing (no Redux; `nightMode` defaults to true).
+ * USED BY: DashboardScreen.tsx:12,115 (student actions); LoginScreen.tsx:6,40 (auth errors); RegisterScreen.tsx:4,34 (registration errors).
+ */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 
+// Alert button descriptor: 'cancel' -> dark, 'destructive' -> red, 'default' (plain) -> teal when last.
 interface AlertButton {
   text: string;
   style?: 'default' | 'cancel' | 'destructive';
@@ -16,6 +23,18 @@ interface AlertModalProps {
   nightMode?: boolean;
 }
 
+/**
+ * AlertModal({ visible, title, message, onClose, buttons, nightMode = true }) — fade Modal with title/message and a button row.
+ * WHAT: Centered dialog; the last non-cancel/non-destructive button gets the primary teal style; every button press also calls onClose.
+ * FLOW: 1) If `buttons` omitted and `onClose` given, a single 'OK' button is built; 2) buttons render with
+ *       destructive -> red / cancel -> dark / last plain -> primary #00d4aa; 3) onPress runs btn.onPress?.() then onClose?.() — always closes.
+ * PROPS: visible, title, message, onClose, buttons (optional AlertButton[]), nightMode (defaults true).
+ * CALLS: none (children only).
+ * CALLED BY: DashboardScreen.tsx:115 (buttons built by showAlert); LoginScreen.tsx:40; RegisterScreen.tsx:34.
+ * AFFECTS: Rendering only.
+ * NOTES: Android back button (onRequestClose) also closes. Only used on Dashboard/Login/Register —
+ *        QuranViewScreen uses the native Alert.alert instead (e.g. QuranViewScreen.tsx:394,466).
+ */
 const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = true }: AlertModalProps) => {
   const isDark = nightMode;
   const bg = isDark ? '#1e1e1e' : '#fff';

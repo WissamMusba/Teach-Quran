@@ -1,23 +1,86 @@
+/**
+ * FILE: src/database/quranData.ts
+ * ROLE: Quran data pipeline: downloads surah metadata + 3 editions of verses
+ *       from alquran.cloud, caches uthmani mushaf page JSON from GitHub, imports
+ *       bundled indopak pages, and serves all verse/page/surah read queries.
+ * DEPENDS ON: src/database/localDB.ts (surahs, verses, mushaf_pages,
+ *             mushaf_pages_indopak tables); bundled assets
+ *             src/assets/data/indopak_pages.json + indopak_verse_pages.json;
+ *             network: api.alquran.cloud, raw.githubusercontent.com
+ * USED BY: src/screens/SplashScreen.tsx (bootstrap),
+ *          src/screens/QuranViewScreen.tsx (page/verse reads + indopak import),
+ *          src/components/quran/SurahList.tsx (surah list)
+ */
 import { initDatabase, getDB } from './localDB';
 
+// SURAH_API: alquran.cloud surah metadata + edition endpoints (verse texts in
+// quran-uthmani, en.sahih and indo.pak — always fetched as a triple).
 const SURAH_API = 'https://api.alquran.cloud/v1/surah';
+// MUSHAF_BASE: GitHub raw host of the 604 uthmani mushaf page JSONs
+// (page-001.json .. page-604.json) fetched by fetchMushafPages.
 const MUSHAF_BASE = 'https://raw.githubusercontent.com/zonetecde/mushaf-layout/main/mushaf';
+// Two-tier "good enough" thresholds for downloadAndCacheQuran:
+// TOTAL_VERSES (6236) = fully cached; MIN_USABLE_VERSES (6000) = partial DB
+// that is acceptable to launch with while fetchMissing repairs in background.
 const TOTAL_VERSES = 6236;
 const MIN_USABLE_VERSES = 6000;
 
+// Module-level caches (memory only — no persistence, evicted only by process
+// death):
+// indopakVerseCache: lazily loaded bundled indopak_verse_pages.json map
+//   (`${surahId}:${verseNum}` -> page), shared by getIndopakVersePage and the
+//   reverse-map build in getVersesByPage.
+// indopakReverseMap: page -> list of `${surahId}:${verseNum}` keys, built on
+//   first getVersesByPage indopak call.
+// indopakPageVerseCache: page -> verse rows, memoized per page.
+// versesPageCache: key `${surahId}:${offset}:${limit}` -> {verses, total},
+//   never invalidated (stale after fetchMissing repairs a surah until restart).
+// surahTotalCache: surahId -> verse COUNT(*), memoized per surah.
 let indopakVerseCache: Record<string, number> | null = null;
 let indopakReverseMap: Record<string, string[]> | null = null;
 const indopakPageVerseCache: Record<number, any[]> = {};
 const versesPageCache = new Map<string, { verses: any[]; total: number }>();
 const surahTotalCache = new Map<number, number>();
 
+/**
+ * WHAT: True if the mushaf style string is an indopak-script font
+ *       ('saleem','indopak','alqalam','lateef','harmattan').
+ * CALLED BY: getMushafPageData, getVersePage, getVersesByPage — every read
+ *            route splits into the indopak vs uthmani pipeline here.
+ * AFFECTS: none (pure string test).
+ * NOTES: The uthmani branch is the DEFAULT (mushaf undefined -> false). Adding
+ *        a font to this list silently switches all three readers to the
+ *        indopak tables/maps.
+ */
 const isIndopakStyle = (mushaf?: string) => {
   const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   return mushaf && indopakFonts.includes(mushaf);
 };
 
+// indopakPagesPromise: single-flight guard so importIndopakPages runs its bulk
+// import at most once per process (reset to null only on failure).
 let indopakPagesPromise: Promise<boolean> | null = null;
 
+/**
+ * WHAT: One-time (promise-guarded) bulk import of the bundled indopak mushaf
+ *       page JSON into SQLite, so indopak pages never need the network.
+ * FLOW: 1) If indopakPagesPromise exists, return it (single-flight).
+ *       2) If mushaf_pages_indopak already has rows -> resolve true, done.
+ *       3) require('../assets/data/indopak_pages.json'); missing/invalid -> false.
+ *       4) Single transaction: INSERT OR REPLACE (page, JSON) per page entry.
+ *       5) Success -> true; failure -> reset promise to null (retry next call)
+ *          and log warning.
+ * CALLS: getDB() + db.transaction (native)
+ * CALLED BY: QuranViewScreen.tsx (ensurePageLoaded, indopak mode; split-view
+ *            init) — fire-and-forget before page reads, so the FIRST indopak
+ *            page load can race the import (see NOTES).
+ * AFFECTS: mushaf_pages_indopak (bulk write, ~604 rows).
+ * NOTES: Uses `require()` of a JSON asset, so the data ships inside the APK
+ *        (~big; check asset size in rebuild). The import is NOT awaited by
+ *        callers: getMushafPageData may return { lines: [] } for the first
+ *        frames if the transaction is still running — MushafPageView treats
+ *        empty lines as a no-render page.
+ */
 export const importIndopakPages = async () => {
   if (!indopakPagesPromise) {
     indopakPagesPromise = (async () => {
@@ -41,6 +104,17 @@ export const importIndopakPages = async () => {
   return indopakPagesPromise;
 };
 
+/**
+ * WHAT: Synchronous verse -> mushaf page lookup from the bundled
+ *       indopak_verse_pages.json map (key `${surahId}:${verseNum}`).
+ * FLOW: Lazy-require the JSON into indopakVerseCache on first call; return
+ *       map[key] || 1 (fallback page 1 — a known wrong-page fallback).
+ * CALLED BY: getVersePage (indopak branch)
+ * AFFECTS: none (pure map read); populates indopakVerseCache on first call.
+ * NOTES: Returns page 1 for any verse missing from the map — misrender, not a
+ *        crash. The map is also reused as the source for the reverse index in
+ *        getVersesByPage.
+ */
 const getIndopakVersePage = (surahId: number, verseNum: number): number => {
   if (!indopakVerseCache) {
     try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
@@ -50,6 +124,19 @@ const getIndopakVersePage = (surahId: number, verseNum: number): number => {
   return indopakVerseCache[key] || 1;
 };
 
+/**
+ * WHAT: Read one mushaf page's JSON (lines/words layout) from SQLite.
+ * FLOW: Pick table by isIndopakStyle (mushaf_pages_indopak vs mushaf_pages);
+ *       SELECT data WHERE pageNumber=?; JSON.parse; missing -> { lines: [] }.
+ * CALLS: getDB().executeSql
+ * CALLED BY: QuranViewScreen.tsx (ensurePageLoaded — populates pageCache,
+ *            evicts to 40 pages keeping ±12 of current).
+ * AFFECTS: reads mushaf_pages / mushaf_pages_indopak; feeds pageCache ->
+ *          MushafPageView's line/word layout engine.
+ * NOTES: The empty-page sentinel ({ lines: [] }) is indistinguishable from a
+ *        page still being downloaded/fetched — callers must coordinate with
+ *        fetchMushafPages/importIndopakPages ordering.
+ */
 export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
   const table = isIndopakStyle(mushaf) ? 'mushaf_pages_indopak' : 'mushaf_pages';
   const res = await getDB().executeSql(`SELECT data FROM ${table} WHERE pageNumber=?`, [pageNum]);
@@ -57,6 +144,26 @@ export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
   return { lines: [] };
 };
 
+/**
+ * WHAT: Background fill-in: re-downloads any surah whose verses count in the DB
+ *       is below its declared ayah count, 10 surahs at a time.
+ * FLOW: 1) GET /v1/surah (metadata); compare per-surah COUNT(*) to
+ *          s.numberOfAyahs; collect `missing`.
+ *       2) DELETE FROM verses WHERE surahId=? for each missing surah
+ *          (inside one transaction) — removes half-downloaded surahs.
+ *       3) Chunk missing by 10; per chunk: parallel fetch of
+ *          /editions/quran-uthmani,en.sahih,indo.pak (3 editions), then one
+ *          transaction inserting all verses (arabic, indopak, translation, page).
+ *       4) Per-chunk catch -> console.error only, keep going.
+ * CALLS: fetch(SURAH_API...), db.executeSql/db.transaction
+ * CALLED BY: downloadAndCacheQuran (early-exit path and post-first-10-surahs
+ *            path) — BOTH un-awaited (fire-and-forget).
+ * AFFECTS: verses (delete + insert), surahs unchanged (does NOT upsert surahs).
+ * NOTES: NOT awaited by downloadAndCacheQuran — SplashScreen proceeds with a
+ *        partial DB and a live background download. It also duplicates the
+ *        insert logic of downloadAndCacheQuran's inline loop — in rebuild,
+ *        extract a single downloadSurah(s) helper.
+ */
 const fetchMissing = async () => {
   const db = getDB();
   try {
@@ -92,6 +199,39 @@ const fetchMissing = async () => {
   } catch (e) { console.error('Quran background fill failed:', e); }
 };
 
+/**
+ * WHAT: The Quran bootstrap entry point: guarantees surahs + verses are
+ *       populated (6236 verses total), then kicks off mushaf page caching.
+ * FLOW: 1) initDatabase() — the ONLY DB init call site in src/.
+ *       2) COUNT(*) FROM verses:
+ *          - >= 6236 (TOTAL_VERSES) -> return true (fully cached, no-op).
+ *          - >= 6000 (MIN_USABLE_VERSES) -> fetchMissing() + fetchMushafPages()
+ *            (unawaited), return true ("good enough" path).
+ *       3) Else full download: GET /v1/surah -> INSERT OR REPLACE all 114
+ *          surahs into `surahs`; delete half-downloaded surahs from `verses`;
+ *          parallel fetch first 10 missing surahs (3 editions each); one
+ *          transaction inserts all their verses.
+ *       4) Fire fetchMissing() + fetchMushafPages() (rest of the surahs +
+ *          all 604 uthmani pages, both unawaited), return true.
+ *       5) Any error -> console.error + RE-THROW (caller sees failure).
+ * CALLS: initDatabase, fetch(SURAH_API), fetch(SURAH_API/{n}/editions/quran-
+ *        uthmani,en.sahih,indo.pak), fetchMissing, fetchMushafPages
+ * CALLED BY: SplashScreen.tsx (before getSurahs — splash blocks on the
+ *            first-10-surahs write, NOT on mushaf pages).
+ * AFFECTS: surahs (114 upserts), verses (first 10 surahs synchronously, rest
+ *          async), mushaf_pages (async), mushaf_pages_indopak (later, via
+ *          QuranViewScreen importIndopakPages).
+ * NOTES:
+ *   - "return true" happens BEFORE fetchMissing/fetchMushafPages finish — the
+ *     splash shows while the DB is still warming; getSurahs can return 114 rows
+ *     while verses is still filling (reads just see fewer verses).
+ *   - If the DB was previously cut off between 6000-6236 verses, path 2's
+ *     fetchMissing repairs it, but `surahs` is never touched in that path: a
+ *     wiped/empty surahs table would stay empty forever (getSurahs -> []) —
+ *     surprise edge in rebuild: upsert surahs in fetchMissing too.
+ *   - Re-throws on failure so SplashScreen can surface an error state; every
+ *     other function in this file swallows errors instead.
+ */
 export const downloadAndCacheQuran = async () => {
   await initDatabase();
   const db = getDB();
@@ -143,6 +283,21 @@ export const downloadAndCacheQuran = async () => {
   }
 };
 
+/**
+ * WHAT: Download + cache all 604 uthmani mushaf page JSONs from GitHub into
+ *       mushaf_pages (skipped if table is already populated).
+ * FLOW: 1) COUNT(*): any rows -> return (cache present, no-op).
+ *       2) Chunks of 20 pages (page-001.json .. page-604.json, zero-padded):
+ *          parallel fetch, filter r.ok, one transaction of INSERT OR REPLACE.
+ *       3) Per-chunk catch -> console.error, continue to next chunk.
+ * CALLS: fetch(MUSHAF_BASE/page-NNN.json), db.transaction
+ * CALLED BY: downloadAndCacheQuran — both call sites unawaited.
+ * AFFECTS: mushaf_pages (up to 604 rows, ~JSON blobs each).
+ * NOTES: No retry beyond the chunk loop; a failed chunk leaves a permanent hole
+ *        (page renders as { lines: [] } forever). Network-only — indopak pages
+ *        come from the bundle instead (importIndopakPages). ~604 network
+ *        requests total on a fresh install.
+ */
 const fetchMushafPages = async () => {
   const db = getDB();
   const check = await db.executeSql(`SELECT COUNT(*) as c FROM mushaf_pages`);
@@ -168,11 +323,39 @@ const fetchMushafPages = async () => {
   }
 };
 
+/**
+ * WHAT: Full surah list ordered by id (the app's surah picker data).
+ * CALLS: getDB().executeSql SELECT * FROM surahs ORDER BY id
+ * CALLED BY: SplashScreen.tsx (initial list after download),
+ *            SurahList.tsx (on modal open, if visible).
+ * AFFECTS: reads surahs; feeds the surah grid/list UI + QuranView navigation.
+ * NOTES: No in-memory cache — re-queries SQLite on every modal open (114 rows,
+ *        cheap). Empty if downloadAndCacheQuran never inserted surahs (see its
+ *        NOTES).
+ */
 export const getSurahs = async () => {
   const res = await getDB().executeSql(`SELECT * FROM surahs ORDER BY id`);
   const s = []; if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) s.push(res[0].rows.item(i)); return s; 
 };
 
+/**
+ * WHAT: Paginated verse rows for one surah, with total count, memoized in
+ *       module memory.
+ * FLOW: 1) key = `${surahId}:${offset}:${limit}`; cache hit -> return.
+ *       2) total from surahTotalCache, else COUNT(*) cached per surah.
+ *       3) SELECT * FROM verses WHERE surahId=? ORDER BY verseNumber
+ *          LIMIT ? OFFSET ?.
+ *       4) Cache {verses, total} under the key; return.
+ * CALLS: getDB().executeSql
+ * CALLED BY: QuranViewScreen.tsx (scroll-to-verse: loads targetPage*20 rows;
+ *            onEndReached pagination while reading).
+ * AFFECTS: reads verses; feeds the QuranViewScreen verse list (Redux not used —
+ *          component-local state).
+ * NOTES: The in-memory cache is never invalidated — after fetchMissing fills in
+ *        a missing surah, a previously cached "short" result for that surah
+ *        stays stale until app restart. memory-only, so no SQLite table is
+ *        involved; eviction only by process death.
+ */
 export const getVersesBySurahPaginated = async (surahId: number, page: number = 1, limit: number = 20) => {
   const offset = (page - 1) * limit;
   const key = `${surahId}:${offset}:${limit}`;
@@ -192,12 +375,51 @@ export const getVersesBySurahPaginated = async (surahId: number, page: number = 
   return result;
 };
 
+/**
+ * WHAT: Map a verse to its mushaf page number.
+ * FLOW: indopak style -> getIndopakVersePage (synchronous map lookup);
+ *       else SELECT page FROM verses WHERE surahId=? AND verseNumber=? LIMIT 1;
+ *       missing -> 1.
+ * CALLS: isIndopakStyle, getIndopakVersePage, getDB().executeSql
+ * CALLED BY: QuranViewScreen.tsx (scrollToVerse navigation; go-to-first-verse
+ *            on surah switch; deep-link/jump-to-verse: sets current page,
+ *            header, then ensurePageLoaded + prefetchPartner + scroll).
+ * AFFECTS: reads verses (uthmani) / indopak_verse_pages.json (indopak);
+ *          drives page navigation in QuranViewScreen.
+ * NOTES: Uthmani page comes from alquran.cloud's ayah.page column (their page
+ *        layout); indopak pages come from the bundle — the two layouts are
+ *        unrelated, hence the fork. LIMIT 1 masks duplicate rows if any.
+ */
 export const getVersePage = async (surahId: number, verseNum: number, mushaf?: string) => {
   if (isIndopakStyle(mushaf)) return getIndopakVersePage(surahId, verseNum);
   const res = await getDB().executeSql(`SELECT page FROM verses WHERE surahId=? AND verseNumber=? LIMIT 1`, [surahId, verseNum]);
   return res && res.length > 0 && res[0].rows.length > 0 ? res[0].rows.item(0).page : 1;
 };
 
+/**
+ * WHAT: All verses belonging to one mushaf page, ordered by surahId then
+ *       verseNumber (indopak: in-memory reverse map + IN queries).
+ * FLOW (indopak): 1) cache hit (indopakPageVerseCache) -> return.
+ *       2) Build indopakReverseMap from indopak_verse_pages.json (page -> keys).
+ *       3) keys for pageNum -> group by surahId -> per surah
+ *          `WHERE surahId=? AND verseNumber IN (...)` with placeholders.
+ *       4) Concatenate, sort (surahId, verseNumber), memoize per page, return.
+ * FLOW (uthmani): SELECT * FROM verses WHERE page=? ORDER BY surahId,
+ *        verseNumber (uses idx_verses_page).
+ * CALLS: isIndopakStyle, require(indopak_verse_pages.json) lazy, getDB()
+ * CALLED BY: QuranViewScreen.tsx (ensurePageVersesLoaded — fills
+ *            pageVersesCache, evicts to 40 pages; mapping a tapped verse
+ *            number back to its surahId for highlighting — note: destructures
+ *            the FIRST element as a verse array; firstVerse of page for
+ *            header/scroll math).
+ * AFFECTS: reads verses + indopak reverse map; feeds MushafPageView's
+ *          verse-to-word mapping and highlight overlays.
+ * NOTES: The indopak branch builds the whole 6236-entry reverse map on first
+ *        call (sync require + loop — a few ms, cold-start jank). The tapped-
+ *        verse caller's `vs?.find(...)` on a Promise-of-array-of-arrays is
+ *        suspicious typing (uthmani path returns a flat array) — verify during
+ *        rebuild.
+ */
 export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   if (isIndopakStyle(mushaf)) {
     if (indopakPageVerseCache[pageNum]) return indopakPageVerseCache[pageNum];
