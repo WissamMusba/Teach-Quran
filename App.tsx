@@ -13,7 +13,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
-import { processSyncQueue } from './src/api/sync';
+import { requestSync } from './src/api/sync';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -64,34 +64,27 @@ const AppInner = () => {
    */
   useEffect(() => {
     if (!isAuthenticated) return;
-    // TRIGGER #1 — immediate sync on mount/authenticate.
-    const initialSync = async () => {
+
+    const runSync = async (opts: { pull?: boolean } = {}) => {
       dispatch(setSyncing());
-      const result = await processSyncQueue();
+      const result = await requestSync(opts);
       if (result.success) dispatch(setSynced(new Date().toISOString()));
       else dispatch(setOffline());
     };
-    initialSync();
 
-    // TRIGGER #2 — periodic safety-net sync every 30 min.
-    const interval = setInterval(async () => {
-      dispatch(setSyncing());
-      const result = await processSyncQueue();
-      if (result.success) dispatch(setSynced(new Date().toISOString()));
-      else dispatch(setOffline());
+    runSync({ pull: true });
+
+    const interval = setInterval(() => {
+      runSync({ pull: true });
     }, SYNC_INTERVAL);
 
-    // TRIGGER #3 — foreground/background edge sync (active <-> background/inactive).
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appState.current; appState.current = next;
-      if ((prev === 'active' && next !== 'active') || (prev !== 'active' && next === 'active')) {
-        // GOTCHA: setSynced() here omits the timestamp arg used in triggers #1/#2 — `syncedAt`
-        // is never set anywhere, so any UI relying on it would be stale.
-        (async () => { dispatch(setSyncing()); const r = await processSyncQueue(); if (r.success) dispatch(setSynced()); else dispatch(setOffline()); })();
-      }
+      if (prev === next) return;
+      if (next === 'active') runSync({ pull: true });
+      else runSync(); // background: push only
     });
 
-    // Cleanup — clears timer + listener when isAuthenticated flips or AppInner unmounts.
     return () => { clearInterval(interval); sub.remove(); };
   }, [isAuthenticated, dispatch]);
 

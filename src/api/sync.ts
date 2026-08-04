@@ -1,98 +1,132 @@
-/**
- * FILE: src/api/sync.ts
- * ROLE: Push-only sync engine: reads dirty students from SQLite, uploads each
- *       student's monolithic blob to Firestore, clears the queue on success.
- * DEPENDS ON: src/api/firebase.ts (firestore, getUserId auth state),
- *             src/database/localDB.ts (sync_queue + student_data_cache tables:
- *             getPendingSyncStudents, clearSyncQueueForStudent, getStudentData)
- * USED BY: App.tsx (initial sync after auth, 30-min SYNC_INTERVAL, AppState
- *          change triggers), DashboardScreen.tsx (manual sync button)
- */
 import { firestore, getUserId } from './firebase';
-import { getPendingSyncStudents, clearSyncQueueForStudent, getStudentData } from '../database/localDB';
+import {
+  getDirtyCanvasesByStudent, getChunk, markSynced, bumpAttempt,
+  getManifest, saveManifestLocal, saveChunk,
+  getLastPushAt, setLastPushAt,
+} from '../database/localDB';
 
-/**
- * WHAT: Firestore server timestamp helper with a client-clock fallback.
- * FLOW: Try firestore.FieldValue.serverTimestamp(); if unavailable, return an
- *       ISO string. Blends server and client clocks (see NOTES).
- * CALLS: (firestore).FieldValue.serverTimestamp -> authoritative write time
- * CALLED BY: processSyncQueue (self, inline)
- * AFFECTS: Firestore write field updatedAt (used by nothing today — display
- *          only)
- * NOTES: [v1] Mixed timestamp types (Timestamp vs string) make ordering
- *        unreliable. [v4] replaced by FieldValue.increment monotonic counters
- *        (SYNC_OPTIMIZATION.txt).
- */
-const serverNow = (): any => {
-  try {
-    const FV = (firestore as any).FieldValue;
-    if (FV && typeof FV.serverTimestamp === 'function') return FV.serverTimestamp();
-  } catch {}
-  return new Date().toISOString();
+const MIN_PUSH_INTERVAL = 60_000;      // lever 5: hard cap per student
+const MAX_BATCH_OPS = 450;             // Firestore batch limit is 500
+
+let inFlight: Promise<any> | null = null;
+
+export const requestSync = async (opts?: { pull?: boolean }): Promise<any> => {
+  if (inFlight) return inFlight;                       // single-flight guard
+  inFlight = (async () => {
+    const userId = getUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+    try {
+      const pushed = await pushAllDirty(userId);
+      let pulled = 0;
+      if (opts?.pull) pulled = await pullRemote(userId);
+      return { success: true, pushed, pulled };
+    } catch (e: any) {
+      console.warn('Sync failed:', e?.message);
+      return { success: false, error: e?.message };
+    }
+  })().finally(() => { inFlight = null; });
+  return inFlight;
 };
 
-/**
- * WHAT: Main entry point of the ENTIRE sync feature. Uploads every dirty
- *       student's monolithic blob to users/{uid}/students/{sid}/data/
- *       studentData (merge:true), then clears the queue. Called from 4
- *       triggers.
- * FLOW: 1) getUserId() -> bail 'Not authenticated' if logged out.
- *       2) getPendingSyncStudents() -> distinct dirty studentIds from
- *          sync_queue WHERE synced=0. Empty -> success(0,0).
- *       3) For each dirty student: getStudentData(sid) -> full blob from
- *          student_data_cache (the ENTIRE student: bookmarks, highlights,
- *          drawings, notes, lastRead). Missing blob -> clear queue row,
- *          continue.
- *       4) firestore set() of the whole blob (+ updatedAt: serverNow()) at
- *          users/{uid}/students/{sid}/data/studentData with merge:true.
- *       5) clearSyncQueueForStudent(sid) -> delete queue row. synced++.
- *       6) Per-student catch -> failed++, leave queue row dirty (retry next
- *          trigger).
- * CALLS: getUserId -> auth guard
- *        getPendingSyncStudents -> dirty student list (localDB.ts)
- *        getStudentData -> local blob to upload (localDB.ts)
- *        firestore().collection(...).set() -> cloud write (merge)
- *        clearSyncQueueForStudent -> queue cleanup (localDB.ts)
- * CALLED BY: App.tsx (initial sync after auth; 30-min interval, SYNC_INTERVAL;
- *            AppState change active<->background), DashboardScreen.tsx (manual
- *            sync on screen focus)
- * AFFECTS: Cloud: users/{uid}/students/{sid}/data/studentData (overwritten).
- *          Local: sync_queue rows deleted on success (synced state lost — no
- *          history). UI: syncSlice.setSyncing/setSynced/setOffline drive the
- *          SyncStatus/SyncIndicator components (dispatched by the callers).
- * NOTES: [v1 LIMITATION] Blob is 400KB-1.3MB; >1MB documents FAIL SILENTLY in
- *        Firestore (student data silently lost). Push-only, NO pull — a
- *        second device never receives data, no conflict resolution. Audio
- *        note paths reference local files only. Sync queue row data is always
- *        '{}' — the real payload is re-read from student_data_cache at push
- *        time. [v4] whole file replaced by per-canvas push + pull
- *        (SYNC_OPTIMIZATION.txt §5.5).
- */
-export const processSyncQueue = async (): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> => {
-  const userId = getUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-  try {
-    let dirtyIds: string[] = [];
-    try { dirtyIds = await getPendingSyncStudents(); } catch { return { success: false, error: 'queue read failed' }; }
-    if (!dirtyIds || dirtyIds.length === 0) return { success: true, synced: 0, failed: 0 };
+/** v1-compat entry (App.tsx / DashboardScreen keep calling this name). */
+export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync(opts);
 
-    let synced = 0, failed = 0;
-    for (const sid of dirtyIds) {
+const pushAllDirty = async (userId: string): Promise<number> => {
+  const groups = await getDirtyCanvasesByStudent();
+  let pushed = 0;
+  for (const [sid, keys] of Object.entries(groups)) {
+    if (!keys.length) continue;
+    // lever 5: min-interval guard
+    if (Date.now() - (await getLastPushAt(sid)) < MIN_PUSH_INTERVAL) continue;
+
+    let offset = 0;
+    while (offset < keys.length) {
+      const slice = keys.slice(offset, offset + MAX_BATCH_OPS);
+      offset += slice.length;
+      const batch = firestore().batch();
+      const drawsCol = firestore().collection('users').doc(userId)
+        .collection('students').doc(sid).collection('draws');
+      const manifestPatch: Record<string, any> = {};
+
+      const canvasKeys = slice.filter((k: string) => k !== '_manifest');
+      const includesManifest = slice.includes('_manifest');
+
+      for (const k of canvasKeys) {
+        const local = await getChunk(sid, k);
+        if (!local) { await markSynced(sid, k); continue; }
+        batch.set(drawsCol.doc(k), {
+          ...local.data,
+          v: firestore.FieldValue.increment(1),                 // LWW counter
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        manifestPatch[`pages.${k}.v`] = firestore.FieldValue.increment(1);
+        manifestPatch[`pages.${k}.hasDrawings`] = !!local.data.strokes?.length;
+        if (local.data.strokes) manifestPatch[`pages.${k}.strokes`] = local.data.strokes.length;
+        pushed++;
+      }
+      if (includesManifest) {
+        const m = await getManifest(sid);
+        if (m.data.bookmarks) manifestPatch.bookmarks = m.data.bookmarks;
+        if (m.data.lastRead) manifestPatch.lastRead = m.data.lastRead;
+        if (m.data.audioNotes) manifestPatch.audioNotes = m.data.audioNotes;
+        pushed++;
+      }
+      if (Object.keys(manifestPatch).length === 0) continue;
+      // manifest: ONCE per run (lever 3) - one write covers all dirty canvases
+      batch.set(
+        firestore().collection('users').doc(userId)
+          .collection('students').doc(sid).collection('meta').doc('overview'),
+        { ...manifestPatch, v: firestore.FieldValue.increment(1),
+          updatedAt: firestore.FieldValue.serverTimestamp() },
+        { merge: true },
+      );
       try {
-        const local = await getStudentData(sid);
-        if (!local) { try { await clearSyncQueueForStudent(sid); } catch {} continue; }
-        await firestore()
-          .collection('users').doc(userId)
-          .collection('students').doc(sid)
-          .collection('data').doc('studentData')
-          .set({ ...(local as object), updatedAt: serverNow() }, { merge: true });
-        try { await clearSyncQueueForStudent(sid); } catch {}
-        synced++;
-      } catch (e) { console.warn(`Sync failed for ${sid}:`, e); failed++; }
+        await batch.commit();
+        await setLastPushAt(sid, Date.now());
+        for (const k of slice) await markSynced(sid, k);
+      } catch (e) {
+        console.warn(`push failed ${sid}`, e);
+        for (const k of slice) { await bumpAttempt(sid, k); await markSynced(sid, k); } // give up -> manual retry
+      }
     }
-    return { success: true, synced, failed };
-  } catch (e: any) {
-    console.warn('Sync failed:', e?.message);
-    return { success: false, error: e?.message };
   }
+  return pushed;
+};
+
+const pullRemote = async (userId: string): Promise<number> => {
+  const studentsSnap = await firestore().collection('users').doc(userId).collection('students').get();
+  let pulled = 0;
+  for (const s of studentsSnap.docs) {
+    const sid = s.id;
+    const mRef = firestore().collection('users').doc(userId)
+      .collection('students').doc(sid).collection('meta').doc('overview');
+    const mSnap = await mRef.get();
+    if (!mSnap.exists) continue;
+    const cloudMeta = mSnap.data();
+    const localM = await getManifest(sid);
+
+    // DIRECTIONAL CHECK: never clobber local-unpushed changes
+    if ((cloudMeta.v || 0) > (localM.data.v || 0)) {
+      await saveManifestLocal(sid, cloudMeta);
+    } else if ((cloudMeta.v || 0) < (localM.data.v || 0)) {
+      continue;                                            // local ahead: push first
+    } else if (!localM.serverTs) {
+      await saveManifestLocal(sid, cloudMeta);             // first ever pull
+    } else {
+      continue;
+    }
+
+    const pages = cloudMeta.pages || {};
+    for (const [canvasKey, info] of Object.entries(pages) as Array<[string, any]>) {
+      const local = await getChunk(sid, canvasKey);
+      if (local && local.v >= (info.v || 0)) continue;     // targeted download only
+      const dSnap = await firestore().collection('users').doc(userId)
+        .collection('students').doc(sid).collection('draws').doc(canvasKey).get();
+      if (dSnap.exists) {
+        await saveChunk(sid, canvasKey, dSnap.data(), info.v || 0);
+        pulled++;
+      }
+    }
+  }
+  return pulled;
 };

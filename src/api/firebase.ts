@@ -25,6 +25,7 @@ import firestore from '@react-native-firebase/firestore';
  *        the email-already-in-use error.
  */
 export const formatUsernameToEmail = (username: string) => `${username.toLowerCase().replace(/[^a-z0-9]/g, '')}@quranmaster.app`;
+import storage from '@react-native-firebase/storage';
 /**
  * WHAT: Re-exported module singletons so the rest of the app never imports the
  *       SDK directly for these two services.
@@ -36,7 +37,7 @@ export const formatUsernameToEmail = (username: string) => `${username.toLowerCa
  *        @react-native-firebase/auth directly instead of via this file, so
  *        this module does NOT own the auth singleton as its name implies.
  */
-export { auth, firestore };
+export { auth, firestore, storage };
 /**
  * WHAT: Returns the current Firebase user's uid, or null when signed out.
  * FLOW: 1) Check auth().currentUser exists. 2) Return uid or null.
