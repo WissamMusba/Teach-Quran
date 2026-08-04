@@ -116,6 +116,7 @@ export const resumeSurah = async (player: any, qariId: string, callbacks: Playba
     return true;
   }
   attachResumeListener(player, qariId, session.surahId, session.verse, lastVerse, callbacks);
+  callbacks.onVerseChange?.(session.verse, session.surahId);
   markStarted(player);
   return true;
 };

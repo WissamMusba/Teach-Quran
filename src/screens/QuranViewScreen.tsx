@@ -596,6 +596,21 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, []);
 
   /**
+   * WHAT: Auto-turn the page during playback if the newly playing verse is on a different page.
+   * CALLS: getVersePage, handleSelectPage.
+   */
+  useEffect(() => {
+    if (isPlaying && readingMode === 'page' && flashingVerse) {
+      const activeSId = flashingSurah || currentSurahId;
+      getVersePage(activeSId, flashingVerse, textStyle).then(pg => {
+        if (pg && pg !== currentPageNumRef.current) {
+          handleSelectPage(pg);
+        }
+      });
+    }
+  }, [flashingVerse, isPlaying, readingMode, flashingSurah, currentSurahId, textStyle]);
+
+  /**
    * WHAT: Toggles a MISTAKE_COLOR word-highlight for `{surah}_{verse}`.
    * FLOW: exists? filter it out : append {id: uuidv4(), wordIndex, color:
    *   MISTAKE_COLOR, createdAt}; then updateData({...studentData, highlights});
