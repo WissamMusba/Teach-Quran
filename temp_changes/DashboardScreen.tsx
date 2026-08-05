@@ -10,8 +10,9 @@
  * USED BY: registered as stack screen "Dashboard" in App.tsx; reached from
  *          SplashScreen.tsx / LoginScreen.tsx (replace) and via "back" from QuranViewScreen.tsx
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { getStudents, createStudent, deleteStudent, updateStudent } from '../api/student';
 import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
@@ -38,20 +39,36 @@ export default function DashboardScreen({ navigation }: any) {
   const students = useSelector((s: any) => s.student.list);
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const syncStatus = useSelector((s: any) => s.sync.status);
+  const prevSyncStatus = useRef<string | null>(null);
 
   /**
-   * WHAT: Fetch the student list once on mount and publish it to Redux.
-   * FLOW: 1) getStudents() (src/api/student.ts) — cache-first: returns the cached SQLite
-   *          list immediately and kicks a silent Firestore refresh in the background; cold
-   *          start falls back to the Firestore query; 2) on success dispatch(setStudents(res.students)).
+   * WHAT: Refresh the student list on every focus AND after every completed sync pull.
+   * FLOW: 1) useFocusEffect re-fetches on mount and every time the screen regains focus
+   *          (covers returning from QuranView) — getStudents() (src/api/student.ts) is
+   *          cache-first: returns the cached SQLite list immediately and kicks a silent Firestore
+   *          refresh in the background; cold start falls back to the Firestore query; 2) the
+   *          sync-completion watcher below re-reads the (now fresh) SQLite cache every time a
+   *          sync run finishes — App.tsx dispatches setSyncing→setSynced around every requestSync,
+   *          and pullRemote caches the full students list to SQLite before setSynced, so a student
+   *          added on another device appears within one sync cycle, no manual action needed.
    * CALLS: getStudents -> getCachedStudentList/cacheStudentList (localDB), refreshInBackground.
-   * CALLED BY: React on mount only (empty deps array).
+   * CALLED BY: React on mount/focus (useFocusEffect) and on sync status change (watcher effect).
    * AFFECTS: studentSlice.list; SQLite student list cache.
-   * NOTES: No focus listener — returning from QuranView never re-fetches; the list only
-   *        changes via this screen's own CRUD dispatches. Offline cold start with no cache
-   *        yields an empty list silently (res.success=false is ignored by the .then).
+   * NOTES: Offline cold start with no cache yields an empty list silently (res.success=false is
+   *        ignored by the .then).
    */
-  useEffect(() => { getStudents().then(res => res.success && dispatch(setStudents(res.students))); }, []);
+  useFocusEffect(useCallback(() => {
+    getStudents().then(res => res.success && dispatch(setStudents(res.students)))
+  }, [dispatch]));
+
+  useEffect(() => {
+    const prev = prevSyncStatus.current;
+    prevSyncStatus.current = syncStatus;
+    if (prev === 'syncing' && syncStatus !== 'syncing') {
+      getStudents().then(res => res.success && dispatch(setStudents(res.students)));
+    }
+  }, [syncStatus, dispatch]);
 
   /**
    * WHAT: Opens the shared AlertModal with a title/message/optional action buttons.

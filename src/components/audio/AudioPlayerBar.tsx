@@ -1,9 +1,8 @@
 /**
  * FILE: src/components/audio/AudioPlayerBar.tsx
  * ROLE: Bottom playback bar, two rows: (1) reciter name + "Surah N" + CHANGE button (opens QariSelector);
- *       (2) controls with plain-language labels + tiny captions — ◀ BACK, RESUME/PAUSE (dynamic label),
- *       NEXT ▶, PAGE START (plays from the first verse of this page), SURAH START (plays the surah that
- *       begins on this page; greyed + explains why when none). Fully controlled by props.
+ *       (2) compact controls — ◀ BACK, RESUME/PAUSE (dynamic label), NEXT ▶, PAGE START (plays from the first
+ *       verse of this page), SURAH START (plays the surah that begins on this page; greyed when none).
  * DEPENDS ON: props onOpenQari/onResume/onPlayPageStart/onPlayNewSurah/canPlayNewSurah/
  *             onPrevVerse/onNextVerse/canStep/isPlaying/nightMode/surahId; Redux audioSlice.currentQari (read-only).
  * USED BY: src/screens/QuranViewScreen.tsx — `{isHeaderVisible && <AudioPlayerBar ... />}`.
@@ -19,7 +18,7 @@ import { useSelector } from 'react-redux';
  *       2) RESUME -> onResume; label is dynamic: 'PAUSE' while playing, 'RESUME' when paused/stopped.
  *       3) ◀ BACK / NEXT ▶ -> onPrevVerse/onNextVerse, greyed unless canStep (isPlaying).
  *       4) PAGE START -> onPlayPageStart (page mode: first verse of the page; flowing: surah verse 1).
- *       5) SURAH START -> onPlayNewSurah; greyed unless canPlayNewSurah; caption explains the state.
+ *       5) SURAH START -> onPlayNewSurah; greyed unless canPlayNewSurah.
  *       6) reciter area + CHANGE -> onOpenQari.
  * PROPS: isPlaying — drives the RESUME/PAUSE label; onResume — play/pause toggle;
  *        onPlayPageStart — start playback from the page's first verse (or current surah verse 1 in flowing);
@@ -62,11 +61,9 @@ const AudioPlayerBar = ({ onOpenQari, onResume, onPlayPageStart, onPlayNewSurah,
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrl, styles.ctrlWide, theme.ctrl]} onPress={onPlayPageStart} activeOpacity={0.7}>
           <Text style={[styles.ctrlLabel, theme.ctrlText]}>PAGE START</Text>
-          <Text style={[styles.ctrlCaption, theme.caption]}>plays from this page</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.ctrl, styles.ctrlWide, canPlayNewSurah ? theme.ctrl : styles.disabled]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah} activeOpacity={0.7}>
           <Text style={[styles.ctrlLabel, theme.ctrlText, !canPlayNewSurah && { color: disC }]}>SURAH START</Text>
-          <Text style={[styles.ctrlCaption, theme.caption, !canPlayNewSurah && { color: disC }]}>{canPlayNewSurah ? 'plays the new surah from its start' : 'no new surah on this page'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -74,21 +71,20 @@ const AudioPlayerBar = ({ onOpenQari, onResume, onPlayPageStart, onPlayNewSurah,
 };
 
 const styles = StyleSheet.create({
-  container: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  qariRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  container: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 5 },
+  qariRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
   qariInfo: { flex: 1 },
-  qariName: { fontSize: 15, fontWeight: 'bold' },
-  surahName: { fontSize: 12, marginTop: 1 },
-  changeBtn: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7 },
-  changeText: { fontSize: 11, fontWeight: '700' },
-  ctrlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  ctrl: { flex: 1, minHeight: 46, borderRadius: 12, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center' },
-  ctrlWide: { flex: 1.5 },
-  ctrlIcon: { fontSize: 11, lineHeight: 13 },
-  ctrlLabel: { fontSize: 12, fontWeight: '700', marginTop: 1 },
-  ctrlCaption: { fontSize: 8.5, marginTop: 2, textAlign: 'center' },
-  resumeBtn: { minWidth: 92, minHeight: 46, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  resumeText: { color: '#121212', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  qariName: { fontSize: 14, fontWeight: 'bold' },
+  surahName: { fontSize: 11, marginTop: 1 },
+  changeBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  changeText: { fontSize: 10, fontWeight: '700' },
+  ctrlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+  ctrl: { flex: 1, minHeight: 34, borderRadius: 10, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
+  ctrlWide: { flex: 1.4 },
+  ctrlIcon: { fontSize: 10, lineHeight: 12 },
+  ctrlLabel: { fontSize: 10, fontWeight: '700', marginTop: 0 },
+  resumeBtn: { minWidth: 84, minHeight: 34, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  resumeText: { color: '#121212', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   disabled: { opacity: 0.45 },
 });
 

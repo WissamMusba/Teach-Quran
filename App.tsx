@@ -28,10 +28,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Module constants: 30-min safety-net cadence (local, not in settingsSlice) + root stack builder.
+// Module constants: 30-minute PUSH-ONLY sync cadence (local, not in settingsSlice) + root stack builder.
+// The interval only pushes the dirty write queue (bookmarks/highlights/notes); pulls happen at
+// app-open, on foreground (AppState 'active'), and on manual sync — keeping Firestore reads small
+// for the free tier (50K reads/day).
 // GOTCHA: the interval is duplicated-in-spirit by DashboardScreen's own pull-to-refresh sync —
 // two independent sync loops can overlap.
-const SYNC_INTERVAL = 30 * 1000; // 30-second write cadence (per user requirement)
+const SYNC_INTERVAL = 30 * 60 * 1000 // 30-minute sync cadence (per user requirement)
 const Stack = createNativeStackNavigator();
 
 /**
@@ -53,9 +56,12 @@ const AppInner = () => {
   /**
    * WHAT: Global sync scheduler — runs three sync triggers while the user is authenticated.
    * FLOW: 1) early-return when !isAuthenticated (no timers/listeners); 2) TRIGGER #1 —
-   *          initialSync() immediately on effect run; 3) TRIGGER #2 — setInterval re-runs the
-   *          same routine every SYNC_INTERVAL (30 min); 4) TRIGGER #3 — AppState listener syncs
-   *          on every transition between 'active' and any other state; 5) cleanup clears both.
+   *          initial pull sync (runSync({ pull: true })) on effect run; 3) TRIGGER #2 — setInterval
+   *          runs a PUSH-ONLY runSync() every SYNC_INTERVAL (30 min) — a write safety-net so dirty
+   *          bookmarks/highlights/notes get pushed even in a long idle session (pulls happen only on
+   *          open/foreground/manual); 4) TRIGGER #3 — AppState listener syncs on every transition
+   *          between 'active' and any other state (foreground = pull sync, background = push-only);
+   *          5) cleanup clears both.
    * CALLS: dispatch(setSyncing/setSynced/setOffline), processSyncQueue.
    * AFFECTS: sync.status ('syncing'|'synced'|'offline'), pendingChanges; Firestore
    *          users/{uid}/students/{sid}/data/studentData; SQLite sync_queue (cleared per student).
@@ -75,7 +81,7 @@ const AppInner = () => {
     runSync({ pull: true });
 
     const interval = setInterval(() => {
-      runSync({ pull: true });
+      runSync();
     }, SYNC_INTERVAL);
 
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

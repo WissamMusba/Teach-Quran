@@ -14,23 +14,62 @@ const sizes = {
 };
 
 async function generate() {
+  // Use older jimp API for v0.16.13
   const img = await Jimp.read(SOURCE_IMAGE);
   
   for (const [bucket, size] of Object.entries(sizes)) {
     const dir = path.join(RES_DIR, `mipmap-${bucket}`);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     
+    // Scale image to safe zone (approx 66% of total adaptive size)
+    const safeSize = Math.floor(size.adaptive * (72 / 108));
+    const pad = Math.floor((size.adaptive - safeSize) / 2);
+    
+    const centerImg = img.clone().resize(safeSize, safeSize);
+    
+    // Create new image and composite center
+    const paddedImg = await new Promise((resolve) => {
+      new Jimp(size.adaptive, size.adaptive, (err, image) => {
+        resolve(image);
+      });
+    });
+    
+    paddedImg.composite(centerImg, pad, pad);
+    
+    // Clamp to edge (Edge Pixel Replication) to seamlessly extend the gradient background
+    paddedImg.scan(0, 0, size.adaptive, size.adaptive, function(x, y, idx) {
+      if (x >= pad && x < pad + safeSize && y >= pad && y < pad + safeSize) {
+        return; // Inside the center image, skip
+      }
+      
+      // Find nearest pixel on the edge of the center image
+      let nearestX = x;
+      let nearestY = y;
+      
+      if (nearestX < pad) nearestX = pad;
+      else if (nearestX >= pad + safeSize) nearestX = pad + safeSize - 1;
+      
+      if (nearestY < pad) nearestY = pad;
+      else if (nearestY >= pad + safeSize) nearestY = pad + safeSize - 1;
+      
+      const color = paddedImg.getPixelColor(nearestX, nearestY);
+      this.setPixelColor(color, x, y);
+    });
+    
     // Legacy icon
-    const legacyImg = img.clone().resize(size.legacy, size.legacy);
+    const legacyImg = paddedImg.clone().resize(size.legacy, size.legacy);
     await legacyImg.writeAsync(path.join(dir, 'ic_launcher.png'));
     await legacyImg.writeAsync(path.join(dir, 'ic_launcher_round.png'));
     
-    // Adaptive icon background (just the image itself)
-    const adaptiveBg = img.clone().resize(size.adaptive, size.adaptive);
-    await adaptiveBg.writeAsync(path.join(dir, 'ic_launcher_background.png'));
+    // Adaptive icon background
+    await paddedImg.writeAsync(path.join(dir, 'ic_launcher_background.png'));
     
     // Adaptive icon foreground (transparent)
-    const adaptiveFg = new Jimp(size.adaptive, size.adaptive, 0x00000000);
+    const adaptiveFg = await new Promise((resolve) => {
+      new Jimp(size.adaptive, size.adaptive, 0x00000000, (err, image) => {
+        resolve(image);
+      });
+    });
     await adaptiveFg.writeAsync(path.join(dir, 'ic_launcher_foreground.png'));
   }
 
@@ -47,7 +86,7 @@ async function generate() {
   fs.writeFileSync(path.join(anydpiDir, 'ic_launcher.xml'), xmlContent);
   fs.writeFileSync(path.join(anydpiDir, 'ic_launcher_round.xml'), xmlContent);
   
-  console.log('Icons generated successfully!');
+  console.log('Seamlessly padded icons generated successfully!');
 }
 
 generate().catch(console.error);
