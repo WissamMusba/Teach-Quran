@@ -820,6 +820,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ? [...(studentData?.drawings?.[spreadOddKey || '']?.paths || []), ...translatePaths(studentData?.drawings?.[spreadEvenKey || '']?.paths || [], halfOrigin)]
     : studentData?.drawings?.[drawingKey]?.paths;
   const capturePaths = composeSpreadPaths();
+  const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
   const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
   const pageLastBookmarked = pageLastKey ? !!studentData?.bookmarks?.[pageLastKey] : false;
