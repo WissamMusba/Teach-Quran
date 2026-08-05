@@ -816,14 +816,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const translatePaths = (paths: any[], dx: number): any[] => paths.map((p: any) => ({ ...p, points: (p.points || []).map((pt: string) => { const [x, y] = pt.split(',').map(Number); return `${Math.round(x + dx)},${Math.round(y)}`; }) }));
   const midXOf = (p: any): number => { const pts = (p.points || []).map((pt: string) => Number(pt.split(',')[0])); return pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0; };
   // drawings keyed by page (page mode) or surah (ayah/continuous — the SAME surah key is shared by both modes)
-  const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
-  const spreadOddKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum}` : null;
-  const spreadEvenKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1}` : null;
   const composeSpreadPaths = () => splitOn
-    ? [...(studentData?.drawings?.[spreadOddKey!]?.paths || []), ...translatePaths(studentData?.drawings?.[spreadEvenKey!]?.paths || [], halfOrigin)]
+    ? [...(studentData?.drawings?.[spreadOddKey || '']?.paths || []), ...translatePaths(studentData?.drawings?.[spreadEvenKey || '']?.paths || [], halfOrigin)]
     : studentData?.drawings?.[drawingKey]?.paths;
   const capturePaths = composeSpreadPaths();
-  const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
   const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
   const pageLastBookmarked = pageLastKey ? !!studentData?.bookmarks?.[pageLastKey] : false;
