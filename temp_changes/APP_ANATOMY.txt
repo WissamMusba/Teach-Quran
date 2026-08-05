@@ -32,6 +32,114 @@ HOW TO READ THIS FILE
     per SYNC_OPTIMIZATION.txt.
 
 ================================================================================
+ REVISION BLOCK (latest build) — SYNC OVERHAUL + LAZY DRAWINGS + 10px PADDING
+ Added: Wed Aug 05 2026. Supersedes the V1 sync description further below.
+================================================================================
+
+WHAT CHANGED IN THIS BUILD
+  1. Fixed the sync layer end-to-end:
+     - ROOT BUG FIXED — addToSyncQueue (localDB.ts) inserted into a column
+       `retryCount` that does NOT exist in sync_queue (real columns: synced,
+       attempts). Every call threw, so: manifests/bookmarks/lastRead were NEVER
+       queued, the pendingChanges badge never incremented, AND pullRemote threw
+       on every pull with a newer cloud manifest (app showed "offline"). Now uses
+       INSERT ... ON CONFLICT DO UPDATE SET synced=0. Payloads, meanwhile, are
+       re-read from the cache rows — only the queue row's existence matters.
+     - PULL LOOP FIXED — pull-side writes no longer re-dirty the queue:
+       saveChunkNoQueue + saveManifestLocal(..., queue=false) +
+       saveAudioNotesRange(..., queue=false). Before, every download re-queued
+       the row so the next push re-pushed it -> infinite ping-pong.
+     - VERSIONING MADE DETERMINISTIC — no more FieldValue.increment anywhere.
+       Each doc carries an explicit v. After a successful push the LOCAL manifest
+       mirror is rewritten to the pushed v + serverTs (queue=false), so the next
+       pull sees cloud.v === local.v and skips. No drift loops.
+     - saveStudentData no longer hardcodes drawing chunk v=1 (was resetting the
+       version counter, causing re-downloads of the device's OWN chunks).
+     - flushPendingSave (QuranViewScreen) dropped its redundant addToSyncQueue
+       call (double-write) so addPendingChange() finally fires -> badge works.
+     - MANUAL SYNC NOW TESTS FULL PUSH+PULL — DashboardScreen handleManualSync
+       always runs processSyncQueue({ pull: true }) (no longer blocked at
+       pendingChanges===0), reports "Pushed: N | Pulled: M", and the header
+       Sync button disables only while in flight.
+     - FIRST READ INCLUDES STUDENTS — pullRemote caches the students list via
+       cacheStudentList so Dashboard reads offline-capable on first launch.
+
+  2. WHAT SYNCES vs WHAT DOESN'T: synced = bookmarks, lastRead (reading
+     position + mark), highlights (mistakes are derived from them), text notes,
+     audio-note registry. Drawings DO NOT sync via the main queue.
+
+  3. CLOUD LAYOUT (per student):
+       students/{sid}/meta/overview ... bookmarks + lastRead + pages.{k}.v map
+       students/{sid}/draws/{k} ......... annotations chunk (highlights+notes,
+                                          NO strokes) for canvasKey page_N/surah_N
+       students/{sid}/audioNotes/{r} .... 10-page audio-note registry doc
+       students/{sid}/drawings/{r|sN} ... LAZY drawing chunk (compacted +
+                                          content-box-normalized, per 10-page
+                                          range or per-surah)
+
+  4. AUDIO NOTES — 10-PAGE RANGES: metadata now stored per range
+     (audio_notes_cache table; key r_{lo}_{lo+9} or s_{surah} fallback), pushed
+     ONE doc per range, pulled as ONE read (< 1MB) ONLY when the range is not
+     local. registerAudioNote(..., page?) gets the page when known. Legacy
+     manifest entries are migrated by migrateLegacyAudioNotes(). The m4a files
+     + playAudioNote are UNTOUCHED.
+
+  5. LAZY DRAWINGS: queue rows are handled for chunks/manifest/audio only.
+     Drawing strokes stay in SQLite as raw canvas coords. On canvas save,
+     pushDrawings(studentId, groupKey, pageKeys, geo) compacts (thin points to
+     >= ~3px + simplify epsilon 1.5, 4-decimal rounding) and normalizes each
+     point to a fraction of the TEXT CONTENT BOX = pageWidth - 2*hPad, marking
+     paths norm:1. On page open, pullDrawings() denormalizes back to the CURRENT
+     screen's content box (padX = hPadFor) and only fills pages with NO local
+     strokes (never clobbers). Legacy raw cloud paths without the norm marker
+     pass through untouched.
+
+  6. DRAWING WEIGHT: capture now samples points (3px min gap for the pen,
+     coordinates rounded) in DrawingCanvas via lastPenPointRef; eraser stays
+     dense; underline unchanged. compactStroke uses thinStrokePoints(3) +
+     simplifyStroke(1.5).
+
+  7. 10px LEFT/RIGHT PADDING ON PHONE: MushafPageView hPad (pageWidth < 600)
+     changed 8 -> 10 so mushaf text never touches screen edges; tablets keep 8%.
+     hPadFor() in src/utils/stroke.ts mirrors this (w>=600 ? w*0.08 : 10) so the
+     drawing normalizer/denormalizer and the page renderer agree.
+
+KEY FUNCTIONS (new/changed)
+  - src/api/sync.ts
+      requestSync({pull?})/processSyncQueue alias — single-flight; returns
+        {success, pushed, pulled}.
+      pushAllDirty — 3 push sub-passes: annotations chunks (draws/{k}, strokes
+        stripped, explicit v), manifest (overview, merge), audio ranges
+        (audioNotes/{r}). Clears queue row per key, mirrors local manifest v.
+      pullRemote — downloads overview when cloud.v > local.v, downloads newer
+        annot. chunks (merging local strokes back in), pulls missing/newer audio
+        ranges, caches the students list.
+      pushDrawings/pullDrawings/pullAudioRange — lazy, fire-and-forget, guarded
+        try/catch, `only when asked` (canvas save / page open).
+  - src/database/localDB.ts
+      rangeKeyForPage/rangeKeyForVerse/getVersePageDB/getAudioNotesRange/
+      saveAudioNotesRange/getAllAudioRanges/migrateLegacyAudioNotes —
+        the 10-page audio registry + legacy manifest migration.
+      saveChunk(..., queue=true)/saveChunkNoQueue — pull writes never re-queue.
+      saveManifestLocal(..., serverTs, queue) — manifest pull mirror no-queue.
+      saveStudentData — drawings saved with cur.v+1 and queue=false.
+  - src/utils/stroke.ts — hPadFor + content-box compactStroke/denormalizeStroke.
+  - src/screens/QuranViewScreen.tsx — load effect now raw-pass-through + lazy
+    pullDrawings/pullAudioRange for the current range; onSave fires the lazy
+    pushDrawings; flushPendingSave fixed; handleVoiceNoteSaved passes the page.
+  - src/components/drawing/DrawingCanvas.tsx — pen capture thinning + rounding.
+  - src/components/quran/MushafPageView.tsx — hPad phone 8 -> 10.
+  - src/screens/DashboardScreen.tsx — manual sync always push+pull, count alert.
+
+KNOWN GAPS (accepted for now)
+  - Concurrent two-device edits to the same chunk merge last-write-wins at doc
+    level (version skew possible); no server timestamps for conflict intent.
+  - Drawing pull only fills pages with zero local strokes; explicit "restore"
+    of an already-drawn page is not offered.
+  - sync_queue still has ONE row per (studentId, canvasKey); the badge counts
+    queued payload keys, not individual edits.
+
+================================================================================
  SECTION 0 — DEMO: THE SYNC PIPELINE (how the format works)
 ================================================================================
 This demo documents the full sync feature: edit -> SQLite -> Firebase, its

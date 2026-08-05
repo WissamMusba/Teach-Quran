@@ -76,3 +76,120 @@ OPTIONAL MINOR (recommended, not blocking smoke test):
   TARGET: src/components/quran/MushafPageView.tsx line 113
   Add pageNum to the reset-effect deps so recycled FlatList cells clear refs (cacheWrittenRef,
   layoutContentRef) when pageNum changes; otherwise write-back silently stops on recycled cells.
+
+=====================================================================================================
+SECOND AUDIT (2026-08-05): SYNC/OFFLINE LAYER — READ-ONLY findings (merged with reviewer #1)
+Audited tree: C:\Users\wissa\Downloads\QuranMasterApp\src + App.tsx (NOT temp_changes/).
+=====================================================================================================
+VERDICTS
+C1 (open behavior / audio files): PARTIAL — no eager .m4a download anywhere (pullAudioRange
+   sync.ts:246-257 and pullRemote sync.ts:177-185 ship registry metadata only; NotesScreen renders
+   the marker without fetching) BUT the press-to-download path is DEAD: playAudioNote (audioNotes.ts:26-39)
+   has zero callers; NotesScreen.tsx:93 startPlayer(fileId) plays the fileId as a path -> playback
+   always fails. Marker: PASS; download-on-press: FAIL (unimplemented).
+C2 (drawings): PARTIAL — never re-downloaded when local strokes exist (sync.ts:238) and never queued
+   (localDB.ts:216 queue=false; sync.ts:169 saveChunkNoQueue) BUT pullDrawings does an unconditional
+   cloud read on EVERY page open (sync.ts:230, fired by QuranViewScreen.tsx:484 on each page change)
+   and drawing saves DO increment the sync badge (QuranViewScreen.tsx:1149/1155 -> 594 addPendingChange).
+C3 (background/kill saving): PASS w/ gaps — QVS flushes on background/inactive (QuranViewScreen.tsx:628-641)
+   and on unmount (636-640); App.tsx pushes on background (App.tsx:85). Gaps: pendingSaveRef is
+   in-memory (kill with no background event loses <400ms of edits; flush not awaited, line 594);
+   DrawingCanvas's own 1.5s debounce (DrawingCanvas.tsx:74-93) has NO AppState flush (only unmount);
+   App-level background push (registered first, App.tsx:81) can read the queue before QVS's flush lands.
+C4 (pull once per open): PASS — effect deps [isAuthenticated, dispatch] (App.tsx:89), one initial
+   runSync({pull:true}) per cold start (75), prev===next guard (82-83), pull only on 'active' (84),
+   push-only otherwise (85); requestSync single-flight coalesces overlaps (sync.ts:16).
+C5 (30-second write cadence): FAIL — App.tsx:34 SYNC_INTERVAL = 30*60*1000 (30 MIN); sync.ts:10
+   MIN_PUSH_INTERVAL = 60_000 plus per-student guard sync.ts:50 blocks every push within 60s.
+C6 (manual sync): FAIL — DashboardScreen.tsx:109 processSyncQueue({pull:true}) hits BOTH guards:
+   inFlight (sync.ts:16 may return a different push-only run) and MIN_PUSH_INTERVAL (sync.ts:50 skips
+   the student entirely if last push <60s ago -> "Pushed: 0" with rows still dirty). Queue-key coverage
+   of the three types is correct (sync.ts:55-57, 96-111, 114-126).
+
+BUG LIST (severity: file:line — impact — fix)
+1. HIGH   localDB.ts:216 — saveStudentData writes drawings as saveChunk(k,{strokes},v,false): INSERT
+   OR REPLACE WIPES co-resident highlights/notes from the page_N/surah_N chunk. Push then strips
+   strokes (sync.ts:69) so the cloud doc is pushed empty and the v-guard (sync.ts:154, 167-169) stops
+   any re-pull -> permanent loss (cloud too if the highlight was not yet pushed). Fix: merge chunk.
+2. HIGH   audioNotes.ts:26-39 / NotesScreen.tsx:93 — playAudioNote never called; togglePlay does
+   startPlayer(fileId) -> broken voice-note playback; the RNFS cache contract is unimplemented.
+3. HIGH   App.tsx:34 — SYNC_INTERVAL = 30*60*1000 vs required 30s cadence.
+4. HIGH   sync.ts:10,50 — MIN_PUSH_INTERVAL=60_000 throttles pushes (and the manual button).
+5. MEDIUM sync.ts:230 — pullDrawings reads the cloud doc on every page open even when nothing is
+   missing; skip the get() when all group pages already have local strokes.
+6. MEDIUM QuranViewScreen.tsx:1149,1155,594 — drawings bump the sync badge (addPendingChange).
+7. MEDIUM sync.ts:16 — inFlight returns the in-flight (possibly push-only) promise to the manual sync.
+8. MEDIUM QuranViewScreen.tsx:763-775 — uploadAudioNote throws offline; no try/catch -> note lost,
+   recordingVerseKey stuck (unhandled rejection).
+9. MEDIUM DrawingCanvas.tsx:74-93 — 1.5s debouncedSave has no AppState background flush; strokes
+   committed in the last 1.5s before a kill are lost even though QVS flushes.
+10. MEDIUM App.tsx:81-86 vs QuranViewScreen.tsx:628-641 — background push can race the flush
+    (registration order; saveStudentData unawaited) -> edit waits for the next sync.
+11. LOW    localDB.ts:242-248 — purgeLocalStudent omits audio_notes_cache.
+12. LOW    localDB.ts:171-189 — migrateLegacyAudioNotes: manifest delete saved queue=false WITHOUT v
+    bump (cloud keeps stale overview.audioNotes); entry.surah/ayah unguarded (garbage key
+    "s_undefined"); crash between range-save and manifest-delete re-bumps v on rerun.
+13. LOW    sync.ts:68 — queue row with missing chunk is silently markSynced (edit dropped); use bumpAttempt.
+14. LOW    migrateV1toV2.ts:6 — dead code; if ever called, saveChunk(queue=true) would put drawings in
+    the main sync queue (C2 violation). Use queue=false.
+15. LOW    QuranViewScreen.tsx:679,752,774 vs 594 — badge inconsistent: highlight/note/voice edits
+    (saveCanvasEdit) never increment pendingChanges; only bookmarks/lastRead/drawings do.
+16. LOW    sync.ts:200-219 — pushDrawings fire-and-forget: an offline drawing save is never uploaded
+    later (no queue fallback by design; cloud miss persists until the next edit).
+
+PASSED CHECKS (bug classes scanned, no violation): SQL column names synced/attempts consistent
+(localDB.ts:53-56,78,237-238 vs addToSyncQueue 234-241; no retryCount anywhere); pull-side writes
+never re-queue (saveChunkNoQueue sync.ts:169; saveAudioNotesRange false 182/254; saveManifestLocal
+false 146); deterministic explicit v, no FieldValue.increment (sync.ts:70-83,96-111,118-122);
+local manifest mirror after commit (sync.ts:88,108); audio_notes_cache created (localDB.ts:59-62);
+getStudentData merges audioNotes from all ranges (localDB.ts:205-208); pen sampling >=3px
+(DrawingCanvas.tsx:255 dx*dx+dy*dy>=9); hPad identical stroke.ts:34 == MushafPageView.tsx:22
+(both w>=600?w*0.08:10 — no 8 vs 10 mismatch).
+
+=====================================================================================================
+FIX LIST (numbered by severity — file, line(s), exact change)
+1. src/database/localDB.ts:216
+   CURRENT:  await saveChunk(studentId, k, { strokes: v.paths }, (cur?.v || 0) + 1, false);
+   CHANGE:   await saveChunk(studentId, k, { ...(cur?.data || { strokes: [], highlights: {}, notes: {} }), strokes: v.paths }, (cur?.v || 0) + 1, false);
+   (merge, never replace the chunk)
+2. src/screens/NotesScreen.tsx:84-105 (togglePlay) + import
+   CURRENT:  await audioPlayer.startPlayer(path);
+   CHANGE:   const local = await playAudioNote(path);
+             if (!local) { Alert.alert('Playback error', 'Could not download voice note.'); return; }
+             await audioPlayer.startPlayer(local);
+   + add  import { playAudioNote } from '../api/audioNotes';  (path arg is the fileId already)
+3. src/App.tsx:34
+   CURRENT:  const SYNC_INTERVAL = 30 * 60 * 1000; // 30-min safety net defined locally
+   CHANGE:   const SYNC_INTERVAL = 30 * 1000;       // 30-second write cadence
+4. src/api/sync.ts:10 + 50
+   CURRENT:  const MIN_PUSH_INTERVAL = 60_000;  ... if (Date.now() - (await getLastPushAt(sid)) < MIN_PUSH_INTERVAL) continue;
+   CHANGE:   delete the constant; delete the guard (keep setLastPushAt for telemetry).
+             If a soft throttle is desired, make it 30_000 and skip the guard when opts?.pull===true (manual).
+5. src/api/sync.ts:227-231 (pullDrawings head)
+   CURRENT:  const snap = await studRef.collection('drawings').doc(groupKey).get();
+   CHANGE:   const locals = await Promise.all(pageKeys.map(k => getChunk(studentId, k)));
+             if (locals.every(l => l?.data?.strokes?.length)) return; // nothing missing — skip the read
+             const snap = await studRef.collection('drawings').doc(groupKey).get();
+6. src/screens/QuranViewScreen.tsx:1145-1157 — drawing onSave: route through a flush variant that
+   skips addPendingChange (or have flushPendingSave compare the data delta and only increment when
+   bookmarks/lastRead changed).
+7. src/api/sync.ts:15-31 (requestSync)
+   CURRENT:  if (inFlight) return inFlight;
+   CHANGE:   if (inFlight) return inFlight.finally(() => requestSync(opts)); // chain, don't swallow
+8. src/screens/QuranViewScreen.tsx:763-775 (handleVoiceNoteSaved) — wrap uploadAudioNote in
+   try/catch; on failure keep recordingVerseKey closed, write the note text locally and retry the
+   upload on the next sync (or at minimum Alert + clear state; never leave an unhandled rejection).
+9. src/components/drawing/DrawingCanvas.tsx:74-93 — add an AppState 'background'/'inactive'
+   listener (same pattern as QuranViewScreen.tsx:628-641) that fires pendingSaveRef->onSave.
+10. src/App.tsx:81-86 — accept the race (queue rows survive; nothing is lost) OR delay the
+    background push until QVS flush lands; make QuranViewScreen.tsx:631 flush awaited in its handler.
+11. src/database/localDB.ts:242-248 — add  await db.executeSql(`DELETE FROM audio_notes_cache WHERE studentId=?`, [studentId]);
+12. src/database/localDB.ts:171-189 — guard entry shape (skip if typeof e.surah!=='number' ||
+    typeof e.ayah!=='number'); bump m.data.v when deleting m.data.audioNotes.
+13. src/api/sync.ts:68 — replace `await markSynced(sid, k)` with `await bumpAttempt(sid, k)` (a queue
+    row without a chunk must not silently drop the edit).
+14. src/database/migrateV1toV2.ts:6 — if ever revived, use saveChunk(..., 1, false) (queue=false).
+15. src/screens/QuranViewScreen.tsx:679/752/774 — add dispatch(addPendingChange()) after the
+    saveCanvasEdit calls for badge consistency (or drop 594's unconditional increment).
+16. src/api/sync.ts:200-219 — (optional) on pushDrawings failure, remember the group and retry
+    during the next requestSync; otherwise document offline-drawing loss as by-design.

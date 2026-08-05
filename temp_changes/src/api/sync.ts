@@ -1,39 +1,257 @@
 import { firestore, getUserId } from './firebase';
-import { getPendingSyncStudents, clearSyncQueueForStudent, getStudentData } from '../database/localDB';
+import {
+  getDirtyCanvasesByStudent, getChunk, markSynced, bumpAttempt,
+  getManifest, saveManifestLocal, saveChunkNoQueue,
+  getAudioNotesRange, saveAudioNotesRange, migrateLegacyAudioNotes,
+  getLastPushAt, setLastPushAt, cacheStudentList,
+} from '../database/localDB';
+import { compactStroke, denormalizeStroke } from '../utils/stroke';
 
-const serverNow = (): any => {
-  try {
-    const FV = (firestore as any).FieldValue;
-    if (FV && typeof FV.serverTimestamp === 'function') return FV.serverTimestamp();
-  } catch {}
-  return new Date().toISOString();
+const MIN_PUSH_INTERVAL = 60_000;      // lever 5: hard cap per student
+const MAX_BATCH_OPS = 450;             // Firestore batch limit is 500
+
+let inFlight: Promise<any> | null = null;
+
+export const requestSync = async (opts?: { pull?: boolean }): Promise<any> => {
+  if (inFlight) return inFlight;                       // single-flight guard
+  inFlight = (async () => {
+    const userId = getUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+    try {
+      const pushed = await pushAllDirty(userId);
+      let pulled = 0;
+      if (opts?.pull) pulled = await pullRemote(userId);
+      return { success: true, pushed, pulled };
+    } catch (e: any) {
+      console.warn('Sync failed:', e?.message);
+      return { success: false, error: e?.message };
+    }
+  })().finally(() => { inFlight = null; });
+  return inFlight;
 };
 
-export const processSyncQueue = async (): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> => {
-  const userId = getUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-  try {
-    let dirtyIds: string[] = [];
-    try { dirtyIds = await getPendingSyncStudents(); } catch { return { success: false, error: 'queue read failed' }; }
-    if (!dirtyIds || dirtyIds.length === 0) return { success: true, synced: 0, failed: 0 };
+/** v1-compat entry (App.tsx / DashboardScreen keep calling this name). */
+export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync(opts);
 
-    let synced = 0, failed = 0;
-    for (const sid of dirtyIds) {
+/**
+ * Push pass — deterministic LWW versions (NO FieldValue.increment): every doc
+ * carries an explicit v, and after a commit the LOCAL manifest mirror is bumped
+ * to the pushed value, so the next pull sees cloud.v === local.v and skips.
+ * Queue row types:
+ *   - chunk keys (page_N / surah_N)  -> students/{sid}/draws/{k}  (highlights+notes ONLY; strokes stripped)
+ *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks + lastRead)
+ *   - '_audio_r_..'                  -> students/{sid}/audioNotes/{range} (10-page audio-note registry)
+ */
+const pushAllDirty = async (userId: string): Promise<number> => {
+  const groups = await getDirtyCanvasesByStudent();
+  let pushed = 0;
+  for (const [sid, keys] of Object.entries(groups)) {
+    if (!keys.length) continue;
+    if (Date.now() - (await getLastPushAt(sid)) < MIN_PUSH_INTERVAL) continue;
+
+    await migrateLegacyAudioNotes(sid);
+    const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
+
+    const manifestKeys = keys.filter((k: string) => k === '_manifest');
+    const audioKeys = keys.filter((k: string) => k.startsWith('_audio_'));
+    const canvasKeys = keys.filter((k: string) => k !== '_manifest' && !k.startsWith('_audio_'));
+
+    // ---- annotations chunks (drawings excluded: lazy per-range via pushDrawings) ----
+    let offset = 0;
+    while (offset < canvasKeys.length) {
+      const slice = canvasKeys.slice(offset, offset + MAX_BATCH_OPS);
+      offset += slice.length;
+      const batch = firestore().batch();
+      const newPages: Record<string, any> = {};
+      const chunks = await Promise.all(slice.map(k => getChunk(sid, k).then(local => ({ k, local }))));
+      for (const { k, local } of chunks) {
+        if (!local) { await markSynced(sid, k); continue; }
+        const { strokes, ...annotations } = local.data;
+        batch.set(studRef.collection('draws').doc(k), {
+          ...annotations,
+          v: local.v,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        newPages[k] = { v: local.v };
+        pushed++;
+      }
+      if (Object.keys(newPages).length === 0) { for (const k of slice) await markSynced(sid, k); continue; }
+      const m = await getManifest(sid);
+      const overviewV = (m.data.v || 0) + 1;
+      const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
+      for (const [k, meta] of Object.entries(newPages)) patch[`pages.${k}.v`] = meta.v;
+      batch.set(studRef.collection('meta').doc('overview'), patch, { merge: true });
       try {
-        const local = await getStudentData(sid);
-        if (!local) { try { await clearSyncQueueForStudent(sid); } catch {} continue; }
-        await firestore()
-          .collection('users').doc(userId)
-          .collection('students').doc(sid)
-          .collection('data').doc('studentData')
-          .set({ ...(local as object), updatedAt: serverNow() }, { merge: true });
-        try { await clearSyncQueueForStudent(sid); } catch {}
-        synced++;
-      } catch (e) { console.warn(`Sync failed for ${sid}:`, e); failed++; }
+        await batch.commit();
+        await setLastPushAt(sid, Date.now());
+        for (const k of slice) await markSynced(sid, k);
+        await saveManifestLocal(sid, { ...m.data, pages: { ...(m.data.pages || {}), ...newPages }, v: overviewV }, Date.now(), false);
+      } catch (e) {
+        console.warn(`push failed ${sid}`, e);
+        for (const k of slice) await bumpAttempt(sid, k);
+      }
     }
-    return { success: true, synced, failed };
-  } catch (e: any) {
-    console.warn('Sync failed:', e?.message);
-    return { success: false, error: e?.message };
+
+    // ---- manifest (bookmarks / lastRead) — own batch so it pushes even with no dirty chunks ----
+    if (manifestKeys.length) {
+      const m = await getManifest(sid);
+      const overviewV = (m.data.v || 0) + 1;
+      const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
+      patch.bookmarks = m.data.bookmarks || {};
+      patch.lastRead = m.data.lastRead || null;
+      try {
+        await firestore().batch()
+          .set(studRef.collection('meta').doc('overview'), patch, { merge: true })
+          .commit();
+        await setLastPushAt(sid, Date.now());
+        for (const k of manifestKeys) await markSynced(sid, k);
+        await saveManifestLocal(sid, { ...m.data, v: overviewV }, Date.now(), false);
+        pushed++;
+      } catch (e) { console.warn(`manifest push failed ${sid}`, e); for (const k of manifestKeys) await bumpAttempt(sid, k); }
+    }
+
+    // ---- audio-note ranges: one doc per 10-page group ----
+    for (const q of audioKeys) {
+      const rangeKey = q.replace('_audio_', '');
+      const cur = await getAudioNotesRange(sid, rangeKey);
+      try {
+        await studRef.collection('audioNotes').doc(rangeKey).set({
+          entries: cur.entries || {},
+          v: cur.v || 0,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+        await markSynced(sid, q);
+        pushed++;
+      } catch (e) { console.warn(`audio push failed ${sid}`, e); await bumpAttempt(sid, q); }
+    }
   }
+  return pushed;
+};
+
+const pullRemote = async (userId: string): Promise<number> => {
+  const studentsSnap = await firestore().collection('users').doc(userId).collection('students').get();
+  let pulled = 0;
+  const studentsArr: any[] = [];
+  for (const s of studentsSnap.docs) {
+    const sid = s.id;
+    studentsArr.push({ id: sid, ...s.data() });
+    const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
+    const mSnap = await studRef.collection('meta').doc('overview').get();
+
+    if (mSnap.exists) {
+      const cloudMeta = mSnap.data() as any;
+      const localM = await getManifest(sid);
+      const cloudV = cloudMeta.v || 0;
+      if (cloudV > (localM.data.v || 0) || (!localM.serverTs && cloudV >= (localM.data.v || 0))) {
+        await saveManifestLocal(sid, cloudMeta, Date.now(), false);
+      }
+
+      // annotations chunks: download only the ones the cloud says are newer
+      const pageEntries = Object.entries(cloudMeta.pages || {}) as Array<[string, any]>;
+      const localChecks = await Promise.all(
+        pageEntries.map(async ([canvasKey, info]: any) => {
+          const local = await getChunk(sid, canvasKey);
+          if (!local || local.v < (info.v || 0)) return { canvasKey, v: info.v || 0 };
+          return null;
+        })
+      );
+      const needed = localChecks.filter(Boolean) as { canvasKey: string; v: number }[];
+      for (let i = 0; i < needed.length; i += 30) {
+        const slice = needed.slice(i, i + 30);
+        const snaps = await studRef.collection('draws')
+          .where(firestore.FieldPath.documentId(), 'in', slice.map(n => n.canvasKey)).get();
+        await Promise.all(
+          snaps.docs.map(async (doc: any) => {
+            const canvasKey = doc.id;
+            const targetV = slice.find(n => n.canvasKey === canvasKey)?.v || 0;
+            const local = await getChunk(sid, canvasKey);
+            // cloud has NO strokes (stripped on push) — preserve local drawings
+            await saveChunkNoQueue(sid, canvasKey, { ...doc.data(), strokes: local?.data?.strokes || [] }, targetV);
+          })
+        );
+        pulled += snaps.docs.length;
+      }
+    }
+
+    // audio-note ranges: pull any missing/newer 10-page group (never re-queues)
+    const audSnap = await studRef.collection('audioNotes').get();
+    for (const d of audSnap.docs) {
+      const cloud = d.data() as any;
+      const local = await getAudioNotesRange(sid, d.id);
+      if ((cloud.v || 0) > (local.v || 0) || !Object.keys(local.entries || {}).length) {
+        await saveAudioNotesRange(sid, d.id, cloud.entries || {}, cloud.v || 0, false);
+        pulled += Object.keys(cloud.entries || {}).length;
+      }
+    }
+  }
+  if (studentsArr.length) await cacheStudentList(studentsArr);
+  return pulled;
+};
+
+// ---------------- lazy drawings: 10-page (or surah) chunks, only when asked ----------------
+export interface DrawingGeometry { canvasW: number; canvasH: number; padX: number; }
+
+/**
+ * Compacts + content-box-normalizes the page's strokes and writes ONE cloud doc
+ * per 10-page range. Points become fractions of the text content box (inside the
+ * horizontal padding), so a stroke under a word lands under that same word on any
+ * device. norm:1 marks normalized paths for pullDrawings.
+ */
+export const pushDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
+  try {
+    const chunks = await Promise.all(pageKeys.map(k => getChunk(studentId, k).then(local => ({ k, local }))));
+    const strokesByPage: Record<string, any[]> = {};
+    let hasAny = false;
+    for (const { k, local } of chunks) {
+      const raw = local?.data?.strokes;
+      if (raw && raw.length) {
+        strokesByPage[k] = raw.map((p: any) => ({ ...p, norm: 1, points: compactStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) }));
+        hasAny = true;
+      }
+    }
+    if (!hasAny) return;
+    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    await studRef.collection('drawings').doc(groupKey).set({
+      strokesByPage,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { console.warn('pushDrawings', e); }
+};
+
+/**
+ * Lazy pull for one range group: restores strokes into local chunks ONLY for
+ * pages that have no local drawings yet (never clobbers), denormalizing back to
+ * the current screen's content box. Legacy raw cloud paths (no norm marker) pass
+ * through untouched.
+ */
+export const pullDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
+  try {
+    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    const snap = await studRef.collection('drawings').doc(groupKey).get();
+    if (!snap.exists) return;
+    const cloud = snap.data() as any;
+    const strokesByPage: Record<string, any[]> = cloud?.strokesByPage || {};
+    for (const k of pageKeys) {
+      const cloudStrokes = strokesByPage[k];
+      if (!cloudStrokes || !cloudStrokes.length) continue;
+      const local = await getChunk(studentId, k);
+      if (local?.data?.strokes?.length) continue;
+      const strokes = cloudStrokes.map((p: any) => (p.norm ? { ...p, points: denormalizeStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) } : p));
+      await saveChunkNoQueue(studentId, k, { ...(local?.data || {}), strokes }, (local?.v || 0) + 1);
+    }
+  } catch (e) { console.warn('pullDrawings', e); }
+};
+
+/** Lazy audio registry: fetches the whole 10-page group in one read when the range is missing locally. */
+export const pullAudioRange = async (studentId: string, rangeKey: string) => {
+  try {
+    const local = await getAudioNotesRange(studentId, rangeKey);
+    if (Object.keys(local.entries || {}).length) return;
+    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    const snap = await studRef.collection('audioNotes').doc(rangeKey).get();
+    if (snap.exists) {
+      const cloud = snap.data() as any;
+      await saveAudioNotesRange(studentId, rangeKey, cloud.entries || {}, cloud.v || 0, false);
+    }
+  } catch (e) { console.warn('pullAudioRange', e); }
 };

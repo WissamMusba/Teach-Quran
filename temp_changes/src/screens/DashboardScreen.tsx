@@ -106,20 +106,14 @@ export default function DashboardScreen({ navigation }: any) {
    */
   const handleManualSync = useCallback(async () => {
     dispatch(setSyncing()); setIsSyncing(true);
-    try {
-      const result = await processSyncQueue({ pull: true });
-      if (result.success) {
-        dispatch(setSynced());
-        showAlert('Sync Complete', `Pushed: ${result.pushed ?? 0}` + (typeof result.pulled === 'number' ? ` | Pulled: ${result.pulled}` : ''), [{ text: 'OK' }]);
-      } else {
-        dispatch(setOffline());
-        showAlert('Sync Failed', result.error || 'Unknown error', [{ text: 'OK' }]);
-      }
-    } catch (e: any) {
+    const result = await processSyncQueue({ pull: true });
+    setIsSyncing(false);
+    if (result.success) {
+      dispatch(setSynced());
+      showAlert('Sync Complete', `Pushed: ${result.pushed ?? 0}` + (typeof result.pulled === 'number' ? ` | Pulled: ${result.pulled}` : ''), [{ text: 'OK' }]);
+    } else {
       dispatch(setOffline());
-      showAlert('Sync Failed', e?.message || 'Unknown error', [{ text: 'OK' }]);
-    } finally {
-      setIsSyncing(false);
+      showAlert('Sync Failed', result.error || 'Unknown error', [{ text: 'OK' }]);
     }
   }, [dispatch]);
 
@@ -186,8 +180,8 @@ export default function DashboardScreen({ navigation }: any) {
   /**
    * UI WIRING:
    * - Header: title + SyncStatus pill + manual "Sync (n)" button (n = pendingChanges badge
-   *   read from syncSlice at the top of the component; disabled only while a sync is in
-   *   flight — NOT gated on pendingChanges, so it always runs a full push+pull) + Logout button.
+   *   read from syncSlice at the top of the component; disabled while syncing or when
+   *   pendingChanges === 0) + Logout button.
    * - FlatList of students (renderItem); FAB opens the Add Student modal.
    * - Add Student modal (autoFocus TextInput) / Edit modal (pre-filled value).
    * - SyncIndicator overlay (global syncing spinner) + AlertModal for confirm/error dialogs.
