@@ -144,6 +144,41 @@ export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
   return { lines: [] };
 };
 
+const ensuredPageQueues = new Map<string, Promise<any>>();
+
+/**
+ * WHAT: On-demand self-heal for a mushaf page missing from SQLite. Fresh
+ *   installs download pages sequentially from page 1 (fetchMushafPages, chunks
+ *   of 20, unawaited) so far pages — e.g. Waaqia ~534 — can still be absent
+ *   when the user jumps straight there, and a failed chunk used to leave a
+ *   permanent { lines: [] } hole with no retry. This fetches just that one
+ *   page JSON from MUSHAF_BASE and inserts it. Indopak pages are bundled +
+ *   seeded in bulk by importIndopakPages, so no network path exists here.
+ * FLOW: 1) row already present -> null (no-op); in-flight promise per page is
+ *        reused 2) fetch page-NNN.json 3) INSERT OR REPLACE 4) return the page
+ *        data (caller puts it in pageCache).
+ * CALLED BY: QuranViewScreen.ensurePageLoaded on an empty { lines: [] } read.
+ * AFFECTS: mushaf_pages (one row on a miss).
+ */
+export const ensureMushafPageData = async (pageNum: number, mushaf?: string): Promise<any | null> => {
+  if (isIndopakStyle(mushaf)) return null;
+  const inFlight = ensuredPageQueues.get(`p_${pageNum}`);
+  if (inFlight) return inFlight;
+  const job = (async () => {
+    const res = await getDB().executeSql(`SELECT data FROM mushaf_pages WHERE pageNumber=?`, [pageNum]);
+    if (res && res.length > 0 && res[0].rows.length > 0) return null;
+    try {
+      const r = await fetch(`${MUSHAF_BASE}/page-${String(pageNum).padStart(3, '0')}.json`);
+      if (!r.ok) return null;
+      const pageData = await r.json();
+      await getDB().executeSql(`INSERT OR REPLACE INTO mushaf_pages (pageNumber, data) VALUES (?, ?)`, [pageData.page, JSON.stringify(pageData)]);
+      return pageData;
+    } catch (e) { console.warn('ensureMushafPageData', pageNum, e); return null; }
+  })();
+  ensuredPageQueues.set(`p_${pageNum}`, job);
+  try { return await job; } finally { ensuredPageQueues.delete(`p_${pageNum}`); }
+};
+
 /**
  * WHAT: Background fill-in: re-downloads any surah whose verses count in the DB
  *       is below its declared ayah count, 10 surahs at a time.

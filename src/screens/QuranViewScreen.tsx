@@ -19,7 +19,7 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
@@ -38,7 +38,7 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
 import MushafPageView from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, clearPageLayoutCacheRange, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
@@ -143,6 +143,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [recordingVerseKey, setRecordingVerseKey] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  // Share menu: which annotation layers the captured image includes (default all ON).
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [shareDrawings, setShareDrawings] = useState(true);
+  const [shareMistakes, setShareMistakes] = useState(true);
+  const [shareBookmarks, setShareBookmarks] = useState(true);
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const [flashingSurah, setFlashingSurah] = useState(0);
   const flatListRef = useRef<any>(null);
@@ -217,6 +222,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
     pagePromiseRef.current[pageNum] = true;
     if (isIndopak) importIndopakPages();
     getMushafPageData(pageNum, textStyleRef.current).then(data => {
+      // Fresh installs fill mushaf pages sequentially from page 1, so a far page
+      // (deep-link to Waaqia) can be a { lines: [] } miss — fetch it on demand
+      // instead of rendering an empty page (or a permanent hole from a failed
+      // background chunk). indopak pages are bulk-seeded by importIndopakPages.
+      if (!data?.lines || data.lines.length === 0) {
+        ensureMushafPageData(pageNum, textStyleRef.current).then(missing => {
+          if (missing) {
+            setPageCache(prev => {
+              const next = { ...prev, [pageNum]: missing };
+              const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
+              order.push(pageNum);
+              pageCacheOrderRef.current = order;
+              return next;
+            });
+          }
+          delete pagePromiseRef.current[pageNum];
+        }).catch(() => { delete pagePromiseRef.current[pageNum]; });
+        return;
+      }
       setPageCache(prev => {
         const next = { ...prev, [pageNum]: data };
         const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
@@ -483,14 +507,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const load = async () => {
       const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
       if (!cancelled) setCanvasData(await mergeChunks(keys));
-      // lazy cloud restore (only when a page is opened): 10-page drawings chunk +
-      // audio-note registry for this page's range — drawings never enter the main sync.
-      // A split spread can straddle TWO 10-page ranges (e.g. 10|11): group the visible
-      // page keys by their OWN range so BOTH ranges are lazily pulled. pullDrawings
-      // already skips any range whose pages all have local strokes.
+      // Lazy cloud restore (drawings + audio registry for this page's range)
+      // runs in the BACKGROUND — never awaited, so the page and its SQLite
+      // highlights/notes render immediately. Drawings/audio re-merge when the
+      // restore lands. (Previously two SEQUENTIAL awaited Firestore reads
+      // blocked the canvas merge for seconds on a cold connection — the "5s
+      // page load" on a fresh device.)
       if (!cancelled && currentStudent) {
         const geoKeys = splitOn ? [spreadOddKey, spreadEvenKey].filter(Boolean) : [drawingKey];
         const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
+        const refresh = async () => {
+          if (!cancelled) setCanvasData(await mergeChunks(geoKeys));
+        };
         if (readingMode === 'page') {
           const byRange: Record<string, string[]> = {};
           for (const k of geoKeys) {
@@ -499,13 +527,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
             (byRange[rk] = byRange[rk] || []).push(k);
           }
           for (const [rk, rKeys] of Object.entries(byRange)) {
-            await pullAudioRange(sid, rk);
-            await pullDrawings(sid, rk, rKeys, geo);
+            Promise.all([pullAudioRange(sid, rk), pullDrawings(sid, rk, rKeys, geo)])
+              .then(refresh).catch(refresh);
           }
         } else {
-          await pullDrawings(sid, drawingKey, geoKeys, geo);
+          pullDrawings(sid, drawingKey, geoKeys, geo).then(refresh).catch(refresh);
         }
-        if (!cancelled) setCanvasData(await mergeChunks(geoKeys));
       }
     };
     load();
@@ -888,19 +915,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [canvasData, currentStudent, recordingVerseKey, studentData, dispatch]);
 
   /**
-   * WHAT: Captures the whole reading area (viewShotRef wrapper, collapsable={
-   *   false}) as a JPG via captureRef and opens the native share sheet.
-   * FLOW: hide header (restored in finally), isCapturing=true, wait 500ms for
-   *   re-layout, captureRef(viewShotRef, {format:'jpg', quality:0.95}),
+   * WHAT: Opens the share menu (toggles: Drawings / Mistakes / Bookmarks + Share).
+   * FLOW: no capture happens here — just showShareMenu=true; runShare does the work.
+   * CALLED BY: AnimatedHeader onShare (toolbar Share button).
+   */
+  const handleSharePage = async () => { setShowShareMenu(true); };
+
+  /**
+   * WHAT: Captures the reading area (viewShotRef wrapper, collapsable={false}) as a
+   *   JPG via captureRef and opens the native share sheet — only the annotation
+   *   layers whose menu toggle is ON are rendered in the image.
+   * FLOW: close menu, hide header (restored in finally), isCapturing=true, wait
+   *   150ms for re-layout, captureRef(viewShotRef, {format:'jpg', quality:0.95}),
    *   Share.open (file:// prefix on Android), spinner overlay while capturing.
    * CALLS: captureRef (react-native-view-shot), Share.open (react-native-share).
    * AFFECTS: isHeaderVisible/isCapturing during capture; DrawingCanvas is
    *   unmounted while capturing and StaticDrawingOverlay re-draws the paths
-   *   so drawings appear in the share.
+   *   (only when shareDrawings is ON); highlights/bookmarks props are emptied
+   *   when their toggle is OFF so they stay out of the image.
    */
-  const handleSharePage = async () => {
+  const runShare = async () => {
+    setShowShareMenu(false);
     const wasHeaderVisible = isHeaderVisible;
-    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise(r => setTimeout(r, 500)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
+    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise(r => setTimeout(r, 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
     catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); setIsHeaderVisible(wasHeaderVisible); }
   };
 
@@ -946,6 +983,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ? [...(studentData?.drawings?.[spreadOddKey || '']?.paths || []), ...translatePaths(studentData?.drawings?.[spreadEvenKey || '']?.paths || [], halfOrigin)]
     : studentData?.drawings?.[drawingKey]?.paths;
   const capturePaths = composeSpreadPaths();
+  // Share toggles apply ONLY while capturing — normal reading keeps everything.
+  const captureHighlights = isCapturing && !shareMistakes ? {} : canvasData.highlights;
+  const captureBookmarks = isCapturing && !shareBookmarks ? {} : studentData?.bookmarks;
   const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
   const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
@@ -1158,8 +1198,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
               <FlatList ref={flatListRef} data={verses} keyExtractor={(item: any) => item.id.toString()}
                 contentContainerStyle={{ padding: IS_TABLET ? 40 : 20 }}
                 renderItem={({ item }: any) => (
-                  <VerseDisplay verse={item} highlights={canvasData?.highlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
-                    isBookmarked={!!studentData?.bookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
+                  <VerseDisplay verse={item} highlights={captureHighlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
+                    isBookmarked={!!captureBookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
                     onWordPress={onWordPress(item.verseNumber)} onBookmarkToggle={onBookmarkToggle(item.verseNumber)} onVerseLongPress={handleVerseLongPress}
                     showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
@@ -1179,9 +1219,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     }
                   }
                 }} scrollEventThrottle={100}>
-                <FlowingText verses={verses} highlights={canvasData.highlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
+                <FlowingText verses={verses} highlights={captureHighlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
-                  bookmarks={studentData?.bookmarks}
+                  bookmarks={captureBookmarks}
                   notes={canvasData.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 {loadingMore && <ActivityIndicator color="#00d4aa" />}
               </ScrollView>
@@ -1217,8 +1257,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 }}
                 renderItem={splitOn ? ({ item }: any) => (
                   <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-                    highlights={canvasData.highlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress}
-                    bookmarks={studentData?.bookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress}
+                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded} fixNonce={fixNonce} onFixFont={handleFixFont}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
@@ -1229,8 +1269,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   return (
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
                       {pData ? (
-                        <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={canvasData.highlights} onWordPress={handleWordFlow}
-                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={studentData?.bookmarks}
+                        <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
+                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader} fixNonce={fixNonce} onFixFont={handleFixFont}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
@@ -1239,8 +1279,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 }} />
             )}
 
-            {/* share capture: re-draws saved drawing paths on top of the page while capturing */}
-            {isCapturing && capturePaths?.length > 0 && (<StaticDrawingOverlay paths={capturePaths} />)}
+            {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}
+            {isCapturing && shareDrawings && capturePaths?.length > 0 && (<StaticDrawingOverlay paths={capturePaths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
         {/* ---- floating page-bookmark button (top-right; INSIDE the captured region for share) ---- */}
@@ -1332,6 +1372,30 @@ export default function QuranViewScreen({ navigation, route }: any) {
           <VoiceNoteRecorder onSaved={handleVoiceNoteSaved} onCancel={() => setRecordingVerseKey(null)} />
         </View>
       )}
+
+      {/* share menu: include toggles + big Share button; capture runs via runShare */}
+      <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => setShowShareMenu(false)}>
+        <Pressable style={styles.shareMenuBackdrop} onPress={() => setShowShareMenu(false)}>
+          <Pressable style={styles.shareMenuCard} onPress={() => {}}>
+            <Text style={styles.shareMenuTitle}>Share page</Text>
+            <View style={styles.shareMenuRow}>
+              <Text style={styles.shareMenuLabel}>Include drawings</Text>
+              <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: '#333', true: '#00d4aa' }} />
+            </View>
+            <View style={styles.shareMenuRow}>
+              <Text style={styles.shareMenuLabel}>Include mistakes</Text>
+              <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: '#00d4aa' }} />
+            </View>
+            <View style={styles.shareMenuRow}>
+              <Text style={styles.shareMenuLabel}>Include bookmarks</Text>
+              <Switch value={shareBookmarks} onValueChange={setShareBookmarks} trackColor={{ false: '#333', true: '#00d4aa' }} />
+            </View>
+            <TouchableOpacity style={styles.shareMenuButton} onPress={runShare} activeOpacity={0.75}>
+              <Text style={styles.shareMenuButtonText}>Share</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1352,6 +1416,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   contentArea: { flex: 1 },
   capturingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  shareMenuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' },
+  shareMenuCard: { width: 300, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, backgroundColor: '#16181d', borderWidth: 1, borderColor: '#2a2d35' },
+  shareMenuTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 14, textAlign: 'center' },
+  shareMenuRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  shareMenuLabel: { color: '#fff', fontSize: 15 },
+  shareMenuButton: { marginTop: 6, borderRadius: 14, backgroundColor: '#00d4aa', paddingVertical: 14, alignItems: 'center', shadowColor: '#00d4aa', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+  shareMenuButtonText: { color: '#00110c', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
   menuOverlay: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },

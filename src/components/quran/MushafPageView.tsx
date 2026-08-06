@@ -19,7 +19,7 @@ import OrnamentalFrame from './OrnamentalFrame';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const hPad = (w: number) => (w >= 600 ? w * 0.08 : 10);
+const hPad = (w: number) => (w >= 600 ? w * 0.08 : 13);
 // Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
 // overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
 // rewrites them. Must be added identically at EVERY get/save call site.
