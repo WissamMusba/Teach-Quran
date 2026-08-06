@@ -19,7 +19,7 @@ import OrnamentalFrame from './OrnamentalFrame';
 import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const hPad = (w: number) => (w >= 600 ? w * 0.08 : 10);
+const hPad = (w: number) => (w >= 600 ? w * 0.08 : 14);
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -597,11 +597,11 @@ const styles = StyleSheet.create({
   fallbackText: { flexWrap: 'wrap', flexShrink: 1, textAlign: 'right' },
   wordBox: { flexShrink: 0 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4, flexShrink: 1, minWidth: 24 },
-  verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4, flexShrink: 1, minWidth: 22 },
+  verseBadge: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { color: '#ffffff', fontSize: 12, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
   noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 },
   badgePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },

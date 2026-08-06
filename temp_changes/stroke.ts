@@ -31,7 +31,7 @@ export function simplifyStroke(points: string[], epsilon = 1.2): string[] {
   }
   return points.filter((_, i) => keep[i]);
 }
-export const hPadFor = (w: number) => (w >= 600 ? w * 0.08 : 10);
+export const hPadFor = (w: number) => (w >= 600 ? w * 0.08 : 14);
 export const compactStroke = (points: string[], canvasW: number, canvasH: number, padX = 0): string[] => {
   const cw = canvasW - 2 * padX > 1 ? canvasW - 2 * padX : canvasW;
   return simplifyStroke(thinStrokePoints(points, 3), 1.5)
