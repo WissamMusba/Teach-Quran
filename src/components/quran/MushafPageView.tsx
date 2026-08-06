@@ -16,7 +16,7 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame from './OrnamentalFrame';
-import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB';
+import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const hPad = (w: number) => (w >= 600 ? w * 0.08 : 10);
@@ -220,7 +220,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     setFontReady(false);
     const t = setTimeout(() => { if (mounted) setFontReady(true); }, 150);
     return () => { mounted = false; clearTimeout(t); };
-  }, [fontFamily, pageNum, fixNonce]);
+  }, [fontFamily, fixNonce]);
 
   // DEAD CODE: verseByKey is built from versesForPage but never referenced below.
   // hlMap indexes highlights by "surahId_verseNumber" for per-word mistake lookups.
@@ -250,13 +250,21 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
 
-  // Cache-load effect — async SQLite read of the layout sums; 'hit' → layoutContentRef set and
-  // scaleForLine switches to the arithmetic single-pass path; 'miss' → measurement path. The
-  // cancellation flag guards the unmount race. Deps mirror the reset effect (no headerVisible).
+  // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read
+  // does not need the font (only the measure pass does), so a cache-hit page renders the moment
+  // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms ±2 pages in
+  // ONE SQLite query via preloadPageLayoutCacheRange (they land in layoutCacheMem synchronously,
+  // so swiping to them later costs zero DB traffic). 'hit' → layoutContentRef set and scaleForLine
+  // switches to the arithmetic single-pass path; 'miss' → measurement path (which still waits for
+  // fontReady inside handleWordMeasured). Cancellation flag guards the unmount race.
   useEffect(() => {
-    if (!fontReady || !pageData?.lines?.length) return;
+    if (!pageData?.lines?.length) return;
     let cancelled = false;
-    getPageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0, Math.round(pageWidth))
+    const keyFs = fs + CACHE_VERSION;
+    const keySparse = sparse ? 1 : 0;
+    const keyW = Math.round(pageWidth);
+    preloadPageLayoutCacheRange(pageNum - 2, pageNum + 2, textStyle, false, keyFs, keySparse, keyW);
+    getPageLayoutCache(pageNum, textStyle, false, keyFs, keySparse, keyW)
       .then((cached) => {
         if (cancelled) return;
         if (cached) {
@@ -268,7 +276,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
         }
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, fs, pageWidth, fixNonce, fontReady]);
+  }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
 
   const scheduleVerify = useCallback(() => {
     setTimeout(() => commitVerify(), 350);
@@ -477,7 +485,12 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
 
   // Render gate — hold at an empty container until the cache verdict ('hit'/'miss') arrives so
   // no measurement starts before it.
-  if (cacheState === 'loading') {
+  // Render gate — cache-hit pages render IMMEDIATELY (scales come from persisted sums +
+  // live lineExtra; no measurement, no font wait). Only the miss path holds until fontReady:
+  // words laid out before the real font loads fire onLayout once and would never re-measure,
+  // so measurement must not start on the fallback font. fontReady persists across page swipes
+  // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
+  if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
     return <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]} />;
   }
 

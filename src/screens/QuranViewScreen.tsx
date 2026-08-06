@@ -137,6 +137,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [headerPage, setHeaderPage] = useState(0);
   const [fixNonce, setFixNonce] = useState(0);
   const [menuVerse, setMenuVerse] = useState<number | null>(null);
+  const [noteVerseKey, setNoteVerseKey] = useState<number | null>(null);
   const [menuY, setMenuY] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -739,13 +740,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
     const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
     setCanvasData((prev: any) => ({ ...prev, highlights: { ...prev.highlights, [vKey]: { highlights: newHighs } } }));
+    dispatch(setStudentData({ ...(studentData || {}), highlights: { ...(studentData?.highlights || {}), [vKey]: { highlights: newHighs } } }));
     ReactNativeHapticFeedback.trigger('impactLight');
     getVersePage(currentSurahId, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
       saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
       dispatch(addPendingChange());
     });
-  }, [canvasData, currentStudent, currentSurahId]);
+  }, [canvasData, currentStudent, currentSurahId, studentData, dispatch]);
 
   /**
    * WHAT: Toggles `{surah}_{verse}` in the bookmarks map; 'impactMedium' haptic.
@@ -800,21 +802,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (verse) { Clipboard.setString(`${verse.textArabic}\n\n${verse.textTranslation}`); Alert.alert('Copied', 'Verse copied to clipboard!'); }
     setMenuVerse(null); setMenuY(null);
   };
-  // openNoteModal: pre-fills the note modal from studentData for the menu verse
-  const openNoteModal = () => { setNoteText(studentData?.notes?.[`${currentSurahId}_${menuVerse}`] || ''); setShowNoteModal(true); };
+// openNoteModal: pre-fills the note modal from studentData for the menu verse.
+  // Captures menuVerse into noteVerseKey BEFORE the caller nulls menuVerse, so
+  // saveNote still knows which verse to write even after menuVerse is cleared.
+  const openNoteModal = () => {
+    if (menuVerse === null) return;
+    setNoteVerseKey(menuVerse);
+    setNoteText(studentData?.notes?.[`${currentSurahId}_${menuVerse}`] || '');
+    setShowNoteModal(true);
+  };
   /**
-   * WHAT: Writes noteText for `{currentSurahId}_{menuVerse}` into the notes map
+   * WHAT: Writes noteText for `{currentSurahId}_{noteVerseKey}` into the notes map
    *   and closes the modal.
    * CALLS: updateData.
    * CALLED BY: menu Note button via openNoteModal.
    * AFFECTS: studentData.notes.<surah_verse> (string).
    */
   const saveNote = () => {
-    if (!currentStudent || menuVerse === null) return;
-    const vKey = `${currentSurahId}_${menuVerse}`;
+    if (!currentStudent || noteVerseKey === null) return;
+    const vKey = `${currentSurahId}_${noteVerseKey}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [vKey]: noteText } }));
-    setShowNoteModal(false); setMenuVerse(null); setMenuY(null);
-    getVersePage(currentSurahId, menuVerse, textStyleRef.current).catch(() => 0).then((page) => {
+    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: noteText } }));
+    setShowNoteModal(false); setNoteVerseKey(null); setMenuVerse(null); setMenuY(null);
+    getVersePage(currentSurahId, noteVerseKey, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
       saveCanvasEdit(currentStudent.id, key, 'notes', { [vKey]: noteText });
     });
@@ -838,6 +848,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const existing = canvasData.notes?.[recordingVerseKey] || '';
     const newText = existing + (existing ? '\n' : '') + `audio:${path}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
+    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [recordingVerseKey]: newText } }));
     setRecordingVerseKey(null);
     const [s, v] = recordingVerseKey.split('_').map(Number);
     const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
@@ -874,7 +885,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     //   setRecordingVerseKey(null);
     //   Alert.alert('Note', 'Failed to save voice note.');
     // }
-  }, [canvasData, currentStudent, recordingVerseKey]);
+  }, [canvasData, currentStudent, recordingVerseKey, studentData, dispatch]);
 
   /**
    * WHAT: Captures the whole reading area (viewShotRef wrapper, collapsable={
@@ -1185,7 +1196,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 removeClippedSubviews scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                initialNumToRender={5} maxToRenderPerBatch={10} windowSize={7}
+                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
+                updateCellsBatchingPeriod={40}
                 onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false })}
                 onMomentumScrollEnd={(e) => {
                   const idx = Math.round(e.nativeEvent.contentOffset.x / winW);

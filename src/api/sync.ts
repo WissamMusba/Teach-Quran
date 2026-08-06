@@ -111,18 +111,41 @@ const pushAllDirty = async (userId: string): Promise<number> => {
     // ---- manifest (bookmarks / lastRead) — own batch so it pushes even with no dirty chunks ----
     if (manifestKeys.length) {
       const m = await getManifest(sid);
-      const overviewV = (m.data.v || 0) + 1;
-      const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
-      patch.bookmarks = m.data.bookmarks || {};
-      patch.lastRead = m.data.lastRead || null;
+      const overviewRef = studRef.collection('meta').doc('overview');
+      // TRANSACTIONAL merge: cloud overview read + overview write + user manifest
+      // write happen atomically, so two devices pushing at once cannot lose each
+      // other's bookmarks or regress the version number (v = max(local, cloud) + 1).
+      // Bookmarks merge per-key by createdAt (newer wins); lastRead is only
+      // written when this device HAS one — never nulled out.
+      let merged: Record<string, any> = {};
       try {
-        await firestore().batch()
-          .set(studRef.collection('meta').doc('overview'), patch, { merge: true })
-          .set(manifestRef(userId), manifestSubtree(sid, { v: overviewV, pages: m.data.pages || {} }), { merge: true })
-          .commit();
+        const overviewV = await firestore().runTransaction(async (tx: any) => {
+          const snap: any = await tx.get(overviewRef);
+          const cloud: any = snap.exists ? (snap.data() || {}) : {};
+          const cloudV: number = cloud.v || 0;
+          const cloudBookmarks: Record<string, any> = cloud.bookmarks || {};
+          const localBookmarks: Record<string, any> = m.data.bookmarks || {};
+          for (const [k, lv] of Object.entries(localBookmarks) as Array<[string, any]>) {
+            const cv = cloudBookmarks[k];
+            const lts = lv?.createdAt ? new Date(lv.createdAt).getTime() : 0;
+            const cts = cv?.createdAt ? new Date(cv.createdAt).getTime() : 0;
+            merged[k] = lts >= cts ? lv : cv;
+          }
+          for (const [k, cv] of Object.entries(cloudBookmarks) as Array<[string, any]>) {
+            if (!(k in merged)) merged[k] = cv;
+          }
+          const v = Math.max(m.data.v || 0, cloudV) + 1;
+          const patch: Record<string, any> = { v, updatedAt: firestore.FieldValue.serverTimestamp(), bookmarks: merged };
+          if (m.data.lastRead && m.data.lastRead.surah) patch.lastRead = m.data.lastRead;
+          tx.set(overviewRef, patch, { merge: true });
+          tx.set(manifestRef(userId), manifestSubtree(sid, { v, pages: m.data.pages || {} }), { merge: true });
+          return v;
+        });
         await setLastPushAt(sid, Date.now());
         for (const k of manifestKeys) await markSynced(sid, k);
-        await saveManifestLocal(sid, { ...m.data, v: overviewV }, Date.now(), false);
+        // Persist the MERGED bookmark map locally too, so this device keeps the
+        // cloud bookmarks it merged with (not just its own).
+        await saveManifestLocal(sid, { ...m.data, bookmarks: merged, v: overviewV }, Date.now(), false);
         pushed++;
       } catch (e) { console.warn(`manifest push failed ${sid}`, e); for (const k of manifestKeys) await bumpAttempt(sid, k); }
     }
@@ -158,13 +181,15 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
   let pulled = 0;
   const entries = Object.entries(pageInfo || {}) as Array<[string, any]>;
   const localChecks = await Promise.all(entries.map(async ([canvasKey, info]: any) => {
+    const cloudV = typeof info === 'number' ? info : (info?.v || 0);
     const local = await getChunk(sid, canvasKey);
-    if (!local || local.v < (info.v || 0)) return { canvasKey, v: info.v || 0 };
+    if (!local || local.v < cloudV) return { canvasKey, v: cloudV };
     return null;
   }));
   const needed = localChecks.filter(Boolean) as { canvasKey: string; v: number }[];
-  for (let i = 0; i < needed.length; i += 30) {
-    const slice = needed.slice(i, i + 30);
+  // Firestore 'in' queries support AT MOST 10 document IDs per query.
+  for (let i = 0; i < needed.length; i += 10) {
+    const slice = needed.slice(i, i + 10);
     const snaps = await studRef.collection('draws')
       .where(firestore.FieldPath.documentId(), 'in', slice.map(n => n.canvasKey)).get();
     await Promise.all(
@@ -172,6 +197,10 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
         const canvasKey = doc.id;
         const targetV = slice.find(n => n.canvasKey === canvasKey)?.v || 0;
         const local = await getChunk(sid, canvasKey);
+        // Guard against a race: the user edited this chunk on THIS device AFTER
+        // the version check above — re-read it and skip the pull rather than
+        // clobbering their fresh local edit with the stale cloud snapshot.
+        if (local && local.v >= targetV) return;
         // cloud has NO strokes (stripped on push) — preserve local drawings
         await saveChunkNoQueue(sid, canvasKey, { ...doc.data(), strokes: local?.data?.strokes || [] }, targetV);
       })

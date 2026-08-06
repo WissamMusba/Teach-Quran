@@ -249,22 +249,42 @@ export const purgeLocalStudent = async (studentId: string) => {
   await db.executeSql(`DELETE FROM student_manifest_cache WHERE studentId=?`, [studentId]);
   await db.executeSql(`DELETE FROM sync_last_push WHERE studentId=?`, [studentId]);
   await db.executeSql(`DELETE FROM audio_notes_cache WHERE studentId=?`, [studentId]);
+  // Also drop the student from the per-uid LIST cache — getStudents() is cache-first, so a
+  // deleted student left in student_list_cache is what resurrects it in the Dashboard on the
+  // next focus/sync. Tombstone (deletedStudentIds) guards the in-flight refresh race too.
+  deletedStudentIds.add(studentId);
+  try {
+    const uid = auth().currentUser?.uid; if (!uid) return;
+    const r = await db.executeSql(`SELECT students FROM student_list_cache WHERE uid = ?`, [uid]);
+    if (r[0].rows.length > 0) {
+      const list = JSON.parse(r[0].rows.item(0).students).filter((s: any) => s?.id !== studentId);
+      await db.executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
+        [uid, JSON.stringify(list), new Date().toISOString()]);
+    }
+  } catch {}
 };
 
 // ---------------- student list cache (unchanged API) ----------------
+// Tombstones: student ids deleted on THIS device this session. cacheStudentList filters them
+// out, so an in-flight background refresh (snapshot taken before the delete) or a pull can never
+// resurrect a deleted student into the list cache. In-memory only — the cache row itself is
+// rewritten at purge time (purgeLocalStudent), so a restart can't resurrect either.
+const deletedStudentIds = new Set<string>();
+
 export const getCachedStudentList = async (): Promise<any[] | null> => {
   try {
     const uid = auth().currentUser?.uid; if (!uid) return null;
     const r = await getDB().executeSql(`SELECT students FROM student_list_cache WHERE uid = ?`, [uid]);
     if (r[0].rows.length === 0) return null;
-    return JSON.parse(r[0].rows.item(0).students);
+    return JSON.parse(r[0].rows.item(0).students).filter((s: any) => !deletedStudentIds.has(s?.id));
   } catch { return null; }
 };
 export const cacheStudentList = async (students: any[]): Promise<void> => {
   try {
     const uid = auth().currentUser?.uid; if (!uid) return;
+    const filtered = students.filter((s: any) => !deletedStudentIds.has(s?.id));
     await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
-      [uid, JSON.stringify(students), new Date().toISOString()]);
+      [uid, JSON.stringify(filtered), new Date().toISOString()]);
   } catch {}
 };
 
@@ -287,15 +307,60 @@ async function migrateV1IfNeeded(db: any) {
 }
 
 // ---------------- Layout Cache ----------------
+// In-memory fast-path for the layout cache: MushafPageView reads its row on every mount, and on
+// low-end devices the async SQLite hop (queued behind student-data writes and other page reads)
+// is the visible delay. The reader warms a RANGE (±2 pages) with one query; subsequent mounts
+// resolve synchronously from layoutCacheMem with zero DB traffic. The Mem LRU is small (cache
+// rows are tiny) but bounded so a session of paging through the whole mushaf can't grow it
+// unboundedly: evicts when > MAX_MEM_ENTRIES (simple FIFO by insertion order — Map semantics).
+const MAX_MEM_ENTRIES = 900;
+const layoutCacheMem = new Map<string, number[] | null>();
+const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, fs: number, sparse: number, screenW: number) =>
+  `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${fs}|${sparse}|${screenW}`;
+const memStore = (key: string, value: number[] | null) => {
+  layoutCacheMem.set(key, value);
+  if (layoutCacheMem.size > MAX_MEM_ENTRIES) {
+    const oldest = layoutCacheMem.keys().next().value;
+    if (oldest !== undefined) layoutCacheMem.delete(oldest);
+  }
+};
+/**
+ * preloadPageLayoutCacheRange(first, last, ...keyParts) — one SQLite query warms every
+ * page_layout_cache row in [first,last] matching the caller's exact key parts (textStyle,
+ * headerVisible, fs, sparse, screenW) into the layoutCacheMem map, so the MushafPageView mounts
+ * for those pages resolve their cache synchronously instead of queueing N separate DB reads.
+ * CALLED BY: MushafPageView cache-load effect (warms pageNum ± 2 before the user swipes there).
+ * NOTES: reads only; never writes. Rows with other key parts are ignored — each MushafPageView
+ *   mount still falls back to a direct DB read if its own exact key is absent from the mem map.
+ */
+export const preloadPageLayoutCacheRange = async (
+  first: number, last: number, textStyle: string, headerVisible: boolean,
+  fs: number, sparse: number, screenW: number,
+): Promise<void> => {
+  try {
+    const r = await getDB().executeSql(
+      `SELECT pageNumber, headerVisible, fs, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
+      [first, last, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
+    for (let i = 0; i < r[0].rows.length; i++) {
+      const row = r[0].rows.item(i);
+      memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.fs, row.sparse, row.screenW), JSON.parse(row.lines));
+    }
+  } catch { /* best-effort */ }
+};
 export const getPageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   fs: number, sparse: number, screenW: number,
 ): Promise<number[] | null> => {
+  const key = memKey(pageNumber, textStyle, headerVisible, fs, sparse, screenW);
+  const mem = layoutCacheMem.get(key);
+  if (mem !== undefined) return mem;
   try {
     const r = await getDB().executeSql(
       `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
       [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
-    if (r && r[0].rows.length > 0) return JSON.parse(r[0].rows.item(0).lines);
+    const parsed = (r && r[0].rows.length > 0) ? JSON.parse(r[0].rows.item(0).lines) : null;
+    memStore(key, parsed);
+    return parsed;
   } catch { /* cache is best-effort */ }
   return null;
 };
@@ -303,6 +368,7 @@ export const savePageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   fs: number, sparse: number, screenW: number, lines: number[],
 ) => {
+  memStore(memKey(pageNumber, textStyle, headerVisible, fs, sparse, screenW), lines);
   try {
     await getDB().executeSql(
       `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -310,6 +376,10 @@ export const savePageLayoutCache = async (
   } catch { /* best-effort */ }
 };
 export const clearPageLayoutCacheRange = async (from: number, to: number): Promise<void> => {
+  for (const k of Array.from(layoutCacheMem.keys())) {
+    const pg = parseInt(k.split('|')[0], 10);
+    if (pg >= from && pg <= to) layoutCacheMem.delete(k);
+  }
   try {
     await getDB().executeSql(
       `DELETE FROM page_layout_cache WHERE pageNumber >= ? AND pageNumber <= ?`,
