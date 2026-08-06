@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { playAudioNote } from '../api/audioNotes';
+import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
 /**
  * WHAT: One shared AudioRecorderPlayer instance for the whole screen; ensures only one clip plays at a time.
@@ -27,6 +28,7 @@ const audioPlayer = new AudioRecorderPlayer();
  * NOTES: keyExtractor = item[0] (verseKey) — unique per note. Empty-string notes (created then cleared) are filtered out at render, but the key remains in studentData.notes and will still be synced/persisted.
  */
 export default function NotesScreen() {
+  useStudentDataRefresh();
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
@@ -91,9 +93,11 @@ export default function NotesScreen() {
     }
     try {
       if (playingKey) await audioPlayer.stopPlayer();
-      // the tapped value is a Firebase Storage fileId, NOT a local path — resolve
-      // it through the on-demand cache downloader (download happens ONLY on press)
-      const local = await playAudioNote(path);
+      // LOCAL-ONLY voice notes (Spark plan): the value is an absolute local m4a
+      // path (or file:// URI) — play it directly. Cloud fileIds (Blaze plan:
+      // playAudioNote download) are still supported for older/pulled notes.
+      const isLocalPath = path.startsWith('/') || path.startsWith('file://');
+      const local = isLocalPath ? path.replace(/^file:\/\//, '') : await playAudioNote(path);
       if (!local) { Alert.alert('Playback error', 'Could not download voice note.'); return; }
       await audioPlayer.startPlayer(local);
       audioPlayer.addPlayBackListener((e: any) => {

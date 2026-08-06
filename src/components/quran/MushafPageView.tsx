@@ -20,6 +20,10 @@ import { getPageLayoutCache, savePageLayoutCache } from '../../database/localDB'
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const hPad = (w: number) => (w >= 600 ? w * 0.08 : 10);
+// Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
+// overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
+// rewrites them. Must be added identically at EVERY get/save call site.
+const CACHE_VERSION = 1;
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -252,7 +256,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   useEffect(() => {
     if (!fontReady || !pageData?.lines?.length) return;
     let cancelled = false;
-    getPageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth))
+    getPageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0, Math.round(pageWidth))
       .then((cached) => {
         if (cancelled) return;
         if (cached) {
@@ -286,7 +290,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     if (differs) {
       layoutContentRef.current = sums;
       setLineScale({});
-      savePageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth), sums);
+      savePageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0, Math.round(pageWidth), sums);
     }
   }, [pageNum, textStyle, fs, pageWidth, sparse]);
 
@@ -295,9 +299,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
    * Accumulates measured word widths per line; on overflow computes a shrink scale; when every
    * line is complete and nothing written yet, persists the sums to the layout cache.
    * FLOW:
-   *   1. Bail when the cache already loaded (cache-hit path needs no measuring) or the line is
-   *      already scaled.
-   *   2. Record the width; filledCountRef increments only for previously-unrecorded word indices.
+   *   1. Bail when the cache already loaded (cache-hit path needs no measuring); font not ready.
+   *   2. Normalize the measured width back to a RAW value when the line is already scaled
+   *      (divide by scale), so the width store is always unscaled and complete.
    *   3. content = Σ widths + live lineExtra; overflow when content > lineW+2 on a complete line,
    *      or > lineW on a PARTIAL one — the partial check pre-empts the overflow flash before the
    *      line finishes measuring.
@@ -309,16 +313,22 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
    *      extra is notes-dependent and re-derived per render.
    * NOTES/QUIRKS:
    *   - expected comes from the render-time closure (words where hasArabicLetters(stripPua(word)))
-   *     and matches the rendered WordHitArea count exactly, so completeness is exact.
-   *   - Once a line scales, later measurements for it early-return (step 1) → its width is never
-   *     recorded → the persisted sums can UNDER-COUNT that line. First visit = estimate; a cache
-   *     hit later fixes it. Known two-pass vs one-pass trade-off.
+   *     and matches the RENDERED WordHitArea count exactly, so completeness is exact.
+   *   - A scaled line keeps recording widths, normalized back to raw via division by the current
+   *     scale, so the persisted sums are ALWAYS full-size — the cache-hit path recomputes the
+   *     identical scale and reloaded pages never overflow.
+   *   - setLineScale fires only when the scale actually changes (>1e-3), so the measure pass
+   *     causes at most one extra render per overflow line.
    *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (!fontReady) return;
     if (layoutContentRef.current) return;
-    if (scaleRef.current[lineKey]) return;
+    // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
+    // scale to recover the raw unscaled width so the store (and the persisted sums) always hold
+    // full-size widths. Cache-hit scale then mirrors first-visit exactly — no under-count, no
+    // overflow on reload, single measurement pass, never causes new re-renders by itself.
+    if (scaleRef.current[lineKey]) w = w / scaleRef.current[lineKey];
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
       filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
@@ -330,8 +340,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     if (content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.5, (lineW - 12) / content);
-      scaleRef.current[lineKey] = scale;
-      setLineScale(prev => ({ ...prev, [lineKey]: scale }));
+      const prevScale = scaleRef.current[lineKey];
+      if (!prevScale || Math.abs(prevScale - scale) > 1e-3) {
+        scaleRef.current[lineKey] = scale;
+        setLineScale(prev => ({ ...prev, [lineKey]: scale }));
+      }
     }
     if (complete && !cacheWrittenRef.current) {
       completedLinesRef.current.add(lineKey);
@@ -346,7 +359,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        savePageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0,
+        savePageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0,
           Math.round(pageWidth), sums);
       }
     }

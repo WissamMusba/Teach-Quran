@@ -134,8 +134,8 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             </Text>
           </TouchableOpacity>
           <View style={s.iconsRow}>
-            <Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} />
             <Btn label="SHARE" icon={<IconShare c={C_SHARE} />} onPress={p.onShare} />
+            <Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} />
             <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
             <Btn label="SETTINGS" icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />

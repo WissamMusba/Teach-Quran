@@ -826,32 +826,54 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * CALLED BY: VoiceNoteRecorder onSaved.
    * AFFECTS: studentData.notes.<surah_verse> — voice notes are STORED INSIDE
    *   the notes field (no separate field); existing note text preserved.
+   * NOTE (LOCAL-ONLY, Spark plan): the recorded m4a stays on THIS device and
+   *   the note stores its absolute local path (`audio:/data/.../x.m4a`), so
+   *   playback works but the audio does NOT sync to other devices. When the
+   *   Firebase Blaze plan is enabled, restore the ORIGINAL upload flow below
+   *   (replace this whole function body with the commented block) so voice
+   *   notes upload to Storage and sync cross-device again.
    */
   const handleVoiceNoteSaved = useCallback(async (path: string, ms: number) => {
-    let fileId: string | null = null;
-    try {
-      if (!currentStudent || !recordingVerseKey) return;
-      const existing = canvasData.notes?.[recordingVerseKey] || '';
-      fileId = await uploadAudioNote(path);
-      const [s, v] = recordingVerseKey.split('_').map(Number);
-      const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
-      await registerAudioNote(currentStudent.id, recordingVerseKey, fileId, ms, page || undefined);
-      // audio-range queue row (`_audio_<rangeKey>`) — count it in the sync badge
-      dispatch(addPendingChange());
-      const newText = existing + (existing ? '\n' : '') + `audio:${fileId}`;
-      setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
-      setRecordingVerseKey(null);
-      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
-      saveCanvasEdit(currentStudent.id, key, 'notes', { [recordingVerseKey]: newText });
-      // chunk row queued by saveCanvasEdit — count it in the sync badge
-      dispatch(addPendingChange());
-    } catch (e) {
-      console.warn('handleVoiceNoteSaved', e);
-      // best-effort cleanup of an orphaned upload before reporting the failure
-      if (fileId) { try { await storage().ref(`audio_notes/${fileId}.m4a`).delete(); } catch {} }
-      setRecordingVerseKey(null);
-      Alert.alert('Note', 'Failed to save voice note.');
-    }
+    if (!currentStudent || !recordingVerseKey) return;
+    const existing = canvasData.notes?.[recordingVerseKey] || '';
+    const newText = existing + (existing ? '\n' : '') + `audio:${path}`;
+    setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
+    setRecordingVerseKey(null);
+    const [s, v] = recordingVerseKey.split('_').map(Number);
+    const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
+    const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
+    saveCanvasEdit(currentStudent.id, key, 'notes', { [recordingVerseKey]: newText });
+    dispatch(addPendingChange());
+    // ================================================================
+    // BLAZE PLAN RESTORE — when Firebase Storage is enabled, uncomment
+    // the block below and delete the local-only flow above. It uploads
+    // to `audio_notes/<fileId>.m4a`, registers the per-range audio row
+    // (registerAudioNote), and lets voice notes sync across devices.
+    // ================================================================
+    // let fileId: string | null = null;
+    // try {
+    //   if (!currentStudent || !recordingVerseKey) return;
+    //   const existing = canvasData.notes?.[recordingVerseKey] || '';
+    //   fileId = await uploadAudioNote(path);
+    //   const [s, v] = recordingVerseKey.split('_').map(Number);
+    //   const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
+    //   await registerAudioNote(currentStudent.id, recordingVerseKey, fileId, ms, page || undefined);
+    //   // audio-range queue row (`_audio_<rangeKey>`) — count it in the sync badge
+    //   dispatch(addPendingChange());
+    //   const newText = existing + (existing ? '\n' : '') + `audio:${fileId}`;
+    //   setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
+    //   setRecordingVerseKey(null);
+    //   const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
+    //   saveCanvasEdit(currentStudent.id, key, 'notes', { [recordingVerseKey]: newText });
+    //   // chunk row queued by saveCanvasEdit — count it in the sync badge
+    //   dispatch(addPendingChange());
+    // } catch (e) {
+    //   console.warn('handleVoiceNoteSaved', e);
+    //   // best-effort cleanup of an orphaned upload before reporting the failure
+    //   if (fileId) { try { await storage().ref(`audio_notes/${fileId}.m4a`).delete(); } catch {} }
+    //   setRecordingVerseKey(null);
+    //   Alert.alert('Note', 'Failed to save voice note.');
+    // }
   }, [canvasData, currentStudent, recordingVerseKey]);
 
   /**

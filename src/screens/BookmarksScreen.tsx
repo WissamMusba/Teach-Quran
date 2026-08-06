@@ -14,6 +14,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { JUZ_MAP } from '../utils/theme';
+import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
 /**
  * WHAT: Returns the Juz (1-30) containing a given surah/verse by linear-scanning JUZ_MAP
@@ -80,6 +81,7 @@ const formatDateTime = (ts: string): string => {
  *        handleBookmarkFlow, not to any action in this screen.
  */
 export default function BookmarksScreen() {
+  useStudentDataRefresh();
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);

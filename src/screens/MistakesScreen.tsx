@@ -8,6 +8,7 @@ import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
 /**
  * WHAT: Screen component: flattens the highlights map into a sorted list of individual highlighted words and renders them as colored-dot rows.
@@ -21,6 +22,7 @@ export default function MistakesScreen() {
   const navigation = useNavigation<any>();
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
+  useStudentDataRefresh();
   /**
    * WHAT: Builds the sorted mistakes list from the highlights map.
    * FLOW: 1) Object.entries(highlights).flatMap each verseKey -> its data.highlights array mapped to {verseKey, color, createdAt}. 2) Sort desc by createdAt.
