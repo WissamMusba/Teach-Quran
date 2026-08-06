@@ -53,6 +53,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
   const [currentPath, setCurrentPath] = useState<any>(null);
 
   const pathsRef = useRef<any[]>(paths);
+  const redoStackRef = useRef<any[]>(redoStack);
   const stateRef = useRef({ activeTool, activeColor, penSize });
   const currentPathRef = useRef<any>(null);
   const saveTimerRef = useRef<any>(null);
@@ -94,6 +95,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
   }, []);
 
   useEffect(() => { pathsRef.current = paths; }, [paths]);
+  useEffect(() => { redoStackRef.current = redoStack; }, [redoStack]);
   useEffect(() => { stateRef.current = { activeTool, activeColor, penSize }; }, [activeTool, activeColor, penSize]);
   useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
 

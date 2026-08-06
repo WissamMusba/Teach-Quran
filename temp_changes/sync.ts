@@ -3,7 +3,7 @@ import {
   getDirtyCanvasesByStudent, getChunk, markSynced, bumpAttempt,
   getManifest, saveManifestLocal, saveChunkNoQueue,
   getAudioNotesRange, saveAudioNotesRange, migrateLegacyAudioNotes,
-  getLastPushAt, setLastPushAt, cacheStudentList,
+  setLastPushAt, cacheStudentList,
 } from '../database/localDB';
 import { compactStroke, denormalizeStroke } from '../utils/stroke';
 
@@ -118,7 +118,9 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       try {
         await firestore().batch()
           .set(studRef.collection('meta').doc('overview'), patch, { merge: true })
-          .set(manifestRef(userId), manifestSubtree(sid, { v: overviewV, pages: m.data.pages || {} }), { merge: true })
+          // page versions are maintained ONLY by the chunk pass: writing the full local
+          // pages map here would regress per-page versions pushed by other devices
+          .set(manifestRef(userId), manifestSubtree(sid, { v: overviewV }), { merge: true })
           .commit();
         await setLastPushAt(sid, Date.now());
         for (const k of manifestKeys) await markSynced(sid, k);
@@ -172,8 +174,12 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
         const canvasKey = doc.id;
         const targetV = slice.find(n => n.canvasKey === canvasKey)?.v || 0;
         const local = await getChunk(sid, canvasKey);
-        // cloud has NO strokes (stripped on push) — preserve local drawings
-        await saveChunkNoQueue(sid, canvasKey, { ...doc.data(), strokes: local?.data?.strokes || [] }, targetV);
+        // a local edit raced this pull (v bumped since the diff check) — local wins, it is still queued for push
+        if (local && local.v >= targetV) return;
+        // cloud has NO strokes (stripped on push) — preserve local drawings; drop the
+        // Firestore Timestamp so it never re-enters the local cache / push payload
+        const { updatedAt, ...cloudData } = doc.data();
+        await saveChunkNoQueue(sid, canvasKey, { ...cloudData, strokes: local?.data?.strokes || [] }, targetV);
       })
     );
     pulled += snaps.docs.length;
@@ -195,13 +201,15 @@ const pullRemote = async (userId: string): Promise<number> => {
     const cloudOV = cloudInfo?.v;
     const localM = await getManifest(sid);
     const localOV = localM.data.v || 0;
-    const mustPullOverview = cloudInfo == null || cloudOV === undefined || cloudOV > localOV || (!localM.serverTs && (cloudOV || 0) >= localOV);
+    // `pulled` is set only when the overview was actually read from the cloud, so a
+    // fresh install whose first push happened before the first pull still forces the read.
+    const mustPullOverview = cloudInfo == null || cloudOV === undefined || cloudOV > localOV || (!localM.data.pulled && (cloudOV || 0) >= localOV);
 
     if (mustPullOverview) {
       const mSnap = await studRef.collection('meta').doc('overview').get();
       if (mSnap.exists) {
         const cloudMeta = mSnap.data() as any;
-        await saveManifestLocal(sid, cloudMeta, Date.now(), false);
+        await saveManifestLocal(sid, { ...cloudMeta, pulled: true }, Date.now(), false);
         pulled += await pullChangedChunks(sid, studRef, cloudMeta.pages || {});
       }
     } else {
@@ -209,10 +217,10 @@ const pullRemote = async (userId: string): Promise<number> => {
     }
 
     if (cloudInfo) {
-      // audio: diff via the manifest — read a range doc only when it is newer
+      // audio: diff via the manifest — read a range doc only when it is newer, or missing locally
       for (const [range, info] of Object.entries(cloudInfo.audio || {}) as Array<[string, any]>) {
         const localA = await getAudioNotesRange(sid, range);
-        if ((info.v || 0) > (localA.v || 0)) {
+        if (((info.v || 0) > (localA.v || 0)) || !Object.keys(localA.entries || {}).length) {
           const snap = await studRef.collection('audioNotes').doc(range).get();
           if (snap.exists) {
             const cloud = snap.data() as any;
@@ -249,6 +257,8 @@ export interface DrawingGeometry { canvasW: number; canvasH: number; padX: numbe
  */
 export const pushDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
   try {
+    const userId = getUserId();
+    if (!userId) return;
     const chunks = await Promise.all(pageKeys.map(k => getChunk(studentId, k).then(local => ({ k, local }))));
     const strokesByPage: Record<string, any[]> = {};
     let hasAny = false;
@@ -260,7 +270,7 @@ export const pushDrawings = async (studentId: string, groupKey: string, pageKeys
       }
     }
     if (!hasAny) return;
-    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    const studRef = firestore().collection('users').doc(userId).collection('students').doc(studentId);
     await studRef.collection('drawings').doc(groupKey).set({
       strokesByPage,
       updatedAt: firestore.FieldValue.serverTimestamp(),
@@ -276,11 +286,13 @@ export const pushDrawings = async (studentId: string, groupKey: string, pageKeys
  */
 export const pullDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
   try {
+    const userId = getUserId();
+    if (!userId) return;
     // skip the Firestore read entirely when every page in the range already has
     // local strokes (a range doc only exists when at least one page had strokes)
     const locals = await Promise.all(pageKeys.map(k => getChunk(studentId, k)));
     if (locals.every(l => l?.data?.strokes?.length)) return;
-    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    const studRef = firestore().collection('users').doc(userId).collection('students').doc(studentId);
     const snap = await studRef.collection('drawings').doc(groupKey).get();
     if (!snap.exists) return;
     const cloud = snap.data() as any;
@@ -299,8 +311,10 @@ export const pullDrawings = async (studentId: string, groupKey: string, pageKeys
 /** Lazy audio registry: fetches the whole 10-page group in one read when the range is missing or older locally. */
 export const pullAudioRange = async (studentId: string, rangeKey: string) => {
   try {
+    const userId = getUserId();
+    if (!userId) return;
     const local = await getAudioNotesRange(studentId, rangeKey);
-    const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
+    const studRef = firestore().collection('users').doc(userId).collection('students').doc(studentId);
     const snap = await studRef.collection('audioNotes').doc(rangeKey).get();
     if (!snap.exists) return;
     const cloud = snap.data() as any;
