@@ -102,8 +102,10 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   1. Derive per-font colors/size from redux (textStyle, nightMode, textBrightness).
  *   2. Sparse-page boost when total words < SPARSE_WORD_THRESHOLD.
  *   3. Reset effect clears all measurement refs + lineScale + cacheState('loading') when
- *      pageNum/textStyle/pageWidth/fixNonce change (headerVisible is NOT among the deps — see
- *      NOTES). Cache-load effect then async-reads the page_layout_cache row keyed by
+ *      pageNum/textStyle/fs/pageWidth/fixNonce change — fs captures the header-visible font
+ *      shift (and per-font/sparse adjustments), so any font-size change resets the measure
+ *      pass instead of leaking stale refs into the new-key pass. Cache-load effect then
+ *      async-reads the page_layout_cache row keyed by
  *      (pageNum, textStyle, headerVisible=false, fs, sparse, rounded pageWidth); headerVisible
  *      is hardcoded false at BOTH the get and save call sites, so header toggling does not
  *      invalidate the cache (it still shifts fs, which IS in the cache key).
@@ -139,9 +141,9 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
  *     scales on a cache hit may differ from first-visit ones until "Fix font" re-measures.
- *   - headerVisible is absent from BOTH effect dep arrays: toggling the header shifts fs (cache
- *     key) but does NOT clear measurement refs — a stale-measure/cache mismatch window for which
- *     the fixNonce bump is the recovery path.
+ *   - headerVisible itself is absent from both effect dep arrays, but its only layout effect is
+ *     the font-size shift, which fs captures — and fs IS in the reset deps (and the cache key),
+ *     so header toggles reset the measure pass cleanly; no stale refs leak into the new-key pass.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
@@ -230,10 +232,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const hlMap = new Map<string, any>(Object.entries(highlights || {}));
 
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
-  // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
-  // from the deps (and from the cache key — hardcoded false at both DB call sites), yet it still
-  // shifts fs which IS in the cache key; a fixNonce bump is the recovery path (see component
-  // NOTES).
+  // the pipeline back to 'loading' so the next pass starts clean. fs is a dep because it re-keys
+  // the layout cache whenever the font size shifts (header toggle, sparse flag, per-font adj):
+  // without it, the miss path of the new key would keep the OLD lineScale/scaleRef (early-return
+  // in handleWordMeasured) and never re-measure under the new font size. headerVisible itself is
+  // not a dep — its only layout effect flows through fs, which already triggers the reset.
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
@@ -244,7 +247,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     cacheWrittenRef.current = false;
     setLineScale({});
     setCacheState('loading');
-  }, [pageNum, textStyle, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
 
   // Cache-load effect — async SQLite read of the layout sums; 'hit' → layoutContentRef set and
   // scaleForLine switches to the arithmetic single-pass path; 'miss' → measurement path. The
@@ -266,10 +269,6 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     return () => { cancelled = true; };
   }, [pageNum, textStyle, fs, pageWidth, fixNonce, fontReady]);
 
-  const scheduleVerify = useCallback(() => {
-    setTimeout(() => commitVerify(), 350);
-  }, []);
-
   const commitVerify = useCallback(() => {
     const fresh = widthsRef.current;
     const keys = Object.keys(fresh).map(Number);
@@ -289,6 +288,18 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
       savePageLayoutCache(pageNum, textStyle, false, fs, sparse ? 1 : 0, Math.round(pageWidth), sums);
     }
   }, [pageNum, textStyle, fs, pageWidth, sparse]);
+
+  // Verify timer — held in a ref so a page change or unmount can cancel it: commitVerify reads
+  // the LIVE measurement refs but writes under its closure's (possibly old) pageNum/fs key, so a
+  // stale fire could persist the wrong page's partial sums or setLineScale({}) mid-measure of a
+  // new page. Re-keyed on commitVerify (deps: pageNum/textStyle/fs/pageWidth/sparse) and cleared
+  // on unmount.
+  const verifyTimerRef = useRef<any>(null);
+  useEffect(() => () => { if (verifyTimerRef.current) clearTimeout(verifyTimerRef.current); }, []);
+  const scheduleVerify = useCallback(() => {
+    if (verifyTimerRef.current) clearTimeout(verifyTimerRef.current);
+    verifyTimerRef.current = setTimeout(() => commitVerify(), 350);
+  }, [commitVerify]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -430,6 +441,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
       <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
         <View style={styles.fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
+            // Malformed-row guard: a null verse (or one without a verse number) must not reach
+            // the v.surahId/v.textArabic reads below.
+            if (!v || !v.verseNumber) return null;
             const fKey = `${v.surahId}_${v.verseNumber}`;
             const fBookmarked = !!bookmarks?.[fKey];
             const fReadingMark = readingMarkVerse === v.verseNumber;
@@ -486,6 +500,10 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
+              // Malformed-entry guard: a null word, or a word whose .word is not a string
+              // (stripPua would crash on .replace), renders nothing — badge logic for it is
+              // skipped too, which is the safe choice for corrupt page JSON.
+              if (!word || typeof word.word !== 'string') return null;
               // Per-word render: location "surah:verse:wordPos" parsed into surahId/verseNum/
               // wordPos; vKey "surahId_verseNum" drives the highlight/badge lookups; a word is
               // highlighted when hl.wordIndex === wordPos - 1.
@@ -517,13 +535,15 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
               const nextWord = line.words[wordIdx + 1];
               let isVerseBoundary = false;
               if (nextWord && nextWord.location) {
-                isVerseBoundary = nextWord.location.split(':')[1] !== String(verseNum);
+                // parseInt comparison — mirrors computeLineExtra exactly (the second copy of the
+                // boundary rule); a string-compare here would disagree on zero-padded locations.
+                isVerseBoundary = parseInt(nextWord.location.split(':')[1] || '0', 10) !== verseNum;
               } else if (!nextWord) {
                 const nextLine = pageData.lines[lineIdx + 1];
                 if (nextLine && nextLine.words && nextLine.words.length > 0) {
                   const nw = nextLine.words[0];
                   if (nw && nw.location) {
-                    isVerseBoundary = nw.location.split(':')[1] !== String(verseNum);
+                    isVerseBoundary = parseInt(nw.location.split(':')[1] || '0', 10) !== verseNum;
                   }
                 } else {
                   isVerseBoundary = true;

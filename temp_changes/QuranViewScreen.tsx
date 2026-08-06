@@ -366,7 +366,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
           setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
-        });
+        }).catch(() => {});
       } else {
         const targetPage = Math.ceil((scrollToVerse || 1) / 20);
         getVersesBySurahPaginated(surahId, 1, targetPage * 20).then(({ verses: v, total }) => {
@@ -381,7 +381,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             }
             dispatch(setFlashingVerse(scrollToVerse)); setTimeout(() => dispatch(setFlashingVerse(null)), 2000);
           }, 500);
-        });
+        }).catch(() => {});
       }
     }
   }, [route.params]);
@@ -444,10 +444,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
         setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg); prefetchPartner(pg);
         setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
-      });
+      }).catch(() => {});
     } else {
       setHeaderPage(0);
-      if (!deepLinkLoadedRef.current) loadSurah(currentSurahId, true);
+      if (!deepLinkLoadedRef.current) loadSurah(currentSurahId, true).catch(() => {});
     }
     deepLinkLoadedRef.current = false;
   }, [currentSurahId, readingMode, textStyle]);
@@ -457,8 +457,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // ---- load canvas chunks into local state ----
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
-  const spreadOddKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum}` : null;
-  const spreadEvenKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1}` : null;
+  // Spread page keys derived from the ACTUAL pair at pairIndexForPage(currentPageNum):
+  // pair[0] = even page (renders on the RIGHT half, and is the anchor page for even
+  // currentPageNum), pair[1] = odd page (LEFT half). The old N%2?N-1:N+1 parity formula
+  // was INVERTED vs the pair model — for spread [2,3] it produced page_1/page_2 instead
+  // of page_2/page_3 (drawings saved under the wrong page keys, page_0 key for page 1,
+  // page_611 for page 610).
+  const spreadPair = splitOn ? pagePairsFor(pageNumbers.length)[pairIndexForPage(currentPageNum)] || null : null;
+  const spreadOddKey = spreadPair?.[1] ? `page_${spreadPair[1]}` : null;
+  const spreadEvenKey = spreadPair?.[0] ? `page_${spreadPair[0]}` : null;
 
   useEffect(() => {
     if (!currentStudent) return;
@@ -505,7 +512,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (!cancelled) setCanvasData(await mergeChunks(geoKeys));
       }
     };
-    load();
+    load().catch((e: any) => console.warn('chunk load', e?.message || e));
     return () => { cancelled = true; };
   }, [currentPageNum, currentSurahId, splitOn, currentStudent, readingMode]);
 
@@ -537,10 +544,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   change (Dashboard card tap).
    */
   useEffect(() => {
-    if (currentStudent) getStudentData(currentStudent.id).then(d => {
-      const data = d || { bookmarks: {}, highlights: {}, drawings: {}, notes: {}, lastRead: null };
-      dispatch(setStudentData(data)); if (!d) saveStudentData(currentStudent.id, data);
-    });
+    if (currentStudent) {
+      const sid = currentStudent.id;
+      getStudentData(sid).then(d => {
+        // stale-guard: a fast student switch can resolve the OLD load after the
+        // new one started — never clobber the new student's blob with the old
+        if (currentStudent?.id !== sid) return;
+        const data = d || { bookmarks: {}, highlights: {}, drawings: {}, notes: {}, lastRead: null };
+        dispatch(setStudentData(data)); if (!d) saveStudentData(sid, data).catch(() => {});
+      }).catch(() => {});
+    }
   }, [currentStudent]);
 
   /**
@@ -561,7 +574,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const { surah, verse } = studentData.lastRead;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
       if (readingMode === 'page') {
-        getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 500); });
+        getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 500); }).catch(() => {});
       } else if (readingMode === 'ayah') {
         setTimeout(() => { const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse); if (idx !== -1 && flatListRef.current) flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 }); }, 500);
       } else if (readingMode === 'continuous') {
@@ -587,32 +600,37 @@ export default function QuranViewScreen({ navigation, route }: any) {
   //   pendingSaveRef (latest-only slot) -> 400ms debounce -> flushPendingSave
   //   -> saveStudentData + addToSyncQueue -> addPendingChange (sync badge).
   // Additional flush triggers: AppState background/inactive + unmount.
-  const pendingSaveRef = useRef<any>(null);
+  const pendingSaveRef = useRef<{ sid: string; data: any } | null>(null);
   const saveTimerRef = useRef<any>(null);
 
   /**
    * WHAT: Flushes the latest pending snapshot to SQLite and marks sync dirty.
-   * FLOW: 1) clear the pending timer, grab + null pendingSaveRef 2) if data &&
-   *   currentStudent: saveStudentData(id, data) -> addToSyncQueue(id, data) ->
-   *   dispatch(addPendingChange()); .catch swallowed.
+   * FLOW: 1) clear the pending timer, grab + null pendingSaveRef 2) if a
+   *   snapshot exists, saveStudentData(sid, data) -> addToSyncQueue(sid, data)
+   *   -> dispatch(addPendingChange()) ONLY when saveStudentData returned true
+   *   (true = a bookmarks/lastRead manifest row was queued — drawings are
+   *   lazy-synced and never count). .catch swallowed.
    * CALLS: saveStudentData + addToSyncQueue (localDB.ts — BOTH call the same
-   *   persistStudentData, INSERT OR REPLACE of student_data_cache AND sync_queue);
-   *   addPendingChange (syncSlice).
+   *   persistStudentData, INSERT OR REPLACE of student_data_cache AND
+   *   sync_queue); addPendingChange (syncSlice).
    * AFFECTS: student_data_cache (data JSON), sync_queue (synced=0 row),
-   *   s.sync.pendingChanges += 1.
+   *   s.sync.pendingChanges += 1 (only on queued changes).
    * NOTES: (a) DOUBLE-WRITE: saveStudentData().then(addToSyncQueue) writes the
    *   same rows twice back-to-back — addToSyncQueue is a redundant duplicate.
    *   (b) sync_queue holds ONE row per student (UNIQUE index + dedupe in
    *   localDB.ts) — every edit resets synced=0 and overwrites data, so the
    *   badge counts EDITS not queued payloads.
+   *   (c) The sid is captured at EDIT time (updateData stores it beside the
+   *   snapshot) — flushing under currentStudentIdRef instead could write the
+   *   previous student's data into the next student's cache if the student
+   *   switches inside the 400ms debounce or before an AppState/unmount flush.
    */
   const flushPendingSave = () => {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-    const dataToSave = pendingSaveRef.current;
+    const pending = pendingSaveRef.current;
     pendingSaveRef.current = null;
-    const sid = currentStudentIdRef.current;
-    if (dataToSave && sid) {
-      saveStudentData(sid, dataToSave).then((queued: boolean) => { if (queued) dispatch(addPendingChange()); }).catch(() => {});
+    if (pending && pending.sid) {
+      saveStudentData(pending.sid, pending.data).then((queued: boolean) => { if (queued) dispatch(addPendingChange()); }).catch(() => {});
     }
   };
 
@@ -623,19 +641,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   immediate UI update 3) pendingSaveRef.current = dataToSave (only the
    *   LATEST snapshot kept) 4) reset timer -> flushPendingSave in 400ms.
    * CALLS: setStudentData (studentSlice), flushPendingSave.
-   * CALLED BY: handleWordFlow, handleBookmarkFlow, saveNote,
-   *   handleVoiceNoteSaved, DrawingCanvas onSave, menu "Set Reading Mark".
+   * CALLED BY: handleBookmarkFlow, DrawingCanvas onSave, menu "Set Reading Mark".
    * AFFECTS: s.student.studentData (immediate); SQLite + sync queue (debounced).
    * NOTES: STALE-SNAPSHOT LOSS — handlers capture `studentData` at call time;
    *   two edits inside 400ms (e.g. two word taps) dispatch from the same stale
    *   snapshot and the second setStudentData overwrites, silently DROPPING the
    *   first change in Redux AND in pendingSaveRef (latest-only slot). Fast
    *   double-taps on words lose highlights.
+   *   The pending slot is stamped with the student id at edit time so a flush
+   *   after a student switch still persists under the ORIGINAL student.
    */
   const updateData = (newData: any) => {
     const dataToSave = { ...newData, updatedAt: new Date().toISOString() };
     dispatch(setStudentData(dataToSave));
-    pendingSaveRef.current = dataToSave;
+    pendingSaveRef.current = { sid: currentStudentIdRef.current, data: dataToSave };
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(flushPendingSave, 400);
   };
@@ -675,19 +694,22 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (pg && pg !== currentPageNumRef.current) {
           handleSelectPage(pg);
         }
-      });
+      }).catch(() => {});
     }
   }, [flashingVerse, isPlaying, readingMode, flashingSurah, currentSurahId, textStyle]);
 
   /**
    * WHAT: Toggles a MISTAKE_COLOR word-highlight for `{surah}_{verse}`.
    * FLOW: exists? filter it out : append {id: uuidv4(), wordIndex, color:
-   *   MISTAKE_COLOR, createdAt}; then updateData({...studentData, highlights});
-   *   'impactLight' haptic.
-   * CALLS: updateData, ReactNativeHapticFeedback.
+   *   MISTAKE_COLOR, createdAt}; persist via canvas chunk
+   *   (setCanvasData + saveCanvasEdit -> SQLite + sync queue) and mirror into
+   *   Redux studentData.highlights so MistakesScreen (reads the blob) reflects
+   *   the tap immediately; 'impactLight' haptic.
+   * CALLS: setCanvasData, setStudentData, saveCanvasEdit, addPendingChange,
+   *   ReactNativeHapticFeedback, getVersePage.
    * CALLED BY: onWordPress -> VerseDisplay / FlowingText / MushafPageView /
    *   SpreadItem word taps.
-   * AFFECTS: studentData.highlights.<surah_verse>.highlights[].
+   * AFFECTS: canvasData.highlights + studentData.highlights.<surah_verse>.
    */
   const handleWordFlow = useCallback((verseNum: number, wordIndex: number) => {
     if (!currentStudent) return;
@@ -697,10 +719,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
     const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
     setCanvasData((prev: any) => ({ ...prev, highlights: { ...prev.highlights, [vKey]: { highlights: newHighs } } }));
+    dispatch(setStudentData({ ...(studentData || {}), highlights: { ...(studentData?.highlights || {}), [vKey]: { highlights: newHighs } } }));
     ReactNativeHapticFeedback.trigger('impactLight');
     getVersePage(currentSurahId, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-      saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
+      saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } }).catch(() => {});
       dispatch(addPendingChange());
     });
   }, [canvasData, currentStudent, currentSurahId]);
@@ -723,8 +746,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ReactNativeHapticFeedback.trigger('impactMedium');
     getManifest(currentStudent.id).then(m => {
       m.data.bookmarks = newMarks; m.data.v++;
-      saveManifestLocal(currentStudent.id, m.data);
-    });
+      saveManifestLocal(currentStudent.id, m.data).catch(() => {});
+    }).catch(() => {});
   }, [studentData, currentStudent, currentSurahId]);
 
   // ---- tap callbacks: curried handlers passed down to every renderer ----
@@ -758,29 +781,34 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (verse) { Clipboard.setString(`${verse.textArabic}\n\n${verse.textTranslation}`); Alert.alert('Copied', 'Verse copied to clipboard!'); }
     setMenuVerse(null); setMenuY(null);
   };
-  // openNoteModal: pre-fills the note modal from studentData for the menu verse
-  const openNoteModal = () => { setNoteText(studentData?.notes?.[`${currentSurahId}_${menuVerse}`] || ''); setShowNoteModal(true); };
+  // openNoteModal: pre-fills the note modal from canvasData (the LIVE chunk
+  // mirror — studentData.notes is only re-hydrated on student switch, so it
+  // would show stale/empty text after a note was just saved)
+  const openNoteModal = () => { setNoteText(canvasData?.notes?.[`${currentSurahId}_${menuVerse}`] || ''); setShowNoteModal(true); };
   /**
    * WHAT: Writes noteText for `{currentSurahId}_{menuVerse}` into the notes map
    *   and closes the modal.
-   * CALLS: updateData.
+   * FLOW: setCanvasData + saveCanvasEdit (SQLite chunk + sync queue) and mirror
+   *   into Redux studentData.notes so NotesScreen (reads the blob) shows it.
+   * CALLS: setCanvasData, setStudentData, saveCanvasEdit.
    * CALLED BY: menu Note button via openNoteModal.
-   * AFFECTS: studentData.notes.<surah_verse> (string).
+   * AFFECTS: canvasData.notes + studentData.notes.<surah_verse> (string).
    */
   const saveNote = () => {
     if (!currentStudent || menuVerse === null) return;
     const vKey = `${currentSurahId}_${menuVerse}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [vKey]: noteText } }));
+    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: noteText } }));
     setShowNoteModal(false); setMenuVerse(null); setMenuY(null);
     getVersePage(currentSurahId, menuVerse, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-      saveCanvasEdit(currentStudent.id, key, 'notes', { [vKey]: noteText });
+      saveCanvasEdit(currentStudent.id, key, 'notes', { [vKey]: noteText }).catch(() => {});
     });
   };
   /**
    * WHAT: Appends `audio:<path>` (newline-separated) to the note of
    *   recordingVerseKey, then closes the recorder overlay.
-   * CALLS: updateData.
+   * CALLS: setCanvasData, setStudentData, saveCanvasEdit.
    * CALLED BY: VoiceNoteRecorder onSaved.
    * AFFECTS: studentData.notes.<surah_verse> — voice notes are STORED INSIDE
    *   the notes field (no separate field); existing note text preserved.
@@ -788,7 +816,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const handleVoiceNoteSaved = useCallback(async (path: string, ms: number) => {
     let fileId: string | null = null;
     try {
-      if (!currentStudent || !recordingVerseKey) return;
+      if (!recordingVerseKey) return;
+      if (!currentStudent) { setRecordingVerseKey(null); return; }
       const existing = canvasData.notes?.[recordingVerseKey] || '';
       fileId = await uploadAudioNote(path);
       const [s, v] = recordingVerseKey.split('_').map(Number);
@@ -798,11 +827,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
       dispatch(addPendingChange());
       const newText = existing + (existing ? '\n' : '') + `audio:${fileId}`;
       setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
+      dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [recordingVerseKey]: newText } }));
       setRecordingVerseKey(null);
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
-      saveCanvasEdit(currentStudent.id, key, 'notes', { [recordingVerseKey]: newText });
+      await saveCanvasEdit(currentStudent.id, key, 'notes', { [recordingVerseKey]: newText }).catch(() => {});
       // chunk row queued by saveCanvasEdit — count it in the sync badge
       dispatch(addPendingChange());
+      // the uploaded m4a is no longer needed on disk (playback re-downloads to
+      // audio_cache via playAudioNote) — drop the orphan from DocumentDirectory
+      try {
+        const RNFS = require('react-native-fs').default || require('react-native-fs');
+        if (RNFS && (await RNFS.exists(path))) await RNFS.unlink(path);
+      } catch {}
     } catch (e) {
       console.warn('handleVoiceNoteSaved', e);
       // best-effort cleanup of an orphaned upload before reporting the failure
@@ -898,7 +934,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const surahId = typeof verse === 'number'
       ? (readingMode === 'page'
         ? (pageVersesCache[currentPageNum]?.find((v: any) => v.verseNumber === verseNum)?.surahId
-          || (await getVersesByPage(currentPageNum, textStyleRef.current).then(([vs]: any[]) => vs?.find((v: any) => v.verseNumber === verseNum)?.surahId).catch(() => undefined))
+          // getVersesByPage returns a FLAT verse array (both uthmani and indopak
+          // branches) — destructuring [vs] grabbed the first verse OBJECT and
+          // vs?.find always threw, so this fallback silently never worked
+          || (await getVersesByPage(currentPageNum, textStyleRef.current).then((vs: any[]) => vs?.find((v: any) => v.verseNumber === verseNum)?.surahId).catch(() => undefined))
           || currentSurahId)
         : currentSurahId)
       : verse.surahId;
@@ -942,7 +981,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
       }
       let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
       if (!firstVerse && readingMode === 'page') {
-        try { const [vs] = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
+        // getVersesByPage returns a FLAT verse array — [vs] destructuring gave
+        // the first verse object and vs?.[0] was always undefined, so the page's
+        // real first verse was never used (playback fell back to verse 1)
+        try { const vs = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
       }
       const startVerse = firstVerse?.verseNumber || 1;
       const surahId = firstVerse?.surahId || currentSurahId;
@@ -956,22 +998,26 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: New-surah-on-page detection for the footer NEW SURAH button: the
    *   first verse of a page that is verse 1 of its surah (i.e. the surah
-   *   starts on this page). In split view both halves of the visible spread
-   *   are scanned (left odd page first, then the even page) and the FIRST new
-   *   surah in reading order wins — a page with 2 surahs (end of one + start
-   *   of the next) yields the one that actually starts there. Flowing/ayah
-   *   modes have no pages -> null -> button greyed out.
+   *   starts on this page). In split view the page the reader is anchored on
+   *   is scanned first, then its partner on the visible spread — a page with
+   *   2 surahs (end of one + start of the next) yields the one that actually
+   *   starts there. Flowing/ayah modes have no pages -> null -> button greyed.
    * CALLS: none.
    * CALLED BY: footer render (canPlayNewSurah) + playNewSurah.
+   * NOTES: The old N%2?N-1:N+1 parity scanned pages OUTSIDE the visible spread
+   *   (e.g. page 1 for spread [2,3], which always contains surah 1) while
+   *   skipping the visible partner — so the button always played surah 1 in
+   *   split mode on even-anchored spreads.
    */
   const newSurahOnPage = readingMode === 'page'
     ? (() => {
         const pagesToScan = [currentPageNum];
         if (splitOn) {
-          const left = currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum;
-          const right = currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1;
-          pagesToScan[0] = left;
-          if (right >= 1 && right <= pageNumbers.length) pagesToScan.push(right);
+          const pair = pagePairsFor(pageNumbers.length)[pairIndexForPage(currentPageNum)];
+          if (pair) {
+            const partner = pair[0] === currentPageNum ? pair[1] : pair[0];
+            if (partner) pagesToScan.push(partner);
+          }
         }
         for (const pg of pagesToScan) {
           const found = (pageVersesCache[pg] || []).find((v: any) => v.verseNumber === 1);
@@ -993,7 +1039,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
     let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
     if (!firstVerse && readingMode === 'page') {
-      try { const [vs] = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
+      // same flat-array fix as togglePlayAudio — [vs] destructure never worked
+      try { const vs = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
     }
     const startVerse = firstVerse?.verseNumber || 1;
     const surahId = firstVerse?.surahId || currentSurahId;
@@ -1088,7 +1135,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     onWordPress={onWordPress(item.verseNumber)} onBookmarkToggle={onBookmarkToggle(item.verseNumber)} onVerseLongPress={handleVerseLongPress}
                     showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
-                onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
+                onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).catch(() => {}).finally(() => setLoadingMore(false)); } }}
                 onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color="#00d4aa" /> : null}
                 initialNumToRender={10} maxToRenderPerBatch={10} windowSize={10} scrollEventThrottle={16} />
             )}
@@ -1100,7 +1147,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
                   if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
                     if (!loadingMore && hasMore && verses.length > 0) {
-                      setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false));
+                      setLoadingMore(true); loadSurah(currentSurahId, false).catch(() => {}).finally(() => setLoadingMore(false));
                     }
                   }
                 }} scrollEventThrottle={100}>
@@ -1190,8 +1237,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
             }
             const even: any[] = []; const odd: any[] = [];
             for (const p of paths) { if (midXOf(p) >= splitMidX) even.push(p); else odd.push(p); }
-            updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
-            pushDrawings(currentStudent.id, rangeKeyForPage(currentPageNum), [spreadOddKey!, spreadEvenKey!], geo);
+            const next: any = { ...(studentData.drawings || {}) };
+            if (spreadOddKey) next[spreadOddKey] = { paths: odd, updatedAt: new Date() };
+            if (spreadEvenKey) next[spreadEvenKey] = { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() };
+            updateData({ ...studentData, drawings: next });
+            // push strokes grouped by each page's OWN 10-page range — the mirror of the
+            // pull-side byRange grouping in the chunk-load effect. The old single
+            // rangeKeyForPage(currentPageNum) call wrote BOTH pages of a range-straddling
+            // spread (e.g. 10|11) into the current page's range doc, so the other page's
+            // strokes were never found by pulls of its own range (lost on other devices).
+            const byRange: Record<string, string[]> = {};
+            for (const k of [spreadOddKey, spreadEvenKey]) {
+              if (!k) continue;
+              const pg = Number(k.split('_')[1]);
+              const rk = rangeKeyForPage(pg);
+              (byRange[rk] = byRange[rk] || []).push(k);
+            }
+            for (const [rk, rKeys] of Object.entries(byRange)) pushDrawings(currentStudent.id, rk, rKeys, geo);
           }}
           onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
           onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />

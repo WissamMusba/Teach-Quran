@@ -116,6 +116,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       pathsRef.current = clearedSnapshotRef.current;
       afterUndoClearRef.current = true;
       setRedoStack([]);
+      redoStackRef.current = [];
       onStateChangeRef.current(true, true);
       dispatch(addAction({ type: 'draw', action: 'undo-clear', timestamp: Date.now() }));
       debouncedSave(clearedSnapshotRef.current);
@@ -126,7 +127,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
     const newPaths = pathsRef.current.slice(0, -1);
     setPaths(newPaths);
     pathsRef.current = newPaths;
-    setRedoStack(prev => [...prev, lastPath]);
+    const newRedoStack = [...redoStackRef.current, lastPath];
+    setRedoStack(newRedoStack);
+    redoStackRef.current = newRedoStack;
     dispatch(undoHistory());
     onStateChangeRef.current(newPaths.length > 0 || clearedSnapshotRef.current !== null, true);
     debouncedSave(newPaths);
@@ -147,14 +150,17 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       debouncedSave([]);
       return;
     }
-    if (redoStack.length === 0) return;
-    const pathToRedo = redoStack[redoStack.length - 1];
+    const currentRedoStack = redoStackRef.current;
+    if (currentRedoStack.length === 0) return;
+    const pathToRedo = currentRedoStack[currentRedoStack.length - 1];
     const newPaths = [...pathsRef.current, pathToRedo];
     setPaths(newPaths);
     pathsRef.current = newPaths;
-    setRedoStack(prev => prev.slice(0, -1));
+    const newRedoStack = currentRedoStack.slice(0, -1);
+    setRedoStack(newRedoStack);
+    redoStackRef.current = newRedoStack;
     dispatch(redoHistory());
-    onStateChangeRef.current(true, redoStack.length - 1 > 0);
+    onStateChangeRef.current(true, newRedoStack.length > 0);
     debouncedSave(newPaths);
   };
 
@@ -170,6 +176,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
     setPaths([]);
     pathsRef.current = [];
     setRedoStack([]);
+    redoStackRef.current = [];
     onStateChangeRef.current(true, false);
     dispatch(addAction({ type: 'draw', action: 'clear', timestamp: Date.now() }));
     debouncedSave([]);
@@ -211,7 +218,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
    */
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+    // The canvas only ever captures touches that START on it (grant). Never negotiate to take over
+    // a gesture another view owns (e.g. the toolbar drag) — stealing mid-move would start a phantom
+    // stroke AND abort the toolbar drag (v44-class touch conflict).
+    onMoveShouldSetPanResponder: () => false,
+    // Never surrender an in-progress stroke to a deeper view when the finger crosses the toolbar
+    // mid-stroke — the stroke must run to completion instead of being truncated at the toolbar edge.
+    // (PanResponder.create only wires the onPanResponder*-prefixed callback keys.)
+    onPanResponderTerminationRequest: () => false,
     // GRANT — create the stroke object. Laser makes a single-point stroke (no move capture, opacity 0.6);
     // eraser paints with hardcoded '#121212' (the dark app bg — does NOT repaint when nightMode/textStyle backgrounds differ) at penSize*3 width; pen/underline use activeColor/penSize.
     onPanResponderGrant: (e) => {
@@ -301,6 +315,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
         if (newPaths.length !== pathsRef.current.length) {
           setPaths(newPaths);
           pathsRef.current = newPaths;
+          // An erase is a destructive edit — the standard commit housekeeping: the redo tail is
+          // invalid (REDO must not resurrect strokes the user just erased) and any pending
+          // undo-clear state is superseded by this edit.
+          setRedoStack([]);
+          redoStackRef.current = [];
+          clearedSnapshotRef.current = null;
+          afterUndoClearRef.current = false;
+          onStateChangeRef.current(newPaths.length > 0, false);
           debouncedSave(newPaths);
         }
       } else {
@@ -310,6 +332,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
           setPaths(newPaths);
           pathsRef.current = newPaths;
           setRedoStack([]);
+          redoStackRef.current = [];
           clearedSnapshotRef.current = null;
           afterUndoClearRef.current = false;
           dispatch(addAction({ type: 'draw', action: 'add', data: pathToSave, timestamp: Date.now() }));
@@ -317,6 +340,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
           debouncedSave(newPaths);
         }
       }
+      onGestureEndRef.current?.();
+      setCurrentPath(null);
+      currentPathRef.current = null;
+    },
+    // TERMINATE — a gesture stolen away by the system (app switch, native modal) never reaches
+    // release. Discard the partial stroke (never commit garbage) but MUST close the gesture and
+    // refs so the parent's drawingGestureActive and the next stroke start clean.
+    onPanResponderTerminate: () => {
+      lastPenPointRef.current = null;
       onGestureEndRef.current?.();
       setCurrentPath(null);
       currentPathRef.current = null;

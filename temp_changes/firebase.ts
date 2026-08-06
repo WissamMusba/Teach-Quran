@@ -28,8 +28,9 @@ export const formatUsernameToEmail = (username: string) => `${username.toLowerCa
 import storage from '@react-native-firebase/storage';
 /**
  * WHAT: Re-exported module singletons so the rest of the app never imports the
- *       SDK directly for these two services.
- * CALLED BY: auth.ts (auth/firestore), student.ts (auth guard before CRUD), sync.ts (auth guard before syncing)
+ *       SDK directly for these three services.
+ * CALLED BY: auth.ts (auth/firestore), student.ts (firestore), sync.ts (firestore),
+ *            audioNotes.ts (storage), QuranViewScreen.tsx (storage).
  *            SplashScreen.tsx and localDB.ts import the SDK DIRECTLY (auth) —
  *            bypassing this module. See NOTES.
  * AFFECTS: Every Firebase read/write in the app.

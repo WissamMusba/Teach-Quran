@@ -14,6 +14,7 @@ import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { requestSync } from './src/api/sync';
+import { getStudents } from './src/api/student';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -24,6 +25,7 @@ import MistakesScreen from './src/screens/MistakesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
+import { setStudents } from './src/store/studentSlice';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -74,7 +76,10 @@ const AppInner = () => {
     const runSync = async (opts: { pull?: boolean } = {}) => {
       dispatch(setSyncing());
       const result = await requestSync(opts);
-      if (result.success) dispatch(setSynced());
+      if (result.success) {
+        dispatch(setSynced());
+        if (opts.pull) getStudents().then(res => res.success && dispatch(setStudents(res.students)));
+      }
       else dispatch(setOffline());
     };
 

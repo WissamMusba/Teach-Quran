@@ -23,7 +23,7 @@ import { setToolbarExpanded } from '../store/drawingSlice';
 import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
-import { purgeLocalStudent } from '../database/localDB';
+import { purgeLocalStudent, cacheStudentList } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 
@@ -40,7 +40,10 @@ export default function DashboardScreen({ navigation }: any) {
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const syncStatus = useSelector((s: any) => s.sync.status);
-  const prevSyncStatus = useRef<string | null>(null);
+  const prevSyncStatus = useRef<string | null>(null)
+  const isFocusedRef = useRef(true)
+  const syncingRef = useRef(false)
+  const creatingRef = useRef(false)
 
   /**
    * WHAT: Refresh the student list on every focus AND after every completed sync pull.
@@ -55,20 +58,28 @@ export default function DashboardScreen({ navigation }: any) {
    * CALLS: getStudents -> getCachedStudentList/cacheStudentList (localDB), refreshInBackground.
    * CALLED BY: React on mount/focus (useFocusEffect) and on sync status change (watcher effect).
    * AFFECTS: studentSlice.list; SQLite student list cache.
-   * NOTES: Offline cold start with no cache yields an empty list silently (res.success=false is
-   *        ignored by the .then).
+   * NOTES: The watcher only refreshes while the screen is focused (isFocusedRef) — a sync
+   *        completing while the user is in QuranView is picked up by the focus effect on
+   *        return, so a completion + focus pair never double-fetches. Offline cold start with
+   *        no cache yields an empty list silently (res.success=false is ignored by the .then).
    */
-  useFocusEffect(useCallback(() => {
+  const refreshStudents = useCallback(() => {
     getStudents().then(res => res.success && dispatch(setStudents(res.students)))
-  }, [dispatch]));
+  }, [dispatch])
+
+  useFocusEffect(useCallback(() => {
+    isFocusedRef.current = true
+    refreshStudents()
+    return () => { isFocusedRef.current = false }
+  }, [refreshStudents]))
 
   useEffect(() => {
     const prev = prevSyncStatus.current;
     prevSyncStatus.current = syncStatus;
-    if (prev === 'syncing' && syncStatus !== 'syncing') {
-      getStudents().then(res => res.success && dispatch(setStudents(res.students)));
+    if (prev === 'syncing' && syncStatus !== 'syncing' && isFocusedRef.current) {
+      refreshStudents()
     }
-  }, [syncStatus, dispatch]);
+  }, [syncStatus, refreshStudents])
 
   /**
    * WHAT: Opens the shared AlertModal with a title/message/optional action buttons.
@@ -87,18 +98,34 @@ export default function DashboardScreen({ navigation }: any) {
    *          studentData doc with empty bookmarks/highlights/drawings/notes/history);
    *          2) success -> dispatch(addStudent({id: res.studentId, name})), close modal,
    *          clear input; failure -> showAlert('Error', res.error).
-   * CALLS: createStudent -> Firestore add; dispatch(addStudent).
+   * CALLS: createStudent -> Firestore add; cacheStudentList (localDB); dispatch(addStudent).
    * CALLED BY: "Save" button in Add Student modal.
-   * AFFECTS: Firestore students/{id} + students/{id}/data/studentData; studentSlice.list.
-   * NOTES: SQLite cache NOT updated here (stale until next getStudents). Students are never
-   *        queued offline — no pendingChanges increment, and createStudent throws unhandled
-   *        when offline (no try/catch in src/api/student.ts).
+   * AFFECTS: Firestore students/{id} + students/{id}/data/studentData; student_list_cache;
+   *          studentSlice.list.
+   * NOTES: Name is trimmed and empty names rejected. The new student is written straight to
+   *        the SQLite list cache so a cold restart shows it immediately (previously it lived
+   *        only in Redux until the next getStudents refresh replaced it). Students are never
+   *        queued offline — no pendingChanges increment; offline create now surfaces an alert
+   *        instead of an unhandled rejection (createStudent itself has no try/catch).
+   *        creatingRef guards against double-tap double-creation while the request is in flight.
    */
   const handleCreate = useCallback(async () => {
-    const res = await createStudent(name);
-    if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setAddModal(false); setName(''); }
-    else showAlert('Error', res.error);
-  }, [name]);
+    const trimmed = name.trim()
+    if (!trimmed || creatingRef.current) return
+    creatingRef.current = true
+    try {
+      const res = await createStudent(trimmed)
+      if (res.success) {
+        await cacheStudentList([...students, { id: res.studentId, name: trimmed }])
+        dispatch(addStudent({ id: res.studentId, name: trimmed }))
+        setAddModal(false); setName('')
+      } else showAlert('Error', res.error)
+    } catch (e: any) {
+      showAlert('Error', e?.message || 'Create failed')
+    } finally {
+      creatingRef.current = false
+    }
+  }, [name, students]);
 
   /**
    * WHAT: Manual full-sync trigger — always runs a push+pull of the offline queue so the
@@ -120,11 +147,20 @@ export default function DashboardScreen({ navigation }: any) {
    *        "GOTCHA" comment at App.tsx:31-33) — so a manual sync here can race those
    *        automatic loops. The result counts come from the fixed backend (src/api/sync.ts);
    *        pushed/pulled are numbers when the backend reports them.
+   *        COALESCED-RUN GUARD: requestSync single-flights in-flight runs (src/api/sync.ts) —
+   *        a manual pull issued during another run waits and re-runs, but if the follow-up
+   *        itself coalesces it resolves `undefined` and the in-flight run owns the terminal
+   *        status (no alert here; the button resets in finally). syncingRef additionally
+   *        guards against overlapping manual presses before the button's disabled prop
+   *        re-renders.
    */
   const handleManualSync = useCallback(async () => {
+    if (syncingRef.current) return
+    syncingRef.current = true
     dispatch(setSyncing()); setIsSyncing(true);
     try {
       const result = await processSyncQueue({ pull: true });
+      if (!result) return // coalesced into an in-flight run — that run owns the terminal status
       if (result.success) {
         dispatch(setSynced());
         showAlert('Sync Complete', `Pushed: ${result.pushed ?? 0}` + (typeof result.pulled === 'number' ? ` | Pulled: ${result.pulled}` : ''), [{ text: 'OK' }]);
@@ -136,6 +172,7 @@ export default function DashboardScreen({ navigation }: any) {
       dispatch(setOffline());
       showAlert('Sync Failed', e?.message || 'Unknown error', [{ text: 'OK' }]);
     } finally {
+      syncingRef.current = false
       setIsSyncing(false);
     }
   }, [dispatch]);
@@ -147,21 +184,32 @@ export default function DashboardScreen({ navigation }: any) {
    *       2) await purgeLocalStudent(item.id) (SQLite student cache removal),
    *       3) dispatch(removeStudent(item.id)) (studentSlice also nulls currentStudent/
    *       studentData if the deleted student was selected).
-   * CALLS: deleteStudent (src/api/student.ts), purgeLocalStudent (src/database/localDB.ts),
-   *        removeStudent (src/store/studentSlice.ts).
+   * CALLS: deleteStudent (src/api/student.ts), purgeLocalStudent + cacheStudentList
+   *        (src/database/localDB.ts), removeStudent (src/store/studentSlice.ts).
    * CALLED BY: onLongPress on each student card (delayLongPress=400).
-   * AFFECTS: Firestore students/{id}; SQLite student cache; studentSlice.list/currentStudent.
-   * NOTES: No confirmation dialog — delete happens immediately from the action sheet, and
-   *        fails unhandled when offline (no try/catch in src/api/student.ts).
+   * AFFECTS: Firestore students/{id}; SQLite student caches; studentSlice.list/currentStudent.
+   * NOTES: No confirmation dialog — delete happens immediately from the action sheet. Order
+   *        matters: cloud delete FIRST (an offline failure aborts before local data is purged),
+   *        then purgeLocalStudent, then the student_list_cache is rewritten without the student
+   *        (purgeLocalStudent does NOT touch student_list_cache, so without this the deleted
+   *        student would reappear on the next getStudents read), then removeStudent. Failures
+   *        surface an alert instead of an unhandled rejection (deleteStudent has no try/catch).
    */
   const handleLongPress = useCallback((item: any) => {
     showAlert(item.name, 'Choose an action:', [
       { text: 'Edit Name', onPress: () => { setEditId(item.id); setEditName(item.name); setEditModal(true); } },
       { text: 'Delete', style: 'destructive' as const, onPress: async () => {
-        await deleteStudent(item.id); await purgeLocalStudent(item.id); dispatch(removeStudent(item.id));
+        try {
+          await deleteStudent(item.id)
+          await purgeLocalStudent(item.id)
+          await cacheStudentList(students.filter((s: any) => s.id !== item.id))
+          dispatch(removeStudent(item.id))
+        } catch (e: any) {
+          showAlert('Error', e?.message || 'Delete failed')
+        }
       }},
     ]);
-  }, []);
+  }, [students]);
 
   /**
    * WHAT: Renames a student both in Firestore and in the Redux list.
@@ -171,12 +219,19 @@ export default function DashboardScreen({ navigation }: any) {
    * CALLS: updateStudent (src/api/student.ts); dispatch(updateStudentSlice).
    * CALLED BY: "Save" button in Edit Student modal.
    * AFFECTS: Firestore students/{id}.name; studentSlice.list + currentStudent.
+   * NOTES: Guards on editId (the modal only opens from a real long-press) and empty names;
+   *        offline rename surfaces an alert instead of an unhandled rejection (updateStudent
+   *        has no try/catch).
    */
   const handleEdit = useCallback(async () => {
-    if (!editName.trim()) return;
-    const res = await updateStudent(editId, editName.trim());
-    if (res.success) { dispatch(updateStudentSlice({ id: editId, name: editName.trim() })); setEditModal(false); }
-    else showAlert('Error', res.error);
+    if (!editId || !editName.trim()) return
+    try {
+      const res = await updateStudent(editId, editName.trim());
+      if (res.success) { dispatch(updateStudentSlice({ id: editId, name: editName.trim() })); setEditModal(false); }
+      else showAlert('Error', res.error);
+    } catch (e: any) {
+      showAlert('Error', e?.message || 'Rename failed')
+    }
   }, [editId, editName]);
 
   /**
@@ -192,13 +247,15 @@ export default function DashboardScreen({ navigation }: any) {
    *          navigation -> QuranView.
    * NOTES: No studentId param is passed — QuranView is fully driven by studentSlice.currentStudent
    *        (that is why setting studentData=null matters). nightMode from settingsSlice
-   *        re-styles card/container colors.
+   *        re-styles card/container colors. handleLongPress is in the deps because it closes
+   *        over `students` (delete rewrites the list cache from it) — a stale copy would
+   *        write a stale list.
    */
   const renderItem = useCallback(({ item }: any) => (
     <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#f0f4ff', borderColor: nightMode ? '#2a2a4a' : '#d0d8e8' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
       <Text style={[styles.studentName, { color: nightMode ? '#fff' : '#1a1a2e' }]}>{item.name}</Text>
     </TouchableOpacity>
-  ), [navigation, nightMode]);
+  ), [navigation, nightMode, handleLongPress]);
 
   /**
    * UI WIRING:
@@ -221,15 +278,24 @@ export default function DashboardScreen({ navigation }: any) {
           {/* LOGOUT (inline async onPress): await logoutUser() (Firebase signOut) ->
               dispatch(logout()) (authSlice: user=null, isAuthenticated=false — tears down
               App.tsx's global sync effect/interval/listener) -> navigation.replace('Login').
-              NOTE: Redux student list + sync badge are NOT cleared — a second login shows
-              the previous user's cached list until the mount effect re-fetches. */}
-          <TouchableOpacity onPress={async () => { await logoutUser(); dispatch(logout()); navigation.replace('Login'); }}>
+              The student list + currentStudent (and its annotation payload) are cleared
+              BEFORE logout so a second login on the same device never shows the previous
+              user's students (privacy); the mount effect re-fetches for the new user.
+              signOut is wrapped in try/catch so a rejection cannot strand the user on
+              this screen. */}
+          <TouchableOpacity onPress={async () => {
+            try { await logoutUser() } catch (e: any) { console.warn('logoutUser failed', e?.message) }
+            dispatch(setStudents([]))
+            dispatch(setCurrentStudent(null))
+            dispatch(logout())
+            navigation.replace('Login')
+          }}>
             <Text style={styles.logout}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
       <FlatList data={students} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
-      <TouchableOpacity style={styles.fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.fab} onPress={() => { setName(''); setAddModal(true) }} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
         <View style={styles.modalOverlay}>

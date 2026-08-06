@@ -64,7 +64,7 @@ const SPARSE_FONT_BOOST = 1.3;
 
 /**
  * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
- * word widths: +40 per verse boundary inside the line, +16 more when that verse has a note.
+ * word widths: +28 per verse boundary inside the line, +14 more when that verse has a note.
  * FLOW: for each word parse location "surah:verse[:wordPos]"; a word ends a verse when the next
  *       word's verse differs, else the next line's first word differs, else true for the last
  *       line of the page.
@@ -89,8 +89,8 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
       else boundary = true;
     }
     if (!boundary) return;
-    extra += 40;
-    if (notes?.[`${loc[0] || '0'}_${verseNum}`]) extra += 16;
+    extra += 28;
+    if (notes?.[`${loc[0] || '0'}_${verseNum}`]) extra += 14;
   });
   return extra;
 };
@@ -301,7 +301,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
    *   3. content = Σ widths + live lineExtra; overflow when content > lineW+2 on a complete line,
    *      or > lineW on a PARTIAL one — the partial check pre-empts the overflow flash before the
    *      line finishes measuring.
-   *   4. On overflow: scale = max(0.65, (lineW-12)/content) → scaleRef + lineScale state, which
+   *   4. On overflow: scale = max(0.5, (lineW-12)/content) → scaleRef + lineScale state, which
    *      re-renders the line with the scaled font.
    *   5. On complete: track in completedLinesRef; when ALL lines (counted only where the line
    *      holds any real Arabic word) are done and nothing written yet → build sums[] indexed
@@ -329,7 +329,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     if (content > (complete ? lineW + 2 : lineW)) {
-      const scale = Math.max(0.65, (lineW - 12) / content);
+      const scale = Math.max(0.5, (lineW - 12) / content);
       scaleRef.current[lineKey] = scale;
       setLineScale(prev => ({ ...prev, [lineKey]: scale }));
     }
@@ -355,14 +355,14 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   /**
    * scaleForLine(lineIdx) — the font multiplier for a line.
    * Cache-hit path: total = persisted sum + live lineExtra → single-pass arithmetic scale (no
-   * measuring at all). Miss path: measured lineScale state || 1. Clamped at 0.65; 1 when the
+   * measuring at all). Miss path: measured lineScale state || 1. Clamped at 0.5; 1 when the
    * content fits within lineW+2. Applied to the fontSize of the word Text below.
    */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
       const lineW = pageWidth - 2 * hPad(pageWidth);
       const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
-      return total > lineW + 2 ? Math.max(0.65, (lineW - 12) / total) : 1;
+      return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
     return lineScale[lineIdx] || 1;
   };
@@ -597,13 +597,13 @@ const styles = StyleSheet.create({
   fallbackText: { flexWrap: 'wrap', flexShrink: 1, textAlign: 'right' },
   wordBox: { flexShrink: 0 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 4, flexShrink: 1, minWidth: 24 },
-  verseBadge: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, flexShrink: 1, minWidth: 18 },
+  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { color: '#ffffff', fontSize: 14, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
-  noteIcon: { color: '#ffd700', fontSize: 12, marginLeft: 4 },
+  noteIcon: { color: '#ffd700', fontSize: 10, marginLeft: 2 },
   badgePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
   badgeText: { fontSize: 9.5, fontWeight: '600' },
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },

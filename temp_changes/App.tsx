@@ -61,22 +61,39 @@ const AppInner = () => {
    *          bookmarks/highlights/notes get pushed even in a long idle session (pulls happen only on
    *          open/foreground/manual); 4) TRIGGER #3 — AppState listener syncs on every transition
    *          between 'active' and any other state (foreground = pull sync, background = push-only);
-   *          5) cleanup clears both.
-   * CALLS: dispatch(setSyncing/setSynced/setOffline), processSyncQueue.
+   *          5) cleanup clears the interval, the deferred background timer, and the listener.
+   * CALLS: dispatch(setSyncing/setSynced/setOffline), requestSync.
    * AFFECTS: sync.status ('syncing'|'synced'|'offline'), pendingChanges; Firestore
    *          users/{uid}/students/{sid}/data/studentData; SQLite sync_queue (cleared per student).
-   * NOTES: Runs are fire-and-forget — an in-flight promise resolving after unmount still
-   *        dispatches (harmless with redux, but double-syncs are possible at app-state edges).
+   * NOTES: requestSync single-flights overlapping runs (src/api/sync.ts): a run issued while
+   *        another is in flight resolves `undefined` — runSync treats that as a no-op (the
+   *        in-flight run owns the terminal status), so a push-only trigger colliding with a
+   *        pull can never crash on a null result nor leave status stuck at 'syncing'. The
+   *        background push is scheduled ONLY on 'background' — 'inactive' (iOS control
+   *        center / Android app switcher) just updates edge tracking, so iOS's
+   *        inactive→background double-fire cannot double-run. The 600ms deferral is tracked
+   *        and cleared on cleanup so a logout/re-login inside the window cannot fire it late.
    */
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const runSync = async (opts: { pull?: boolean } = {}) => {
-      dispatch(setSyncing());
-      const result = await requestSync(opts);
-      if (result.success) dispatch(setSynced());
-      else dispatch(setOffline());
+      dispatch(setSyncing())
+      let result: any
+      try {
+        result = await requestSync(opts)
+      } catch (e: any) {
+        console.warn('Scheduler sync run threw:', e?.message || e)
+        result = { success: false, error: e?.message }
+      }
+      if (!result) return // coalesced into an in-flight run — it owns the terminal status
+      if (result.success) dispatch(setSynced())
+      else dispatch(setOffline())
     };
+
+    // Reset edge tracking — transitions while logged out were missed (listener torn
+    // down), so a stale prev would misclassify the first transition after re-login.
+    appState.current = AppState.currentState;
 
     runSync({ pull: true });
 
@@ -84,14 +101,22 @@ const AppInner = () => {
       runSync();
     }, SYNC_INTERVAL);
 
+    // Deferred push-only run for backgrounding: 600ms lets the 400ms-debounced SQLite
+    // flushes (QuranViewScreen.updateData) land in the queue before it is drained.
+    let bgTimer: ReturnType<typeof setTimeout> | null = null;
+
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appState.current; appState.current = next;
       if (prev === next) return;
       if (next === 'active') runSync({ pull: true });
-      else setTimeout(() => runSync(), 600); // push only; delay so screen flushes (400ms debounce) land in SQLite first
+      else if (next === 'background') bgTimer = setTimeout(() => runSync(), 600);
     });
 
-    return () => { clearInterval(interval); sub.remove(); };
+    return () => {
+      clearInterval(interval);
+      if (bgTimer) clearTimeout(bgTimer);
+      sub.remove();
+    };
   }, [isAuthenticated, dispatch]);
 
   // NavigationContainer + Stack.Navigator — registers the 9-screen native stack, Splash is initial.

@@ -172,6 +172,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   currentStudentIdRef.current = currentStudent?.id;
   const { nightMode, bgBrightness, playBasmala } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari } = useSelector((s: any) => s.audio);
+  const syncStatus = useSelector((s: any) => s.sync.status);
+  const prevSyncStatusRef = useRef(syncStatus);
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
   const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
@@ -508,6 +510,46 @@ export default function QuranViewScreen({ navigation, route }: any) {
     load();
     return () => { cancelled = true; };
   }, [currentPageNum, currentSurahId, splitOn, currentStudent, readingMode]);
+
+  /**
+   * WHAT: Re-hydrates the UI after a sync run finishes (app open, foreground,
+   *   manual sync). Sync writes to SQLite only — without this watcher,
+   *   bookmarks/lastRead (studentData) and page highlights/notes (canvasData)
+   *   stay stale on screen until a student/page change. Mirrors DashboardScreen's
+   *   syncing->synced watcher.
+   * FLOW: on prev==='syncing' && status!=='syncing': skip when a local edit is
+   *   mid-write (pendingSaveRef/saveTimerRef); else re-read studentData from
+   *   SQLite -> dispatch setStudentData, and re-merge the visible page chunks
+   *   into canvasData. Active drawing skips the canvas re-merge so in-flight
+   *   strokes are never clobbered.
+   * CALLS: getStudentData, getChunk (localDB.ts); dispatch(setStudentData).
+   * AFFECTS: s.student.studentData; canvasData (local state).
+   */
+  useEffect(() => {
+    const prev = prevSyncStatusRef.current;
+    prevSyncStatusRef.current = syncStatus;
+    if (prev !== 'syncing' || syncStatus === 'syncing') return;
+    if (pendingSaveRef.current || saveTimerRef.current) return;
+    if (!currentStudent) return;
+    const sid = currentStudent.id;
+    getStudentData(sid).then(d => { if (d) dispatch(setStudentData(d)); });
+    if (isDrawing) return;
+    const mergeChunks = async (keys: (string | null)[]) => {
+      let newH: any = {}, newN: any = {}, newD: any = {};
+      for (const k of keys) {
+        if (!k) continue;
+        const c = await getChunk(sid, k);
+        if (c?.data) {
+          if (c.data.highlights) newH = { ...newH, ...c.data.highlights };
+          if (c.data.notes) newN = { ...newN, ...c.data.notes };
+          if (c.data.strokes) newD[k] = { paths: c.data.strokes };
+        }
+      }
+      return { highlights: newH, notes: newN, drawings: newD };
+    };
+    const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
+    mergeChunks(keys).then(data => setCanvasData(data));
+  }, [syncStatus, currentStudent, isDrawing, splitOn, spreadOddKey, spreadEvenKey, drawingKey, dispatch]);
 
   /**
    * WHAT: On textStyle (mushaf font) change — wipe both page caches and their

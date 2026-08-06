@@ -6,7 +6,11 @@
  *       Optionally plays the basmala (the reciter's own 1:1 file) before verse 1 of a surah (surah 1 & 9 excluded).
  *       RESUME continues mid-verse: pauseSurahWithResume keeps the native player paused at the exact position and
  *       resumeSurah calls the native resumePlayer (fallback: clean restart of the same verse).
- * DEPENDS ON: react-native-fs (RNFS) -> optional on-disk ayah cache under DocumentDirectoryPath/ayahCache;
+ * DEPENDS ON: react-native-fs (RNFS) -> optional on-disk ayah cache under
+ *             DocumentDirectoryPath/audio_cache/ayahCache (SHARED audio_cache root with the
+ *             voice-note cache in audioNotes.ts — notes live directly under audio_cache/, ayah
+ *             MP3s in the ayahCache subdir, so wiping the ayah cache on surah change never
+ *             deletes downloaded note files);
  *             an AudioRecorderPlayer instance passed by the caller; qariId one of 'ar.alafasy' | 'ar.abdulbasit'
  *             (else defaults to abdulbasit); network access to everyayah.com (primary) + cdn.islamic.network (last resort).
  * USED BY: QuranViewScreen.tsx:53 (playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable,
@@ -48,11 +52,12 @@ let resumeSession: { surahId: number; verse: number; positionMs: number } | null
 
 const ATTEMPT_TIMEOUT_MS = 8000;
 const PREFETCH_AHEAD = 2;
+// Shared audio-cache root (audioNotes.ts playAudioNote downloads into the same dir);
+// ayah MP3s keep their own subdir so cache wipes can't touch voice-note files.
+const CACHE_ROOT = 'audio_cache';
 const CACHE_SUBDIR = 'ayahCache';
 
 export const isSurahPlaying = (surahId: number): boolean => playing && currentSurahId === surahId;
-
-export const getPlaybackPosition = (): number => lastPositionMs;
 
 export const getCurrentPlaybackVerse = (): number => currentVerse;
 
@@ -150,7 +155,7 @@ const fsOk = (() => {
   }
 })();
 
-const cacheDir = (): string | null => (fsOk ? `${RNFS.DocumentDirectoryPath}/${CACHE_SUBDIR}` : null);
+const cacheDir = (): string | null => (fsOk ? `${RNFS.DocumentDirectoryPath}/${CACHE_ROOT}/${CACHE_SUBDIR}` : null);
 const cacheKey = (qariId: string, surahId: number, verse: number): string =>
   `${qariId.replace(/[^a-zA-Z0-9]/g, '_')}_${surahId}_${verse}.mp3`;
 const cachedPath = (qariId: string, surahId: number, verse: number): string | null =>
@@ -376,8 +381,12 @@ const attachResumeListener = (
     stallTimer = null;
     if (token !== playToken) return;
     playToken++;
+    const t = playToken;
     playing = false;
     stopPlayback(player).then(() => {
+      // Token guard: a pause/restart while the stop is in flight must not
+      // respawn playback after the user asked for it to stop.
+      if (t !== playToken) return;
       if (currentSurahId !== surahId) return;
       playVerse(player, qariId, surahId, verse, lastVerse, callbacks, false);
     });
@@ -399,7 +408,15 @@ const playVerse = (
     prefetchAyah(qariId, 1, 1);
     prefetchAyah(qariId, surahId, 1);
     prefetchAyah(qariId, surahId, 2);
-    const goVerse1 = () => stopPlayback(player).then(() => playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false));
+    // Token guard (same pattern as advanceToNext): a pause landing while the
+    // basmala's stopPlayback is in flight must not start verse 1 afterwards.
+    const goVerse1 = () => {
+      const t = playToken;
+      stopPlayback(player).then(() => {
+        if (t !== playToken) return;
+        playVerse(player, qariId, surahId, 1, lastVerse, callbacks, false);
+      });
+    };
     startAttemptChain(
       player,
       getAudioSources(qariId, 1, 1),
@@ -436,7 +453,6 @@ export const playSurahFromVerse = async (
   resumeSession = null;
   const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
   const verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
-  if (verse > lastVerse) return;
   await stopPlayback(player);
   if (currentSurahId !== surahId) {
     currentSurahId = surahId;
