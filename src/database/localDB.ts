@@ -56,6 +56,8 @@ export const initDatabase = async () => {
       PRIMARY KEY (studentId, canvasKey))`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_push (
       studentId TEXT PRIMARY KEY, pushedAt INTEGER NOT NULL)`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_pull (
+      studentId TEXT PRIMARY KEY, pulledAt INTEGER NOT NULL)`);
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS audio_notes_cache (
       studentId TEXT NOT NULL, rangeKey TEXT NOT NULL, entries TEXT NOT NULL,
       v INTEGER DEFAULT 0,
@@ -119,6 +121,52 @@ export const getLastPushAt = async (studentId: string): Promise<number> => {
 };
 export const setLastPushAt = async (studentId: string, ts: number) => {
   await getDB().executeSql(`INSERT OR REPLACE INTO sync_last_push (studentId, pushedAt) VALUES (?, ?)`, [studentId, ts]);
+};
+
+// ---------------- pull watermark (server time of the last applied pull) ----------------
+export const getLastPullAt = async (studentId: string): Promise<number> => {
+  const r = await getDB().executeSql(`SELECT pulledAt FROM sync_last_pull WHERE studentId=?`, [studentId]);
+  return r && r[0].rows.length > 0 ? r[0].rows.item(0).pulledAt : 0;
+};
+export const setLastPullAt = async (studentId: string, ts: number) => {
+  await getDB().executeSql(`INSERT OR REPLACE INTO sync_last_pull (studentId, pulledAt) VALUES (?, ?)`, [studentId, ts]);
+};
+
+/**
+ * WHAT: Applies one student's COMPLETE pull pass atomically — all pulled
+ *   annotation chunks, the cloud manifest (bookmarks/lastRead), any audio-note
+ *   ranges, and the pull watermark — in ONE SQLite transaction.
+ * WHY: the old pull wrote each chunk in its own transaction (minutes on a big
+ *   book, and reloads mid-pull showed partial data). Bulk-committing makes the
+ *   DB itself all-or-nothing: Redux reloads after sync can never observe a
+ *   half-pulled student. queue=false everywhere — pulled data must never
+ *   re-dirty the push queue.
+ */
+export const savePullBatch = async (
+  studentId: string,
+  chunks: { canvasKey: string; data: any; v: number }[],
+  manifest?: { data: any; serverTs: number } | null,
+  audioRanges?: { rangeKey: string; entries: any; v: number }[],
+  pulledAt?: number,
+) => {
+  await getDB().transaction((tx: any) => {
+    for (const c of chunks) {
+      tx.executeSql(`INSERT OR REPLACE INTO student_data_cache (studentId, canvasKey, data, v) VALUES (?, ?, ?, ?)`,
+        [studentId, c.canvasKey, JSON.stringify(c.data), c.v]);
+    }
+    if (manifest) {
+      tx.executeSql(`INSERT OR REPLACE INTO student_manifest_cache (studentId, manifest, serverTs) VALUES (?, ?, ?)`,
+        [studentId, JSON.stringify(manifest.data), manifest.serverTs]);
+    }
+    for (const a of audioRanges || []) {
+      tx.executeSql(`INSERT OR REPLACE INTO audio_notes_cache (studentId, rangeKey, entries, v) VALUES (?, ?, ?, ?)`,
+        [studentId, a.rangeKey, JSON.stringify(a.entries), a.v]);
+    }
+    if (pulledAt != null) {
+      tx.executeSql(`INSERT OR REPLACE INTO sync_last_pull (studentId, pulledAt) VALUES (?, ?)`,
+        [studentId, pulledAt]);
+    }
+  });
 };
 
 // ---------------- manifest ----------------

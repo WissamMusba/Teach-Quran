@@ -4,6 +4,7 @@ import {
   getManifest, saveManifestLocal, saveChunkNoQueue,
   getAudioNotesRange, saveAudioNotesRange, migrateLegacyAudioNotes,
   getLastPushAt, setLastPushAt, cacheStudentList,
+  getLastPullAt, savePullBatch,
 } from '../database/localDB';
 import { compactStroke, denormalizeStroke } from '../utils/stroke';
 
@@ -172,10 +173,12 @@ const pushAllDirty = async (userId: string): Promise<number> => {
 };
 
 /**
- * Pull pass — manifest-driven change detection. Reads the user-level
- * sync_manifest ONCE; per-student cloud reads (overview + draws + audioNotes)
- * happen ONLY for students whose manifest version is newer than local, so a
- * no-change pull costs students(1) + manifest(1) reads regardless of N students.
+ * Pull pass — watermark-driven change detection. Reads the user-level
+ * sync_manifest ONCE, then per student: ONE range query on draws
+ * (updatedAt > last pull watermark; fresh device = everything), the overview
+ * doc (only when its version is newer), and audio range diffs. Everything for
+ * a student is committed to SQLite in ONE atomic transaction (savePullBatch),
+ * so the syncing->synced Redux reload always observes a complete student.
  */
 const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<string, any>): Promise<number> => {
   let pulled = 0;
@@ -187,25 +190,32 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
     return null;
   }));
   const needed = localChecks.filter(Boolean) as { canvasKey: string; v: number }[];
-  // Firestore 'in' queries support AT MOST 10 document IDs per query.
-  for (let i = 0; i < needed.length; i += 10) {
-    const slice = needed.slice(i, i + 10);
-    const snaps = await studRef.collection('draws')
-      .where(firestore.FieldPath.documentId(), 'in', slice.map(n => n.canvasKey)).get();
-    await Promise.all(
-      snaps.docs.map(async (doc: any) => {
-        const canvasKey = doc.id;
-        const targetV = slice.find(n => n.canvasKey === canvasKey)?.v || 0;
-        const local = await getChunk(sid, canvasKey);
-        // Guard against a race: the user edited this chunk on THIS device AFTER
-        // the version check above — re-read it and skip the pull rather than
-        // clobbering their fresh local edit with the stale cloud snapshot.
-        if (local && local.v >= targetV) return;
-        // cloud has NO strokes (stripped on push) — preserve local drawings
-        await saveChunkNoQueue(sid, canvasKey, { ...doc.data(), strokes: local?.data?.strokes || [] }, targetV);
-      })
-    );
-    pulled += snaps.docs.length;
+  // Firestore 'in' queries support AT MOST 10 document IDs per query; run the
+  // batches with bounded concurrency (5) instead of one-after-another — on a
+  // slow link that's the difference between minutes and seconds for a big book.
+  const slices: { canvasKey: string; v: number }[][] = [];
+  for (let i = 0; i < needed.length; i += 10) slices.push(needed.slice(i, i + 10));
+  const CONCURRENT_SLICES = 5;
+  for (let i = 0; i < slices.length; i += CONCURRENT_SLICES) {
+    const group = slices.slice(i, i + CONCURRENT_SLICES);
+    await Promise.all(group.map(async (slice) => {
+      const snaps = await studRef.collection('draws')
+        .where(firestore.FieldPath.documentId(), 'in', slice.map(n => n.canvasKey)).get();
+      await Promise.all(
+        snaps.docs.map(async (doc: any) => {
+          const canvasKey = doc.id;
+          const targetV = slice.find(n => n.canvasKey === canvasKey)?.v || 0;
+          const local = await getChunk(sid, canvasKey);
+          // Guard against a race: the user edited this chunk on THIS device AFTER
+          // the version check above — re-read it and skip the pull rather than
+          // clobbering their fresh local edit with the stale cloud snapshot.
+          if (local && local.v >= targetV) return;
+          // cloud has NO strokes (stripped on push) — preserve local drawings
+          await saveChunkNoQueue(sid, canvasKey, { ...doc.data(), strokes: local?.data?.strokes || [] }, targetV);
+        })
+      );
+      pulled += snaps.docs.length;
+    }));
   }
   return pulled;
 };
@@ -226,17 +236,51 @@ const pullRemote = async (userId: string): Promise<number> => {
     const localOV = localM.data.v || 0;
     const mustPullOverview = cloudInfo == null || cloudOV === undefined || cloudOV > localOV || (!localM.serverTs && (cloudOV || 0) >= localOV);
 
+    // ---- ONE range query per student: every draws doc newer than the last pull
+    // watermark (server timestamp; 0 on a fresh device = everything). This replaces
+    // the old per-10-doc `in` loops — a fresh full-Quran pull went from ~60
+    // sequential round trips to 1. Docs WITHOUT updatedAt (legacy) never match the
+    // range filter and are recovered by the manifest-diff fallback below. ----
+    const lastPullAt = await getLastPullAt(sid);
+    const rangeSnap = await studRef.collection('draws')
+      .where('updatedAt', '>', new Date(lastPullAt)).get();
+    const chunks: { canvasKey: string; data: any; v: number }[] = [];
+    const fetchedKeys = new Set<string>();
+    let watermark = lastPullAt;
+    await Promise.all(rangeSnap.docs.map(async (doc: any) => {
+      const canvasKey = doc.id;
+      const cloud = doc.data() as any;
+      fetchedKeys.add(canvasKey);
+      const t = cloud.updatedAt?.toMillis ? cloud.updatedAt.toMillis() : 0;
+      if (t > watermark) watermark = t;
+      // Clobber guard: never overwrite a fresher local edit made mid-pull.
+      const local = await getChunk(sid, canvasKey);
+      if (local && local.v >= (cloud.v || 0)) return;
+      // cloud has NO strokes (stripped on push) — preserve local drawings
+      chunks.push({ canvasKey, data: { ...cloud, strokes: local?.data?.strokes || [] }, v: cloud.v || 0 });
+    }));
+    // -1s margin: two docs committed in the same server instant must both be re-fetchable
+    watermark = Math.max(lastPullAt, watermark - 1000);
+
+    // ---- cloud manifest (bookmarks / lastRead / pages) — only when newer ----
+    let cloudMeta: any = null;
     if (mustPullOverview) {
       const mSnap = await studRef.collection('meta').doc('overview').get();
-      if (mSnap.exists) {
-        const cloudMeta = mSnap.data() as any;
-        await saveManifestLocal(sid, cloudMeta, Date.now(), false);
-        pulled += await pullChangedChunks(sid, studRef, cloudMeta.pages || {});
-      }
-    } else {
-      pulled += await pullChangedChunks(sid, studRef, cloudInfo.pages || {});
+      if (mSnap.exists) cloudMeta = mSnap.data() as any;
     }
 
+    // ---- legacy fallback: manifest pages whose doc has no updatedAt never matched
+    // the range query — diff them through the (now concurrent) in-query path. ----
+    const pagesInfo: Record<string, any> = cloudMeta ? (cloudMeta.pages || {}) : (cloudInfo?.pages || {});
+    const missing = Object.keys(pagesInfo || {}).filter((k: string) => !fetchedKeys.has(k));
+    if (missing.length) {
+      const sub: Record<string, any> = {};
+      for (const k of missing) sub[k] = pagesInfo[k];
+      pulled += await pullChangedChunks(sid, studRef, sub);
+    }
+
+    // ---- audio ranges: same diff as before, but deferred into the batch write ----
+    const audioWrites: { rangeKey: string; entries: any; v: number }[] = [];
     if (cloudInfo) {
       // audio: diff via the manifest — read a range doc only when it is newer
       for (const [range, info] of Object.entries(cloudInfo.audio || {}) as Array<[string, any]>) {
@@ -245,7 +289,7 @@ const pullRemote = async (userId: string): Promise<number> => {
           const snap = await studRef.collection('audioNotes').doc(range).get();
           if (snap.exists) {
             const cloud = snap.data() as any;
-            await saveAudioNotesRange(sid, range, cloud.entries || {}, cloud.v || 0, false);
+            audioWrites.push({ rangeKey: range, entries: cloud.entries || {}, v: cloud.v || 0 });
             pulled += Object.keys(cloud.entries || {}).length;
           }
         }
@@ -257,11 +301,24 @@ const pullRemote = async (userId: string): Promise<number> => {
         const cloud = d.data() as any;
         const local = await getAudioNotesRange(sid, d.id);
         if ((cloud.v || 0) > (local.v || 0) || !Object.keys(local.entries || {}).length) {
-          await saveAudioNotesRange(sid, d.id, cloud.entries || {}, cloud.v || 0, false);
+          audioWrites.push({ rangeKey: d.id, entries: cloud.entries || {}, v: cloud.v || 0 });
           pulled += Object.keys(cloud.entries || {}).length;
         }
       }
     }
+
+    // ---- ONE atomic SQLite commit per student: chunks + manifest + audio + watermark.
+    // Nothing above touches the DB until here, so a Redux reload can never observe a
+    // half-pulled student — bookmarks, reading marks, notes and highlights all land
+    // together the moment the syncing->synced reload fires. ----
+    await savePullBatch(
+      sid,
+      chunks,
+      cloudMeta ? { data: cloudMeta, serverTs: watermark > 0 ? watermark : Date.now() } : null,
+      audioWrites,
+      watermark > 0 || chunks.length > 0 || audioWrites.length > 0 ? (watermark > 0 ? watermark : Date.now()) : undefined,
+    );
+    if (chunks.length) pulled += chunks.length;
   }
   if (studentsArr.length) await cacheStudentList(studentsArr);
   return pulled;

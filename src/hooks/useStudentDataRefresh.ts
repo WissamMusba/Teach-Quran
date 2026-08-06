@@ -35,7 +35,16 @@ export const useStudentDataRefresh = () => {
       .catch(() => {});
   }, [currentStudentId, dispatch]);
 
-  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  // Focus reload is gated while a sync is in flight: the pull writes SQLite in one
+  // atomic batch per student, so reloading mid-pull would render PARTIAL data
+  // (a trickle: bookmarks first, then notes, then highlights). Skipping the reload
+  // keeps the last consistent state on screen; the syncing->synced watcher below
+  // then applies EVERYTHING in one shot. (Fresh devices show blank until done —
+  // intended.)
+  useFocusEffect(useCallback(() => {
+    if (syncStatus === 'syncing') return;
+    reload();
+  }, [reload, syncStatus]));
 
   useEffect(() => {
     const prev = prevSyncStatusRef.current;
