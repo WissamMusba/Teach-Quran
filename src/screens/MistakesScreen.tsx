@@ -1,7 +1,14 @@
 /**
  * FILE: src/screens/MistakesScreen.tsx
- * ROLE: Aggregates every highlighted word across the student's highlights into a flat "mistakes" list (newest first); tapping deep-links to the verse in QuranView.
- * DEPENDS ON: Redux s.student.studentData.highlights, shape { [verseKey "surah_verse"]: { highlights: [{wordIndex, color, createdAt}] } } (written by handleWordPress/handleWordFlow in QuranViewScreen.tsx:355-363); s.quran.surahNames. Redux-only: SQLite hydration happens in QuranViewScreen.tsx:292-297.
+ * ROLE: Groups the student's highlighted words into ONE premium card per verse (newest
+ *       first); each card shows Date+Time chips (verse's latest highlight createdAt),
+ *       the big surah name, a meta chip grid (Surah #, Ayat N, Juz, mushaf Page —
+ *       page resolved async from getVersePage(s, v, textStyle), '…' until loaded —
+ *       the page follows the selected script (uthmani vs indopak)), and up to 3 color
+ *       dots (+N more); tapping deep-links to the verse in QuranView.
+ * DEPENDS ON: Redux s.student.studentData.highlights, shape { [verseKey "surah_verse"]:
+ *       { highlights: [{wordIndex, color, createdAt}] } }; s.quran.surahNames; s.quran.textStyle;
+ *       s.settings.nightMode (theme). SQLite read-only via getVersePage — no writes.
  * USED BY: QuranView toolbar `onMistakes` (QuranViewScreen.tsx:509).
  */
 import React from 'react';
@@ -9,39 +16,89 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
+import ScreenHeader from '../components/common/ScreenHeader';
+import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
+import { getVersePage } from '../database/quranData';
+
+const ACCENT = '#00b2aa';
 
 /**
- * WHAT: Screen component: flattens the highlights map into a sorted list of individual highlighted words and renders them as colored-dot rows.
- * FLOW: 1) useSelector studentData + surahNames. 2) sortedMistakes useMemo: Object.entries(highlights).flatMap each verseKey -> its data.highlights array mapped to {verseKey, color, createdAt}; sort desc by createdAt. 3) handleNavigate splits verseKey on '_' -> Number(s), Number(v); navigate('QuranView', { surahId: s, scrollToVerse: v }). 4) Empty state or FlatList: row shows color dot (highlight color), "Surat {name} · Ayat {v}", formatted date; onPress -> handleNavigate.
- * CALLS: handleNavigate -> navigation.navigate('QuranView', {surahId, scrollToVerse}); formatDateTime -> date label.
+ * WHAT: Screen component: groups the highlights map into one card per verse and renders them newest-first.
+ * FLOW: 1) useSelector studentData + surahNames + nightMode. 2) sortedVerses useMemo: per verseKey pick the
+ *       LATEST highlight createdAt (toMillis-compared), collect the distinct highlight colors; sort desc by
+ *       that latest ts. 3) useEffect: async getVersePageDB per verseKey into a pages state map ('…' until loaded). 
+ *       4) handleNavigate splits verseKey on '_' -> Number(s), Number(v); navigate('QuranView', {surahId, scrollToVerse}).
+ *       5) Empty state or FlatList: premium card per verse (Date/Time chips, surah name, meta grid, color dots).
+ * CALLS: handleNavigate -> navigation.navigate('QuranView', {surahId, scrollToVerse}); getVersePageDB (read-only).
  * CALLED BY: React Navigation; opened via QuranViewScreen.tsx:509.
  * AFFECTS: Navigation only.
- * NOTES: One row PER HIGHLIGHTED WORD, not per verse — the same verse can appear multiple times if several words are highlighted (a deliberate aggregation choice; taps always scroll to the verse, never highlight the word). Highlights with no createdAt sort as Invalid Date -> they sort to the top (NaN comparisons). No distinction by color semantics (MISTAKE_COLOR from src/utils/constants.ts is just a color; no filtering here).
+ * NOTES: ONE CARD PER VERSE (was one row per word) — the same word re-highlighted yields multiple highlights
+ *       entries in one verse: the latest createdAt drives the chips/sort, and every highlight's color is
+ *       rendered as a dot (duplicates possible). Highlights with no createdAt sort last (toMillis=0) and render
+ *       without Date/Time chips. Page lookup is best-effort: missing/0 -> '…'.
  */
 export default function MistakesScreen() {
   const navigation = useNavigation<any>();
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   useStudentDataRefresh();
+
   /**
-   * WHAT: Builds the sorted mistakes list from the highlights map.
-   * FLOW: 1) Object.entries(highlights).flatMap each verseKey -> its data.highlights array mapped to {verseKey, color, createdAt}. 2) Sort desc by createdAt.
-   * CALLS: none.
+   * WHAT: Builds the sorted per-verse list from the highlights map.
+   * FLOW: 1) Object.entries(highlights), drop empty verses. 2) Per verse: latest = max createdAt highlight
+   *       (toMillis), colors = all highlight colors (non-falsy). 3) Sort desc by latest createdAt.
+   * CALLS: toMillis (pure).
    * CALLED BY: Component render.
-   * AFFECTS: FlatList data; empty-state condition.
+   * AFFECTS: FlatList data; empty-state condition; page-load effect.
    * NOTES: Keyed on studentData?.highlights; re-runs when highlights change.
    */
-  const sortedMistakes = React.useMemo(() => {
+  const sortedVerses = React.useMemo(() => {
     const highlights = studentData?.highlights ? Object.entries(studentData.highlights) : [];
-    const mistakes = highlights.flatMap(([verseKey, data]: any) => (data?.highlights || []).map((h: any) => ({ verseKey, color: h.color, createdAt: h.createdAt })));
-    return mistakes.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const verses = highlights
+      .filter(([, data]: any) => data?.highlights && data.highlights.length > 0)
+      .map(([verseKey, data]: any) => {
+        const hs = data.highlights;
+        const latest = hs.reduce((a: any, b: any) => (toMillis(b.createdAt) > toMillis(a.createdAt) ? b : a), hs[0]);
+        return { verseKey, latest, colors: Array.from(new Set(hs.map((h: any) => h.color).filter(Boolean))) };
+      });
+    return verses.sort((a: any, b: any) => toMillis(b.latest.createdAt) - toMillis(a.latest.createdAt));
   }, [studentData?.highlights]);
+
+  /**
+* WHAT: Resolves the mushaf page for each verse card, once per verseKey (re-resolves
+ *       when the script textStyle changes — indopak and uthmani number pages differently).
+ * FLOW: For each verseKey not yet requested, getVersePage(s, v, textStyle) -> setPages map (0 stays '…').
+ * CALLS: getVersePage (read-only SQLite / in-memory indopak map).
+ * CALLED BY: Component mount / when sortedVerses or the script changes.
+ * AFFECTS: pages state; Page chip rendering.
+ * NOTES: Best-effort; a request ref guards against re-fetching after every setPages tick
+ *       and is pruned when a verse's card leaves the list.
+ */
+  const [pages, setPages] = React.useState<Record<string, number>>({});
+  const pageReq = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    let active = true;
+    // Prune requested keys that no longer have a card (highlight removed since).
+    const alive = new Set(sortedVerses.map((v: any) => v.verseKey));
+    for (const k of pageReq.current) if (!alive.has(k)) pageReq.current.delete(k);
+    for (const { verseKey } of sortedVerses) {
+      if (pageReq.current.has(verseKey)) continue;
+      pageReq.current.add(verseKey);
+      const [s, v] = verseKey.split('_').map(Number);
+      getVersePage(s, v, textStyle).then((pg) => {
+        if (active && pg > 0) setPages((prev) => ({ ...prev, [verseKey]: pg }));
+      });
+    }
+    return () => { active = false; };
+  }, [sortedVerses, textStyle]);
 
   /**
    * WHAT: Deep-links to the verse containing the tapped mistake.
    * FLOW: split verseKey on '_' -> Number(s), Number(v); navigation.navigate('QuranView', { surahId: s, scrollToVerse: v }).
-   * CALLS: navigation.navigate (line 18).
-   * CALLED BY: Card onPress in FlatList renderItem (line 40).
+   * CALLS: navigation.navigate.
+   * CALLED BY: Card onPress in FlatList renderItem.
    * AFFECTS: Navigation.
    * NOTES: Scrolling only — no word/verse param to re-highlight the word in QuranView.
    */
@@ -50,56 +107,111 @@ export default function MistakesScreen() {
     navigation.navigate('QuranView' as any, { surahId: s, scrollToVerse: v } as any);
   };
 
-  /**
-   * WHAT: Formats a highlight timestamp as "Mon D, YYYY".
-   * FLOW: new Date(ts); pick month short name from local array.
-   * CALLS: none.
-   * CALLED BY: renderItem timestamp Text (line 44).
-   * AFFECTS: none (pure).
-   * NOTES: Returns '' for missing ts (row renders without timestamp).
-   */
-  const formatDateTime = (ts: string): string => {
-    if (!ts) return '';
-    const d = new Date(ts);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const theme = {
+    screenBg: nightMode ? '#0f0f1e' : '#f4f6fb',
+    cardBg: nightMode ? '#1a1a2e' : '#fff',
+    cardBorder: nightMode ? '#2a2a4a' : '#e2e5f0',
+    text: nightMode ? '#fff' : '#1a1a1a',
+    sub: nightMode ? '#8a8a8a' : '#6b6b76',
+    chipBg: nightMode ? '#232345' : '#f1f4fb',
+    accentSoft: nightMode ? 'rgba(0,178,170,0.16)' : 'rgba(0,178,170,0.10)',
+    dotBorder: nightMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
+  };
+
+  const renderCard = ({ item }: any) => {
+    const [s, v] = item.verseKey.split('_').map(Number);
+    const ts = toMillis(item.latest?.createdAt);
+    const date = formatDate(ts);
+    const time = formatTime(ts);
+    const page = pages[item.verseKey];
+    const juz = getJuzForVerse(s, v);
+    const name = surahNames?.[s] || `Surah ${s}`;
+    const dots = item.colors.slice(0, 3);
+    const extra = item.colors.length - dots.length;
+    return (
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, shadowOpacity: nightMode ? 0.4 : 0.08 }]}
+        onPress={() => handleNavigate(item.verseKey)}
+        activeOpacity={0.85}
+      >
+        {(date || time) ? (
+          <View style={styles.chipsRow}>
+            {date ? (
+              <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
+                <Text style={[styles.chipText, { color: theme.text }]}>Date: {date}</Text>
+              </View>
+            ) : null}
+            {time ? (
+              <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
+                <Text style={[styles.chipText, { color: theme.text }]}>Time: {time}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        <Text style={[styles.surahName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
+        <View style={styles.metaRow}>
+          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.metaText, { color: theme.text }]}>Surah {s}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.metaText, { color: theme.text }]}>Ayat {v}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.metaText, { color: theme.text }]}>Juz {juz}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.metaText, { color: theme.text }]}>Page {page || '…'}</Text>
+          </View>
+        </View>
+        {dots.length > 0 || extra > 0 ? (
+          <View style={styles.dotsRow}>
+            {dots.map((c: string, i: number) => (
+              <View key={i} style={[styles.dot, { backgroundColor: c, borderColor: theme.dotBorder }]} />
+            ))}
+            {extra > 0 ? <Text style={[styles.moreText, { color: theme.sub }]}>+{extra} more</Text> : null}
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
   };
 
   return (
-    <View style={styles.container}>
-      {sortedMistakes.length === 0 ? (
+    <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
+      <ScreenHeader title="Mistakes" subtitle={`${sortedVerses.length} highlighted verse${sortedVerses.length === 1 ? '' : 's'} · newest first`} />
+      {sortedVerses.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>✏️</Text>
-          <Text style={styles.emptyText}>No mistakes highlighted yet</Text>
-          <Text style={styles.emptySub}>Highlight a word while reading to mark it</Text>
+          <Text style={[styles.emptyText, { color: theme.sub }]}>No mistakes highlighted yet</Text>
+          <Text style={[styles.emptySub, { color: theme.sub }]}>Highlight a word while reading to mark it</Text>
         </View>
       ) : (
-        <FlatList data={sortedMistakes} keyExtractor={(i: any, idx: number) => idx.toString()} contentContainerStyle={styles.list} renderItem={({ item }: any) => {
-          const [s, v] = item.verseKey.split('_').map(Number);
-          return (
-            <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.verseKey)} activeOpacity={0.7}>
-              <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.surahText}>Surat {surahNames[s] || '...'}  ·  Ayat {v}</Text>
-                {item.createdAt && <Text style={styles.timestamp}>{formatDateTime(item.createdAt)}</Text>}
-              </View>
-            </TouchableOpacity>
-          );
-        }} />
+        <FlatList
+          data={sortedVerses}
+          keyExtractor={(item: any) => item.verseKey}
+          contentContainerStyle={styles.list}
+          renderItem={renderCard}
+        />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#121212' },
-  list: { paddingBottom: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', padding: 14, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: '#2a2a4a' },
-  colorDot: { width: 16, height: 16, borderRadius: 8, marginRight: 12 },
-  surahText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  timestamp: { color: '#555', fontSize: 11, marginTop: 3 },
+  container: { flex: 1 },
+  list: { padding: 16, paddingBottom: 32 },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 3 },
+  chipsRow: { flexDirection: 'row', marginBottom: 12 },
+  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, marginRight: 8 },
+  chipText: { fontSize: 11, fontWeight: '600' },
+  surahName: { fontSize: 20, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 10, marginBottom: 12 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 12 },
+  metaChip: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5, margin: 4 },
+  metaText: { fontSize: 12, fontWeight: '600' },
+  dotsRow: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, marginRight: 8 },
+  moreText: { fontSize: 12, fontWeight: '600' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: '#888', fontSize: 16, fontWeight: '600' },
-  emptySub: { color: '#555', fontSize: 12, marginTop: 4 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
+  emptySub: { fontSize: 12, marginTop: 4 },
 });

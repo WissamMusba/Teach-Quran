@@ -114,6 +114,31 @@ export const getDirtyCanvasesByStudent = async (): Promise<Record<string, string
   return groups;
 };
 
+/**
+ * WHAT: Every canvas that actually holds local drawing strokes, grouped by student
+ *   — the "push EVERYTHING" scan for a full sync. Reads the whole student_data_cache
+ *   table once, JSON.parses each row, and keeps only rows whose data has a non-empty
+ *   `strokes` array (page_N / surah_N canvases).
+ * WHY: drawings are stored with queue=false (never enqueued), so they'd otherwise only
+ *   be pushed on the active-save path (pushDrawings) — a drawing saved while offline
+ *   never reaches Firestore. pushAllDirty calls this on every full sync (30-min
+ *   interval + AppState background) so stray strokes are always flushed upstream.
+ * NOTES: reads only; raw strokes are returned unwrapped; the caller decides grouping.
+ */
+export const getAllCanvasesWithStrokesByStudent = async (): Promise<Record<string, { canvasKey: string; strokes: any[] }[]>> => {
+  const r = await getDB().executeSql(`SELECT studentId, canvasKey, data FROM student_data_cache`);
+  const groups: Record<string, { canvasKey: string; strokes: any[] }[]> = {};
+  for (let i = 0; i < r[0].rows.length; i++) {
+    const row = r[0].rows.item(i);
+    let d: any = null;
+    try { d = JSON.parse(row.data); } catch { /* corrupt row — skip, never abort the sweep */ }
+    if (d?.strokes && d.strokes.length) {
+      (groups[row.studentId] = groups[row.studentId] || []).push({ canvasKey: row.canvasKey, strokes: d.strokes });
+    }
+  }
+  return groups;
+};
+
 // ---------------- min-interval guard (lever 5) ----------------
 export const getLastPushAt = async (studentId: string): Promise<number> => {
   const r = await getDB().executeSql(`SELECT pushedAt FROM sync_last_push WHERE studentId=?`, [studentId]);

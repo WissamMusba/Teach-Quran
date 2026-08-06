@@ -56,11 +56,15 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const H = box?.h || 0;
 
   // Chain geometry scales gently with the actual page size (phones, tablets AND split mode).
-  const margin = Math.max(10, Math.round(W * 0.03));   // distance of the chain from the page edge
-  const linkStep = Math.max(20, Math.round(W * 0.05)); // spacing between link centers
-  const hw = linkStep * 0.62;                           // link half-width (overlap → woven look)
-  const hh = linkStep * 0.30;                           // link half-height
-  const diaS = Math.max(2, linkStep * 0.1);             // diamond accent half-size
+  // The band hugs the page edge (chain band ≈ margin ± hh) so it never covers the text
+  // (text starts at hPadFor: 13px on phones, 8% of W on tablets).
+  const margin = Math.max(4, Math.round(W * 0.012));    // chain center-line distance from the page edge
+  const linkStep = Math.max(18, Math.round(W * 0.045)); // spacing between link centers
+  const hw = linkStep * 0.55;                            // link half-width (slight overlap → woven look)
+  const hh = linkStep * 0.18;                            // link half-height (thin band: hugs the edge)
+  const diaS = Math.max(2, linkStep * 0.1);              // diamond accent half-size
+  const edgeInset = Math.max(1.5, margin - hh - 1.5);    // gold edge rule — just outside the chain band
+  const innerInset = margin + hh + 2;                    // teal inner rule — just inside the chain band
 
   const topY = margin;
   const bottomY = H - margin;
@@ -89,10 +93,10 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
           <DiamondDef s={diaS} edge={edge} />
         </Defs>
 
-        {/* ---- Thin gold edge rule + teal inner rule (no filled band behind the chain) ---- */}
-        <Rect x={margin - 7} y={margin - 7} width={W - (margin - 7) * 2} height={H - (margin - 7) * 2}
+        {/* ---- Thin gold edge rule (outside the chain) + teal inner rule (inside the chain) ---- */}
+        <Rect x={edgeInset} y={edgeInset} width={W - edgeInset * 2} height={H - edgeInset * 2}
           fill="none" stroke={edge} strokeWidth={1.4} />
-        <Rect x={margin - 3} y={margin - 3} width={W - (margin - 3) * 2} height={H - (margin - 3) * 2}
+        <Rect x={innerInset} y={innerInset} width={W - innerInset * 2} height={H - innerInset * 2}
           fill="none" stroke={TEAL} strokeWidth={0.7} opacity={0.75} />
 
         {/* ---- Horizontal teal interlace chain (top & bottom) ---- */}
@@ -129,9 +133,9 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
           return <Use key={`dr${i}`} href="#diamond" transform={place(rightX, my)} />;
         })}
 
-        {/* ---- Corner knots: a link at 45° tying the two chains together ---- */}
-        {[[leftX, topY], [rightX, topY], [leftX, bottomY], [rightX, bottomY]].map(([cx, cy], i) => (
-          <Use key={`ck${i}`} href="#link" transform={`translate(${cx},${cy}) rotate(45)`} />
+        {/* ---- Corner knots: a link at 45° tying the two chains together (mirrored: TL/BR face one way, TR/BL the other) ---- */}
+        {[[leftX, topY, 45], [rightX, topY, -45], [leftX, bottomY, -45], [rightX, bottomY, 45]].map(([cx, cy, r], i) => (
+          <Use key={`ck${i}`} href="#link" transform={`translate(${cx},${cy}) rotate(${r})`} />
         ))}
       </Svg>
       )}

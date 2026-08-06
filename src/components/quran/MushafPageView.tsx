@@ -132,8 +132,8 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - onBookmarkToggle(verseNum, surahId) — bookmark toggle from the verse badge.
  *   - bookmarks, notes, readingMarkVerse, flashingVerseKey — per-verse badge state.
  *   - onDeadTap(pageY) — tap on line background/word margins → toggle header.
- *   - fixNonce (default 0) — bump to force full re-measure + cache reload ("Fix font").
- *   - onFixFont — "Fix font" pill → clearPageLayoutCacheRange ±3 pages in the parent.
+ *   - fixNonce (default 0) — bump to force full re-measure + cache reload (recovery path;
+ *     no longer exposed as UI — the "Fix font" pill was removed).
  *   - onSpread / spread — tablet spread-mode toggle pill (split mode only).
  * CALLED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem.
  * NOTES:
@@ -142,14 +142,14 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - verseByKey (below) is DEAD CODE — built from versesForPage but never referenced.
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
- *     scales on a cache hit may differ from first-visit ones until "Fix font" re-measures.
+ *     scales on a cache hit may differ from first-visit ones until the cache entry is cleared.
  *   - headerVisible is absent from BOTH effect dep arrays: toggling the header shifts fs (cache
  *     key) but does NOT clear measurement refs — a stale-measure/cache mismatch window for which
  *     the fixNonce bump is the recovery path.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onFixFont, onSpread, spread }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -419,23 +419,15 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     </View>
   );
 
-  // actionPills — bottom-left pill cluster, shown ONLY when the header is hidden AND at least one
-  // of onFixFont/onSpread is provided: "Fix font" (always, when onFixFont → parent clears the
-  // layout-cache range ±3 pages + bumps fixNonce) and the tablet spread toggle (when onSpread).
-  // NOTE: the spread pill renders the same 'Spread' label for both states — the active/inactive
-  // label distinction is not implemented here.
-  const actionPills = (onFixFont || onSpread) && !headerVisible ? (
+  // actionPills — bottom-left pill cluster, shown ONLY when the header is hidden AND onSpread is
+  // provided: the tablet spread toggle. (The "Fix font" pill was removed by request — the layout
+  // cache now only re-measures on font/page/width/fixNonce changes.)
+  const actionPills = onSpread && !headerVisible ? (
     <View style={styles.bottomLeftRow}>
       {onSpread && (
         <TouchableOpacity style={[styles.badgePill, styles.actionPillGap, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
           onPress={() => onSpread()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[styles.badgeText, { color: spread ? '#00D4AA' : grayC }, compact && styles.badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
-        </TouchableOpacity>
-      )}
-      {onFixFont && (
-        <TouchableOpacity style={[styles.badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
-          onPress={() => onFixFont()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Fix font</Text>
         </TouchableOpacity>
       )}
     </View>

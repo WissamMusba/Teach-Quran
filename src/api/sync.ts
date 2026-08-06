@@ -1,6 +1,7 @@
 import { firestore, getUserId } from './firebase';
 import {
-  getDirtyCanvasesByStudent, getChunk, markSynced, bumpAttempt,
+  getDirtyCanvasesByStudent, getAllCanvasesWithStrokesByStudent, rangeKeyForPage,
+  getChunk, markSynced, bumpAttempt,
   getManifest, saveManifestLocal, saveChunkNoQueue,
   getAudioNotesRange, saveAudioNotesRange, migrateLegacyAudioNotes,
   getLastPushAt, setLastPushAt, cacheStudentList,
@@ -21,7 +22,7 @@ export const requestSync = async (opts?: { pull?: boolean }): Promise<any> => {
   if (inFlight) {
     if (opts?.pull) pendingPull = true;
     return inFlight.then(() => {
-      if (!pendingPull) return undefined;
+      if (!pendingPull) return { success: true, pushed: 0, pulled: 0, skipped: true };
       pendingPull = false;
       return requestSync({ pull: true });
     });
@@ -58,8 +59,9 @@ export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync
  * round-trips — so pulls can diff per-student versions with a single manifest read.
  */
 const pushAllDirty = async (userId: string): Promise<number> => {
-  const groups = await getDirtyCanvasesByStudent();
   let pushed = 0;
+  try {
+  const groups = await getDirtyCanvasesByStudent();
   for (const [sid, keys] of Object.entries(groups)) {
     if (!keys.length) continue;
 
@@ -168,6 +170,14 @@ const pushAllDirty = async (userId: string): Promise<number> => {
         pushed++;
       } catch (e) { console.warn(`audio push failed ${sid}`, e); await bumpAttempt(sid, q); }
     }
+  }
+  } finally {
+    // ---- stray drawings: canvases with strokes are saved queue=false (never in
+    // sync_queue), so they'd only reach Firestore via the active-save pushDrawings
+    // path — which swallows failures while offline. Flush ALL of them here on every
+    // full sync (the same path App.tsx's 30-min interval and background push use).
+    // Runs in `finally`: the sweep happens even when a queue push above threw. ----
+    await pushAllDrawings(userId);
   }
   return pushed;
 };
@@ -355,6 +365,68 @@ export const pushDrawings = async (studentId: string, groupKey: string, pageKeys
 };
 
 /**
+ * Push-EVERYTHING pass for drawings — runs at the END of every pushAllDirty, so it
+ * rides the exact same path App.tsx's 30-minute interval and background pushes use.
+ * WHY: local strokes are saved with queue=false (they never enter sync_queue), so the
+ *   only previous push was the active-save pushDrawings(), which swallows failures —
+ *   a drawing made while offline stayed local forever. This scans ALL canvases with
+ *   strokes and writes them to Firestore RAW (no compaction/normalization — pullDrawings
+ *   passes non-`norm` strokes through untouched, so cross-device recovery still works):
+ *   - page_N canvases   -> students/{sid}/drawings/{r_<lo>_<lo+9>}  (10-page range, rangeKeyForPage)
+ *   - surah_N canvases  -> students/{sid}/drawings/{surah_<n>}     (groupKey = the canvasKey itself)
+ * Replace-on-write: one doc per range group, only when the group has strokes. Never
+ * throws — per-student try/catch so one bad student can't abort the sync.
+ */
+export const pushAllDrawings = async (userId: string): Promise<void> => {
+  try {
+    const byStudent = await getAllCanvasesWithStrokesByStudent();
+    for (const [sid, canvases] of Object.entries(byStudent)) {
+      if (!canvases.length) continue;   // students with zero strokes are never listed anyway
+      try {
+        const groups: Record<string, Record<string, any[]>> = {};
+        for (const { canvasKey, strokes } of canvases) {
+          let groupKey = canvasKey;   // surah_N canvases use themselves as the group key
+          const pageNum = canvasKey.startsWith('page_') ? parseInt(canvasKey.slice(5), 10) : 0;
+          if (pageNum > 0) groupKey = rangeKeyForPage(pageNum);
+          // Strip any `norm` marker: local strokes are always raw absolute
+          // points, so a norm:1 tag here would make pullDrawings denormalize
+          // them a second time and blow strokes off-canvas.
+          const clean = strokes.map((p: any) => { const { norm, ...rest } = p; return rest; });
+          (groups[groupKey] = groups[groupKey] || {})[canvasKey] = clean;
+        }
+        if (!Object.keys(groups).length) continue;
+        const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
+        const drawingsRef = studRef.collection('drawings');
+        await Promise.all(Object.entries(groups).map(async ([groupKey, strokesByPage]) => {
+          // Gate: never clobber a normalized doc (active-save pushDrawings is the
+          // canonical cross-device format), and skip groups an earlier sweep
+          // already wrote with the same content — avoids re-writing every group
+          // on every 30-min/background sync.
+          try {
+            const snap = await drawingsRef.doc(groupKey).get();
+            if (snap.exists) {
+              const cloud = snap.data() as any;
+              const cloudPages: Record<string, any[]> = cloud?.strokesByPage || {};
+              const hasNorm = Object.values(cloudPages).some((arr: any[]) => arr?.some((p: any) => p?.norm === 1));
+              if (hasNorm) return;
+              let identical = true;
+              for (const [k, strokes] of Object.entries(strokesByPage)) {
+                if (!cloudPages[k] || cloudPages[k].length !== (strokes as any[]).length) { identical = false; break; }
+              }
+              if (identical) return;
+            }
+          } catch { /* cloud read failed — write anyway */ }
+          await drawingsRef.doc(groupKey).set({
+            strokesByPage,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }));
+      } catch (e) { console.warn(`pushAllDrawings failed for student ${sid}`, e); }
+    }
+  } catch (e) { console.warn('pushAllDrawings', e); }
+};
+
+/**
  * Lazy pull for one range group: restores strokes into local chunks ONLY for
  * pages that have no local drawings yet (never clobbers), denormalizing back to
  * the current screen's content box. Legacy raw cloud paths (no norm marker) pass
@@ -376,7 +448,7 @@ export const pullDrawings = async (studentId: string, groupKey: string, pageKeys
       if (!cloudStrokes || !cloudStrokes.length) continue;
       const local = locals.find((_, i) => pageKeys[i] === k);
       if (local?.data?.strokes?.length) continue;
-      const strokes = cloudStrokes.map((p: any) => (p.norm ? { ...p, points: denormalizeStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) } : p));
+      const strokes = cloudStrokes.map((p: any) => (p.norm ? { ...p, norm: undefined, points: denormalizeStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) } : p));
       await saveChunkNoQueue(studentId, k, { ...(local?.data || {}), strokes }, (local?.v || 0) + 1);
     }
   } catch (e) { console.warn('pullDrawings', e); }

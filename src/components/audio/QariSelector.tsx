@@ -1,7 +1,7 @@
 /**
  * FILE: src/components/audio/QariSelector.tsx
- * ROLE: Slide-in modal listing the 4 supported reciters grouped by Gapless/Gapped style; selection dispatches setQari and the chosen name lands in audioSlice.currentQari.
- * DEPENDS ON: props visible/onClose; Redux audioSlice.currentQari (for the ✓ checkmark); static QARIS array.
+ * ROLE: Slide-in modal listing the 4 supported reciters grouped by Gapless/Gapped style; selection dispatches setQari and the chosen name lands in audioSlice.currentQari. Theme-aware: colors follow settings.nightMode.
+ * DEPENDS ON: props visible/onClose; Redux audioSlice.currentQari (for the ✓ checkmark) + settings.nightMode (theme); static QARIS array.
  * USED BY: src/screens/QuranViewScreen.tsx:631 — `<QariSelector visible={showQariModal} onClose={...} />`, opened via AudioPlayerBar's onOpenQari (line 628).
  */
 import React, { memo } from 'react';
@@ -33,17 +33,28 @@ const QARIS = [
  *        `currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit'` test (QuranViewScreen.tsx:452,475),
  *        so Ayyoub and Suwaid BOTH fall back to ar.abdulbasit — they always play Basit audio, and
  *        Abd Al-Basit maps correctly only by luck of that test. 4 selectable qaris, binary playback.
+ *        Colors switch on settings.nightMode: dark uses '#121212'/#1a1a2e/#fff, light uses '#ffffff'/#f5f5f7/#1a1a1a.
  */
 const QariSelector = ({ visible, onClose }: any) => {
   const dispatch = useDispatch();
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const { currentQari } = useSelector((s: any) => s.audio);
 
+  const containerBg = nightMode ? '#121212' : '#ffffff';
+  const headerBg = nightMode ? '#1a1a2e' : '#f5f5f7';
+  const border = nightMode ? '#2a2a2a' : '#e8e8e4';
+  const text = nightMode ? '#fff' : '#1a1a1a';
+  const sectionBg = nightMode ? '#1a1a2e' : '#f0f2f7';
+  const sectionText = nightMode ? '#00d4aa' : '#006e5c';
+  const rowColor = nightMode ? '#fff' : '#1a1a1a';
+  const closeColor = nightMode ? '#00d4aa' : '#006e5c';
+
   return (
-    <Modal visible={visible} animationType="slide">
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Select a Qari</Text>
-          <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.container, { backgroundColor: containerBg }]}>
+        <View style={[styles.header, { backgroundColor: headerBg, borderColor: border }]}>
+          <Text style={[styles.title, { color: text }]}>Select a Qari</Text>
+          <TouchableOpacity onPress={onClose}><Text style={[styles.closeBtn, { color: closeColor }]}>✕</Text></TouchableOpacity>
         </View>
         <SectionList
           sections={[
@@ -52,11 +63,11 @@ const QariSelector = ({ visible, onClose }: any) => {
           ]}
           keyExtractor={(item) => item.id}
           renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}><Text style={styles.sectionHeaderText}>{section.title}</Text></View>
+            <View style={[styles.sectionHeader, { backgroundColor: sectionBg }]}><Text style={[styles.sectionHeaderText, { color: sectionText }]}>{section.title}</Text></View>
           )}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.qariRow} onPress={() => { dispatch(setQari(item.name)); onClose(); }}>
-              <Text style={styles.qariName}>{item.name}</Text>
+            <TouchableOpacity style={[styles.qariRow, { borderColor: border }]} onPress={() => { dispatch(setQari(item.name)); onClose(); }}>
+              <Text style={[styles.qariName, { color: rowColor }]}>{item.name}</Text>
               {currentQari === item.name && <Text style={styles.checkmark}>✓</Text>}
             </TouchableOpacity>
           )}
@@ -67,14 +78,14 @@ const QariSelector = ({ visible, onClose }: any) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#2a2a2a' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
-  closeBtn: { color: '#00d4aa', fontSize: 20 },
-  sectionHeader: { padding: 15, backgroundColor: '#1a1a2e' },
-  sectionHeaderText: { color: '#00d4aa', fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' },
-  qariRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#1e1e1e' },
-  qariName: { color: '#fff', fontSize: 16 },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  title: { fontSize: 20, fontWeight: 'bold' },
+  closeBtn: { fontSize: 20 },
+  sectionHeader: { padding: 15 },
+  sectionHeaderText: { fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' },
+  qariRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  qariName: { fontSize: 16 },
   checkmark: { color: '#00d4aa', fontSize: 18, fontWeight: 'bold' }
 });
 export default memo(QariSelector);

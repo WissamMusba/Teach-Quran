@@ -1,6 +1,6 @@
 /**
  * FILE: src/components/common/AnimatedHeader.tsx
- * ROLE: The Quran reader's top bar — surah name/info line, 5 labeled action buttons (MISTAKES/SHARE/NOTES/BOOKMARKS/SETTINGS), and an animated hide/show (slide-up + height collapse).
+ * ROLE: The Quran reader's top bar — surah name/info line, 5 labeled action buttons (MISTAKES/SHARE/NOTES/BOOKMARKS/SETTINGS), and an animated hide/show (slide-up + height collapse). The bottom info line ("Juz N · Page N · X left in Juz") can be suppressed via showInfo (the "Show page info" settings toggle).
  * DEPENDS ON: nothing external — pure presentational; all data and callbacks arrive via props. react-native Animated/Easing; react-native-svg for inline vector icons (no icon lib); LayoutChangeEvent measures own content height for the collapse animation.
  * USED BY: src/screens/QuranViewScreen.tsx:19 (import), :508 (render)
  */
@@ -21,6 +21,10 @@ const C_SETTINGS = '#8A8A8A';
  *   visible: 1 = show / 0 = hide — drives the parallel slide-up + height-collapse animation.
  *   surahName: current surah display name (header title).
  *   surahId / juz / page / pagesLeftInJuz: info-line values; the "· Page N · X left in Juz" suffix is hidden when page <= 0 (ayah/continuous mode passes page=0).
+ *   showInfo: optional (default true) — when false the whole bottom info line is NOT rendered (wired to the "Show page info" settings toggle); the top row always renders.
+ *   onOpenJuz / onOpenPage: optional — when provided the "Juz N" / "Page N" info-line texts become tappable
+ *   tablets that open the SurahList picker in juz/page priority mode (QuranViewScreen wires them to
+ *   setSearchMode('juz'|'page') + setShowList(true)).
  *   nightMode: theme switch — background (#1a1a2e / #f5f5f5), title and subtitle colors.
  *   onBack → navigation.navigate('Dashboard'); onOpenList → setShowList(true) (in-screen surah list);
  *   onMistakes → 'Mistakes'; onShare → handleSharePage (screenshot via viewShot + Share.open); onNotes → 'Notes';
@@ -28,9 +32,10 @@ const C_SETTINGS = '#8A8A8A';
  *   NOTE: the SPREAD toggle is NOT in the header anymore — it lives in MushafPageView's bottom-left actionPills (tablet only).
  */
 interface Props {
-  visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean;
+  visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean; showInfo?: boolean;
   onBack: () => void; onOpenList: () => void; onMistakes: () => void;
   onShare: () => void; onNotes: () => void; onBookmarks: () => void; onSettings: () => void;
+  onOpenJuz?: () => void; onOpenPage?: () => void;
 }
 
 // Inline SVG icons (no icon lib) — shared stroke config `st`; back arrow is 28px, the rest 20px.
@@ -141,9 +146,22 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <Btn label="SETTINGS" icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
           </View>
         </View>
-        <Text style={[s.infoLine, { color: subColor }]}>
-          Juz {p.juz}{p.page > 0 ? ` · Page ${p.page} · ${p.pagesLeftInJuz} left in Juz` : ''}
-        </Text>
+        {p.showInfo !== false && (
+          <View style={s.infoRow}>
+            <TouchableOpacity onPress={p.onOpenJuz} disabled={!p.onOpenJuz} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Text style={[s.infoLine, { color: subColor }]}>Juz {p.juz}</Text>
+            </TouchableOpacity>
+            {p.page > 0 && (
+              <>
+                <Text style={[s.infoLine, { color: subColor }]}> · </Text>
+                <TouchableOpacity onPress={p.onOpenPage} disabled={!p.onOpenPage} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Text style={[s.infoLine, { color: subColor }]}>Page {p.page}</Text>
+                </TouchableOpacity>
+                <Text style={[s.infoLine, { color: subColor }]}> · {p.pagesLeftInJuz} left in Juz</Text>
+              </>
+            )}
+          </View>
+        )}
       </Animated.View>
     </Animated.View>
   );
@@ -159,7 +177,8 @@ const s = StyleSheet.create({
   iconsRow: { flex: 1.8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   iconBtn: { flex: 1, minWidth: 0, maxWidth: 60, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
   iconLab: { fontSize: 8.5, marginTop: 2, fontWeight: '600' },
-  infoLine: { fontSize: 11, paddingHorizontal: 12, paddingBottom: 8, paddingTop: 2 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, paddingTop: 2 },
+  infoLine: { fontSize: 11 },
 });
 
 export default React.memo(AnimatedHeader);

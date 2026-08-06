@@ -24,6 +24,7 @@ import BookmarksScreen from './src/screens/BookmarksScreen';
 import MistakesScreen from './src/screens/MistakesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import NotesScreen from './src/screens/NotesScreen';
+import LoopSettingsScreen from './src/screens/LoopSettingsScreen';
 import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
 import { setStudents } from './src/store/studentSlice';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -115,10 +116,11 @@ const AppInner = () => {
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
         {/* GOTCHA: QuranView is navigated to with `{ surahId, scrollToVerse }` cast `as any` from
             Bookmarks/Mistakes/Notes — no RootStackParamList exists, params are untyped. */}
-        <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ title: 'Bookmarks' }} />
-        <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ title: 'Mistakes' }} />
-        <Stack.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+        <Stack.Screen name="Bookmarks" component={BookmarksScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Mistakes" component={MistakesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Notes" component={NotesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LoopSettings" component={LoopSettingsScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

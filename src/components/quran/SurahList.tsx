@@ -81,17 +81,26 @@ const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106
 
 /**
  * SurahList — full-screen modal surah picker with fuzzy search.
- * PROPS: visible (show/hide modal), onClose (dismiss), onSelect(id) (surah chosen), onSelectPage(pageNum) (page-type row chosen).
+ * PROPS: visible (show/hide modal), onClose (dismiss), onSelect(id) (surah chosen),
+ *        onSelectPage(pageNum) (page-type row chosen), onSelectJuz(juz) (juz-type row
+ *        chosen — optional, only rendered in 'juz' mode), mode ('surah'|'page'|'juz',
+ *        default 'surah') — which tablet opened the picker. The mode changes the
+ *        numeric-search PRIORITY: 'surah' = a typed number resolves to the surah
+ *        first (legacy), 'page' = the page row jumps to the top, 'juz' = a typed
+ *        number is treated as a juz (Juz N jump row on top).
  * FLOW: 1) On visible→true: clear query, fetch surahs from SQLite. 2) data memo enriches each surah with startJuz / juzs / pageRange.
  *       3) results memo scores every surah — exact surah id 110, juz containment 105, page-range digit-substring 70/65, name
  *          similarity via scoreName — sorts desc by score then id; pure-number queries also inject a synthetic { type:'page', page:N }
- *          row for 1..610 right after an exact id match. 4) FlatList rows (keyboardShouldPersistTaps) tap → onSelectPage/onSelect + onClose.
- * CALLED BY: QuranViewScreen.tsx:630 — onSelect dispatches setSurah({surahId, verses:[]}); onSelectPage → handleSelectPage
- *            (QuranViewScreen.tsx:200-215 — switches readingMode to 'page' and scrolls the page-mode FlatList).
+ *          row for 1..610 right after an exact id match (or FIRST in 'page' mode), and in 'juz' mode a plain number also
+ *          injects a { type:'juz', juz:N } jump row on top. 4) FlatList rows (keyboardShouldPersistTaps) tap → onSelectPage/onSelect/onSelectJuz + onClose.
+ * CALLED BY: QuranViewScreen.tsx (modal over the whole screen; header "list" button on the surah title block sets mode 'surah',
+ *            the header Juz/Page info-line tablets set 'juz'/'page') — onSelect dispatches setSurah({surahId, verses:[]});
+ *            onSelectPage → handleSelectPage (QuranScreen — switches readingMode to 'page' and scrolls the page-mode FlatList);
+ *            onSelectJuz → handleSelectJuz (QuranScreen — resolves the juz start surah/verse to its page and jumps there).
  * AFFECTS: redux quran.currentSurahId / readingMode; page-mode FlatList scroll position.
  * NOTES: Not memoized (plain function) — fine, it re-renders only when the parent re-renders.
  */
-export default function SurahList({ visible, onClose, onSelect, onSelectPage }: any) {
+export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: any) {
   const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   useEffect(() => { if (visible) { setQuery(''); getSurahs().then(s => setSurahs(s as any)); } }, [visible]);
@@ -99,7 +108,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage }: 
   const results = useMemo(() => {
     const q = norm(query);
     if (!q) return data;
-    const juzMatch = /^juz (\d{1,2})$/.test(q) ? parseInt(q.slice(4), 10) : 0;
+    const juzMatch = /^juz (\d{1,2})$/.test(q) ? parseInt(q.slice(4), 10) : (mode === 'juz' && /^\d{1,2}$/.test(q) ? parseInt(q, 10) : 0);
     const qNum = /^\d+$/.test(q) ? parseInt(q, 10) : 0;
     const qDigits = q.replace(/\D+/g, '');
     const scored: { item: any; score: number }[] = [];
@@ -120,8 +129,21 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage }: 
       if (score > 0) scored.push({ item: s, score });
     }
     scored.sort((a, b) => b.score - a.score || a.item.id - b.item.id);
+    const out: any[] = [];
+    // MODE PRIORITY: the tablet that opened the picker decides what a plain
+    // number means first — 'juz' -> Juz N jump row on top; 'page' -> Page N
+    // jump row on top; 'surah' (legacy) -> exact surah id, then Page N.
+    if (mode === 'juz' && juzMatch >= 1 && juzMatch <= 30) {
+      out.push({ type: 'juz', id: `juz-${juzMatch}`, juz: juzMatch, englishName: `Juz ${juzMatch}`, name: '' });
+      scored.forEach(x => out.push(x.item));
+      return out;
+    }
+    if (mode === 'page' && qNum >= 1 && qNum <= 610) {
+      out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
+      scored.forEach(x => out.push(x.item));
+      return out;
+    }
     if (qNum > 0) {
-      const out: any[] = [];
       const exactIdx = scored.findIndex(x => x.item.id === qNum);
       if (exactIdx >= 0) out.push(scored[exactIdx].item);
       if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
@@ -129,31 +151,36 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage }: 
       return out;
     }
     return scored.map(x => x.item);
-  }, [data, query]);
+  }, [data, query, mode]);
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Select Surah</Text>
+            <Text style={styles.title}>{mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}</Text>
             <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>Close</Text></TouchableOpacity>
           </View>
-          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder="Search surah, number, or juz..." placeholderTextColor="#8a8a8a" autoCapitalize="none" autoCorrect={false} />
+          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'} placeholderTextColor="#8a8a8a" autoCapitalize="none" autoCorrect={false} />
         </View>
         {results.length === 0 && query.length > 0 ? (
           <View style={styles.emptyWrap}><Text style={styles.emptyText}>No surahs found</Text></View>
         ) : (
-          <FlatList data={results} keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : `surah-${item.id}`)} keyboardShouldPersistTaps="handled"
+          <FlatList data={results} keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)} keyboardShouldPersistTaps="handled"
             renderItem={({ item }: any) => (
-              <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else { onSelect(item.id); } onClose(); }}>
+              <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>
-                  <Text style={styles.itemNum}>{item.type === 'page' ? item.page : item.id}</Text>
+                  <Text style={styles.itemNum}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
                   <View>
                     <Text style={styles.itemText}>{item.englishName}</Text>
                     {item.type === 'page' ? (
                       <>
                         <Text style={styles.pageTag}>PAGE</Text>
                         <Text style={styles.itemJuz}>Go to page {item.page}</Text>
+                      </>
+                    ) : item.type === 'juz' ? (
+                      <>
+                        <Text style={styles.pageTag}>JUZ</Text>
+                        <Text style={styles.itemJuz}>Go to juz {item.juz}</Text>
                       </>
                     ) : (
                       <>

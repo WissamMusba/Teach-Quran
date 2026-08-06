@@ -16,6 +16,17 @@ const initialState = {
   currentAyah: 1,          // DEAD field — no writer/reader in src/
   position: 0,             // DEAD field — no writer/reader in src/
   duration: 0,             // DEAD field — no writer/reader in src/
+  // Loop settings (PERSISTED — audio is in the redux whitelist): when enabled, PAGE START
+  // plays [startVerse..endVerse] of the current surah loopCount times total, replaying each
+  // ayah ayahRepeat times before advancing. loopCount=1 = range plays once then playback
+  // continues past endVerse; ayahRepeat default 1 = each ayah plays once.
+  loop: {
+    enabled: false,
+    startVerse: 1,
+    endVerse: 1,
+    loopCount: 1,
+    ayahRepeat: 1,
+  },
 };
 
 export const audioSlice = createSlice({
@@ -54,9 +65,18 @@ export const audioSlice = createSlice({
     setCurrentTrack: (state, action) => {
       state.currentSurah = action.payload.surah;
       state.currentAyah = action.payload.ayah;
-    }
+    },
+    /**
+     * WHAT: Merges a partial loop-settings patch into audio.loop (enabled/startVerse/
+     *   endVerse/loopCount/ayahRepeat) — Loop Settings screen dispatches per change,
+     *   so the values apply live without a Save button.
+     * CALLED BY: src/screens/LoopSettingsScreen.tsx (every toggle/dropdown pick).
+     * AFFECTS: QuranViewScreen playPageStart — PAGE START becomes the loop start when
+     *   loop.enabled, passing the range into playSurahFromVerse (audioPlayback.ts).
+     */
+    setLoop: (state, action) => { state.loop = { ...state.loop, ...action.payload }; }
   }
 });
 
-export const { setPlaying, setQari, setAudioPosition, setAudioDuration, setCurrentTrack } = audioSlice.actions;
+export const { setPlaying, setQari, setAudioPosition, setAudioDuration, setCurrentTrack, setLoop } = audioSlice.actions;
 export default audioSlice.reducer;

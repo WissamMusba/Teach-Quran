@@ -34,8 +34,16 @@ interface PlaybackCallbacks {
   onError?: (message: string) => void;
 }
 
+interface LoopConfig {
+  startVerse: number;
+  endVerse: number;
+  loopCount: number;   // how many times the range plays total (1 = once, no loop; 0 = infinite)
+  ayahRepeat: number;  // how many times each ayah in the range replays (1 = once)
+}
+
 interface PlaybackOptions {
   playBasmala?: boolean;
+  loop?: LoopConfig;
 }
 
 let currentSurahId = 0;
@@ -45,6 +53,7 @@ let playToken = 0;
 let stallTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPositionMs = 0;
 let resumeSession: { surahId: number; verse: number; positionMs: number } | null = null;
+let loopState: (LoopConfig & { surahId: number; rangePlaysLeft: number; ayahPlaysLeft: number }) | null = null;
 
 const ATTEMPT_TIMEOUT_MS = 8000;
 const PREFETCH_AHEAD = 2;
@@ -239,6 +248,10 @@ const markStarted = (player: any): void => {
  * The advance MUST first await our stopPlayback(): the library's internal stopPlayer() fires
  * right after every isFinished event and its startPlayer() guard silently no-ops while the
  * previous player is still flagged playing. Token check aborts if a pause/restart landed meanwhile.
+ * LOOP: while a range is active, defer cleanupAyahCache (the whole range stays on disk so
+ * repeats are bump-free), honor ayahRepeat (replay same verse N times), and cycle back to
+ * startVerse until loopCount full passes are done — then loopState clears and playback flows
+ * on past the range (stopping normally at lastVerse).
  */
 const advanceToNext = (
   player: any,
@@ -248,6 +261,37 @@ const advanceToNext = (
   lastVerse: number,
   callbacks: PlaybackCallbacks,
 ): void => {
+  const L = loopState && loopState.surahId === surahId ? loopState : null;
+  if (L) {
+    if (L.ayahPlaysLeft > 1) {
+      L.ayahPlaysLeft--;
+      const t = playToken;
+      stopPlayback(player).then(() => { if (t !== playToken) return; playVerse(player, qariId, surahId, verse, lastVerse, callbacks, false); });
+      return;
+    }
+    if (verse < L.endVerse) {
+      L.ayahPlaysLeft = L.ayahRepeat;
+      const t = playToken;
+      stopPlayback(player).then(() => { if (t !== playToken) return; playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks, false); });
+      return;
+    }
+    L.rangePlaysLeft--;
+    if (L.rangePlaysLeft > 0) {
+      L.ayahPlaysLeft = L.ayahRepeat;
+      const t = playToken;
+      stopPlayback(player).then(() => { if (t !== playToken) return; playVerse(player, qariId, surahId, L.startVerse, lastVerse, callbacks, false); });
+      return;
+    }
+    loopState = null;   // loop finished — fall through to normal flow past the range
+    if (verse < lastVerse) {
+      const t = playToken;
+      stopPlayback(player).then(() => { if (t !== playToken) return; playVerse(player, qariId, surahId, verse + 1, lastVerse, callbacks, false); });
+      return;
+    }
+    playing = false;
+    callbacks.onEnd?.();
+    return;
+  }
   cleanupAyahCache(qariId, surahId, verse - PREFETCH_AHEAD - 1);
   if (verse < lastVerse) {
     const t = playToken;
@@ -411,8 +455,13 @@ const playVerse = (
   }
   currentVerse = verse;
   callbacks.onVerseChange?.(verse, currentSurahId);
-  prefetchAyah(qariId, surahId, verse + 1);
-  prefetchAyah(qariId, surahId, verse + 2);
+  // Loop-aware prefetch: inside an active range the next files are the cyclic next
+  // (end -> start), keeping the range hot for bump-free repeats; otherwise verse+1/+2.
+  const L = loopState && loopState.surahId === surahId ? loopState : null;
+  const cyclicNext = (v: number) => (L && v >= L.endVerse ? L.startVerse : v + 1);
+  const n1 = cyclicNext(verse);
+  prefetchAyah(qariId, surahId, n1);
+  prefetchAyah(qariId, surahId, cyclicNext(n1));
   startAttemptChain(
     player,
     getAudioSources(qariId, surahId, verse),
@@ -435,8 +484,16 @@ export const playSurahFromVerse = async (
 ): Promise<void> => {
   resumeSession = null;
   const lastVerse = SURAH_VERSE_COUNTS[surahId - 1] || 1;
-  const verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
+  let verse = Math.max(1, Math.min(startVerse || 1, lastVerse));
   if (verse > lastVerse) return;
+  // Activate the loop range when provided & sane; the start verse snaps INTO the range.
+  const lp = opts?.loop;
+  let loop: (LoopConfig & { surahId: number; rangePlaysLeft: number; ayahPlaysLeft: number }) | null = null;
+  if (lp && lp.startVerse >= 1 && lp.endVerse >= lp.startVerse && lp.endVerse <= lastVerse && lp.loopCount >= 1 && lp.ayahRepeat >= 1) {
+    loop = { ...lp, surahId, rangePlaysLeft: lp.loopCount, ayahPlaysLeft: lp.ayahRepeat };
+    verse = Math.max(loop.startVerse, Math.min(verse, loop.endVerse));
+  }
+  loopState = loop;
   await stopPlayback(player);
   if (currentSurahId !== surahId) {
     currentSurahId = surahId;
