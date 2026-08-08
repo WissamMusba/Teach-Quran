@@ -15,6 +15,15 @@ const manifestRef = (userId: string) => firestore().collection('users').doc(user
 /** Per-student subtree for the user-level sync_manifest doc (merged with {merge:true} so only this student changes). */
 const manifestSubtree = (sid: string, fields: { v?: number; pages?: Record<string, any>; audio?: Record<string, any> }) => ({ students: { [sid]: fields } });
 
+/** Last-write-wins pick for the synced reading mark (lastRead). Missing updatedAt counts as oldest. */
+const newerLastRead = (local: any, cloud: any) => {
+  if (!local) return cloud || null;
+  if (!cloud) return local;
+  const lt = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+  const ct = cloud.updatedAt ? new Date(cloud.updatedAt).getTime() : 0;
+  return ct > lt ? cloud : local;
+};
+
 let inFlight: Promise<any> | null = null;
 let pendingPull = false;               // a pull request arrived while syncing: re-run after
 
@@ -33,8 +42,13 @@ export const requestSync = async (opts?: { pull?: boolean }): Promise<any> => {
     try {
       const pushed = await pushAllDirty(userId);
       let pulled = 0;
-      if (opts?.pull) pulled = await pullRemote(userId);
-      return { success: true, pushed, pulled };
+      let manifestChanged = false;
+      if (opts?.pull) {
+        const r = await pullRemote(userId);
+        pulled = r.pulled;
+        manifestChanged = r.manifestChanged;
+      }
+      return { success: true, pushed, pulled, manifestChanged };
     } catch (e: any) {
       console.warn('Sync failed:', e?.message);
       return { success: false, error: e?.message };
@@ -52,8 +66,8 @@ export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync
  * to the pushed value, so the next pull sees cloud.v === local.v and skips.
  * Queue row types:
  *   - chunk keys (page_N / surah_N)  -> students/{sid}/draws/{k}  (highlights+notes ONLY; strokes stripped)
- *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks ONLY; lastRead is
- *                                      LOCAL-ONLY and never synced)
+ *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks + lastRead;
+ *                                      lastRead now syncs LWW, newest updatedAt wins)
  *   - '_audio_r_..'                  -> students/{sid}/audioNotes/{range} (10-page audio-note registry)
  * Every push also merges the student's chunk into the user-level sync_manifest
  * ({users/{uid}/meta/sync_manifest}) inside the SAME batch — zero extra
@@ -99,6 +113,7 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       const overviewV = (m.data.v || 0) + 1;
       const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
       for (const [k, meta] of Object.entries(newPages)) patch[`pages.${k}.v`] = meta.v;
+      if (m.data.lastRead) patch.lastRead = m.data.lastRead;   // reading mark now syncs (LWW on pull)
       batch.set(studRef.collection('meta').doc('overview'), patch, { merge: true });
       batch.set(manifestRef(userId), manifestSubtree(sid, { v: overviewV, pages: pageVs }), { merge: true });
       try {
@@ -112,15 +127,15 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       }
     }
 
-    // ---- manifest (bookmarks ONLY — lastRead is local-only, never pushed) — own batch so it pushes even with no dirty chunks ----
+    // ---- manifest (bookmarks + lastRead — now pushed too) — own batch so it pushes even with no dirty chunks ----
     if (manifestKeys.length) {
       const m = await getManifest(sid);
       const overviewRef = studRef.collection('meta').doc('overview');
       // TRANSACTIONAL merge: cloud overview read + overview write + user manifest
       // write happen atomically, so two devices pushing at once cannot lose each
       // other's bookmarks or regress the version number (v = max(local, cloud) + 1).
-      // Bookmarks merge per-key by createdAt (newer wins). lastRead is LOCAL-ONLY:
-      // it is never written to the cloud overview here.
+      // Bookmarks merge per-key by createdAt (newer wins). lastRead also syncs and
+      // merges last-write-wins by updatedAt (missing updatedAt = oldest).
       let merged: Record<string, any> = {};
       try {
         const overviewV = await firestore().runTransaction(async (tx: any) => {
@@ -139,7 +154,9 @@ const pushAllDirty = async (userId: string): Promise<number> => {
             if (!(k in merged)) merged[k] = cv;
           }
           const v = Math.max(m.data.v || 0, cloudV) + 1;
+          const lr = newerLastRead(m.data.lastRead, cloud.lastRead);
           const patch: Record<string, any> = { v, updatedAt: firestore.FieldValue.serverTimestamp(), bookmarks: merged };
+          if (lr) patch.lastRead = lr;
           tx.set(overviewRef, patch, { merge: true });
           tx.set(manifestRef(userId), manifestSubtree(sid, { v, pages: m.data.pages || {} }), { merge: true });
           return v;
@@ -230,11 +247,12 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
   return pulled;
 };
 
-const pullRemote = async (userId: string): Promise<number> => {
+const pullRemote = async (userId: string): Promise<{ pulled: number; manifestChanged: boolean }> => {
   const studentsSnap = await firestore().collection('users').doc(userId).collection('students').get();
   const maniSnap = await manifestRef(userId).get();
   const maniStudents: Record<string, any> = maniSnap.exists ? ((maniSnap.data() as any)?.students || {}) : {};
   let pulled = 0;
+  let manifestChanged = false;
   const studentsArr: any[] = [];
   for (const s of studentsSnap.docs) {
     const sid = s.id;
@@ -272,10 +290,10 @@ const pullRemote = async (userId: string): Promise<number> => {
     // -1s margin: two docs committed in the same server instant must both be re-fetchable
     watermark = Math.max(lastPullAt, watermark - 1000);
 
-    // ---- cloud manifest (bookmarks / pages) — only when newer; lastRead is
-    // LOCAL-ONLY (never pushed), so the cloud's stale copy is stripped and the
-    // local reading mark is kept — savePullBatch REPLACES the whole manifest,
-    // so without the restore the local mark would be wiped on every pull. ----
+    // ---- cloud manifest (bookmarks / pages / lastRead) — only when newer.
+    // lastRead now syncs: keep whichever device wrote it last (LWW by updatedAt)
+    // BEFORE savePullBatch REPLACES the whole manifest, so a pulled mark is
+    // never wiped by a same-device cloud merge nor vice versa. ----
     let cloudMeta: any = null;
     if (mustPullOverview) {
       const mSnap = await studRef.collection('meta').doc('overview').get();
@@ -283,9 +301,10 @@ const pullRemote = async (userId: string): Promise<number> => {
     }
     if (cloudMeta) {
       cloudMeta = { ...cloudMeta };
-      delete cloudMeta.lastRead;
-      const localLastRead = localM.data.lastRead;
-      if (localLastRead) cloudMeta.lastRead = localLastRead;
+      // Reading mark now syncs: keep whichever device wrote it last (LWW by updatedAt).
+      const lr = newerLastRead(localM.data.lastRead, cloudMeta.lastRead);
+      if (lr) cloudMeta.lastRead = lr; else delete cloudMeta.lastRead;
+      manifestChanged = true;
     }
 
     // ---- legacy fallback: manifest pages whose doc has no updatedAt never matched
@@ -340,7 +359,7 @@ const pullRemote = async (userId: string): Promise<number> => {
     if (chunks.length) pulled += chunks.length;
   }
   if (studentsArr.length) await cacheStudentList(studentsArr);
-  return pulled;
+  return { pulled, manifestChanged };
 };
 
 // ---------------- lazy drawings: 10-page (or surah) chunks, only when asked ----------------

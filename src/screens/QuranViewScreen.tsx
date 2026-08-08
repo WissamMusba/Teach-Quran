@@ -57,6 +57,10 @@ import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
 import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
 import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
+// Feature 1: session-wide "already pulled on toolbar-expand" set (${sid}/${range|key}).
+// Skips the SQLite probe + Firestore read on repeat toolbar expands; cleared on app foreground
+// so a second expand after returning re-checks (another device may have pushed meanwhile).
+const expandedDrawPullAttempted = new Set<string>();
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
 const MENU_BUBBLE_W = 6 * MENU_BTN_W + 12;
@@ -177,6 +181,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // One-shot stamp for the canvas-open restore: `${studentId}/${rangeKey}` so
   // each canvas open pulls cloud drawings at most once.
   const canvasRestoreRef = useRef<string | null>(null);
+  // Feature 1: toolbar-expand pre-fetch — 200ms debounce timer (cancel on collapse/unmount).
+  const toolbarExpanded = useSelector((s: any) => s.drawing.toolbarExpanded);
+  const expandPullTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---- Redux subscriptions ----
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
@@ -738,6 +745,53 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [isDrawing, currentStudent, readingMode, currentPageNum, drawingKey, refreshCloudDrawings]);
 
   /**
+   * WHAT: Feature 1 — silent drawings pre-fetch when the annotation bar EXPANDS
+   *   (not on pen press). Drawings stay invisible until the pen is pressed, but
+   *   by then the strokes are already local: pulling into SQLite here means the
+   *   canvas opens INSTANTLY instead of doing a Firestore round-trip on press.
+   *   Debounced ~200ms so a quick expand/collapse/expand never stacks pulls;
+   *   while expanded, a page change re-pulls the new page's 10-page range.
+   *   One pull per (student, range) PER FOREGROUND SESSION — the attempted Set
+   *   is cleared on app-foreground so a later expand can pick up pushes from
+   *   another device.
+   * FLOW: toolbarExpanded false->true (or page change while expanded) -> cancel
+   *   any prior timer -> 200ms later, if the (sid, range) wasn't already
+   *   attempted this session, pull that range's drawings (pullDrawings — the
+   *   same lazy restore the page/canvas paths use, grouped by rangeKeyForPage
+   *   / surah key, splitOn-aware geometry, never clobbers local strokes), then
+   *   rebuild studentData from localDB chunks — the SAME path pages use on
+   *   first load — so DrawingCanvas.initialPaths / StaticDrawingOverlay render
+   *   the strokes the instant the pen is pressed.
+   * CALLS: pullDrawings, getStudentData, dispatch(setStudentData), rangeKeyForPage.
+   */
+  useEffect(() => {
+    if (!toolbarExpanded || !currentStudent) {
+      if (expandPullTimer.current) { clearTimeout(expandPullTimer.current); expandPullTimer.current = null; }
+      return;
+    }
+    if (expandPullTimer.current) clearTimeout(expandPullTimer.current);
+    expandPullTimer.current = setTimeout(() => {
+      expandPullTimer.current = null;
+      const stampKey = `${currentStudent.id}/${readingMode === 'page' ? rangeKeyForPage(currentPageNum) : drawingKey}`;
+      if (expandedDrawPullAttempted.has(stampKey)) return;
+      const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
+      const groupKey = drawingKey.startsWith('page_') ? rangeKeyForPage(currentPageNum) : drawingKey;
+      const pageKeys = splitOn ? [spreadOddKey!, spreadEvenKey!].filter(Boolean) : [drawingKey];
+      pullDrawings(currentStudent.id, groupKey, pageKeys, geo)
+        .then(async () => {
+          expandedDrawPullAttempted.add(stampKey);
+          const fresh = await getStudentData(currentStudent.id);
+          if (fresh) dispatch(setStudentData(fresh));
+        })
+        .catch(() => {});
+    }, 200);
+  }, [toolbarExpanded, currentStudent, readingMode, currentPageNum, drawingKey, splitOn, spreadOddKey, spreadEvenKey, pageW, winW, winH, dispatch]);
+
+  useEffect(() => () => {
+    if (expandPullTimer.current) { clearTimeout(expandPullTimer.current); expandPullTimer.current = null; }
+  }, []);
+
+  /**
    * WHAT: On textStyle (mushaf font) change — wipe both page caches and their
    *   LRU order refs, then re-seed indopak pages if needed, forcing every page
    *   to re-render under the new mushaf.
@@ -896,6 +950,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   useEffect(() => {
     const handleAppState = (state: string) => {
+      if (state === 'active') {
+        // Foreground: allow toolbar-expand pulls to re-check (another device may have pushed).
+        expandedDrawPullAttempted.clear();
+        return;
+      }
       if (state === 'background' || state === 'inactive') {
         // force the drawing canvas to commit its pending debounce BEFORE the flush
         // so an in-flight stroke edit isn't lost to the app-state save

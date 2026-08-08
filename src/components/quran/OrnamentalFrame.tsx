@@ -19,9 +19,10 @@
  *  - Light mode: teal is dimmed (see TEAL_MUTED) so the ornament doesn't glare in light theme;
  *    night mode keeps the exact original teal.
  */
-import React, { memo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { Dimensions, View, StyleSheet } from 'react-native';
 import Svg, { Defs, Path, G, Use, Rect } from 'react-native-svg';
+import { getFrameBox, saveFrameBox } from '../../database/localDB';
 
 interface OrnamentalFrameProps {
   color: string;        // kept for call-site compat; palette below wins
@@ -56,13 +57,35 @@ const DiamondDef = ({ s, edge, strand }: { s: number; edge: string; strand: stri
     fill={strand} stroke={edge} strokeWidth={0.4} />
 );
 
+const SETTLE_MS = 150;
+let SESSION_BOX: { w: number; h: number } | null = null;   // session-wide instant first paint
+const initialBox = (): { w: number; h: number } => {
+  if (SESSION_BOX) return SESSION_BOX;
+  const { width, height } = Dimensions.get('window');
+  return { w: Math.round(width), h: Math.round(height) };
+};
+
 const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const edge = nightMode ? GOLD_EDGE_NIGHT : GOLD_EDGE;
   const strand = nightMode ? TEAL : TEAL_MUTED;
 
-  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
-  const W = box?.w || 0;
-  const H = box?.h || 0;
+  const [box, setBox] = useState<{ w: number; h: number }>(initialBox);
+  const boxRef = useRef(box);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cacheKey = `frame_${Math.round(Dimensions.get('window').width)}`;
+  const W = box.w;
+  const H = box.h;
+
+  // Cold start: adopt the persisted per-device box once (best-effort).
+  useEffect(() => {
+    let mounted = true;
+    getFrameBox(cacheKey).then((c) => {
+      if (!mounted || !c) return;
+      if (c.w !== boxRef.current.w || c.h !== boxRef.current.h) { boxRef.current = c; setBox(c); }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+  useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
   // Chain geometry scales gently with the actual page size (phones, tablets AND split mode).
   // GLYPH-CLEARANCE: the band is the page's decorative crown; the mushaf text lives inside it.
@@ -94,14 +117,30 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const place = (cx: number, cy: number) => `translate(${cx},${cy})`;
   const rot90 = (cx: number, cy: number) => `translate(${cx},${cy}) rotate(90)`;
 
+  const onLayout = (e: any) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (w <= 0 || h <= 0) return;
+    if (w === boxRef.current.w && h === boxRef.current.h) return;      // no-op frames
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      const next = { w, h };
+      boxRef.current = next;
+      SESSION_BOX = next;
+      setBox(next);                                                     // ONE re-render, after layout settles
+      saveFrameBox(cacheKey, w, h).catch(() => {});
+    }, SETTLE_MS);
+  };
+
   return (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents="none"
-      onLayout={e => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+      onLayout={onLayout}
     >
-      {box && W > 0 && H > 0 && (
-        <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`}>
+      {W > 0 && H > 0 && (
+        <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <Defs>
           <LinkDef hw={hw} hh={hh} strand={strand} />
           <DiamondDef s={diaS} edge={edge} strand={strand} />

@@ -6,7 +6,7 @@
  *             src/store/syncSlice.ts, src/screens/* (all 9), src/components/ErrorBoundary.tsx
  * USED BY: index.js (import App) — AppInner is internal, exported nowhere.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -14,7 +14,7 @@ import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { requestSync } from './src/api/sync';
-import { getStudents } from './src/api/student';
+import { getCachedStudentList, getStudentData } from './src/database/localDB';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -29,7 +29,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import LoopSettingsScreen from './src/screens/LoopSettingsScreen';
 import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
-import { setStudents } from './src/store/studentSlice';
+import { setStudents, setStudentData } from './src/store/studentSlice';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -41,6 +41,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // GOTCHA: the interval is duplicated-in-spirit by DashboardScreen's own pull-to-refresh sync —
 // two independent sync loops can overlap.
 const SYNC_INTERVAL = 30 * 60 * 1000 // 30-minute sync cadence (per user requirement)
+
+// Feature 2: auto-full-pull cooldown. 0 = EVERY start/foreground pulls (testing);
+// later set to 30 min so the free-tier Firestore read budget stays small.
+const PULL_COOLDOWN_MS = 0;
+// const PULL_COOLDOWN_MS = 30 * 60 * 1000; // skip auto-pull if last pull < 30 min ago
+let lastAutoPullAt = 0;
+
 const Stack = createNativeStackNavigator();
 
 /**
@@ -58,21 +65,69 @@ const AppInner = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  // Latest-value refs (no rely on effect closures for the scheduler).
+  const currentStudent = useSelector((s: any) => s.student.currentStudent);
+  const studentList = useSelector((s: any) => s.student.list);
+  const studentData = useSelector((s: any) => s.student.studentData);
+  const studentIdRef = useRef<string | null>(null);
+  studentIdRef.current = currentStudent?.id || null;
+  const listJsonRef = useRef('');
+  const studentDataJsonRef = useRef('');
+  useEffect(() => {
+    listJsonRef.current = JSON.stringify((studentList || []).map((s: any) => [s?.id || '', s?.updatedAt || '']));
+  }, [studentList]);
+  useEffect(() => {
+    studentDataJsonRef.current = JSON.stringify(studentData || null);
+  }, [studentData]);
 
   /**
-   * WHAT: Global sync scheduler — runs three sync triggers while the user is authenticated.
+   * WHAT: Post-pull Redux refresh (Feature 3) — after a successful pull with
+   *   actual changes, silently refreshes what every open screen consumes:
+   *   the cached student list (SQLite, NO extra Firestore read) and the current
+   *   student's data (bookmarks/lastRead/highlights/notes). Shallow-compare
+   *   (ids+updatedAt / JSON fingerprints) before dispatching so idle pulls
+   *   never re-render the app. Best-effort: every failure is swallowed.
+   * CALLS: getCachedStudentList / getStudentData (localDB), dispatch
+   *   (setStudents/setStudentData).
+   */
+  const refreshReduxAfterPull = useCallback(async () => {
+    try {
+      const list = await getCachedStudentList();
+      if (list) {
+        const json = JSON.stringify(list.map((s: any) => [s?.id || '', s?.updatedAt || '']));
+        if (json !== listJsonRef.current) { listJsonRef.current = json; dispatch(setStudents(list)); }
+      }
+    } catch {}
+    const sid = studentIdRef.current;
+    if (!sid) return;
+    try {
+      const d = await getStudentData(sid);
+      if (!d) return;
+      const json = JSON.stringify(d);
+      if (json !== studentDataJsonRef.current) { studentDataJsonRef.current = json; dispatch(setStudentData(d)); }
+    } catch {}
+  }, [dispatch]);
+
+  /**
+   * WHAT: Global sync scheduler — runs four sync triggers while the user is authenticated.
    * FLOW: 1) early-return when !isAuthenticated (no timers/listeners); 2) TRIGGER #1 —
-   *          initial pull sync (runSync({ pull: true })) on effect run; 3) TRIGGER #2 — setInterval
-   *          runs a PUSH-ONLY runSync() every SYNC_INTERVAL (30 min) — a write safety-net so dirty
-   *          bookmarks/highlights/notes get pushed even in a long idle session (pulls happen only on
-   *          open/foreground/manual); 4) TRIGGER #3 — AppState listener syncs on every transition
-   *          between 'active' and any other state (foreground = pull sync, background = push-only);
-   *          5) cleanup clears both.
-   * CALLS: dispatch(setSyncing/setSynced/setOffline), processSyncQueue.
-   * AFFECTS: sync.status ('syncing'|'synced'|'offline'), pendingChanges; Firestore
-   *          users/{uid}/students/{sid}/data/studentData; SQLite sync_queue (cleared per student).
+   *          auto FULL pull at mount (app open) and on every transition to 'active'
+   *          (foreground), gated by PULL_COOLDOWN_MS and debounced ~250ms so the app
+   *          settles first — silent, fire-and-forget, no alert; 3) TRIGGER #2 — setInterval
+   *          runs a PUSH-ONLY runSync() every SYNC_INTERVAL (30 min) — a write safety-net so
+   *          dirty bookmarks/highlights/notes get pushed even in a long idle session;
+   *          4) TRIGGER #3 — AppState listener: on background/inactive a PUSH-ONLY sync is
+   *          scheduled ~600ms later (lets the screen's 400ms-debounced flush land in SQLite
+   *          first) so the last edits reach Firestore; 5) TRIGGER #4 — after every successful
+   *          pull that changed something (pulled>0 or manifest v bumped), refreshReduxAfterPull
+   *          updates the Redux student list + current student data for every open screen.
+   * CALLS: dispatch(setSyncing/setSynced/setOffline), requestSync, refreshReduxAfterPull.
+   * AFFECTS: sync.status ('syncing'|'synced'|'offline'), pendingChanges; Redux student list/
+   *          current student data; Firestore users/{uid}/students/{sid}/data/studentData;
+   *          SQLite sync_queue (cleared per student).
    * NOTES: Runs are fire-and-forget — an in-flight promise resolving after unmount still
    *        dispatches (harmless with redux, but double-syncs are possible at app-state edges).
+   *        requestSync single-flights overlapping runs (src/api/sync.ts).
    */
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -82,12 +137,22 @@ const AppInner = () => {
       const result = await requestSync(opts);
       if (result.success) {
         dispatch(setSynced());
-        if (opts.pull) getStudents().then(res => res.success && dispatch(setStudents(res.students)));
+        if (opts.pull && ((result.pulled || 0) > 0 || result.manifestChanged)) {
+          void refreshReduxAfterPull();
+        }
       }
       else dispatch(setOffline());
     };
 
-    runSync({ pull: true });
+    // Cooldown-gated auto full pull, ~250ms after the app settles (start/foreground).
+    let autoPullTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleAutoPull = () => {
+      if (Date.now() - lastAutoPullAt < PULL_COOLDOWN_MS) return;
+      lastAutoPullAt = Date.now();
+      if (autoPullTimer) clearTimeout(autoPullTimer);
+      autoPullTimer = setTimeout(() => { autoPullTimer = null; void runSync({ pull: true }); }, 250);
+    };
+    scheduleAutoPull();
 
     const interval = setInterval(() => {
       runSync();
@@ -96,12 +161,16 @@ const AppInner = () => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const prev = appState.current; appState.current = next;
       if (prev === next) return;
-      if (next === 'active') runSync({ pull: true });
+      if (next === 'active') scheduleAutoPull();
       else setTimeout(() => runSync(), 600); // push only; delay so screen flushes (400ms debounce) land in SQLite first
     });
 
-    return () => { clearInterval(interval); sub.remove(); };
-  }, [isAuthenticated, dispatch]);
+    return () => {
+      clearInterval(interval);
+      if (autoPullTimer) { clearTimeout(autoPullTimer); autoPullTimer = null; }
+      sub.remove();
+    };
+  }, [isAuthenticated, dispatch, refreshReduxAfterPull]);
 
   // NavigationContainer + Stack.Navigator — registers the 9-screen native stack, Splash is initial.
   return (

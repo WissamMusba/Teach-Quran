@@ -71,8 +71,9 @@ const ArrowRight = ({ c }: { c: string }) => (
  * CALLS: getStudentData, getVersePage (localDB/quranData), navigation.navigate.
  * CALLED BY: React Navigation (registered in the root stack; opened via DashboardScreen).
  * AFFECTS: s.student.studentData (focus re-hydration); navigation.
- * NOTES: All rows stay enabled only when they have a valid target (RESUME / DAILY
- *        RECITATION grey out otherwise).
+ * NOTES: RESUME is always enabled — a student with no reading mark yet defaults
+ *        to page 1 / Al-Fatiha (surah 1 verse 1); DAILY RECITATION greys out
+ *        only when the student has no bookmarks at all.
  */
 export default function StudentHubScreen({ navigation }: any) {
   const dispatch = useDispatch();
@@ -89,6 +90,7 @@ export default function StudentHubScreen({ navigation }: any) {
   const lastRead = studentData?.lastRead;
 
   // RESUME info: page (script-aware, async) + para — recomputed when the mark moves.
+  // No mark yet (new student): default to page 1 (Al-Fatiha) instead of 'Not started'.
   useEffect(() => {
     let cancelled = false;
     if (lastRead?.surah && lastRead?.verse) {
@@ -96,7 +98,7 @@ export default function StudentHubScreen({ navigation }: any) {
         if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(lastRead.surah, lastRead.verse) });
       }).catch(() => {});
     } else {
-      setResumeInfo(null);
+      setResumeInfo({ page: 1, juz: 1 });
     }
     return () => { cancelled = true; };
   }, [lastRead?.surah, lastRead?.verse, textStyle]);
@@ -109,13 +111,12 @@ export default function StudentHubScreen({ navigation }: any) {
   }, [studentData?.bookmarks]);
 
   const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
-  const noteCount = Object.keys(studentData?.notes || {}).length;
+  const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
 
   const resumeSubtitle = useMemo(() => {
-    if (!lastRead) return 'Not started yet';
     if (!resumeInfo) return '';
     const parts = [`Reading page ${resumeInfo.page}`, `Para ${resumeInfo.juz}`];
-    const ago = timeAgo(lastRead.updatedAt);
+    const ago = lastRead?.updatedAt ? timeAgo(lastRead.updatedAt) : '';
     if (ago) parts.push(ago);
     return parts.join(' · ');
   }, [lastRead, resumeInfo]);
@@ -160,9 +161,9 @@ export default function StudentHubScreen({ navigation }: any) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
-          {/* 1 — RESUME (greyed out until the student has a reading mark) */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }, !lastRead && styles.rowDisabled]}
-            onPress={() => lastRead && openVerse(lastRead.surah, lastRead.verse)} disabled={!lastRead} activeOpacity={0.7}>
+          {/* 1 — RESUME (defaults to page 1 / Al-Fatiha when the student has no reading mark yet) */}
+          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]}
+            onPress={() => openVerse(lastRead ? lastRead.surah : 1, lastRead ? lastRead.verse : 1)} activeOpacity={0.7}>
             <Text style={[styles.rowLabel, { color: titleC }]}>RESUME</Text>
             <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>

@@ -27,6 +27,7 @@ export const initDatabase = async () => {
     fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
     lines TEXT NOT NULL,
     PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS frame_cache (key TEXT PRIMARY KEY, w INTEGER NOT NULL, h INTEGER NOT NULL)`);
 
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
   const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
@@ -65,6 +66,22 @@ export const initDatabase = async () => {
 };
 
 export const getDB = () => dbInstance;
+
+export const getFrameBox = async (key: string): Promise<{ w: number; h: number } | null> => {
+  try {
+    const r = await getDB().executeSql(`SELECT w, h FROM frame_cache WHERE key=?`, [key]);
+    if (r && r[0] && r[0].rows && r[0].rows.length) {
+      const row = r[0].rows.item(0);
+      return { w: row.w, h: row.h };
+    }
+  } catch {}
+  return null;
+};
+export const saveFrameBox = async (key: string, w: number, h: number) => {
+  try {
+    await getDB().executeSql(`INSERT OR REPLACE INTO frame_cache (key, w, h) VALUES (?,?,?)`, [key, w, h]);
+  } catch {}
+};
 
 // ---------------- canvas CRUD (SQLite is the single source of truth) --------
 export const getChunk = async (studentId: string, canvasKey: string) => {
@@ -159,7 +176,7 @@ export const setLastPullAt = async (studentId: string, ts: number) => {
 
 /**
  * WHAT: Applies one student's COMPLETE pull pass atomically — all pulled
- *   annotation chunks, the cloud manifest (bookmarks; lastRead is local-only), any
+ *   annotation chunks, the cloud manifest (bookmarks + lastRead LWW-merged), any
  *   audio-note ranges, and the pull watermark — in ONE SQLite transaction.
  * WHY: the old pull wrote each chunk in its own transaction (minutes on a big
  *   book, and reloads mid-pull showed partial data). Bulk-committing makes the

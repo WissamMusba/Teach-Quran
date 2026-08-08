@@ -14,7 +14,7 @@
  *          AudioPlayerBar LOOP SETTINGS button (QuranViewScreen onOpenLoopSettings).
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, FlatList, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { setLoop } from '../store/audioSlice';
 import { SURAH_VERSE_COUNTS } from '../utils/audioPlayback';
@@ -62,9 +62,45 @@ const OptionPicker = ({ visible, title, options, selected, onSelect, onClose, la
 };
 
 /**
- * LoopSettingsScreen — enable switch + four dropdowns, live dispatch on every pick.
+ * NumberEditor — inline direct-entry sheet: type the verse/count number instead of
+ * scrolling the dropdown. Props: visible/title/draft/onChangeText/onSave/onClose.
+ * Save commits via commitEdit (clamped + customized); the label rows still open the
+ * dropdown picker.
+ */
+const NumberEditor = ({ visible, title, draft, onChangeText, onSave, onClose }: any) => {
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
+  const sheetBg = nightMode ? '#1a1a2e' : '#ffffff';
+  const border = nightMode ? '#2a2a4a' : '#e2e5f0';
+  const text = nightMode ? '#fff' : '#1a1a1a';
+  const sub = nightMode ? '#8a8a8a' : '#6b6b76';
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose}>
+        <View style={[styles.pickerSheet, { backgroundColor: sheetBg, borderColor: border, paddingBottom: 18 }]}>
+          <Text style={[styles.pickerTitle, { color: text }]}>{title}</Text>
+          <TextInput
+            style={[styles.numInput, { color: text, borderColor: border, backgroundColor: nightMode ? '#12122a' : '#f4f6fb' }]}
+            value={draft} onChangeText={onChangeText} keyboardType="number-pad" autoFocus selectTextOnFocus maxLength={3}
+            placeholder="Type a number" placeholderTextColor={sub} />
+          <View style={styles.numBtns}>
+            <TouchableOpacity style={[styles.numBtn, { backgroundColor: nightMode ? '#2a2a4a' : '#e2e5f0' }]} onPress={onClose} activeOpacity={0.7}>
+              <Text style={[styles.numBtnText, { color: sub }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.numBtn, { backgroundColor: ACCENT }]} onPress={onSave} activeOpacity={0.7}>
+              <Text style={[styles.numBtnText, { color: '#121212' }]}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+/**
+ * LoopSettingsScreen — enable switch + four setting rows, live dispatch on every pick.
  * FLOW: 1) read audio.loop + quran.currentSurahId/surahNames; verseCount from
- *          SURAH_VERSE_COUNTS. 2) Each dropdown opens OptionPicker; selecting clamps
+ *          SURAH_VERSE_COUNTS. 2) The row LABEL opens the dropdown OptionPicker; the
+ *          row VALUE opens the NumberEditor for direct typing. Selecting clamps
  *          the range (start > end auto-raises end; end < start auto-raises start) and
  *          dispatches setLoop(patch). 3) Summary line shows the resolved behavior.
  */
@@ -76,6 +112,7 @@ export default function LoopSettingsScreen({ route }: any) {
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const [picker, setPicker] = useState<string | null>(null);
+  const [edit, setEdit] = useState<{ mode: string; draft: string } | null>(null);
 
   const verseCount = SURAH_VERSE_COUNTS[surahId - 1] || 1;
   const surahName = surahNames?.[surahId] || `Surah ${surahId}`;
@@ -132,6 +169,18 @@ export default function LoopSettingsScreen({ route }: any) {
   const count = Math.max(1, loop.loopCount || 1);
   const repeat = Math.max(1, loop.ayahRepeat || 1);
 
+  const commitEdit = () => {
+    if (!edit) return;
+    const n = parseInt(edit.draft, 10);
+    if (!isNaN(n) && n >= 1) {
+      if (edit.mode === 'start') pickStart(Math.min(n, verseCount));
+      else if (edit.mode === 'end') pickEnd(Math.min(n, verseCount));
+      else if (edit.mode === 'count') patch({ loopCount: Math.min(n, 99), customized: true });
+      else if (edit.mode === 'repeat') patch({ ayahRepeat: Math.min(n, 99), customized: true });
+    }
+    setEdit(null);
+  };
+
   return (
     <View style={[styles.wrapper, { backgroundColor: bg }]}>
       <ScreenHeader title="Loop Settings" subtitle={surahName} />
@@ -145,22 +194,38 @@ export default function LoopSettingsScreen({ route }: any) {
             <Switch value={!!loop?.enabled} onValueChange={(v) => { patch({ enabled: v }); }} trackColor={{ false: switchFalse, true: ACCENT }} />
           </View>
           <View style={[styles.divider, { backgroundColor: cardBorder }]} />
-          <TouchableOpacity style={styles.row} onPress={() => setPicker('start')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: labelColor }]}>Start from</Text>
-            <Text style={[styles.rowValue, { color: valueColor }]}>Verse {start} ▾</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => setPicker('end')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: labelColor }]}>End Verse</Text>
-            <Text style={[styles.rowValue, { color: valueColor }]}>Verse {end} ▾</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => setPicker('count')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: labelColor }]}>Loop count</Text>
-            <Text style={[styles.rowValue, { color: valueColor }]}>{count} {count === 1 ? 'time' : 'times'} ▾</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => setPicker('repeat')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: labelColor }]}>Ayah repeat</Text>
-            <Text style={[styles.rowValue, { color: valueColor }]}>{repeat} {repeat === 1 ? 'time' : 'times'} ▾</Text>
-          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowLabel, { color: labelColor }]}>Start from ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'start', draft: String(start) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowValue, { color: valueColor }]}>Verse {start} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('end')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowLabel, { color: labelColor }]}>End Verse ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'end', draft: String(end) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowValue, { color: valueColor }]}>Verse {end} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('count')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowLabel, { color: labelColor }]}>Loop count ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'count', draft: String(count) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowValue, { color: valueColor }]}>{count} {count === 1 ? 'time' : 'times'} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('repeat')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowLabel, { color: labelColor }]}>Ayah repeat ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'repeat', draft: String(repeat) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.rowValue, { color: valueColor }]}>{repeat} {repeat === 1 ? 'time' : 'times'} ✎</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -184,6 +249,13 @@ export default function LoopSettingsScreen({ route }: any) {
       <OptionPicker
         visible={picker === 'repeat'} title="How many times each ayah replays" options={COUNT_OPTIONS} selected={repeat}
         onSelect={(v: number) => patch({ ayahRepeat: v, customized: true })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
+
+      <NumberEditor
+        visible={!!edit}
+        title={edit?.mode === 'start' ? `Start from — ${surahName}` : edit?.mode === 'end' ? `End Verse — ${surahName}` : edit?.mode === 'count' ? 'How many times the part should loop' : 'How many times each ayah replays'}
+        draft={edit?.draft || ''}
+        onChangeText={(t: string) => setEdit({ mode: edit!.mode, draft: t.replace(/[^0-9]/g, '') })}
+        onSave={commitEdit} onClose={() => setEdit(null)} />
     </View>
   );
 }
@@ -193,9 +265,14 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   section: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16 },
+  rowMain: { flex: 1, justifyContent: 'center' },
   rowLabel: { fontSize: 15, fontWeight: '600' },
   rowSub: { fontSize: 12, marginTop: 2 },
-  rowValue: { fontSize: 15, fontWeight: '700' },
+  rowValue: { fontSize: 15, fontWeight: '700', textAlign: 'right' },
+  numInput: { borderRadius: 12, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 14, fontSize: 18, fontWeight: '700', textAlign: 'center', marginHorizontal: 16 },
+  numBtns: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, gap: 10 },
+  numBtn: { flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  numBtnText: { fontSize: 15, fontWeight: '700' },
   divider: { height: 1 },
   summary: { marginTop: 14, borderRadius: 12, borderWidth: 1, padding: 14 },
   summaryText: { fontSize: 13, lineHeight: 19 },
