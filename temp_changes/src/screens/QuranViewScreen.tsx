@@ -14,8 +14,9 @@
  *      utils audioPlayback (playSurahFromVerse/pauseSurah/pauseSurahWithResume/
  *      resumeSurah/isResumable/SURAH_VERSE_COUNTS/isSurahPlaying), mushafLayout,
  *      theme, constants; react-native-view-shot + react-native-share.
- * USED BY: App.tsx (Stack.Screen "QuranView", headerShown:false); DashboardScreen.tsx
- *      (navigate no-params); BookmarksScreen / MistakesScreen / NotesScreen
+ * USED BY: App.tsx (Stack.Screen "QuranView", headerShown:false); StudentHubScreen.tsx
+ *      (navigate {surahId, scrollToVerse} / {page} deep links — back returns here);
+ *      SurahIndexScreen / JuzIndexScreen; BookmarksScreen / MistakesScreen / NotesScreen
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
@@ -148,6 +149,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   
   const [canvasData, setCanvasData] = useState<any>({ highlights: {}, notes: {}, drawings: {} });
   const deepLinkLoadedRef = useRef(false);
+  // Set while a route-params deep link (StudentHub rows / SurahIndex / JuzIndex) is
+  // settling on a fresh mount — suppresses the mount-time surah-change + lastRead
+  // restores so the requested page/verse wins the race. Cleared ~600ms after arrival.
+  const paramsHandledRef = useRef(false);
   const pagePromiseRef = useRef({});
   const [pageVersesCache, setPageVersesCache] = useState<any>({});
   const pageVersesPromiseRef = useRef({});
@@ -336,10 +341,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
     setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
   };
 
-  /**
-   * WHAT: Handles navigation from Bookmarks/Mistakes/Notes with
-   *   {surahId, scrollToVerse} route params.
-   * FLOW (page mode): getVersePage(surahId, verse, textStyle) -> set current
+/**
+   * WHAT: Handles route params deep links — {surahId, scrollToVerse} from
+   *   Bookmarks/Mistakes/Notes + the StudentHub rows, and the new {page: N} from
+   *   the hub's GO TO PAGE # / a SurahIndex page row.
+   * FLOW (page mode, surahId): getVersePage(surahId, verse, textStyle) -> set current
    *   page/header state, ensurePageLoaded, prefetchPartner, scrollToIndex (100ms).
    * FLOW (ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
    *   getVersesBySurahPaginated(surahId, 1, targetPage*20) -> deepLinkLoadedRef
@@ -347,15 +353,46 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   setPage(targetPage+1) -> after 500ms scroll to the verse index (FlatList
    *   scrollToIndex viewPosition 0.5 / ScrollView y=idx*45) and flash the verse
    *   for 2s (setFlashingVerse -> null).
+   * FLOW (page: N): switches to page mode and re-walks handleSelectPage's steps
+   *   (current page/header state + surah detect from the page's first verse +
+   *   ensure loads + scrollToIndex) on a 600ms settle — AFTER the mount-time
+   *   lastRead keep (500ms) from the restore effect below, so the requested page
+   *   wins on fresh mounts from the hub.
    * CALLS: getVersePage, getVersesBySurahPaginated, setSurah, setFlashingVerse,
-   *   ensurePageLoaded, prefetchPartner, flatListRef/scrollViewRef scrolls.
+   *   ensurePageLoaded, ensurePageVersesLoaded, getVersesByPage, prefetchPartner,
+   *   flatListRef/scrollViewRef scrolls.
    * AFFECTS: currentPageNum/headerPage/headerSurahId; s.quran.verses/flashingVerse.
    * NOTES: Re-runs on every route.params identity change. getVersePage is
    *   textStyle-dependent (page differs between uthmani 604 / indopak 610).
+   *   paramsHandledRef gates the two mount-time restore effects below during the
+   *   settle window (600ms) — it is cleared once the deep link has landed.
    */
   useEffect(() => {
-    const { surahId, scrollToVerse } = route.params || {};
+    const { surahId, scrollToVerse, page } = route.params || {};
+    const p = page !== undefined ? Number(page) : 0;
+    if (p >= 1 && p <= 610) {
+      // GO TO PAGE # (hub row 6 / SurahIndex page rows): mirror handleSelectPage —
+      // switch to page mode, resolve the page's surah from its first verse, ensure
+      // loads, then scroll. Settled at 600ms so the mount-time lastRead restore
+      // (500ms) can't override the requested page on fresh mounts from the hub.
+      paramsHandledRef.current = true;
+      if (readingMode !== 'page') dispatch(setReadingMode('page'));
+      const t = setTimeout(() => {
+        setCurrentPageNum(p); setHeaderPage(p);
+        getVersesByPage(p, textStyleRef.current).then(vs => {
+          const sId = vs?.[0]?.surahId;
+          if (sId && sId !== surahIdRef.current) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
+        }).catch(() => {});
+        ensurePageLoaded(p); ensurePageVersesLoaded(p);
+        if (splitOn) prefetchPartner(p);
+        setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(p) : p - 1, animated: false }), 100);
+        paramsHandledRef.current = false;
+      }, 600);
+      return () => clearTimeout(t);
+    }
     if (surahId) {
+      paramsHandledRef.current = true;
+      const t = setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode === 'page') {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
@@ -377,7 +414,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
           }, 500);
         });
       }
+      return () => clearTimeout(t);
     }
+    paramsHandledRef.current = false;
   }, [route.params]);
 
   const surahIdRef = useRef(currentSurahId);
@@ -435,13 +474,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
         pageScrollSurahChangeRef.current = false;
         return;
       }
+      // while a route-params deep link is settling, skip the mount-time restore —
+      // the params effect owns the landing position
+      if (paramsHandledRef.current) return;
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
         setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg); prefetchPartner(pg);
         setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
       });
     } else {
       setHeaderPage(0);
-      if (!deepLinkLoadedRef.current) loadSurah(currentSurahId, true);
+      if (!paramsHandledRef.current && !deepLinkLoadedRef.current) loadSurah(currentSurahId, true);
     }
     deepLinkLoadedRef.current = false;
   }, [currentSurahId, readingMode, textStyle]);
@@ -537,6 +579,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   Mark" menu item + page bookmark interplay).
    */
   useEffect(() => {
+    if (paramsHandledRef.current) return; // a route-params deep link (hub) owns the landing position
     if (studentData?.lastRead) {
       const { surah, verse } = studentData.lastRead;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
@@ -1031,7 +1074,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode}
-        onBack={() => navigation.navigate('Dashboard')} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
+        onBack={() => navigation.goBack()} onOpenList={() => setShowList(true)} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')} />
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>

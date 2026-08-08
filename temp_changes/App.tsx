@@ -3,7 +3,7 @@
  * ROLE: App shell — wires Redux Provider + PersistGate + ErrorBoundary + SafeArea, hosts
  *       the root Stack navigator, and runs the global periodic/foreground sync scheduler.
  * DEPENDS ON: src/store (redux-persist + all 8 slices), src/api/sync.ts (processSyncQueue),
- *             src/store/syncSlice.ts, src/screens/* (all 9), src/components/ErrorBoundary.tsx
+ *             src/store/syncSlice.ts, src/screens/* (all 12), src/components/ErrorBoundary.tsx
  * USED BY: index.js (import App) — AppInner is internal, exported nowhere.
  */
 import React, { useEffect, useRef } from 'react';
@@ -18,6 +18,9 @@ import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import StudentHubScreen from './src/screens/StudentHubScreen';
+import SurahIndexScreen from './src/screens/SurahIndexScreen';
+import JuzIndexScreen from './src/screens/JuzIndexScreen';
 import QuranViewScreen from './src/screens/QuranViewScreen';
 import BookmarksScreen from './src/screens/BookmarksScreen';
 import MistakesScreen from './src/screens/MistakesScreen';
@@ -119,7 +122,7 @@ const AppInner = () => {
     };
   }, [isAuthenticated, dispatch]);
 
-  // NavigationContainer + Stack.Navigator — registers the 9-screen native stack, Splash is initial.
+  // NavigationContainer + Stack.Navigator — registers the 12-screen native stack, Splash is initial.
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Splash">
@@ -129,9 +132,15 @@ const AppInner = () => {
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         {/* Register: navigate('Login') on success. */}
         <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-        {/* Dashboard: navigate('QuranView') per student card, replace('Login') on logout. */}
+        {/* Dashboard: navigate('StudentHub') per student card, replace('Login') on logout. */}
         <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
-        {/* QuranView: hub — navigates to Dashboard|Mistakes|Notes|Bookmarks|Settings via page toolbar. */}
+        {/* StudentHub: per-student hub — 6 rows; deep-links into QuranView|Bookmarks|Notes|SurahIndex|JuzIndex. */}
+        <Stack.Screen name="StudentHub" component={StudentHubScreen} options={{ headerShown: false }} />
+        {/* SurahIndex: standalone surah picker host — navigate('QuranView', {surahId, scrollToVerse:1}|{page}). */}
+        <Stack.Screen name="SurahIndex" component={SurahIndexScreen} options={{ headerShown: false }} />
+        {/* JuzIndex: standalone para index — navigate('QuranView', {surahId, scrollToVerse}). */}
+        <Stack.Screen name="JuzIndex" component={JuzIndexScreen} options={{ headerShown: false }} />
+        {/* QuranView: the reader — back returns to StudentHub; navigates to Mistakes|Notes|Bookmarks|Settings via page toolbar. */}
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
         {/* GOTCHA: QuranView is navigated to with `{ surahId, scrollToVerse }` cast `as any` from
             Bookmarks/Mistakes/Notes — no RootStackParamList exists, params are untyped. */}

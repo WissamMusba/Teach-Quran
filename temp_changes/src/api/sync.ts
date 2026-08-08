@@ -50,7 +50,7 @@ export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync
  * to the pushed value, so the next pull sees cloud.v === local.v and skips.
  * Queue row types:
  *   - chunk keys (page_N / surah_N)  -> students/{sid}/draws/{k}  (highlights+notes ONLY; strokes stripped)
- *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks + lastRead)
+ *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks ONLY; lastRead is LOCAL-ONLY and never synced)
  *   - '_audio_r_..'                  -> students/{sid}/audioNotes/{range} (10-page audio-note registry)
  * Every push also merges the student's chunk into the user-level sync_manifest
  * ({users/{uid}/meta/sync_manifest}) inside the SAME batch — zero extra
@@ -108,13 +108,12 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       }
     }
 
-    // ---- manifest (bookmarks / lastRead) — own batch so it pushes even with no dirty chunks ----
+    // ---- manifest (bookmarks ONLY — lastRead is local-only, never pushed) — own batch so it pushes even with no dirty chunks ----
     if (manifestKeys.length) {
       const m = await getManifest(sid);
       const overviewV = (m.data.v || 0) + 1;
       const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
       patch.bookmarks = m.data.bookmarks || {};
-      patch.lastRead = m.data.lastRead || null;
       try {
         await firestore().batch()
           .set(studRef.collection('meta').doc('overview'), patch, { merge: true })
@@ -201,8 +200,16 @@ const pullRemote = async (userId: string): Promise<number> => {
       const mSnap = await studRef.collection('meta').doc('overview').get();
       if (mSnap.exists) {
         const cloudMeta = mSnap.data() as any;
-        await saveManifestLocal(sid, cloudMeta, Date.now(), false);
-        pulled += await pullChangedChunks(sid, studRef, cloudMeta.pages || {});
+        if (cloudMeta) {
+          // lastRead is LOCAL-ONLY (never pushed) — strip it from the cloud snapshot
+          // and keep the LOCAL reading position (saveManifestLocal REPLACES the whole
+          // manifest, so without this the local mark would be wiped on every pull).
+          const clean = { ...cloudMeta };
+          delete clean.lastRead;
+          clean.lastRead = localM.data.lastRead;
+          await saveManifestLocal(sid, clean, Date.now(), false);
+          pulled += await pullChangedChunks(sid, studRef, clean.pages || {});
+        }
       }
     } else {
       pulled += await pullChangedChunks(sid, studRef, cloudInfo.pages || {});

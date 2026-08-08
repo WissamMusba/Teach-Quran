@@ -2,13 +2,13 @@
  * FILE: src/screens/DashboardScreen.tsx
  * ROLE: Post-login hub — lists students (cache-first with background refresh), CRUD via
  *       modals + long-press, manual sync of the offline queue, logout, and entry point
- *       into QuranView for a selected student.
+ *       into the per-student hub (StudentHub) for a selected student.
  * DEPENDS ON: src/api/student.ts, src/api/auth.ts, src/api/sync.ts, src/database/localDB.ts,
  *             src/store/{studentSlice,authSlice,quranSlice,syncSlice,drawingSlice}.ts,
  *             src/components/common/{AlertModal,SyncStatus}.tsx,
  *             src/components/sync/SyncIndicator.tsx
  * USED BY: registered as stack screen "Dashboard" in App.tsx; reached from
- *          SplashScreen.tsx / LoginScreen.tsx (replace) and via "back" from QuranViewScreen.tsx
+ *          SplashScreen.tsx / LoginScreen.tsx (replace) and via "back" from StudentHubScreen.tsx
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
@@ -39,15 +39,16 @@ export default function DashboardScreen({ navigation }: any) {
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
 
-  /**
+/**
    * WHAT: Fetch the student list once on mount and publish it to Redux.
    * FLOW: 1) getStudents() (src/api/student.ts) — cache-first: returns the cached SQLite
    *          list immediately and kicks a silent Firestore refresh in the background; cold
    *          start falls back to the Firestore query; 2) on success dispatch(setStudents(res.students)).
+   *          Cards now navigate to StudentHub (per-student hub), NOT straight into QuranView.
    * CALLS: getStudents -> getCachedStudentList/cacheStudentList (localDB), refreshInBackground.
    * CALLED BY: React on mount only (empty deps array).
    * AFFECTS: studentSlice.list; SQLite student list cache.
-   * NOTES: No focus listener — returning from QuranView never re-fetches; the list only
+   * NOTES: No focus listener — returning from StudentHub never re-fetches; the list only
    *        changes via this screen's own CRUD dispatches. Offline cold start with no cache
    *        yields an empty list silently (res.success=false is ignored by the .then).
    */
@@ -157,22 +158,22 @@ export default function DashboardScreen({ navigation }: any) {
   }, [editId, editName]);
 
   /**
-   * WHAT: Renders a student card; tap selects the student and enters QuranView.
+   * WHAT: Renders a student card; tap selects the student and opens the per-student hub.
    * FLOW (onPress): 1) dispatch(setCurrentStudent(item)) (currentStudent=item, studentData=null
-   *          — forces QuranView to re-hydrate); 2) dispatch(setSurah({surahId: 1, verses: []}))
-   *          resets the reader to surah 1; 3) dispatch(setToolbarExpanded(false)) collapses the
-   *          drawing toolbar; 4) navigation.navigate('QuranView') — no params; QuranView reads
-   *          currentStudent from Redux.
+   *          — forces the hub to re-hydrate studentData on focus); 2) dispatch(setSurah({surahId: 1,
+   *          verses: []})) resets the reader to surah 1; 3) dispatch(setToolbarExpanded(false))
+   *          collapses the drawing toolbar; 4) navigation.navigate('StudentHub') — no params; the
+   *          hub reads currentStudent from Redux and deep-links into QuranView per its rows.
    * CALLS: setCurrentStudent, setSurah, setToolbarExpanded; navigation.navigate.
    * CALLED BY: FlatList renderItem (students list).
    * AFFECTS: studentSlice.currentStudent/studentData; quranSlice; drawingSlice.toolbarExpanded;
-   *          navigation -> QuranView.
-   * NOTES: No studentId param is passed — QuranView is fully driven by studentSlice.currentStudent
+   *          navigation -> StudentHub.
+   * NOTES: No studentId param is passed — the hub is fully driven by studentSlice.currentStudent
    *        (that is why setting studentData=null matters). nightMode from settingsSlice
    *        re-styles card/container colors.
    */
   const renderItem = useCallback(({ item }: any) => (
-    <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#f0f4ff', borderColor: nightMode ? '#2a2a4a' : '#d0d8e8' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+    <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#f0f4ff', borderColor: nightMode ? '#2a2a4a' : '#d0d8e8' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
       <Text style={[styles.studentName, { color: nightMode ? '#fff' : '#1a1a2e' }]}>{item.name}</Text>
     </TouchableOpacity>
   ), [navigation, nightMode]);
