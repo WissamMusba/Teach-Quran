@@ -88,20 +88,22 @@ export default function StudentHubScreen({ navigation }: any) {
   useStudentDataRefresh();
 
   const lastRead = studentData?.lastRead;
+  const lrSurah = lastRead ? Number(lastRead.surah) : 0;
+  const lrVerse = lastRead ? Number(lastRead.verse) : 0;
 
   // RESUME info: page (script-aware, async) + para — recomputed when the mark moves.
   // No mark yet (new student): default to page 1 (Al-Fatiha) instead of 'Not started'.
   useEffect(() => {
     let cancelled = false;
-    if (lastRead?.surah && lastRead?.verse) {
-      getVersePage(lastRead.surah, lastRead.verse, textStyle).then(pg => {
-        if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(lastRead.surah, lastRead.verse) });
+    if (lrSurah > 0 && lrVerse > 0) {
+      getVersePage(lrSurah, lrVerse, textStyle).then(pg => {
+        if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(lrSurah, lrVerse) });
       }).catch(() => {});
     } else {
       setResumeInfo({ page: 1, juz: 1 });
     }
     return () => { cancelled = true; };
-  }, [lastRead?.surah, lastRead?.verse, textStyle]);
+  }, [lrSurah, lrVerse, textStyle]);
 
   // DAILY RECITATION target: the most recent bookmark by createdAt.
   const recentBookmark = useMemo(() => {
@@ -163,7 +165,7 @@ export default function StudentHubScreen({ navigation }: any) {
         <View style={[styles.card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
           {/* 1 — RESUME (defaults to page 1 / Al-Fatiha when the student has no reading mark yet) */}
           <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]}
-            onPress={() => openVerse(lastRead ? lastRead.surah : 1, lastRead ? lastRead.verse : 1)} activeOpacity={0.7}>
+            onPress={() => openVerse(lrSurah > 0 ? lrSurah : 1, lrVerse > 0 ? lrVerse : 1)} activeOpacity={0.7}>
             <Text style={[styles.rowLabel, { color: titleC }]}>RESUME</Text>
             <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>

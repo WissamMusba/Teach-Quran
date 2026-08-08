@@ -426,26 +426,33 @@ export const pushAllDrawings = async (userId: string): Promise<void> => {
         const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
         const drawingsRef = studRef.collection('drawings');
         await Promise.all(Object.entries(groups).map(async ([groupKey, strokesByPage]) => {
-          // Gate: never clobber a normalized doc (active-save pushDrawings is the
-          // canonical cross-device format), and skip groups an earlier sweep
-          // already wrote with the same content — avoids re-writing every group
-          // on every 30-min/background sync.
+          // ANNOTATION-level merge: never clobber cloud strokes and never drop new
+          // local ones. Start from the cloud pages, then append every local stroke
+          // whose id is absent there (legacy id-less strokes only when that page is
+          // empty in the cloud). No early hasNorm/content-length skip — new local
+          // strokes always get written, and normalize-padded cloud docs keep their
+          // normalized strokes untouched.
+          let writePages: Record<string, any[]> | null = null;
           try {
             const snap = await drawingsRef.doc(groupKey).get();
             if (snap.exists) {
-              const cloud = snap.data() as any;
-              const cloudPages: Record<string, any[]> = cloud?.strokesByPage || {};
-              const hasNorm = Object.values(cloudPages).some((arr: any[]) => arr?.some((p: any) => p?.norm === 1));
-              if (hasNorm) return;
-              let identical = true;
+              const cloudPages: Record<string, any[]> = (snap.data() as any)?.strokesByPage || {};
+              const cloudIds = (arr: any[]) => new Set((arr || []).map((p: any) => p?.id).filter(Boolean));
+              const missingAnywhere = Object.entries(strokesByPage).some(([k, strokes]) => {
+                const ids = cloudIds(cloudPages[k]);
+                return (strokes as any[]).some((p: any) => (p?.id ? !ids.has(p.id) : !(cloudPages[k] || []).length));
+              });
+              if (!missingAnywhere) return;   // cloud already has everything local has
+              writePages = { ...cloudPages };
               for (const [k, strokes] of Object.entries(strokesByPage)) {
-                if (!cloudPages[k] || cloudPages[k].length !== (strokes as any[]).length) { identical = false; break; }
+                const ids = cloudIds(writePages[k]);
+                const add = (strokes as any[]).filter((p: any) => (p?.id ? !ids.has(p.id) : !(writePages[k] || []).length));
+                if (add.length) writePages[k] = [...(writePages[k] || []), ...add];
               }
-              if (identical) return;
             }
           } catch { /* cloud read failed — write anyway */ }
           await drawingsRef.doc(groupKey).set({
-            strokesByPage,
+            strokesByPage: writePages || strokesByPage,
             updatedAt: firestore.FieldValue.serverTimestamp(),
           });
         }));
@@ -455,29 +462,31 @@ export const pushAllDrawings = async (userId: string): Promise<void> => {
 };
 
 /**
- * Lazy pull for one range group: restores strokes into local chunks ONLY for
- * pages that have no local drawings yet (never clobbers), denormalizing back to
- * the current screen's content box. Legacy raw cloud paths (no norm marker) pass
- * through untouched.
+ * Lazy pull for one range group: STROKE-LEVEL merge — never skips a page that
+ * already has local strokes. Stroke ids (added by DrawingCanvas) dedupe cleanly:
+ * a cloud stroke WITH an id is kept only when that id is missing locally; a
+ * legacy stroke WITHOUT an id is kept only when the local page is empty (cannot
+ * dedupe). Denormalizes back to the current screen's content box; writes are
+ * queue-free so a pull never re-dirties the push queue.
  */
 export const pullDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
   try {
-    // skip the Firestore read entirely when every page in the range already has
-    // local strokes (a range doc only exists when at least one page had strokes)
     const locals = await Promise.all(pageKeys.map(k => getChunk(studentId, k)));
-    if (locals.every(l => l?.data?.strokes?.length)) return;
     const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
     const snap = await studRef.collection('drawings').doc(groupKey).get();
     if (!snap.exists) return;
-    const cloud = snap.data() as any;
-    const strokesByPage: Record<string, any[]> = cloud?.strokesByPage || {};
+    const strokesByPage: Record<string, any[]> = (snap.data() as any)?.strokesByPage || {};
     for (const k of pageKeys) {
       const cloudStrokes = strokesByPage[k];
       if (!cloudStrokes || !cloudStrokes.length) continue;
       const local = locals.find((_, i) => pageKeys[i] === k);
-      if (local?.data?.strokes?.length) continue;
-      const strokes = cloudStrokes.map((p: any) => (p.norm ? { ...p, norm: undefined, points: denormalizeStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) } : p));
-      await saveChunkNoQueue(studentId, k, { ...(local?.data || {}), strokes }, (local?.v || 0) + 1);
+      const localStrokes = local?.data?.strokes || [];
+      const localIds = new Set(localStrokes.map((p: any) => p?.id).filter(Boolean));
+      const missing = cloudStrokes
+        .filter((p: any) => (p?.id ? !localIds.has(p.id) : localStrokes.length === 0))
+        .map((p: any) => (p.norm ? { ...p, norm: undefined, points: denormalizeStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) } : p));
+      if (!missing.length) continue;
+      await saveChunkNoQueue(studentId, k, { ...(local?.data || {}), strokes: [...localStrokes, ...missing] }, (local?.v || 0) + 1);
     }
   } catch (e) { console.warn('pullDrawings', e); }
 };

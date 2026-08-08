@@ -860,7 +860,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     if (paramsHandledRef.current) return; // a route-params deep link owns the landing position
     if (studentData?.lastRead) {
-      const { surah, verse } = studentData.lastRead;
+      const surah = Number(studentData.lastRead.surah);
+      const verse = Number(studentData.lastRead.verse);
+      if (!(surah > 0 && verse > 0)) return;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
       if (readingMode === 'page') {
         getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 500); });
@@ -1203,7 +1205,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const runShare = async () => {
     setShowShareMenu(false);
     const wasHeaderVisible = isHeaderVisible;
-    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise(r => setTimeout(r, 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
+    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise<void>(r => setTimeout(() => r(), 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
     catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); setIsHeaderVisible(wasHeaderVisible); }
   };
 
@@ -1252,7 +1254,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Share toggles apply ONLY while capturing — normal reading keeps everything.
   const captureHighlights = isCapturing && !shareMistakes ? {} : canvasData.highlights;
   const captureBookmarks = isCapturing && !shareBookmarks ? {} : studentData?.bookmarks;
-  const readingMarkVerse = studentData?.lastRead?.surah === currentSurahId ? studentData?.lastRead?.verse : null;
+  const readingMarkVerse = (() => {
+    const lr = studentData?.lastRead;
+    const s = Number(lr?.surah);
+    return lr && s > 0 && s === Number(currentSurahId) ? Number(lr.verse) : null;
+  })();
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
   const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
   const pageLastBookmarked = pageLastKey ? !!studentData?.bookmarks?.[pageLastKey] : false;

@@ -238,8 +238,10 @@ export default function DashboardScreen({ navigation }: any) {
     let readingLine: string;
     let dateLine: string | null = null;
     if (manifest && lr?.surah) {
-      const nm = surahNames?.[lr.surah] || `Surah ${lr.surah}`;
-      readingLine = `Reading: ${nm} · Ayat ${lr.verse}`;
+      const ls = Number(lr.surah);
+      const lv = Number(lr.verse);
+      const nm = surahNames?.[ls] || `Surah ${ls}`;
+      readingLine = `Reading: ${nm} · Ayat ${lv}`;
       dateLine = lr.updatedAt ? `Date: ${formatDate(lr.updatedAt)} · Time: ${formatTime(lr.updatedAt)}` : '';
     } else { readingLine = manifest ? 'Not read yet' : '…'; }
     const initial = (item.name || '?').charAt(0).toUpperCase();

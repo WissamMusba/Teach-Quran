@@ -162,7 +162,7 @@ const AppInner = () => {
       const prev = appState.current; appState.current = next;
       if (prev === next) return;
       if (next === 'active') scheduleAutoPull();
-      else setTimeout(() => runSync(), 600); // push only; delay so screen flushes (400ms debounce) land in SQLite first
+      else runSync(); // background/inactive: push IMMEDIATELY (no setTimeout — it gets killed)
     });
 
     return () => {

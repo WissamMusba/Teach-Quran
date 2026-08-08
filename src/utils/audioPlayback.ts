@@ -145,7 +145,7 @@ const stopPlayback = async (player: any): Promise<void> => {
   try {
     await Promise.race([
       Promise.resolve(player.stopPlayer()),
-      new Promise((res) => setTimeout(res, 3000)),
+      new Promise<void>((res) => setTimeout(() => res(), 3000)),
     ]);
   } catch {}
 };

@@ -81,6 +81,10 @@ export default function BookmarksScreen() {
   // unrelated Redux churn), and never re-read the whole studentData blob on a pageMap flip.
   const bookmarks = useSelector((s: any) => s.student.studentData?.bookmarks);
   const lastRead = useSelector((s: any) => s.student.studentData?.lastRead);
+  // Type-coerced reading mark (cloud round-trips can deliver string ids) — the pin,
+  // the page-batch collect and the LAST READ card all derive from these.
+  const lrSurah = lastRead ? Number(lastRead.surah) : 0;
+  const lrVerse = lastRead ? Number(lastRead.verse) : 0;
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const nightMode = !!useSelector((s: any) => s.settings?.nightMode);
 
@@ -114,7 +118,7 @@ export default function BookmarksScreen() {
       entries.push([surah, verse]);
     };
     for (const b of sortedBookmarks) collect(b.surah, b.verse);
-    if (lastRead?.surah) collect(lastRead.surah, lastRead.verse);
+    if (lrSurah > 0) collect(lrSurah, lrVerse);
     if (!entries.length) return;
     let cancelled = false;
     getVersePagesDB(entries).then((pages) => {
@@ -154,16 +158,16 @@ export default function BookmarksScreen() {
   }, [sortedBookmarks, surahNames]);
 
   const pinnedMeta = React.useMemo(() => {
-    if (!lastRead?.surah) return null;
+    if (lrSurah <= 0) return null;
     const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
     return {
-      name: surahNames?.[lastRead.surah] || `Surah ${lastRead.surah}`,
-      juz: getJuzForVerse(lastRead.surah, lastRead.verse),
+      name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
+      juz: getJuzForVerse(lrSurah, lrVerse),
       date: ts ? formatDate(ts) : '',
       time: ts ? formatTime(ts) : '',
       ts,
     };
-  }, [lastRead, surahNames]);
+  }, [lastRead, lrSurah, lrVerse, surahNames]);
 
   const renderBookmark = React.useCallback(({ item }: any) => {
     const meta = cardMeta[pageKey(item.surah, item.verse)];
@@ -201,13 +205,13 @@ export default function BookmarksScreen() {
   }, [cardMeta, pageMap, nightMode, handleNavigate]);
 
   const renderPinned = React.useCallback(() => {
-    if (!lastRead || !pinnedMeta) return null;
-    const page = pageMap[pageKey(lastRead.surah, lastRead.verse)];
+    if (lrSurah <= 0 || !pinnedMeta) return null;
+    const page = pageMap[pageKey(lrSurah, lrVerse)];
     const ts = pinnedMeta.ts;
     return (
       <TouchableOpacity
         style={[styles.card, nightMode ? styles.cardDark : styles.cardLight]}
-        onPress={() => handleNavigate(lastRead.surah, lastRead.verse)}
+        onPress={() => handleNavigate(lrSurah, lrVerse)}
         activeOpacity={0.7}
       >
         {ts ? (
@@ -226,16 +230,16 @@ export default function BookmarksScreen() {
         ) : null}
         <View style={styles.titleRow}>
           <Text style={styles.lastReadTag}>LAST READ</Text>
-          {!ts ? <Text style={styles.verseNum}>Ayat {lastRead.verse}</Text> : null}
+          {!ts ? <Text style={styles.verseNum}>Ayat {lrVerse}</Text> : null}
           <Text style={styles.chevron}>›</Text>
         </View>
         <Text style={styles.surahName}>{pinnedMeta.name}</Text>
         {ts ? (
           <View style={styles.metaRow}>
-            <MetaChip label="Surah #" value={String(lastRead.surah)} nightMode={nightMode} />
+            <MetaChip label="Surah #" value={String(lrSurah)} nightMode={nightMode} />
             <MetaChip label="Juz" value={String(pinnedMeta.juz)} nightMode={nightMode} />
             <MetaChip label="Page" value={page !== undefined && page > 0 ? String(page) : '…'} nightMode={nightMode} />
-            <MetaChip label="Ayat" value={String(lastRead.verse)} nightMode={nightMode} />
+            <MetaChip label="Ayat" value={String(lrVerse)} nightMode={nightMode} />
           </View>
         ) : null}
       </TouchableOpacity>
