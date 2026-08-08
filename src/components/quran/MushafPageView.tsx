@@ -67,6 +67,56 @@ const SPARSE_WORD_THRESHOLD = 50;
 const SPARSE_FONT_BOOST = 1.3;
 
 /**
+ * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
+ * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
+ * -1/+2y when the header is visible, default +0. The size feeds fs (and thus the layout cache
+ * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
+ * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
+ */
+const getFontAdj = (ts: string, hv: boolean) => {
+  switch (ts) {
+    case 'saleem': return { size: 2, y: 0 };
+    case 'alqalam': return { size: 0, y: 0 };
+    case 'uthmani': return { size: 0, y: 0 };
+    case 'lateef': return { size: 4, y: 0 };
+    case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
+    default: return { size: 0, y: 0 };
+  }
+};
+
+/**
+ * layoutFsFor / layoutKeyFs — the fs value that rounds into the page_layout_cache key for a
+ * (textStyle, headerVisible, sparse) triple: (mushaf size + font adj) x the sparse boost.
+ * The headerVisible variant is NOT a separate cache column usage (DB column stays at the
+ * legacy false everywhere) — the header shift lands in fs itself, so preloading BOTH header
+ * variants means the layout row for each state is ready the moment the header toggles.
+ */
+const layoutFsFor = (textStyle: string, headerVisible: boolean, sparse: boolean) =>
+  Math.round((getMushafFontSize(headerVisible) + getFontAdj(textStyle, headerVisible).size) * (sparse ? SPARSE_FONT_BOOST : 1));
+const layoutKeyFs = (textStyle: string, headerVisible: boolean, sparse: boolean) => layoutFsFor(textStyle, headerVisible, sparse) + CACHE_VERSION;
+
+/**
+ * warmPageLayoutFor — preloads BOTH header variants' layout rows (mem + SQLite range query) for
+ * ONE page, for the mushaf + width + sparse pairing of that page. Called by the QuranView
+ * progressive page-warm pipeline for far-ahead pages whose MushafPageView has not mounted yet,
+ * so the frame renders the moment they scroll into view regardless of header state.
+ * CALLS: preloadPageLayoutCacheRange (localDB) x2 (header shown/header hidden).
+ * AFFECTS: layoutCacheMem + page_layout_cache read caching (no writes).
+ */
+export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: string, pageWidth: number) => {
+  try {
+    const totalWords = Array.isArray(pageData?.lines)
+      ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
+      : 0;
+    const sparse = totalWords < SPARSE_WORD_THRESHOLD;
+    const keySparse = sparse ? 1 : 0;
+    const keyW = Math.round(pageWidth);
+    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, true, sparse), keySparse, keyW);
+    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, false, sparse), keySparse, keyW);
+  } catch { /* best-effort */ }
+};
+
+/**
  * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
  * word widths: +28 per verse boundary inside the line, +14 more when that verse has a note.
  * FLOW: for each word parse location "surah:verse[:wordPos]"; a word ends a verse when the next
@@ -129,7 +179,11 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - highlights — { "surah_verse": { highlights: [{wordIndex,...}] } } → mistake underlines.
  *   - onWordPress(verseNum, wordPos) — word tap → toggle mistake highlight.
  *   - onVerseLongPress(verseNum, pageY) — verse action menu (parent handleVerseLongPress).
- *   - onBookmarkToggle(verseNum, surahId) — bookmark toggle from the verse badge.
+ *   - onBookmarkToggle(verseNum, surahId) — bookmark toggle; kept as the LEGACY fallback
+ *     for the verse badge when onBadgePress is not provided.
+ *   - onBadgePress(verseNum, pageY?) — verse BADGE tap → opens the SAME verse action menu
+ *     as long-press (parent handleVerseLongPress), instead of auto-bookmarking.
+ *     pageY comes from the press event; undefined → menu's centered-overlay mode.
  *   - bookmarks, notes, readingMarkVerse, flashingVerseKey — per-verse badge state.
  *   - onDeadTap(pageY) — tap on line background/word margins → toggle header.
  *   - fixNonce (default 0) — bump to force full re-measure + cache reload (recovery path;
@@ -149,7 +203,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -163,25 +217,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = nightMode ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.14)';
   const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)';
-  const mushafFontSize = getMushafFontSize(headerVisible);
+const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
   /**
-   * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
-   * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
-   * -1/+2y when the header is visible, default +0. The result feeds fs (and thus the cache key)
-   * and the word Text translateY transform (transform array only when adj.y is non-zero).
-   * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
+   * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
-  const getFontAdj = (ts: string, hv: boolean) => {
-    switch (ts) {
-      case 'saleem': return { size: 2, y: 0 };
-      case 'alqalam': return { size: 0, y: 0 };
-      case 'uthmani': return { size: 0, y: 0 };
-      case 'lateef': return { size: 4, y: 0 };
-      case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
-      default: return { size: 0, y: 0 };
-    }
-  };
   const adj = getFontAdj(textStyle, headerVisible);
   const compact = pageWidth < 600;
 
@@ -192,7 +232,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
     : (versesForPage || []).reduce((a: number, v: any) => a + ((v.textArabic || '').trim().split(/\s+/).filter(Boolean).length), 0);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
-  const fs = Math.round((mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1));
+  const fs = layoutFsFor(textStyle, headerVisible, sparse);
 
   // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
   //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
@@ -252,19 +292,23 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
 
   // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read
   // does not need the font (only the measure pass does), so a cache-hit page renders the moment
-  // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms ±2 pages in
-  // ONE SQLite query via preloadPageLayoutCacheRange (they land in layoutCacheMem synchronously,
-  // so swiping to them later costs zero DB traffic). 'hit' → layoutContentRef set and scaleForLine
-  // switches to the arithmetic single-pass path; 'miss' → measurement path (which still waits for
-  // fontReady inside handleWordMeasured). Cancellation flag guards the unmount race.
+  // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms 3 behind /
+  // 7+ ahead pages in ONE SQLite query via preloadPageLayoutCacheRange (they land in
+  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic) — for BOTH
+  // header states (fs variant), so toggling the header never cold-recomputes. 'hit' →
+  // layoutContentRef set and scaleForLine switches to the arithmetic single-pass path; 'miss' →
+  // measurement path (which still waits for fontReady inside handleWordMeasured). Cancellation
+  // flag guards the unmount race. headerVisible is a dep so a header toggle hot-swaps the row.
   useEffect(() => {
     if (!pageData?.lines?.length) return;
     let cancelled = false;
-    const keyFs = fs + CACHE_VERSION;
     const keySparse = sparse ? 1 : 0;
     const keyW = Math.round(pageWidth);
-    preloadPageLayoutCacheRange(pageNum - 2, pageNum + 2, textStyle, false, keyFs, keySparse, keyW);
-    getPageLayoutCache(pageNum, textStyle, false, keyFs, keySparse, keyW)
+    const first = Math.max(1, pageNum - 3);
+    const last = pageNum + 7;
+    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW);
+    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, keyW);
+    getPageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW)
       .then((cached) => {
         if (cancelled) return;
         if (cached) {
@@ -276,7 +320,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
         }
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, fs, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, fs, pageWidth, fixNonce, headerVisible]);
 
   const scheduleVerify = useCallback(() => {
     setTimeout(() => commitVerify(), 350);
@@ -298,9 +342,14 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
     if (differs) {
       layoutContentRef.current = sums;
       setLineScale({});
-      savePageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0, Math.round(pageWidth), sums);
+      const keySparse = sparse ? 1 : 0;
+      const sumsW = Math.round(pageWidth);
+      // Persist BOTH header variants: the persisted sums are raw (full-size) widths, valid for
+      // any font size, so the toggled-header state opens from cache instead of re-measuring.
+      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, sumsW, sums);
+      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, sumsW, sums);
     }
-  }, [pageNum, textStyle, fs, pageWidth, sparse]);
+  }, [pageNum, textStyle, fs, pageWidth, sparse, headerVisible]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -367,7 +416,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        savePageLayoutCache(pageNum, textStyle, false, fs + CACHE_VERSION, sparse ? 1 : 0,
+        // Sums are raw (full-size) widths — persist BOTH header variants so the
+        // toggled-header state renders from cache instead of re-measuring the page.
+        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), sparse ? 1 : 0,
+          Math.round(pageWidth), sums);
+        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), sparse ? 1 : 0,
           Math.round(pageWidth), sums);
       }
     }
@@ -458,9 +511,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
                   </Text>
                 </Pressable>
                 <View style={styles.verseBadgeContainer}>
-                  <TouchableOpacity onPress={() => onBookmarkToggle(v.verseNumber, v.surahId)}>
+                  <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
                     <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, fBookmarked && styles.bookmarkedBadge, fReadingMark && styles.readingMarkBadge]}>
-                      <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles.bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber}</Text>
+                      <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles.bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 ? '' : v.verseNumber}</Text>
                     </View>
                   </TouchableOpacity>
                   {fHasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -555,9 +608,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
                   <React.Fragment key={wordIdx}>
                     {isVerseBoundary && (
                       <View style={styles.verseBadgeContainer}>
-                        <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
+                        <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 ? '' : verseNum}</Text>
                           </View>
                         </TouchableOpacity>
                         {hasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -579,9 +632,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
                   </WordHitArea>
                   {isVerseBoundary && (
                     <View style={styles.verseBadgeContainer}>
-                      <TouchableOpacity onPress={() => onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
+                      <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 ? '' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <Text style={styles.noteIcon}>📝</Text>}

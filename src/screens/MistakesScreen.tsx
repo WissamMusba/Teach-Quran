@@ -2,10 +2,12 @@
  * FILE: src/screens/MistakesScreen.tsx
  * ROLE: Groups the student's highlighted words into ONE premium card per verse (newest
  *       first); each card shows Date+Time chips (verse's latest highlight createdAt),
- *       the big surah name, a meta chip grid (Surah #, Ayat N, Juz, mushaf Page —
- *       page resolved async from getVersePage(s, v, textStyle), '…' until loaded —
- *       the page follows the selected script (uthmani vs indopak)), and up to 3 color
- *       dots (+N more); tapping deep-links to the verse in QuranView.
+ *       the big surah name, a vertical meta stack — one full-width row per item,
+ *       label left / value right, hairline separators, in the order Surah → Ayah →
+ *       Juz → Page (mushaf Page resolved async from getVersePage(s, v, textStyle),
+ *       '…' until loaded; page follows the selected script (uthmani vs indopak); Juz
+ *       computed from the JUZ_MAP start points) — and up to 3 color dots (+N more);
+ *       tapping deep-links to the verse in QuranView.
  * DEPENDS ON: Redux s.student.studentData.highlights, shape { [verseKey "surah_verse"]:
  *       { highlights: [{wordIndex, color, createdAt}] } }; s.quran.surahNames; s.quran.textStyle;
  *       s.settings.nightMode (theme). SQLite read-only via getVersePage — no writes.
@@ -17,10 +19,28 @@ import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 import ScreenHeader from '../components/common/ScreenHeader';
-import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
+import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
+import { JUZ_MAP } from '../utils/theme';
 
 const ACCENT = '#00b2aa';
+
+/**
+ * WHAT: Resolves the juz of a verse (surahId, verseNum) by scanning JUZ_MAP for the
+ *       last entry whose start point is <= the verse (surah before, or same surah
+ *       with start ayah <= ayah).
+ * CALLS: JUZ_MAP (pure static table).
+ * CALLED BY: renderCard — Juz row of the meta stack.
+ * AFFECTS: none (pure).
+ * NOTES: Same scan approach as getStartJuzOfSurah (utils/theme.ts) but verse-exact.
+ */
+const juzForVerse = (surahId: number, verseNum: number): number => {
+  let juz = 1;
+  for (const entry of JUZ_MAP) {
+    if (entry.s < surahId || (entry.s === surahId && entry.v <= verseNum)) juz = entry.j;
+  }
+  return juz;
+};
 
 /**
  * WHAT: Screen component: groups the highlights map into one card per verse and renders them newest-first.
@@ -28,7 +48,8 @@ const ACCENT = '#00b2aa';
  *       LATEST highlight createdAt (toMillis-compared), collect the distinct highlight colors; sort desc by
  *       that latest ts. 3) useEffect: async getVersePageDB per verseKey into a pages state map ('…' until loaded). 
  *       4) handleNavigate splits verseKey on '_' -> Number(s), Number(v); navigate('QuranView', {surahId, scrollToVerse}).
- *       5) Empty state or FlatList: premium card per verse (Date/Time chips, surah name, meta grid, color dots).
+ * 5) Empty state or FlatList: premium card per verse (Date/Time chips, surah name,
+ *    vertical meta stack Surah → Ayah → Juz → Page, color dots).
  * CALLS: handleNavigate -> navigation.navigate('QuranView', {surahId, scrollToVerse}); getVersePageDB (read-only).
  * CALLED BY: React Navigation; opened via QuranViewScreen.tsx:509.
  * AFFECTS: Navigation only.
@@ -124,7 +145,7 @@ export default function MistakesScreen() {
     const date = formatDate(ts);
     const time = formatTime(ts);
     const page = pages[item.verseKey];
-    const juz = getJuzForVerse(s, v);
+    const juz = juzForVerse(s, v);
     const name = surahNames?.[s] || `Surah ${s}`;
     const dots = item.colors.slice(0, 3);
     const extra = item.colors.length - dots.length;
@@ -149,18 +170,25 @@ export default function MistakesScreen() {
           </View>
         ) : null}
         <Text style={[styles.surahName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
-        <View style={styles.metaRow}>
-          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metaText, { color: theme.text }]}>Surah {s}</Text>
+        <View style={[styles.metaStack, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Surah</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{s}</Text>
           </View>
-          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metaText, { color: theme.text }]}>Ayat {v}</Text>
+          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Ayah</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{v}</Text>
           </View>
-          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metaText, { color: theme.text }]}>Juz {juz}</Text>
+          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Juz</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{juz}</Text>
           </View>
-          <View style={[styles.metaChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metaText, { color: theme.text }]}>Page {page || '…'}</Text>
+          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Page</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{page || '…'}</Text>
           </View>
         </View>
         {dots.length > 0 || extra > 0 ? (
@@ -204,9 +232,11 @@ const styles = StyleSheet.create({
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, marginRight: 8 },
   chipText: { fontSize: 11, fontWeight: '600' },
   surahName: { fontSize: 20, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 10, marginBottom: 12 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 12 },
-  metaChip: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5, margin: 4 },
-  metaText: { fontSize: 12, fontWeight: '600' },
+  metaStack: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, marginBottom: 12 },
+  metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  metaLabel: { fontSize: 12, fontWeight: '600' },
+  metaValue: { fontSize: 12, fontWeight: '700' },
+  metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.6 },
   dotsRow: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, marginRight: 8 },
   moreText: { fontSize: 12, fontWeight: '600' },

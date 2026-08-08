@@ -2,8 +2,9 @@
  * FILE: src/components/audio/AudioPlayerBar.tsx
  * ROLE: Bottom playback bar, two rows: (1) reciter name + "Surah N" + LOOP SETTINGS + CHANGE button
  *       (opens QariSelector); (2) compact controls — circular ◀ (prev verse), big teal PLAY/PAUSE circle
- *       (SVG icons; fresh state plays from the current surah's verse 1, paused state resumes),
- *       circular ▶ (next verse), PAGE START (plays from the first verse of this page), SURAH START (plays
+ *       (SVG icons; fresh state plays from the page's first verse, paused state resumes),
+ *       circular ▶ (next verse), LOOP START (greyed until the loop is enabled in Loop Settings —
+ *       label flips to LOOP END while a loop pass is playing), SURAH START (plays
  *       the surah that begins on this page; greyed when none).
  * DEPENDS ON: props onOpenQari/onOpenLoopSettings/onResume/onPlaySurahStart/onPlayPageStart/onPlayNewSurah/
  *             canPlayNewSurah/onPrevVerse/onNextVerse/canStep/isPlaying/canResume/nightMode/surahId;
@@ -34,15 +35,16 @@ const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
  * AudioPlayerBar (memoized) — presentational bottom bar; makes NO direct calls, fully driven by props.
  * WHAT: Renders the reciter row and the control row.
  * FLOW: 1) theme = nightMode ? darkTheme : lightTheme; disabled color = disC.
- *       2) Center circle: shows PAUSE bars while playing, PLAY triangle otherwise; press routes to
- *          onPlaySurahStart when fresh (nothing to resume, not playing) else onResume (pause/resume).
+*       2) Center circle: shows PAUSE bars while playing, PLAY triangle otherwise; press routes to
+ *          onPlayPageStart when fresh (nothing to resume, not playing) else onResume (pause/resume).
  *       3) Circular ◀ / ▶ -> onPrevVerse/onNextVerse, greyed unless canStep (isPlaying).
- *       4) PAGE START -> onPlayPageStart (page mode: first verse of the page; flowing: surah verse 1).
+ *       4) LOOP START -> onPlayPageStart; greyed unless loopEnabled. Label flips to LOOP END
+ *          while the loop is actively playing.
  *       5) SURAH START -> onPlayNewSurah; greyed unless canPlayNewSurah.
  *       6) reciter area + LOOP SETTINGS + CHANGE -> onOpenQari / onOpenLoopSettings / onOpenQari.
  * PROPS: isPlaying — drives the center icon; onResume — play/pause toggle;
- *        onPlaySurahStart — fresh play from verse 1 of the current surah (used by the center circle);
- *        onPlayPageStart — start playback from the page's first verse;
+ *        onPlayPageStart — start playback from the page's first verse (or the loop range
+ *        when a loop is enabled);
  *        onPlayNewSurah — start from verse 1 of the surah beginning on this page; canPlayNewSurah — enables it;
  *        onPrevVerse/onNextVerse — step playback to the adjacent verse; canStep — enables them (isPlaying);
  *        onOpenQari — opens the QariSelector modal; onOpenLoopSettings — opens the Loop Settings screen;
@@ -53,7 +55,7 @@ const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
  * CALLED BY: QuranViewScreen, gated on isHeaderVisible (bar disappears when the header is hidden — even mid-playback).
  * AFFECTS: Nothing directly (read-only); indirectly drives audioSlice.isPlaying via the parent handlers.
  */
-const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlaySurahStart, onPlayPageStart, onPlayNewSurah, canPlayNewSurah, onPrevVerse, onNextVerse, canStep, isPlaying, canResume, loopEnabled, nightMode, surahId }: any) => {
+const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageStart, onPlayNewSurah, canPlayNewSurah, onPrevVerse, onNextVerse, canStep, isPlaying, canResume, loopEnabled, nightMode, surahId }: any) => {
   const { currentQari } = useSelector((s: any) => s.audio);
   const theme = nightMode ? darkTheme : lightTheme;
   const disC = nightMode ? '#5a5a5a' : '#b0b0b0';
@@ -76,14 +78,14 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlaySurahS
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7}>
           <IconPrevTrack c={String(canStep ? theme.ctrlText : disC)} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlaySurahStart : onResume} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85}>
           {isPlaying ? <IconPause c="#121212" s={22} /> : <IconPlay c="#121212" s={22} />}
         </TouchableOpacity>
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7}>
           <IconNextTrack c={String(canStep ? theme.ctrlText : disC)} />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.action, loopEnabled ? theme.ctrl : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7}>
-          <Text style={[styles.actionText, theme.ctrlText, !loopEnabled && { color: disC }]}>{loopEnabled ? 'LOOP START' : 'PAGE START'}</Text>
+          <Text style={[styles.actionText, theme.ctrlText, !loopEnabled && { color: disC }]}>{loopEnabled && isPlaying ? 'LOOP END' : 'LOOP START'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.action, canPlayNewSurah ? theme.ctrl : styles.disabled]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah} activeOpacity={0.7}>
           <Text style={[styles.actionText, theme.ctrlText, !canPlayNewSurah && { color: disC }]}>SURAH START</Text>

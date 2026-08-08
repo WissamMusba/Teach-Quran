@@ -6,21 +6,30 @@
  *             (studentData is hydrated only by QuranViewScreen's mount effect via getStudentData
  *             in src/database/localDB.ts — this screen never calls SQLite itself), s.quran.surahNames,
  *             s.settings.nightMode, src/utils/format.ts (formatDate/formatTime/getJuzForVerse),
- *             src/database/localDB.ts (getVersePageDB async page lookup, cached in local state).
+ *             src/database/localDB.ts (getVersePagesDB — ONE batched async page lookup for every
+ *             bookmark + lastRead, cached in local state AND in a module-level session cache so a
+ *             second visit renders real page numbers on the very first frame with zero SQLite
+ *             traffic; pages render as "…" only on the first-ever session lookup).
  * USED BY: Opened from the QuranView toolbar `onBookmarks` (QuranViewScreen.tsx); NOT
  *          reachable from Dashboard.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import ScreenHeader from '../components/common/ScreenHeader';
 import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
-import { getVersePageDB } from '../database/localDB';
+import { getVersePagesDB } from '../database/localDB';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
 const ACCENT = '#00d4aa';
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
+
+// Module-level session cache for mushaf pages: verse->page mappings never change during a
+// session, so a bookmark list page number resolved today is still correct at the next visit.
+// This makes page-enriched first frames instant on every open AFTER the first-ever query and
+// avoids re-issuing the batched SQLite lookup on each screen mount.
+const sessionPageCache: Record<string, number> = {};
 
 /**
  * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
@@ -37,17 +46,22 @@ const MetaChip = ({ label, value, nightMode }: { label: string; value: string; n
  * WHAT: Screen component: derives the sorted bookmark list + last read from Redux, renders
  *       ScreenHeader (fixed, above the list), empty state, pinned card, or FlatList of
  *       premium bookmark cards.
- * FLOW: 1) useSelector s.student.studentData, s.quran.surahNames, s.settings.nightMode;
- *       2) sortedBookmarks useMemo: Object.values(studentData.bookmarks) sorted desc by
+* FLOW: 1) useSelector s.student.studentData (bookmarks + lastRead read via granular
+ *          selectors so unrelated Redux churn never invalidates this screen), s.quran.surahNames,
+ *          s.settings.nightMode;
+ *       2) sortedBookmarks useMemo: Object.values(bookmarks) sorted desc by
  *          createdAt (sort() MUTATES the values array in place);
- *       3) lastRead = studentData?.lastRead;
- *       4) pageMap local state: async getVersePageDB(surah, verse) results keyed
- *          `surah_verse` (looked up on card mount, rendered as "…" until resolved);
- *       5) renderBookmark: onPress -> handleNavigate(item.surah, item.verse);
- *       6) renders pinned "LAST READ" card if lastRead exists, else empty state or FlatList.
- * CALLS: handleNavigate -> navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
+ *       3) pageMap local state: ONE background getVersePagesDB call (page lookups for every
+ *          bookmark + lastRead batched into a single SQLite query) fills the map keyed
+ *          `surah_verse`; cards render "…" until their row lands. The effect is keyed on
+ *          the bookmark/lastRead set and deduped in-flight, so the DB is touched once per
+ *          change — never per card render;
+ *       4) renderBookmark: onPress → handleNavigate(item.surah, item.verse);
+ *       5) renders pinned "LAST READ" card if lastRead exists, else empty state or FlatList.
+ * CALLS: handleNavigate → navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
  *        deep-link contract (QuranViewScreen consumes these params); getJuzForVerse /
- *        formatDate / formatTime for badges + timestamps; getVersePageDB for mushaf pages.
+ *        formatDate / formatTime for badges + timestamps; getVersePagesDB (single batched
+ *        SQLite query) for mushaf pages — runs in the BACKGROUND, never blocks first paint.
  * CALLED BY: React Navigation (registered in the root stack; opened via QuranViewScreen.tsx
  *            toolbar onBookmarks).
  * AFFECTS: Redux: none. Navigation: pushes QuranView with {surahId, scrollToVerse}.
@@ -56,36 +70,103 @@ const MetaChip = ({ label, value, nightMode }: { label: string; value: string; n
  *        session), both lists render empty — no loading/refresh path in this screen. The
  *        empty-state hint "Long-press a verse to bookmark it" refers to QuranViewScreen's
  *        handleBookmarkFlow, not to any action in this screen.
+ * PERF: the whole screen paints instantly from Redux (no awaits before first render);
+ *        the only SQLite work — the batched mushaf-page lookup — is deferred to a background
+ *        effect that fills the "…" placeholders when the query resolves.
  */
 export default function BookmarksScreen() {
   useStudentDataRefresh();
   const navigation = useNavigation<any>();
-  const studentData = useSelector((s: any) => s.student.studentData);
+  // Granular selectors: only re-render when bookmarks/lastRead actually change (never on
+  // unrelated Redux churn), and never re-read the whole studentData blob on a pageMap flip.
+  const bookmarks = useSelector((s: any) => s.student.studentData?.bookmarks);
+  const lastRead = useSelector((s: any) => s.student.studentData?.lastRead);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const nightMode = !!useSelector((s: any) => s.settings?.nightMode);
 
-  const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  const [pageMap, setPageMap] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
+  const pageMapRef = useRef<Record<string, number>>(pageMap);
+  const pendingPagesRef = useRef<Set<string>>(new Set());
 
-  const ensurePage = (surah: number, verse: number) => {
-    const key = pageKey(surah, verse);
-    if (pageMap[key] !== undefined) return;
-    getVersePageDB(surah, verse).then((page) => {
-      setPageMap((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: page }));
-    });
-  };
-
+  // Sort with a PRECOMPUTED epoch-ms map instead of `new Date(...)` inside the comparator
+  // (which previously did ~2·n·log n Date parses synchronously at mount AND on every refresh
+  // re-render — the dominant first-frame cost on phones with many bookmarks).
   const sortedBookmarks = React.useMemo(() => {
-    const bookmarks = studentData?.bookmarks ? Object.values(studentData.bookmarks) : [];
-    return bookmarks.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [studentData?.bookmarks]);
-  const lastRead = studentData?.lastRead;
+    const list: any[] = bookmarks ? (Object.values(bookmarks) as any[]) : [];
+    const createdAtMs = new Map<string, number>();
+    for (const b of list) createdAtMs.set(pageKey(b.surah, b.verse), toMillis(b.createdAt));
+    return list.sort(
+      (a: any, b: any) =>
+        (createdAtMs.get(pageKey(b.surah, b.verse)) || 0) - (createdAtMs.get(pageKey(a.surah, a.verse)) || 0),
+    );
+  }, [bookmarks]);
 
-  const handleNavigate = (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
+  // ONE background getVersePagesDB call per bookmark/lastRead set — every mushaf-page lookup
+  // is batched into a single SQLite query, and card renders never touch the DB. The in-flight
+  // set dedupes a still-pending pair (canvas a re-run of this effect while a query is out), and
+  // resolved pairs are skipped forever so re-renders / post-refresh re-fires cost nothing.
+  useEffect(() => {
+    const entries: [number, number][] = [];
+    const collect = (surah: number, verse: number) => {
+      const key = pageKey(surah, verse);
+      if (pageMapRef.current[key] !== undefined || pendingPagesRef.current.has(key)) return;
+      pendingPagesRef.current.add(key);
+      entries.push([surah, verse]);
+    };
+    for (const b of sortedBookmarks) collect(b.surah, b.verse);
+    if (lastRead?.surah) collect(lastRead.surah, lastRead.verse);
+    if (!entries.length) return;
+    let cancelled = false;
+    getVersePagesDB(entries).then((pages) => {
+      if (cancelled) return;
+      const next = pageMapRef.current;
+      for (const [key, page] of Object.entries(pages)) {
+        pendingPagesRef.current.delete(key);
+        sessionPageCache[key] = page; // seed the session cache so later visits skip this query
+        if (next[key] !== page) next[key] = page;
+      }
+      setPageMap({ ...next });
+    });
+    return () => { cancelled = true; };
+  }, [sortedBookmarks, lastRead?.surah, lastRead?.verse]);
 
-  const renderBookmark = ({ item }: any) => {
-    ensurePage(item.surah, item.verse);
-    const juz = getJuzForVerse(item.surah, item.verse);
-    const name = surahNames?.[item.surah] || `Surah ${item.surah}`;
+  const handleNavigate = React.useCallback(
+    (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any),
+    [navigation],
+  );
+
+  // Per-card display data (surah name, juz, Date/Time strings) is computed ONCE per bookmark
+  // set instead of inside every card render — pageMap flips (which re-render visible cards)
+  // now never re-parse dates, and the juz linear-scan happens once per bookmark, not per frame.
+  const cardMeta = React.useMemo(() => {
+    const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
+    for (const b of sortedBookmarks as any[]) {
+      const key = pageKey(b.surah, b.verse);
+      const ts = toMillis(b.createdAt);
+      out[key] = {
+        name: surahNames?.[b.surah] || `Surah ${b.surah}`,
+        juz: getJuzForVerse(b.surah, b.verse),
+        date: formatDate(ts),
+        time: formatTime(ts),
+      };
+    }
+    return out;
+  }, [sortedBookmarks, surahNames]);
+
+  const pinnedMeta = React.useMemo(() => {
+    if (!lastRead?.surah) return null;
+    const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
+    return {
+      name: surahNames?.[lastRead.surah] || `Surah ${lastRead.surah}`,
+      juz: getJuzForVerse(lastRead.surah, lastRead.verse),
+      date: ts ? formatDate(ts) : '',
+      time: ts ? formatTime(ts) : '',
+      ts,
+    };
+  }, [lastRead, surahNames]);
+
+  const renderBookmark = React.useCallback(({ item }: any) => {
+    const meta = cardMeta[pageKey(item.surah, item.verse)];
     const page = pageMap[pageKey(item.surah, item.verse)];
     return (
       <TouchableOpacity
@@ -96,36 +177,33 @@ export default function BookmarksScreen() {
         <View style={styles.topRow}>
           <View style={[styles.chip, styles.chipDate, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
             <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
-              Date: {formatDate(item.createdAt)}
+              Date: {meta.date}
             </Text>
           </View>
           <View style={[styles.chip, styles.chipTime, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
             <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
-              Time: {formatTime(item.createdAt)}
+              Time: {meta.time}
             </Text>
           </View>
         </View>
         <View style={styles.titleRow}>
-          <Text style={styles.surahName}>{name}</Text>
+          <Text style={styles.surahName}>{meta.name}</Text>
           <Text style={styles.chevron}>›</Text>
         </View>
         <View style={styles.metaRow}>
           <MetaChip label="Surah #" value={String(item.surah)} nightMode={nightMode} />
-          <MetaChip label="Juz" value={String(juz)} nightMode={nightMode} />
+          <MetaChip label="Juz" value={String(meta.juz)} nightMode={nightMode} />
           <MetaChip label="Page" value={page !== undefined && page > 0 ? String(page) : '…'} nightMode={nightMode} />
           <MetaChip label="Ayat" value={String(item.verse)} nightMode={nightMode} />
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [cardMeta, pageMap, nightMode, handleNavigate]);
 
-  const renderPinned = () => {
-    if (!lastRead) return null;
-    ensurePage(lastRead.surah, lastRead.verse);
-    const name = surahNames?.[lastRead.surah] || `Surah ${lastRead.surah}`;
-    const juz = getJuzForVerse(lastRead.surah, lastRead.verse);
+  const renderPinned = React.useCallback(() => {
+    if (!lastRead || !pinnedMeta) return null;
     const page = pageMap[pageKey(lastRead.surah, lastRead.verse)];
-    const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
+    const ts = pinnedMeta.ts;
     return (
       <TouchableOpacity
         style={[styles.card, nightMode ? styles.cardDark : styles.cardLight]}
@@ -136,12 +214,12 @@ export default function BookmarksScreen() {
           <View style={styles.topRow}>
             <View style={[styles.chip, styles.chipDate, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
               <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
-                Date: {formatDate(ts)}
+                Date: {pinnedMeta.date}
               </Text>
             </View>
             <View style={[styles.chip, styles.chipTime, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
               <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
-                Time: {formatTime(ts)}
+                Time: {pinnedMeta.time}
               </Text>
             </View>
           </View>
@@ -151,18 +229,18 @@ export default function BookmarksScreen() {
           {!ts ? <Text style={styles.verseNum}>Ayat {lastRead.verse}</Text> : null}
           <Text style={styles.chevron}>›</Text>
         </View>
-        <Text style={styles.surahName}>{name}</Text>
+        <Text style={styles.surahName}>{pinnedMeta.name}</Text>
         {ts ? (
           <View style={styles.metaRow}>
             <MetaChip label="Surah #" value={String(lastRead.surah)} nightMode={nightMode} />
-            <MetaChip label="Juz" value={String(juz)} nightMode={nightMode} />
+            <MetaChip label="Juz" value={String(pinnedMeta.juz)} nightMode={nightMode} />
             <MetaChip label="Page" value={page !== undefined && page > 0 ? String(page) : '…'} nightMode={nightMode} />
             <MetaChip label="Ayat" value={String(lastRead.verse)} nightMode={nightMode} />
           </View>
         ) : null}
       </TouchableOpacity>
     );
-  };
+  }, [lastRead, pinnedMeta, pageMap, nightMode, handleNavigate]);
 
   return (
     <View style={[styles.container, nightMode ? styles.containerDark : styles.containerLight]}>

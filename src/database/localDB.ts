@@ -159,8 +159,8 @@ export const setLastPullAt = async (studentId: string, ts: number) => {
 
 /**
  * WHAT: Applies one student's COMPLETE pull pass atomically — all pulled
- *   annotation chunks, the cloud manifest (bookmarks/lastRead), any audio-note
- *   ranges, and the pull watermark — in ONE SQLite transaction.
+ *   annotation chunks, the cloud manifest (bookmarks; lastRead is local-only), any
+ *   audio-note ranges, and the pull watermark — in ONE SQLite transaction.
  * WHY: the old pull wrote each chunk in its own transaction (minutes on a big
  *   book, and reloads mid-pull showed partial data). Bulk-committing makes the
  *   DB itself all-or-nothing: Redux reloads after sync can never observe a
@@ -218,6 +218,42 @@ export const getVersePageDB = async (surah: number, verse: number): Promise<numb
     const r = await getDB().executeSql(`SELECT page FROM verses WHERE surahId=? AND verseNumber=? LIMIT 1`, [surah, verse]);
     return r && r[0].rows.length ? r[0].rows.item(0).page : 0;
   } catch { return 0; }
+};
+/**
+ * WHAT: Batched page lookup for MANY (surah, verse) pairs in ONE SQLite query —
+ *   returns a Record keyed with the reader's `surah_verse` convention so callers
+ *   can index it directly. Compare getVersePageDB (one SELECT per pair).
+ * WHY: BookmarksScreen resolves one page per bookmarked verse; with many
+ *   bookmarks the per-card getVersePageDB calls serialize on the shared SQLite
+ *   connection (queued behind student-data writes and other page reads), so
+ *   cards sit on "…" until every individual query has drained. A single OR-query
+ *   resolves every card after one round-trip — and is far less bridge traffic.
+ * NOTES: results are batched in chunks of 200 pairs to stay far under SQLite's
+ *   variable limit for huge bookmark lists. Pairs that aren't in the verses
+ *   table are simply ABSENT from the record (callers keep their "…" placeholder).
+ *   Best-effort: on error returns whatever was found (possibly {}).
+ */
+const VERSE_PAGE_BATCH = 200;
+export const getVersePagesDB = async (entries: [number, number][]): Promise<Record<string, number>> => {
+  const out: Record<string, number> = {};
+  for (let i = 0; i < entries.length; i += VERSE_PAGE_BATCH) {
+    const slice = entries.slice(i, i + VERSE_PAGE_BATCH);
+    if (!slice.length) continue;
+    const clauses: string[] = [];
+    const params: number[] = [];
+    for (const [surah, verse] of slice) {
+      clauses.push('(surahId=? AND verseNumber=?)');
+      params.push(surah, verse);
+    }
+    try {
+      const r = await getDB().executeSql(`SELECT surahId, verseNumber, page FROM verses WHERE ${clauses.join(' OR ')}`, params);
+      for (let rI = 0; rI < r[0].rows.length; rI++) {
+        const row = r[0].rows.item(rI);
+        out[`${row.surahId}_${row.verseNumber}`] = row.page;
+      }
+    } catch { /* best-effort: caller keeps '…' placeholders */ }
+  }
+  return out;
 };
 export const rangeKeyForVerse = async (verseKey: string) => {
   const [s, v] = verseKey.split('_').map(Number);

@@ -37,7 +37,7 @@ import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
-import MushafPageView from '../components/quran/MushafPageView';
+import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
 import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
@@ -76,7 +76,7 @@ const MENU_LABEL_C = '#b0b0b0';
  * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
  *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
  */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
@@ -87,7 +87,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
         {odd ? (
           pageCache[odd] ? (
             <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
-              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} bookmarks={bookmarks}
+              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)
         ) : null}
@@ -95,7 +95,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         {pageCache[even] ? (
           <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
-            onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} bookmarks={bookmarks}
+            onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
             flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
         ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
       </View>
@@ -188,6 +188,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   currentStudentIdRef.current = currentStudent?.id;
   const { nightMode, bgBrightness, playBasmala, showPageInfo } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
+  const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
   const prevSyncStatusRef = useRef(syncStatus);
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
@@ -305,6 +306,48 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageVersesCache]);
 
   /**
+   * WHAT: Progressive page warm-ahead for FAST swiping. On every page settle the
+   *   near window [c-3, c+7] is warmed immediately (page JSON + verses + the layout
+   *   rows for BOTH header states via warmPageLayoutFor), then a creeping scheduler
+   *   keeps extending the frontier in 8-page chunks (450ms apart) so sustained
+   *   scrolling keeps far-ahead pages ready: their mushaf JSON lands in the quranData
+   *   memo, their verses in versesByPageMemo, their frames in layoutCacheMem — all
+   *   of which are LRU-bounded elsewhere, so running to the end of the mushaf is safe.
+   * CALLS: getMushafPageData / getVersesByPage (memoized — NO network fallback here,
+   *   far-ahead pages never trigger ensureMushafPageData), warmPageLayoutFor.
+   * AFFECTS: quranData memos + layoutCacheMem; the near window also gets the normal
+   *   ensurePageLoaded/ensurePageVersesLoaded state-cache treatment.
+   */
+  const prefetchTimerRef = useRef<any>(0);
+  const prefetchNextRef = useRef(0);
+  useEffect(() => {
+    if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
+    const warm = (p: number) => {
+      getMushafPageData(p, textStyleRef.current).then((pd: any) => {
+        if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+      }).catch(() => {});
+      getVersesByPage(p, textStyleRef.current).catch(() => {});
+    };
+    const lo = Math.max(1, currentPageNum - 3);
+    const hi = Math.min(currentPageNum + 7, pageNumbers.length);
+    for (let p = lo; p <= hi; p++) { warm(p); ensurePageLoaded(p); ensurePageVersesLoaded(p); }
+    prefetchNextRef.current = Math.max(prefetchNextRef.current, hi + 1);
+    if (prefetchTimerRef.current) return;
+    const step = () => {
+      prefetchTimerRef.current = 0;
+      const from = prefetchNextRef.current;
+      if (from <= pageNumbers.length) {
+        const to = Math.min(from + 7, pageNumbers.length);
+        for (let p = from; p <= to; p++) warm(p);
+        prefetchNextRef.current = to + 1;
+      }
+      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 450);
+    };
+    prefetchTimerRef.current = setTimeout(step, 700);
+    return () => { clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = 0; };
+  }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
+
+  /**
    * WHAT: Prefetches pages ±1, ±2 around the current page (single mode) or the
    *   pair ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
    * CALLS: ensurePageLoaded + ensurePageVersesLoaded.
@@ -384,25 +427,42 @@ export default function QuranViewScreen({ navigation, route }: any) {
   };
 
   /**
-   * WHAT: Handles navigation from Bookmarks/Mistakes/Notes with
-   *   {surahId, scrollToVerse} route params.
-   * FLOW (page mode): getVersePage(surahId, verse, textStyle) -> set current
+* WHAT: Handles navigation from Bookmarks/Mistakes/Notes/StudentHub with
+   *   {surahId, scrollToVerse} or {page} route params.
+   * FLOW (page param, e.g. GO TO PAGE # / SurahIndex page rows): land in page
+   *   mode at that exact page; header surah resolved from the page's first verse.
+   * FLOW (surahId, page mode): getVersePage(surahId, verse, textStyle) -> set current
    *   page/header state, ensurePageLoaded, prefetchPartner, scrollToIndex (100ms).
-   * FLOW (ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
+   * FLOW (surahId, ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
    *   getVersesBySurahPaginated(surahId, 1, targetPage*20) -> deepLinkLoadedRef
    *   = true (suppresses the surah-change effect's loadSurah) -> setSurah +
    *   setPage(targetPage+1) -> after 500ms scroll to the verse index (FlatList
    *   scrollToIndex viewPosition 0.5 / ScrollView y=idx*45) and flash the verse
    *   for 2s (setFlashingVerse -> null).
-   * CALLS: getVersePage, getVersesBySurahPaginated, setSurah, setFlashingVerse,
-   *   ensurePageLoaded, prefetchPartner, flatListRef/scrollViewRef scrolls.
+   * CALLS: getVersePage, getVersesByPage, getVersesBySurahPaginated, setSurah,
+   *   setReadingMode, setFlashingVerse, ensurePageLoaded, prefetchPartner,
+   *   flatListRef/scrollViewRef scrolls.
    * AFFECTS: currentPageNum/headerPage/headerSurahId; s.quran.verses/flashingVerse.
    * NOTES: Re-runs on every route.params identity change. getVersePage is
    *   textStyle-dependent (page differs between uthmani 604 / indopak 610).
+   *   paramsHandledRef suppresses the two mount-time restore effects (lastRead
+   *   restore + surah-change) for ~600ms after a deep link lands, so the
+   *   requested page/verse wins the race against the persisted reading position.
    */
+  const paramsHandledRef = useRef(false);
   useEffect(() => {
-    const { surahId, scrollToVerse } = route.params || {};
-    if (surahId) {
+    const { surahId, scrollToVerse, page } = route.params || {};
+    const p = page !== undefined ? Number(page) : 0;
+    if (p >= 1 && p <= 610) {
+      paramsHandledRef.current = true;
+      setTimeout(() => { paramsHandledRef.current = false; }, 600);
+      if (readingMode !== 'page') dispatch(setReadingMode('page'));
+      setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p); prefetchPartner(p);
+      getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
+      setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(p) : p - 1, animated: false }), 100);
+    } else if (surahId) {
+      paramsHandledRef.current = true;
+      setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode === 'page') {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
@@ -476,6 +536,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   Dashboard, lastRead restore.
    */
   useEffect(() => {
+    if (paramsHandledRef.current) return; // a route-params deep link (hub/Bookmarks/etc.) owns the landing position
     setHeaderSurahId(currentSurahId);
     if (readingMode === 'page') {
       if (pageScrollSurahChangeRef.current) {
@@ -684,8 +745,27 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * NOTES: textStyle union is 'saleem'|'uthmani'|'alqalam'|'lateef' but isIndopak
    *   also matches 'indopak'|'harmattan' (legacy strings only reachable via
    *   `as any` from Settings). Indopak => 610 pages, else 604.
+   * FONT-SWITCH PERFORMANCE (Uthmani<->Indopak): all five indopak styles
+   *   (saleem/alqalam/lateef/harmattan/indopak) share ONE bundled mushaf — the
+   *   page JSON and verse rows are byte-identical across them; only the font
+   *   family + per-font geometry changes, and that is re-derived by
+   *   MushafPageView from redux textStyle on every render. So a same-family
+   *   switch (alqalam<->saleem<->lateef) KEEPS both caches alive: wiping them
+   *   here used to re-run getMushafPageData + getVersesByPage for every visible
+   *   page (plus the indopak bundle-index cold build) for zero data change. A
+   *   cross-family switch (Uthmani<->Indopak) MUST still flush: the two mushafs
+   *   are different JSON with different page counts (604 vs 610). On the
+   *   second and later cross-family switches the flush itself is cheap again —
+   *   module-level mushafPageMemo + the indopak bundle index are still warm
+   *   (they live outside React state), so re-hydration is near-instant.
    */
+  const prevTextStyleRef = useRef(textStyle);
   useEffect(() => {
+    const prevWasIndopak = indopakFonts.includes(prevTextStyleRef.current);
+    prevTextStyleRef.current = textStyle;
+    // Same indopak family: keep caches warm — identical page JSON + verse rows,
+    // font change handled per-render by MushafPageView.
+    if (prevWasIndopak && isIndopak) return;
     setPageCache({});
     setPageVersesCache({});
     pageCacheOrderRef.current = [];
@@ -724,6 +804,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   Mark" menu item + page bookmark interplay).
    */
   useEffect(() => {
+    if (paramsHandledRef.current) return; // a route-params deep link owns the landing position
     if (studentData?.lastRead) {
       const { surah, verse } = studentData.lastRead;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
@@ -876,8 +957,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: Toggles `{surah}_{verse}` in the bookmarks map; 'impactMedium' haptic.
    * CALLS: updateData, ReactNativeHapticFeedback.
-   * CALLED BY: onBookmarkToggle (VerseDisplay/FlowingText/MushafPageView),
-   *   page bookmark button, menu Bookmark.
+   * CALLED BY: VerseDisplay / FlowingText onBookmarkToggle, page bookmark
+   *   button, menu Bookmark (MushafPageView badge taps NO LONGER bookmarks —
+   *   they open the verse menu via onBadgePress; onBookmarkToggle remains only
+   *   as MushafPageView's legacy fallback).
    * AFFECTS: studentData.bookmarks.<surah_verse> = {surah, verse, createdAt}.
    */
   const handleBookmarkFlow = useCallback((verseNum: number, surahId?: number) => {
@@ -905,6 +988,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   bubble (Play/Bookmark/Reading/Note/Record/Copy).
    * CALLED BY: VerseDisplay / FlowingText / MushafPageView onVerseLongPress
    *   (and SpreadItem's two MushafPageViews).
+   * ALSO (badge taps): MushafPageView verse BADGES call this SAME handler via
+   *   onBadgePress — a single badge tap opens the menu for that verse instead of
+   *   auto-bookmarking. pageY comes from the badge press event; when absent
+   *   (pageY ?? null) the menu falls back to its centered-overlay mode.
    */
   const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); }, []);
 
@@ -955,7 +1042,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   };
   /**
    * WHAT: Appends `audio:<path>` (newline-separated) to the note of
-   *   recordingVerseKey, then closes the recorder overlay.
+   *   recordingVerseKey. The recorder footer stays in its "done" state
+   *   (auto-hides after 4s -> onCancel -> recordingVerseKey cleared).
    * CALLS: updateData.
    * CALLED BY: VoiceNoteRecorder onSaved.
    * AFFECTS: studentData.notes.<surah_verse> — voice notes are STORED INSIDE
@@ -973,7 +1061,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const newText = existing + (existing ? '\n' : '') + `audio:${path}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
     dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [recordingVerseKey]: newText } }));
-    setRecordingVerseKey(null);
     const [s, v] = recordingVerseKey.split('_').map(Number);
     const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
     const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
@@ -1010,6 +1097,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
     //   Alert.alert('Note', 'Failed to save voice note.');
     // }
   }, [canvasData, currentStudent, recordingVerseKey, studentData, dispatch]);
+
+  /**
+   * WHAT: Removes the `audio:<path>` line(s) from the note of verseKey (Delete button in the
+   *   recorder footer's done state), keeping any normal text the user wrote. The verse note key
+   *   is dropped entirely when nothing remains. The m4a file itself is unlinked by the recorder.
+   * CALLS: updateData (via setCanvasData/setStudentData), saveCanvasEdit, dispatch(addPendingChange).
+   * CALLED BY: VoiceNoteRecorder onDelete (footer Delete button).
+   * AFFECTS: studentData.notes.<surah_verse> — removes the audio note line + sync-queues the change.
+   */
+  const handleVoiceNoteDelete = useCallback(async (vKey: string) => {
+    if (!currentStudent) return;
+    const existing = canvasData.notes?.[vKey] || '';
+    const cleaned = existing.split('\n').filter((l: string) => !l.startsWith('audio:')).join('\n');
+    const notes = { ...(canvasData.notes || {}) };
+    if (cleaned) notes[vKey] = cleaned; else delete notes[vKey];
+    setCanvasData((prev: any) => ({ ...prev, notes }));
+    dispatch(setStudentData({ ...(studentData || {}), notes }));
+    const [s, v] = vKey.split('_').map(Number);
+    const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
+    const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
+    saveCanvasEdit(currentStudent.id, key, 'notes', { [vKey]: cleaned });
+    dispatch(addPendingChange());
+  }, [canvasData, currentStudent, studentData, dispatch]);
 
   /**
    * WHAT: Opens the share menu (toggles: Drawings / Mistakes / Bookmarks + Share).
@@ -1110,7 +1220,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const surahId = typeof verse === 'number'
       ? (readingMode === 'page'
         ? (pageVersesCache[currentPageNum]?.find((v: any) => v.verseNumber === verseNum)?.surahId
-          || (await getVersesByPage(currentPageNum, textStyleRef.current).then(([vs]: any[]) => vs?.find((v: any) => v.verseNumber === verseNum)?.surahId).catch(() => undefined))
+          || (await getVersesByPage(currentPageNum, textStyleRef.current).then((list: any[]) => list?.find((v: any) => v.verseNumber === verseNum)?.surahId).catch(() => undefined))
           || currentSurahId)
         : currentSurahId)
       : verse.surahId;
@@ -1154,7 +1264,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       }
       let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
       if (!firstVerse && readingMode === 'page') {
-        try { const [vs] = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
+        try { const list = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = Array.isArray(list) ? list[0] : undefined; } catch {}
       }
       const startVerse = firstVerse?.verseNumber || 1;
       const surahId = firstVerse?.surahId || currentSurahId;
@@ -1208,7 +1318,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
     let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
     if (!firstVerse && readingMode === 'page') {
-      try { const [vs] = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = vs?.[0]; } catch {}
+      try { const list = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = Array.isArray(list) ? list[0] : undefined; } catch {}
     }
     const callbacks = {
       onVerseChange: (v: number, sId?: number) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); },
@@ -1217,11 +1327,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
     };
     const lastVerse = SURAH_VERSE_COUNTS[currentSurahId - 1] || 1;
     const loopOn = !!loopSettings?.enabled;
-    const startVerse = loopOn ? Math.max(1, Math.min(loopSettings.startVerse || 1, lastVerse)) : (firstVerse?.verseNumber || 1);
+    const startVerse = loopOn ? Math.max(1, Math.min(safeLoop.startVerse || 1, lastVerse)) : (firstVerse?.verseNumber || 1);
     // Loop range is defined against the CURRENT surah — always play with its numbering,
     // even when the page's first verse belongs to a different surah (page boundary).
     const surahId = loopOn ? currentSurahId : (firstVerse?.surahId || currentSurahId);
-    const loopOpts = loopOn ? { loop: { startVerse: startVerse, endVerse: Math.max(startVerse, Math.min(loopSettings.endVerse || lastVerse, lastVerse)), loopCount: Math.max(1, loopSettings.loopCount || 1), ayahRepeat: Math.max(1, loopSettings.ayahRepeat || 1) } } : {};
+    const loopOpts = loopOn ? { loop: { startVerse: startVerse, endVerse: Math.max(startVerse, Math.min(safeLoop.endVerse || lastVerse, lastVerse)), loopCount: Math.max(1, safeLoop.loopCount || 1), ayahRepeat: Math.max(1, safeLoop.ayahRepeat || 1) } } : {};
     try {
       await playSurahFromVerse(audioPlayer.current, qariId, surahId, startVerse, callbacks, { playBasmala: !!playBasmala, ...loopOpts });
       dispatch(setPlaying(true));
@@ -1311,7 +1421,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={showPageInfo}
-        onBack={() => navigation.navigate('Dashboard')} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
+        onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
         onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
       <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
@@ -1385,7 +1495,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 }}
                 renderItem={splitOn ? ({ item }: any) => (
                   <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress}
+                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
@@ -1398,7 +1508,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
-                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} bookmarks={captureBookmarks}
+                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
@@ -1415,7 +1525,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         {readingMode === 'page' && !isCapturing && pageLastVerse && (
           <TouchableOpacity style={styles.pageBookmark}
             onPress={() => handleBookmarkFlow(pageLastVerse.verseNumber, pageLastVerse.surahId)} activeOpacity={0.5} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <BookmarkIcon c="#FFD700" size={24} filled={pageLastBookmarked} />
+            <BookmarkIcon c="#00D4AA" size={24} filled={pageLastBookmarked} />
           </TouchableOpacity>
         )}
       </View>
@@ -1452,8 +1562,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share spinner overlay */}
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
-      {/* bottom playback bar — visible only while the header is visible */}
-      {isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings')} onResume={togglePlayAudio} onPlaySurahStart={playSurahStart} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
+      {/* bottom playback bar — visible only while the header is visible and no note is being recorded */}
+      {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
 
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}
       <SurahList visible={showList} mode={searchMode} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} onSelectPage={handleSelectPage} onSelectJuz={handleSelectJuz} />
@@ -1494,12 +1604,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
         </View>
       </Modal>
 
-      {/* full-screen voice-note recorder overlay (menu Record) */}
-      {recordingVerseKey && (
-        <View style={StyleSheet.absoluteFill}>
-          <VoiceNoteRecorder onSaved={handleVoiceNoteSaved} onCancel={() => setRecordingVerseKey(null)} />
-        </View>
-      )}
+{/* voice-note recorder footer (menu Record) — replaces the player bar while recording */}
+{recordingVerseKey && (
+  <VoiceNoteRecorder onSaved={handleVoiceNoteSaved} onCancel={() => setRecordingVerseKey(null)} onDelete={() => handleVoiceNoteDelete(recordingVerseKey)} />
+)}
 
       {/* share menu: include toggles + big Share button; capture runs via runShare */}
       <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => setShowShareMenu(false)}>
@@ -1565,7 +1673,7 @@ const styles = StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: 3, right: 5, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  pageBookmark: { position: 'absolute', top: -2, right: 10, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

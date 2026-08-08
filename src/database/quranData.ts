@@ -33,6 +33,13 @@ const MIN_USABLE_VERSES = 6000;
 // indopakReverseMap: page -> list of `${surahId}:${verseNum}` keys, built on
 //   first getVersesByPage indopak call.
 // indopakPageVerseCache: page -> verse rows, memoized per page.
+// Single-flight DEFERRED builders (Promise.resolve().then one-shot, module-
+//   lifetime): indopakVerseMapPromise loads indopak_verse_pages.json and
+//   indopakReverseMapPromise folds the 6236-key reverse index. Defer
+//   both the require() and the fold to a microtask so NO page/verse read ever
+//   pays a multi-MB synchronous JSON parse on the render path — the render
+//   paints first, the indexes land once per process, every later read is an
+//   O(1) map hit.
 // versesPageCache: key `${surahId}:${offset}:${limit}` -> {verses, total},
 //   never invalidated (stale after fetchMissing repairs a surah until restart).
 // surahTotalCache: surahId -> verse COUNT(*), memoized per surah.
@@ -41,6 +48,29 @@ let indopakReverseMap: Record<string, string[]> | null = null;
 const indopakPageVerseCache: Record<number, any[]> = {};
 const versesPageCache = new Map<string, { verses: any[]; total: number }>();
 const surahTotalCache = new Map<number, number>();
+// indopakVerseMapPromise: single-flight, deferred loader of indopak_verse_pages.json.
+// indopakReverseMapPromise: single-flight, deferred fold of page -> verse keys.
+let indopakVerseMapPromise: Promise<Record<string, number>> | null = null;
+let indopakReverseMapPromise: Promise<Record<string, string[]> | null> | null = null;
+
+// Page-memoization caches (memory only, bounded, survive LRU evictions):
+// - mushafPageMemo: `${script}:${page}` -> parsed mushaf page JSON. Pages the
+//   reader's LRU evicts stay here, so revisiting within the same script is an
+//   O(1) Map hit instead of a SQLite SELECT + JSON.parse round-trip.
+// - indopakPagesByNum: page -> pageData index over the BUNDLED indopak JSON,
+//   built once per process by the deferred single-flight getIndopakPageIndex
+//   (whose promise is indopakPagesIndexPromise). Indopak pages never touch
+//   SQLite, which also sidesteps the latency of a page read queued behind the
+//   bulk importIndopakPages transaction on a cold start.
+// - versesByPageMemo: script + page -> verse rows (uthmani: the indopak path
+//   already memoizes via indopakPageVerseCache — this analog makes uthmani page
+//   verse revisits hit memory instead of re-querying verses).
+let indopakPagesByNum: Record<number, any> | null = null;
+let indopakPagesIndexPromise: Promise<Record<number, any> | null> | null = null;
+const mushafPageMemo = new Map<string, any>();
+const MUSHAF_PAGE_MEMO_MAX = 300;
+const versesByPageMemo = new Map<string, any[]>();
+const VERSES_BY_PAGE_MEMO_MAX = 400;
 
 /**
  * WHAT: True if the mushaf style string is an indopak-script font
@@ -105,42 +135,147 @@ export const importIndopakPages = async () => {
 };
 
 /**
+ * WHAT: Single-flight, DEFERRED loader of the bundled indopak_verse_pages.json
+ *       map (`${surahId}:${verseNum}` -> page) into indopakVerseCache. The
+ *       multi-MB require() is pushed into a Promise.resolve().then one-shot so
+ *       the first indopak verse/page navigation never blocks the render on a
+ *       synchronous JSON parse; every later read returns the cached promise.
+ * CALLED BY: getIndopakVersePage, getVersesByPage (reverse-map fold) — both
+ *            await it; after the one-shot resolves it resolves instantly.
+ * AFFECTS: indopakVerseCache (in-memory, once per process).
+ */
+const loadIndopakVerseMap = (): Promise<Record<string, number>> => {
+  if (!indopakVerseMapPromise) {
+    indopakVerseMapPromise = Promise.resolve().then(() => {
+      try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
+      catch { indopakVerseCache = {}; }
+      return indopakVerseCache;
+    });
+  }
+  return indopakVerseMapPromise;
+};
+
+/**
  * WHAT: Synchronous verse -> mushaf page lookup from the bundled
  *       indopak_verse_pages.json map (key `${surahId}:${verseNum}`).
- * FLOW: Lazy-require the JSON into indopakVerseCache on first call; return
- *       map[key] || 1 (fallback page 1 — a known wrong-page fallback).
+ * FLOW: await the deferred single-flight indopakVerseMapPromise (see
+ *       loadIndopakVerseMap — one-shot per process, instant thereafter) and
+ *       return map[key] || 1 (fallback page 1 — a known wrong-page fallback).
  * CALLED BY: getVersePage (indopak branch)
  * AFFECTS: none (pure map read); populates indopakVerseCache on first call.
  * NOTES: Returns page 1 for any verse missing from the map — misrender, not a
  *        crash. The map is also reused as the source for the reverse index in
  *        getVersesByPage.
  */
-const getIndopakVersePage = (surahId: number, verseNum: number): number => {
-  if (!indopakVerseCache) {
-    try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
-    catch { indopakVerseCache = {}; }
-  }
+const getIndopakVersePage = async (surahId: number, verseNum: number): Promise<number> => {
+  const indopakMap = await loadIndopakVerseMap();
   const key = `${surahId}:${verseNum}`;
-  return indopakVerseCache[key] || 1;
+  return indopakMap[key] || 1;
 };
 
 /**
- * WHAT: Read one mushaf page's JSON (lines/words layout) from SQLite.
- * FLOW: Pick table by isIndopakStyle (mushaf_pages_indopak vs mushaf_pages);
- *       SELECT data WHERE pageNumber=?; JSON.parse; missing -> { lines: [] }.
- * CALLS: getDB().executeSql
+ * WHAT: Single-flight, DEFERRED build of the page index over the bundled
+ *       indopak mushaf JSON (indopak_pages.json). The require() + ~604-entry
+ *       fold are pushed into a Promise.resolve().then one-shot: every caller
+ *       that races the build simply awaits the same promise, so the first
+ *       Uthmani->Indopak switch never blocks the page render on a multi-MB
+ *       synchronous JSON fold; the index is built once per process and every
+ *       later getIndopakPageFromBundle read is an O(1) property lookup.
+ * CALLED BY: getIndopakPageFromBundle (each indopak page read awaits it until
+ *            the one-shot resolves; afterwards it resolves instantly).
+ * AFFECTS: indopakPagesByNum (in-memory, once).
+ * NOTES: On parse failure the index is an empty map guarded by the fulfilled
+ *        promise — retries are NOT re-attempted within this process (same as
+ *        the pre-existing getIndopakPageFromBundle catch behavior, minus the
+ *        per-call re-require).
+ */
+const getIndopakPageIndex = (): Promise<Record<number, any> | null> => {
+  if (!indopakPagesIndexPromise) {
+    indopakPagesIndexPromise = Promise.resolve().then(() => {
+      try {
+        const allPages = require('../assets/data/indopak_pages.json');
+        const m: Record<number, any> = {};
+        if (allPages?.pages) {
+          for (const p of Object.values(allPages.pages) as any[]) { if (p?.page) m[p.page] = p; }
+        }
+        indopakPagesByNum = m;
+        return m;
+      } catch { indopakPagesByNum = {}; return indopakPagesByNum; }
+    });
+  }
+  return indopakPagesIndexPromise;
+};
+
+/**
+ * WHAT: Lazy index over the bundled indopak mushaf JSON (indopak_pages.json).
+ * FLOW: await getIndopakPageIndex() (single-flight deferred build — see above);
+ *       then every individual read is a plain property lookup. Keep the index
+ *       alive for the whole process — getMushafPageData serves indopak pages
+ *       from it, skipping SQLite + JSON.parse entirely.
+ * CALLED BY: getMushafPageData (indopak fast path).
+ * AFFECTS: none (pure in-memory index).
+ * NOTES: The bundle is the SAME object importIndopakPages writes into SQLite
+ *        (JSON.stringify per page) — content is byte-identical, only the transport
+ *        differs. Keeps ~5MB of parsed JSON resident, the same data the import
+ *        already parses transiently.
+ */
+const getIndopakPageFromBundle = async (pageNum: number): Promise<any | null> => {
+  const index = await getIndopakPageIndex();
+  return index ? index[pageNum] || null : null;
+};
+
+/**
+ * WHAT: Inserts {key -> page} into mushafPageMemo under a FIFO cap (evicts the
+ *   oldest-inserted entry when the map exceeds MUSHAF_PAGE_MEMO_MAX). Only
+ *   non-empty pages are memoized — an empty { lines: [] } read must re-query so
+ *   a self-healed page can land in the memo on the next read.
+ * CALLED BY: getMushafPageData, ensureMushafPageData.
+ */
+const memoizeMushafPage = (key: string, page: any, memo: Map<string, any>, max: number) => {
+  if (!page?.lines || page.lines.length === 0) return;
+  if (memo.size >= max) memo.delete(memo.keys().next().value);
+  memo.set(key, page);
+};
+
+/**
+ * WHAT: Read one mushaf page's JSON (lines/words layout) — synchronous-fast for
+ *       revisits thanks to the module-level memo, and for indopak pages served
+ *       straight from the bundled JSON (no database at all).
+ * FLOW: 1) memo key `${script}:${pageNum}` hit -> return the same parsed object.
+ *       2) indopak: indopakPagesByNum lookup (bundle) — miss falls through to
+ *          SQLite for safety. 3) SELECT data WHERE pageNumber=? from the
+ *          script's table; JSON.parse; memoize non-empty pages. Missing -> { lines: [] }.
+ * CALLS: getIndopakPageFromBundle, getDB().executeSql
  * CALLED BY: QuranViewScreen.tsx (ensurePageLoaded — populates pageCache,
- *            evicts to 40 pages keeping ±12 of current).
+ *            evicts to PAGE_CACHE_MAX keeping ±PAGE_CACHE_KEEP of current).
  * AFFECTS: reads mushaf_pages / mushaf_pages_indopak; feeds pageCache ->
  *          MushafPageView's line/word layout engine.
  * NOTES: The empty-page sentinel ({ lines: [] }) is indistinguishable from a
  *        page still being downloaded/fetched — callers must coordinate with
- *        fetchMushafPages/importIndopakPages ordering.
+ *        fetchMushafPages/importIndopakPages ordering. The memo is keyed by
+ *        script, so a textStyle switch (which wipes the React pageCache) does
+ *        NOT lose already-loaded pages: flipping back to a previous script is
+ *        an instant re-hydration.
  */
 export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
-  const table = isIndopakStyle(mushaf) ? 'mushaf_pages_indopak' : 'mushaf_pages';
+  const indopak = isIndopakStyle(mushaf);
+  const memoKey = `${indopak ? 'indopak' : 'uthmani'}:${pageNum}`;
+  const hit = mushafPageMemo.get(memoKey);
+  if (hit) return hit;
+  // Indopak fast path: the bundle index is built once (deferred, single-flight)
+  // and served from memory from then on — avoids the SQLite round trip +
+  // bulk-import queue wait.
+  if (indopak) {
+    const bundled = await getIndopakPageFromBundle(pageNum);
+    if (bundled) return bundled;
+  }
+  const table = indopak ? 'mushaf_pages_indopak' : 'mushaf_pages';
   const res = await getDB().executeSql(`SELECT data FROM ${table} WHERE pageNumber=?`, [pageNum]);
-  if (res && res.length > 0 && res[0].rows.length > 0) return JSON.parse(res[0].rows.item(0).data);
+  if (res && res.length > 0 && res[0].rows.length > 0) {
+    const page = JSON.parse(res[0].rows.item(0).data);
+    memoizeMushafPage(memoKey, page, mushafPageMemo, MUSHAF_PAGE_MEMO_MAX);
+    return page;
+  }
   return { lines: [] };
 };
 
@@ -432,6 +567,34 @@ export const getVersePage = async (surahId: number, verseNum: number, mushaf?: s
 };
 
 /**
+ * WHAT: Single-flight, DEFERRED fold of the page -> verse-key reverse index
+ *       (page -> [`${surahId}:${verseNum}`, ...]) over indopakVerseCache,
+ *       stored in indopakReverseMap. Runs once per process inside a
+ *       Promise.resolve().then one-shot so the ~6236-entry fold never blocks
+ *       the render synchronously on the first indopak page-verses read;
+ *       subsequent getVersesByPage indopak calls await the already-resolved
+ *       promise (near-zero) or hit indopakPageVerseCache.
+ * CALLED BY: getVersesByPage (indopak branch).
+ * AFFECTS: indopakReverseMap (in-memory, once per process).
+ */
+const getIndopakReverseMap = (): Promise<Record<string, string[]> | null> => {
+  if (!indopakReverseMapPromise) {
+    indopakReverseMapPromise = Promise.resolve().then(async () => {
+      const indopakMap = await loadIndopakVerseMap();
+      const m: Record<string, string[]> = {};
+      for (const key of Object.keys(indopakMap)) {
+        const pg = indopakMap[key];
+        if (!m[pg]) m[pg] = [];
+        m[pg].push(key);
+      }
+      indopakReverseMap = m;
+      return m;
+    });
+  }
+  return indopakReverseMapPromise;
+};
+
+/**
  * WHAT: All verses belonging to one mushaf page, ordered by surahId then
  *       verseNumber (indopak: in-memory reverse map + IN queries).
  * FLOW (indopak): 1) cache hit (indopakPageVerseCache) -> return.
@@ -449,26 +612,23 @@ export const getVersePage = async (surahId: number, verseNum: number, mushaf?: s
  *            header/scroll math).
  * AFFECTS: reads verses + indopak reverse map; feeds MushafPageView's
  *          verse-to-word mapping and highlight overlays.
- * NOTES: The indopak branch builds the whole 6236-entry reverse map on first
- *        call (sync require + loop — a few ms, cold-start jank). The tapped-
- *        verse caller's `vs?.find(...)` on a Promise-of-array-of-arrays is
- *        suspicious typing (uthmani path returns a flat array) — verify during
- *        rebuild.
+ * NOTES: The indopak branch builds the whole 6236-entry reverse map once on
+ *        first call — deferred behind a single-flight promise (getIndopakReverseMap)
+ *        so first-call jank never blocks the render; the tapped-verse caller's
+ *        `vs?.find(...)` on a Promise-of-array-of-arrays is suspicious typing
+ *        (uthmani path returns a flat array) — verify during rebuild. The
+ *        uthmani path re-queries SQLite per page (idx_verses_page) — expensive
+ *        on a uthmani<->indopak flip, mitigated by the module memo + the
+ *        screen-side cache-wipe skip for same-family switches.
  */
 export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   if (isIndopakStyle(mushaf)) {
     if (indopakPageVerseCache[pageNum]) return indopakPageVerseCache[pageNum];
-    if (!indopakReverseMap) {
-      try { indopakVerseCache = require('../assets/data/indopak_verse_pages.json'); }
-      catch { indopakVerseCache = {}; }
-      indopakReverseMap = {};
-      for (const key of Object.keys(indopakVerseCache)) {
-        const pg = indopakVerseCache[key];
-        if (!indopakReverseMap[pg]) indopakReverseMap[pg] = [];
-        indopakReverseMap[pg].push(key);
-      }
-    }
-    const keys = indopakReverseMap[pageNum] || [];
+    // Single-flight deferred fold (see getIndopakReverseMap): the 6236-key
+    // reverse index over indopak_verse_pages.json is built once, off the
+    // render path, then reused by every page.
+    if (!indopakReverseMap) await getIndopakReverseMap();
+    const keys = indopakReverseMap?.[pageNum] || [];
     const out: any[] = [];
     if (keys.length > 0) {
       const bySurah: Record<number, number[]> = {};

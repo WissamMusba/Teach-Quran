@@ -19,6 +19,9 @@ import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import StudentHubScreen from './src/screens/StudentHubScreen';
+import JuzIndexScreen from './src/screens/JuzIndexScreen';
+import SurahIndexScreen from './src/screens/SurahIndexScreen';
 import QuranViewScreen from './src/screens/QuranViewScreen';
 import BookmarksScreen from './src/screens/BookmarksScreen';
 import MistakesScreen from './src/screens/MistakesScreen';
@@ -110,8 +113,12 @@ const AppInner = () => {
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         {/* Register: navigate('Login') on success. */}
         <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-        {/* Dashboard: navigate('QuranView') per student card, replace('Login') on logout. */}
+        {/* Dashboard: navigate('StudentHub') per student card, replace('Login') on logout. */}
         <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+        {/* StudentHub: per-student hub — navigates to QuranView (deep links) | Bookmarks | Notes | JuzIndex | SurahIndex. */}
+        <Stack.Screen name="StudentHub" component={StudentHubScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="JuzIndex" component={JuzIndexScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="SurahIndex" component={SurahIndexScreen} options={{ headerShown: false }} />
         {/* QuranView: hub — navigates to Dashboard|Mistakes|Notes|Bookmarks|Settings via page toolbar. */}
         <Stack.Screen name="QuranView" component={QuranViewScreen} options={{ headerShown: false }} />
         {/* GOTCHA: QuranView is navigated to with `{ surahId, scrollToVerse }` cast `as any` from

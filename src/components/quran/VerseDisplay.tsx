@@ -61,6 +61,11 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   return (
     <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
       <Pressable style={styles.arabicRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+        {verse.verseNumber > 1 && (
+          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
+            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+          </View>
+        )}
         {words.map((word: string, index: number) => {
           // Per-word highlight lookup by bare word index (wordIndex === index); tap fires only
           // for non-empty words (empty tokens come from ayah-marker stripping).
@@ -70,8 +75,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
               <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
             </WordHitArea>
           );
-        })}
-        {isReadingMark && <Text style={styles.readingMarkIcon}>📍</Text>}
+})}
       </Pressable>
       {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
     </View>
@@ -84,6 +88,10 @@ const styles = StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
-  readingMarkIcon: { color: '#4a90d9', fontSize: 12, marginLeft: 6, marginTop: 4 },
+  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa', marginHorizontal: 3 },
+  bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
+  readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
+  verseBadgeText: { fontSize: 10, fontWeight: '700', fontFamily: 'normal' },
+  bookmarkedBadgeText: { color: '#000000' },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });

@@ -2,20 +2,23 @@
  * FILE: src/screens/LoopSettingsScreen.tsx
  * ROLE: Loop configuration for audio playback: an enable switch plus four dropdowns
  *       (Start from / End Verse / Loop count / Ayah repeat). Every change dispatches
- *       setLoop immediately (no Save button). When enabled, the AudioPlayerBar PAGE
- *       START button becomes the LOOP START: it plays startVerse..endVerse loopCount
- *       times (each ayah replayed ayahRepeat times) and then flows on past the range.
+ *       setLoop immediately (no Save button). When enabled, the AudioPlayerBar LOOP
+ *       START button plays startVerse..endVerse loopCount times (each ayah replayed
+ *       ayahRepeat times) and then flows on past the range. Until the user customizes
+ *       (any dropdown pick), the range auto-follows the page the reader was on when
+ *       this screen opened — first to last verse, one loop pass.
  * DEPENDS ON: Redux audioSlice.loop + setLoop (persisted), quranSlice.currentSurahId +
  *             surahNames, settingsSlice.nightMode; utils/audioPlayback SURAH_VERSE_COUNTS;
  *             components/common/ScreenHeader (self-back).
  * USED BY: App.tsx Stack.Screen "LoopSettings" (headerShown:false) — opened from the
  *          AudioPlayerBar LOOP SETTINGS button (QuranViewScreen onOpenLoopSettings).
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, FlatList } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { setLoop } from '../store/audioSlice';
 import { SURAH_VERSE_COUNTS } from '../utils/audioPlayback';
+import { getVersesByPage } from '../database/quranData';
 import ScreenHeader from '../components/common/ScreenHeader';
 
 const ACCENT = '#00d4aa';
@@ -65,17 +68,43 @@ const OptionPicker = ({ visible, title, options, selected, onSelect, onClose, la
  *          the range (start > end auto-raises end; end < start auto-raises start) and
  *          dispatches setLoop(patch). 3) Summary line shows the resolved behavior.
  */
-export default function LoopSettingsScreen() {
+export default function LoopSettingsScreen({ route }: any) {
   const dispatch = useDispatch();
-  const loop = useSelector((s: any) => s.audio.loop);
+  const loop = useSelector((s: any) => s.audio?.loop) || {};
   const surahId = useSelector((s: any) => s.quran.currentSurahId);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   const [picker, setPicker] = useState<string | null>(null);
 
   const verseCount = SURAH_VERSE_COUNTS[surahId - 1] || 1;
   const surahName = surahNames?.[surahId] || `Surah ${surahId}`;
   const verseOptions = Array.from({ length: verseCount }, (_, i) => i + 1);
+
+  // Auto-default: until the user builds a CUSTOM loop (any start/end/count/repeat pick
+  // flips `customized`), the range follows the page the reader is on at the moment this
+  // screen opens — first verse to last verse of that page, ONE loop pass. After a
+  // custom pick it stays frozen and never follows page changes again.
+  useEffect(() => {
+    if (loop.customized === true) return;
+    let cancelled = false;
+    const page = Number(route?.params?.page) || 0;
+    if (page >= 1 && page <= 610) {
+      getVersesByPage(page, textStyle).then(list => {
+        if (cancelled || !Array.isArray(list) || !list.length) return;
+        const first = list[0];
+        const last = list[list.length - 1];
+        const start = first?.surahId === surahId ? Math.max(1, Math.min(first.verseNumber, verseCount)) : 1;
+        const end = last?.surahId === surahId ? Math.max(start, Math.min(last.verseNumber, verseCount)) : verseCount;
+        if (start !== (loop.startVerse || 1) || end !== (loop.endVerse || verseCount)) {
+          dispatch(setLoop({ startVerse: start, endVerse: end, loopCount: 1, ayahRepeat: 1 }));
+        }
+      }).catch(() => {});
+    } else if ((loop.startVerse || 1) !== 1 || (loop.endVerse || verseCount) !== verseCount) {
+      dispatch(setLoop({ startVerse: 1, endVerse: verseCount, loopCount: 1, ayahRepeat: 1 }));
+    }
+    return () => { cancelled = true; };
+  }, [route?.params?.page, surahId, verseCount, textStyle]);
 
   const bg = nightMode ? '#121212' : '#f4f6fb';
   const cardBg = nightMode ? '#1a1a2e' : '#ffffff';
@@ -88,12 +117,12 @@ export default function LoopSettingsScreen() {
   const patch = (p: any) => { dispatch(setLoop({ ...loop, ...p })); };
 
   const pickStart = (v: number) => {
-    const next: any = { startVerse: v };
+    const next: any = { startVerse: v, customized: true };
     if (v > (loop.endVerse || verseCount)) next.endVerse = v;
     patch(next);
   };
   const pickEnd = (v: number) => {
-    const next: any = { endVerse: v };
+    const next: any = { endVerse: v, customized: true };
     if (v < (loop.startVerse || 1)) next.startVerse = v;
     patch(next);
   };
@@ -111,7 +140,7 @@ export default function LoopSettingsScreen() {
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: labelColor }]}>Enable loop</Text>
-              <Text style={[styles.rowSub, { color: subColor }]}>PAGE START becomes the loop start</Text>
+              <Text style={[styles.rowSub, { color: subColor }]}>LOOP START plays the range below</Text>
             </View>
             <Switch value={!!loop?.enabled} onValueChange={(v) => { patch({ enabled: v }); }} trackColor={{ false: switchFalse, true: ACCENT }} />
           </View>
@@ -137,8 +166,8 @@ export default function LoopSettingsScreen() {
         <View style={[styles.summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={[styles.summaryText, { color: subColor }]}>
             {loop?.enabled
-              ? `PAGE START plays verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
-              : 'Loop is off — PAGE START plays from the page start.'}
+              ? `LOOP START plays verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
+              : 'Loop is off — the LOOP START button is greyed out.'}
           </Text>
         </View>
       </ScrollView>
@@ -151,10 +180,10 @@ export default function LoopSettingsScreen() {
         onSelect={pickEnd} onClose={() => setPicker(null)} labelFor={(v: number) => `Verse ${v}`} />
       <OptionPicker
         visible={picker === 'count'} title="How many times the part should loop" options={COUNT_OPTIONS} selected={count}
-        onSelect={(v: number) => patch({ loopCount: v })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
+        onSelect={(v: number) => patch({ loopCount: v, customized: true })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
       <OptionPicker
         visible={picker === 'repeat'} title="How many times each ayah replays" options={COUNT_OPTIONS} selected={repeat}
-        onSelect={(v: number) => patch({ ayahRepeat: v })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
+        onSelect={(v: number) => patch({ ayahRepeat: v, customized: true })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
     </View>
   );
 }

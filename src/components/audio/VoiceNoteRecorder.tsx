@@ -1,8 +1,25 @@
 /**
  * FILE: src/components/audio/VoiceNoteRecorder.tsx
- * ROLE: Full-screen record voice note flow: Android mic permission, m4a recording into DocumentDirectory, max-60s cap with auto-stop, and onSaved(path, ms) / onCancel() contracts.
- * DEPENDS ON: react-native PermissionsAndroid/Platform (Android-only RECORD_AUDIO runtime permission); react-native-audio-recorder-player (recording engine, enum constants guarded by require); react-native-fs (DocumentDirectoryPath for the m4a output); props onSaved(path, ms), onCancel(), maxMs=60000.
- * USED BY: src/screens/QuranViewScreen.tsx:664-668 — rendered as an absolute-fill overlay when recordingVerseKey is set (long-press "Record" bubble, line 645).
+ * ROLE: Footer-bar voice note recorder (replaces the AudioPlayerBar footer while recording — NOT a
+ *       full-screen overlay; the mushaf page stays fully interactive behind it). Flow: Start (mic
+ *       permission) -> Pause/Resume/Stop -> auto-save on Stop -> "done" footer (bar + Delete on the
+ *       right) auto-hides after 4s -> onCancel(). Auto-stops at maxMs (60s) and saves.
+ * DEPENDS ON: react-native PermissionsAndroid/Platform; react-native-audio-recorder-player (singleton,
+ *       enum constants guarded by require); react-native-fs (DocumentDirectoryPath + unlink cleanup).
+ * PROPS: onSaved(path, ms) — called with the absolute m4a path + duration ms for recordings >500ms;
+ *        onCancel() — called by Cancel (abort) or when the done-state footer auto-hides;
+ *        onDelete() — called by the Delete button in the done state (note already saved; parent removes it);
+ *        maxMs — cap (default 60000).
+ * CALLS: PermissionsAndroid.request(RECORD_AUDIO); recorder.startRecorder/stopRecorder/pauseRecorder/
+ *        resumeRecorder/addRecordBackListener/removeRecordBackListener; RNFS.unlink (best-effort cleanup
+ *        of the partial m4a on Cancel / Delete, and of the too-short file).
+ * CALLED BY: QuranViewScreen.tsx — mounted when recordingVerseKey is set (audio paused first by the caller),
+ *        gated so the AudioPlayerBar footer is hidden while recordingVerseKey is set.
+ * AFFECTS: Filesystem (m4a in DocumentDirectory) and, via onSaved, studentData.notes -> `audio:<path>`
+ *        line -> SQLite + sync queue.
+ * NOTES:
+ *   - iOS mic permission is NOT requested in code (only Android).
+ *   - The `ms` duration is passed to onSaved but DISCARDED by the parent (`_ms`, QuranViewScreen.tsx).
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, PermissionsAndroid, Platform } from 'react-native';
@@ -21,7 +38,6 @@ try {
 const recorder = new AudioRecorderPlayer();
 
 // Builds the Android audio config (16kHz / 24kbps / mono, MPEG_4 output, HE_AAC encoder with AAC fallback).
-// Enum constants are imported defensively because they can be undefined on some RN versions.
 const buildAudioSets = (): any => {
   const sets: any = { AudioSamplingRateAndroid: 16000, AudioEncodingBitRateAndroid: 24000, AudioChannelsAndroid: 1 };
   try {
@@ -40,37 +56,32 @@ const fmt = (ms: number) => {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
 
-/**
- * VoiceNoteRecorder — modal-like overlay (flex:1) with timer, Start / Stop&Save / Cancel controls.
- * WHAT: Records an m4a voice note into RNFS.DocumentDirectoryPath and reports the result to the parent.
- * FLOW: 1) Start -> Android RECORD_AUDIO permission -> recorder.startRecorder with buildAudioSets() ->
- *           record-back listener updates the timer and auto-stops at maxMs via stop(true);
- *       2) stop(auto) guards double-stop with stoppingRef, saves only when ms > 500 (too-short alert otherwise);
- *       3) cancel stops silently and calls onCancel(); 4) unmount cleanup removes the listener and force-stops.
- * PROPS: onSaved(path, ms) — called with the absolute m4a path + duration ms only for recordings >500ms;
- *        onCancel() — called by Cancel; maxMs — cap (default 60000).
- * CALLS: PermissionsAndroid.request(RECORD_AUDIO); recorder.startRecorder/stopRecorder/addRecordBackListener/removeRecordBackListener.
- * CALLED BY: QuranViewScreen.tsx:666 — mounted when recordingVerseKey is set (audio paused first by the caller).
- * AFFECTS: Filesystem (m4a in DocumentDirectory) and, via onSaved, studentData.notes -> `audio:<path>` line (QuranViewScreen.tsx:407) -> SQLite + sync queue.
- * NOTES:
- *   - iOS mic permission is NOT requested in code (only Android); if Info.plist lacks NSMicrophoneUsageDescription the app would crash on startRecorder.
- *   - m4a files are orphaned: cancel/unmount leaves them in DocumentDirectory forever (no cleanup/delete).
- *   - The `ms` duration is passed to onSaved but DISCARDED by the parent (`_ms`, QuranViewScreen.tsx:404).
- */
-const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (path: string, ms: number) => void; onCancel: () => void; maxMs?: number }) => {
-  const [recording, setRecording] = useState(false);
+type Phase = 'idle' | 'recording' | 'paused' | 'done';
+
+const VoiceNoteRecorder = ({ onSaved, onCancel, onDelete, maxMs = 60000 }: { onSaved: (path: string, ms: number) => void; onCancel: () => void; onDelete?: () => void; maxMs?: number }) => {
+  const [phase, setPhase] = useState<Phase>('idle');
   const [time, setTime] = useState('00:00');
   const durRef = useRef(0);
+  const pathRef = useRef<string | null>(null);
   const stoppingRef = useRef(false);
-  const recordingRef = useRef(false);
+  const liveRef = useRef(false); // recorder is actually running (not paused) — drives unmount force-stop
 
-  // Unmount cleanup: drop the record-back listener and force-stop a still-running recording (the file is left on disk).
+  // Unmount cleanup: drop the record-back listener and force-stop a still-running recording.
   useEffect(() => () => {
     recorder.removeRecordBackListener();
-    if (recordingRef.current) {
+    if (liveRef.current) {
       try { recorder.stopRecorder(); } catch {}
     }
   }, []);
+
+  // Done-state footer auto-hides after 4s and restores the normal player bar via onCancel().
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const t = setTimeout(() => onCancel(), 4000);
+    return () => clearTimeout(t);
+  }, [phase, onCancel]);
+
+  const bestEffortUnlink = (p: string | null) => { if (p) { try { RNFS.unlink(p); } catch {} } };
 
   // Android-only runtime mic permission; non-Android platforms always pass (iOS relies on Info.plist).
   const requestPermission = async () => {
@@ -92,15 +103,22 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
     try {
       const res = await recorder.stopRecorder();
       recorder.removeRecordBackListener();
-      setRecording(false);
-      recordingRef.current = false;
+      liveRef.current = false;
       const ms = durRef.current;
-      if (res && ms > 500) onSaved(res, ms);
-      else if (!auto) Alert.alert('Too short', 'Hold on a moment — the recording was too short.');
+      if (res && ms > 500) {
+        onSaved(res, ms);
+        setPhase('done');
+      } else {
+        bestEffortUnlink(res || pathRef.current);
+        if (!auto) Alert.alert('Too short', 'Hold on a moment — the recording was too short.');
+        setPhase('idle');
+        setTime('00:00');
+        durRef.current = 0;
+      }
     } catch (e: any) {
       if (!auto) Alert.alert('Error', e?.message || 'Could not stop recording.');
-      setRecording(false);
-      recordingRef.current = false;
+      liveRef.current = false;
+      setPhase('idle');
     } finally {
       stoppingRef.current = false;
     }
@@ -116,10 +134,11 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
     try {
       const path = `${RNFS.DocumentDirectoryPath}/audio_note_${Date.now()}.m4a`;
       await recorder.startRecorder(path, buildAudioSets());
+      pathRef.current = path;
       durRef.current = 0;
       stoppingRef.current = false;
-      setRecording(true);
-      recordingRef.current = true;
+      liveRef.current = true;
+      setPhase('recording');
       recorder.addRecordBackListener((e: any) => {
         const pos = Math.min(e.currentPosition, maxMs);
         durRef.current = pos;
@@ -131,36 +150,89 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
     }
   };
 
-  // cancel: silently stop the recorder (if live), reset state, and notify the parent to clear recordingVerseKey.
+  const pause = async () => {
+    try {
+      await recorder.pauseRecorder();
+      liveRef.current = false;
+      setPhase('paused');
+    } catch (e: any) {
+      Alert.alert('Pause error', e?.message || 'Could not pause recording.');
+    }
+  };
+
+  const resume = async () => {
+    try {
+      await recorder.resumeRecorder();
+      liveRef.current = true;
+      setPhase('recording');
+    } catch (e: any) {
+      Alert.alert('Resume error', e?.message || 'Could not resume recording.');
+    }
+  };
+
+  // cancel: silently stop the recorder (if live), delete the partial m4a, reset, and notify the parent.
   const cancel = async () => {
-    if (recording) { try { await recorder.stopRecorder(); recorder.removeRecordBackListener(); } catch {} }
-    recordingRef.current = false;
+    if (liveRef.current || phase === 'recording' || phase === 'paused') {
+      try { await recorder.stopRecorder(); recorder.removeRecordBackListener(); } catch {}
+    }
+    liveRef.current = false;
+    bestEffortUnlink(pathRef.current);
+    pathRef.current = null;
+    durRef.current = 0;
     onCancel();
   };
 
-  const atMax = recording && durRef.current >= maxMs - 200;
+  // delete (done state): remove the saved m4a from disk, then let the parent drop the note line.
+  const deleteNote = () => {
+    bestEffortUnlink(pathRef.current);
+    pathRef.current = null;
+    onDelete?.();
+    onCancel();
+  };
+
+  const atMax = (phase === 'recording' || phase === 'paused') && durRef.current >= maxMs - 200;
+  const pct = Math.min(100, (durRef.current / maxMs) * 100);
+  const caption = phase === 'idle' ? 'Notes are capped at 01:00 to save space'
+    : phase === 'recording' ? 'Recording — tap Stop when done'
+    : phase === 'paused' ? 'Paused — tap Resume to continue'
+    : 'Saved — Delete to remove the note';
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Voice Note</Text>
-        <View style={styles.timerRow}>
-          <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{recording ? time : 'Tap to start'}</Text>
-          {recording && <Text style={styles.recIndicator}>● REC</Text>}
-        </View>
-        <Text style={styles.cap}>{recording ? `Max ${fmt(maxMs)}` : `Notes are capped at ${fmt(maxMs)} to save space`}</Text>
-      </View>
+    <View style={styles.container}>
+      <Text style={styles.caption}>{caption}</Text>
       <View style={styles.controls}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={cancel}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        {!recording ? (
-          <TouchableOpacity style={styles.startBtn} onPress={start}>
-            <Text style={styles.startText}>Start</Text>
+        {phase !== 'done' && (
+          <TouchableOpacity style={styles.cancelBtn} onPress={cancel} activeOpacity={0.7}>
+            <Text style={styles.cancelText}>✕</Text>
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.stopBtn} onPress={() => stop(false)}>
-            <Text style={styles.stopText}>Stop & Save</Text>
+        )}
+        {phase === 'idle' && (
+          <TouchableOpacity style={[styles.mainBtn, styles.mainTeal]} onPress={start} activeOpacity={0.85}>
+            <Text style={styles.mainGlyphDark}>▶</Text>
+          </TouchableOpacity>
+        )}
+        {phase === 'recording' && (
+          <TouchableOpacity style={[styles.mainBtn, styles.mainWhite]} onPress={pause} activeOpacity={0.85}>
+            <Text style={styles.mainGlyphDark}>❚❚</Text>
+          </TouchableOpacity>
+        )}
+        {phase === 'paused' && (
+          <TouchableOpacity style={[styles.mainBtn, styles.mainTeal]} onPress={resume} activeOpacity={0.85}>
+            <Text style={styles.mainGlyphDark}>▶</Text>
+          </TouchableOpacity>
+        )}
+        {(phase === 'recording' || phase === 'paused') && (
+          <TouchableOpacity style={[styles.mainBtn, styles.mainRed]} onPress={() => stop(false)} activeOpacity={0.85}>
+            <Text style={styles.mainGlyphLight}>■</Text>
+          </TouchableOpacity>
+        )}
+        <View style={styles.barTrack}>
+          <View style={[styles.barFill, { width: `${pct}%` }, atMax && { backgroundColor: '#FF4444' }]} />
+        </View>
+        <Text style={[styles.timer, atMax && { color: '#FF4444' }]}>{`${time} / ${fmt(maxMs)}`}</Text>
+        {phase === 'done' && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={deleteNote} activeOpacity={0.7}>
+            <Text style={styles.deleteText}>Delete</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -169,29 +241,26 @@ const VoiceNoteRecorder = ({ onSaved, onCancel, maxMs = 60000 }: { onSaved: (pat
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(18,18,20,0.92)', alignItems: 'center', paddingBottom: 56 },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  timerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  timer: { color: '#00d4aa', fontSize: 64, fontWeight: 'bold', letterSpacing: 1, fontVariant: ['tabular-nums'] as const },
-  recIndicator: { color: '#FF4444', fontSize: 14, fontWeight: '700' },
-  cap: { color: '#888', fontSize: 12 },
-  controls: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: 'rgba(18,18,20,0.85)',
-    borderRadius: 16,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    elevation: 10,
+  container: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    backgroundColor: '#16161d', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 14, paddingVertical: 10, elevation: 12, zIndex: 50,
   },
-  cancelBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', borderRadius: 12 },
-  cancelText: { color: '#fff', fontWeight: '700' },
-  startBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF4444', borderRadius: 12 },
-  startText: { color: '#fff', fontWeight: '700' },
-  stopBtn: { minWidth: 64, minHeight: 56, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#00d4aa', borderRadius: 12 },
-  stopText: { color: '#000', fontWeight: '700' },
+  caption: { color: '#9a9a9a', fontSize: 11, textAlign: 'center', marginBottom: 8 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cancelBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  cancelText: { color: '#e8e8e8', fontSize: 15, fontWeight: '700' },
+  mainBtn: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  mainTeal: { backgroundColor: '#00d4aa' },
+  mainWhite: { backgroundColor: '#ffffff' },
+  mainRed: { backgroundColor: '#FF5252' },
+  mainGlyphDark: { color: '#121212', fontSize: 20, fontWeight: '700' },
+  mainGlyphLight: { color: '#ffffff', fontSize: 22, fontWeight: '700' },
+  barTrack: { flex: 1, height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.12)', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 6, backgroundColor: '#00d4aa' },
+  timer: { color: '#e8e8e8', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] as const, minWidth: 84, textAlign: 'right' },
+  deleteBtn: { minWidth: 64, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,82,82,0.15)', borderWidth: 1, borderColor: 'rgba(255,82,82,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  deleteText: { color: '#FF6B6B', fontSize: 13, fontWeight: '700' },
 });
 
 export default VoiceNoteRecorder;

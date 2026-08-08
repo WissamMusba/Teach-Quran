@@ -74,7 +74,7 @@ export const audioSlice = createSlice({
      * AFFECTS: QuranViewScreen playPageStart — PAGE START becomes the loop start when
      *   loop.enabled, passing the range into playSurahFromVerse (audioPlayback.ts).
      */
-    setLoop: (state, action) => { state.loop = { ...state.loop, ...action.payload }; }
+    setLoop: (state, action) => { state.loop = { ...(state.loop || {}), ...action.payload }; }
   }
 });
 

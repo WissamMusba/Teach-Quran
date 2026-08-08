@@ -223,13 +223,13 @@ export default function DashboardScreen({ navigation }: any) {
   /**
    * Renders a student card; tap selects the student and enters QuranView.
    * FLOW (onPress): 1) dispatch(setCurrentStudent(item)) (currentStudent=item, studentData=null
-   *          — forces QuranView to re-hydrate); 2) dispatch(setSurah({surahId: 1, verses: []}))
+   *          — forces StudentHub/QuranView to re-hydrate); 2) dispatch(setSurah({surahId: 1, verses: []}))
    *          resets the reader to surah 1; 3) dispatch(setToolbarExpanded(false)) collapses the
-   *          drawing toolbar; 4) navigation.navigate('QuranView') — no params; QuranView reads
-   *          currentStudent from Redux.
+   *          drawing toolbar; 4) navigation.navigate('StudentHub') — behind it the StudentHub
+   *          deep-links into QuranView ({surahId, scrollToVerse} / {page}) or the list screens.
    * CALLS: setCurrentStudent, setSurah, setToolbarExpanded; navigation.navigate.
    * AFFECTS: studentSlice.currentStudent/studentData; quranSlice; drawingSlice.toolbarExpanded;
-   *          navigation -> QuranView.
+   *          navigation -> StudentHub.
    */
   const renderItem = useCallback(({ item }: any) => {
     // Last-read line: manifest is cached per student in local state (see mount effect).
@@ -245,7 +245,7 @@ export default function DashboardScreen({ navigation }: any) {
     const initial = (item.name || '?').charAt(0).toUpperCase();
 
     return (
-      <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+      <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
         <View style={styles.cardRow}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
           <View style={styles.cardBody}>
