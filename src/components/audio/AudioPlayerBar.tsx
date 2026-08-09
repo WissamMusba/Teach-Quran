@@ -16,19 +16,17 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 
-const ICON_ST = { fill: 'none', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-
 const IconPlay = ({ c, s = 18 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M8 5v14l11-7z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M8 5v14l11-7z" /></Svg>
 );
 const IconPause = ({ c, s = 18 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M7.5 5.5h3.5v13H7.5zM13 5.5h3.5v13H13z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" /></Svg>
 );
 const IconPrevTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M6.5 5v14M18.5 6.5l-9 5.5 9 5.5z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M5.5 4v16H8V4zM17.5 5.5l-9 5.5 9 5.5z" /></Svg>
 );
 const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M17.5 5v14M5.5 6.5l9 5.5-9 5.5z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
 );
 
 /**

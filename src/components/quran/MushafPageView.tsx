@@ -273,6 +273,19 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   }
   const hlMap = new Map<string, any>(Object.entries(highlights || {}));
 
+  // Ta'awwud line placement: a surah begins exactly where a 'surah-header' or 'basmala'
+  // marker line appears; Fallback for headerless pages (e.g. At-Tawba): the first line's
+  // first word is verse 1 word 1. taawudLineIdx lands on that line so the ta'awwud renders
+  // ABOVE the surah-start line (it takes only its own content height — no flex:1 — so verse
+  // lines keep their space). Non-interactive, not part of word measurement.
+  const taawudLineIdx = (() => {
+    const lines = pageData?.lines || [];
+    const i = lines.findIndex((l: any) => l.type === 'surah-header' || l.type === 'basmala');
+    if (i !== -1) return i;
+    const loc = ((lines[0]?.words?.[0]?.location) || '').split(':');
+    return (loc.length >= 2 && parseInt(loc[1], 10) === 1 && parseInt(loc[2] || '1', 10) === 1) ? 0 : -1;
+  })();
+
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
   // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
   // from the deps (and from the cache key — hardcoded false at both DB call sites), yet it still
@@ -513,7 +526,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                 <View style={styles.verseBadgeContainer}>
                   <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
                     <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, fBookmarked && styles.bookmarkedBadge, fReadingMark && styles.readingMarkBadge]}>
-                      <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles.bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 ? '' : v.verseNumber}</Text>
+                      <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles.bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 && v.surahId === 1 ? '' : v.verseNumber}</Text>
                     </View>
                   </TouchableOpacity>
                   {fHasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -546,14 +559,25 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   return (
     <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
+        const taawud = lineIdx === taawudLineIdx ? (
+          <View style={styles.taawudRow}>
+            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(0,212,170,0.30)' : 'rgba(0,212,170,0.35)' }]} />
+            <Text style={[styles.taawudText, { color: nightMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)', fontFamily, fontSize: Math.max(12, Math.round(fs * 0.55)) }]}>
+              {'أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'}
+            </Text>
+            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(0,212,170,0.30)' : 'rgba(0,212,170,0.35)' }]} />
+          </View>
+        ) : null;
         if (line.type === 'surah-header') {
-          return null;
+          return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <View key={lineIdx} style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View>;
+          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
-          <Pressable key={lineIdx} style={[styles.line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+          <React.Fragment key={lineIdx}>
+            {taawud}
+            <Pressable style={[styles.line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -610,7 +634,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                       <View style={styles.verseBadgeContainer}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 ? '' : verseNum}</Text>
+                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
                           </View>
                         </TouchableOpacity>
                         {hasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -634,7 +658,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     <View style={styles.verseBadgeContainer}>
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 ? '' : verseNum}</Text>
+                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <Text style={styles.noteIcon}>📝</Text>}
@@ -645,6 +669,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
               });
             })()}
           </Pressable>
+          </React.Fragment>
         );
       })}
       {overlayLayer}
@@ -659,6 +684,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 // additional line-level space-around).
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
+  taawudRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 2 },
+  taawudRule: { flex: 1, height: 1, marginHorizontal: 10 },
+  taawudText: { textAlign: 'center' },
   line: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, width: '100%', overflow: 'visible', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },

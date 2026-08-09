@@ -7,7 +7,7 @@
  * USED BY: registered as stack screen "SurahIndex" in App.tsx; reached from
  *          StudentHubScreen.tsx (SURAH INDEX row).
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
@@ -38,6 +38,12 @@ export default function SurahIndexScreen({ navigation }: any) {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const studentName = useSelector((s: any) => s.student.currentStudent?.name);
   const isDark = nightMode;
+  // Rows bubble BOTH onSelect and onClose (SurahList.tsx row handler). onClose here is
+  // goBack — running it after a selection would pop the QuranView we just pushed, so
+  // selections flag themselves and onClose becomes a no-op for that tick (the Close
+  // button still calls onClose alone -> goBack works normally).
+  const pickedRef = useRef(false);
+  const pick = (params: any) => { pickedRef.current = true; navigation.navigate('QuranView' as any, params as any); };
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#1a1a2e' : '#f5f5f5' }]}>
@@ -52,9 +58,9 @@ export default function SurahIndexScreen({ navigation }: any) {
       </View>
       <SurahList
         visible
-        onClose={() => navigation.goBack()}
-        onSelect={(id: number) => navigation.navigate('QuranView' as any, { surahId: id, scrollToVerse: 1 } as any)}
-        onSelectPage={(pg: number) => navigation.navigate('QuranView' as any, { page: pg } as any)}
+        onClose={() => { if (!pickedRef.current) navigation.goBack(); }}
+        onSelect={(id: number) => pick({ surahId: id, scrollToVerse: 1 })}
+        onSelectPage={(pg: number) => pick({ page: pg })}
       />
     </View>
   );

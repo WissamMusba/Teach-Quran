@@ -39,7 +39,7 @@ import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader, { BookmarkIcon } from '../components/common/AnimatedHeader';
 import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
-import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage } from '../database/localDB';
+import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
 import { pushDrawings, pullDrawings, pullAudioRange } from '../api/sync';
@@ -264,8 +264,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
         const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
         order.push(pageNum);
         const cp = currentPageNumRef.current;
-        while (order.length > 40) {
-          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 12);
+        while (order.length > 64) {
+          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 24);
           if (idx === -1) break;
           delete next[order[idx]];
           order.splice(idx, 1);
@@ -299,8 +299,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
         const order = pageVersesOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
         order.push(pageNum);
         const cp = currentPageNumRef.current;
-        while (order.length > 40) {
-          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 12);
+        while (order.length > 64) {
+          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 24);
           if (idx === -1) break;
           delete next[order[idx]];
           order.splice(idx, 1);
@@ -314,19 +314,26 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * WHAT: Progressive page warm-ahead for FAST swiping. On every page settle the
-   *   near window [c-3, c+7] is warmed immediately (page JSON + verses + the layout
-   *   rows for BOTH header states via warmPageLayoutFor), then a creeping scheduler
-   *   keeps extending the frontier in 8-page chunks (450ms apart) so sustained
-   *   scrolling keeps far-ahead pages ready: their mushaf JSON lands in the quranData
-   *   memo, their verses in versesByPageMemo, their frames in layoutCacheMem — all
-   *   of which are LRU-bounded elsewhere, so running to the end of the mushaf is safe.
-   * CALLS: getMushafPageData / getVersesByPage (memoized — NO network fallback here,
-   *   far-ahead pages never trigger ensureMushafPageData), warmPageLayoutFor.
-   * AFFECTS: quranData memos + layoutCacheMem; the near window also gets the normal
+   *   instant window [c-12, c+24] is loaded (page JSON + verses) plus the layout
+   *   rows for BOTH header states via warmPageLayoutFor for the near band
+   *   [c-2, c+9]; layout warming for the outer window is staggered ~140ms per
+   *   6-page chunk so low-end devices never jank (JSON/verse loads are cheap —
+   *   the pricey native measurement is what gets spread out). Then a creeping
+   *   scheduler keeps extending the frontier in 8-page chunks (420ms apart) so
+   *   sustained scrolling keeps far-ahead pages ready: their mushaf JSON lands in
+   *   the quranData memo, their verses in versesByPageMemo, their frames in
+   *   layoutCacheMem — all of which are LRU-bounded elsewhere, so running to the
+   *   end of the mushaf is safe. This keeps ~37 pages resident as a fast-swiping
+   *   user slams through a whole page-per-swipe run.
+   * CALLS: getMushafPageData / getVersesByPage (memoized — the far-ahead pages
+   *   never trigger ensureMushafPageData), warmPageLayoutFor.
+   * AFFECTS: quranData memos + layoutCacheMem; the near band also gets the normal
    *   ensurePageLoaded/ensurePageVersesLoaded state-cache treatment.
    */
   const prefetchTimerRef = useRef<any>(0);
   const prefetchNextRef = useRef(0);
+  const staggerTimerRef = useRef<any>(0);
+  const staggerQueueRef = useRef<number[]>([]);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
     const warm = (p: number) => {
@@ -335,23 +342,42 @@ export default function QuranViewScreen({ navigation, route }: any) {
       }).catch(() => {});
       getVersesByPage(p, textStyleRef.current).catch(() => {});
     };
-    const lo = Math.max(1, currentPageNum - 3);
-    const hi = Math.min(currentPageNum + 7, pageNumbers.length);
-    for (let p = lo; p <= hi; p++) { warm(p); ensurePageLoaded(p); ensurePageVersesLoaded(p); }
-    prefetchNextRef.current = Math.max(prefetchNextRef.current, hi + 1);
-    if (prefetchTimerRef.current) return;
+    // INSTANT band — everything the UI might need for fast swipes: data + verses
+    // for all, plus BOTH layout variants for the pages that can appear on screen.
+    const lo = Math.max(1, currentPageNum - 12);
+    const hi = Math.min(currentPageNum + 24, pageNumbers.length);
+    const nearLo = Math.max(1, currentPageNum - 2);
+    const nearHi = Math.min(currentPageNum + 9, pageNumbers.length);
+    const queue: number[] = [];
+    for (let p = lo; p <= hi; p++) {
+      ensurePageLoaded(p); ensurePageVersesLoaded(p);
+      if (p >= nearLo && p <= nearHi) warm(p); else queue.push(p);
+    }
+    clearTimeout(staggerTimerRef.current);
+    staggerQueueRef.current = queue;
+    const staggerStep = () => {
+      const batch = staggerQueueRef.current.splice(0, 6);
+      for (const p of batch) warm(p);
+      if (staggerQueueRef.current.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
+    };
+    if (queue.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
+    // CREEP — keep advancing the frontier to the end of the mushaf (data + verses
+    // only; layout warms when a page enters the stagger band next settle). Always
+    // restarts from the max frontier seen; the near window never resets it.
+    prefetchNextRef.current = Math.max(prefetchNextRef.current, currentPageNum + 25);
+    if (prefetchTimerRef.current) return () => { clearTimeout(staggerTimerRef.current); };
     const step = () => {
       prefetchTimerRef.current = 0;
       const from = prefetchNextRef.current;
       if (from <= pageNumbers.length) {
         const to = Math.min(from + 7, pageNumbers.length);
-        for (let p = from; p <= to; p++) warm(p);
+        for (let p = from; p <= to; p++) { getMushafPageData(p, textStyleRef.current).then((pd: any) => { if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW)); }).catch(() => {}); getVersesByPage(p, textStyleRef.current).catch(() => {}); }
         prefetchNextRef.current = to + 1;
       }
-      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 450);
+      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 420);
     };
     prefetchTimerRef.current = setTimeout(step, 700);
-    return () => { clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = 0; };
+    return () => { clearTimeout(staggerTimerRef.current); clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = 0; };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
 
   /**
@@ -503,6 +529,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { textStyleRef.current = textStyle; }, [textStyle]);
   useEffect(() => { currentPageNumRef.current = currentPageNum; }, [currentPageNum]);
+
+  /**
+   * LOCAL-ONLY per-student memory of the LAST PAGE VIEWED (StudentHub RESUME).
+   * Runs on every page settle — including the first (mount), so anything
+   * viewed counts: RESUME/DAILY/bookmark/GO-TO-PAGE opens all update it. The
+   * saved verse is the last verse of the visible page; the hub resolves it
+   * back to a page via getVersePage (script-aware). NEVER synced — kept out
+   * of every manifest/cloud path on purpose.
+   * CALLS: saveLastPageSeenLocal (src/database/localDB.ts).
+   */
+  useEffect(() => {
+    if (readingMode !== 'page' || !currentStudent?.id) return;
+    const pg = pageVersesCache[currentPageNum];
+    const last = pg && pg.length ? pg[pg.length - 1] : null;
+    if (!last || !Number(last.surahId) || !Number(last.verseNumber)) return;
+    saveLastPageSeenLocal(currentStudent.id, { surah: Number(last.surahId), verse: Number(last.verseNumber), at: new Date().toISOString() });
+  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum]]);
 
   /**
    * WHAT: 20-verse page loader for ayah/continuous modes; appends or replaces
@@ -1489,7 +1532,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
         onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
-      <View style={{ flex: 1 }} ref={viewShotRef} collapsable={false}>
+      <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
             {/* ---- edge-tap Pressables: header toggle in PAGE mode (PanGesture handler is disabled there) ---- */}
@@ -1738,7 +1781,7 @@ const styles = StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: -2, right: 10, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  pageBookmark: { position: 'absolute', top: -2, right: 0, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

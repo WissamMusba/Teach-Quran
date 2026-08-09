@@ -42,10 +42,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // two independent sync loops can overlap.
 const SYNC_INTERVAL = 30 * 60 * 1000 // 30-minute sync cadence (per user requirement)
 
-// Feature 2: auto-full-pull cooldown. 0 = EVERY start/foreground pulls (testing);
-// later set to 30 min so the free-tier Firestore read budget stays small.
-const PULL_COOLDOWN_MS = 0;
-// const PULL_COOLDOWN_MS = 30 * 60 * 1000; // skip auto-pull if last pull < 30 min ago
+// Auto-full-pull cooldown: skip the start/foreground pull when one ran < 30 min ago.
+// Cold start ALWAYS pulls — lastAutoPullAt is module-level, so it resets to 0 on a
+// fresh process and the guard never blocks it. Warm foreground re-opens inside the
+// window pull nothing (and the foreground trigger never pushes — only background/
+// interval/manual do), keeping the Firestore read budget small.
+const PULL_COOLDOWN_MS = 30 * 60 * 1000; // 30-minute pull cooldown (per user requirement)
+// const PULL_COOLDOWN_MS = 0; // testing: EVERY start/foreground pulls
 let lastAutoPullAt = 0;
 
 const Stack = createNativeStackNavigator();

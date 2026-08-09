@@ -63,6 +63,8 @@ export const initDatabase = async () => {
       studentId TEXT NOT NULL, rangeKey TEXT NOT NULL, entries TEXT NOT NULL,
       v INTEGER DEFAULT 0,
       PRIMARY KEY (studentId, rangeKey))`);
+  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
+      sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
 };
 
 export const getDB = () => dbInstance;
@@ -412,6 +414,29 @@ export const cacheStudentList = async (students: any[]): Promise<void> => {
     await getDB().executeSql(`INSERT OR REPLACE INTO student_list_cache (uid, students, updatedAt) VALUES (?, ?, ?)`,
       [uid, JSON.stringify(filtered), new Date().toISOString()]);
   } catch {}
+};
+
+/**
+ * LOCAL-ONLY per-student "last page VIEWED" memory (StudentHub RESUME source).
+ * Deliberately NOT part of any manifest/sync path — the cloud stays clean.
+ */
+export const saveLastPageSeenLocal = async (sid: string, seen: { surah: number; verse: number; at: string }): Promise<void> => {
+  try {
+    await getDB().executeSql(`INSERT OR REPLACE INTO local_student_state (sid, lastPageSeen, updatedAt) VALUES (?, ?, ?)`,
+      [sid, JSON.stringify(seen), new Date().toISOString()]);
+  } catch {}
+};
+export const getLastPageSeenLocal = async (sid: string): Promise<{ surah: number; verse: number; at: string } | null> => {
+  try {
+    const r = await getDB().executeSql(`SELECT lastPageSeen FROM local_student_state WHERE sid = ?`, [sid]);
+    if (r && r[0] && r[0].rows && r[0].rows.length) {
+      const v = JSON.parse(r[0].rows.item(0).lastPageSeen);
+      if (v && Number(v.surah) > 0 && Number(v.verse) > 0) {
+        return { surah: Number(v.surah), verse: Number(v.verse), at: String(v.at || '') };
+      }
+    }
+  } catch {}
+  return null;
 };
 
 async function migrateV1IfNeeded(db: any) {

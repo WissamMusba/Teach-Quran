@@ -1,8 +1,9 @@
 /**
  * FILE: src/screens/StudentHubScreen.tsx
- * ROLE: Per-student hub opened from a Dashboard student card — 6 rows (RESUME,
- *       BOOKMARKS & NOTES split row, DAILY RECITATION, JUZ/PARA INDEX, SURAH
- *       INDEX, GO TO PAGE #) that deep-link into QuranView / Bookmarks / Notes.
+ * ROLE: Per-student hub opened from a Dashboard student card — 6 rows (RESUME =
+ *       local last page VIEWED, BOOKMARKS & NOTES split row, DAILY RECITATION =
+ *       the lastRead reading mark, JUZ/PARA INDEX, SURAH INDEX, GO TO PAGE #)
+ *       that deep-link into QuranView / Bookmarks / Notes.
  * DEPENDS ON: src/database/localDB.ts (getStudentData), src/database/quranData.ts
  *             (getVersePage), src/utils/theme.ts (JUZ_MAP), Redux student/settings/
  *             quran/sync slices, react-native-svg.
@@ -13,7 +14,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Keyboard } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
-import { getStudentData } from '../database/localDB';
+import { getStudentData, getLastPageSeenLocal } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -65,15 +66,18 @@ const ArrowRight = ({ c }: { c: string }) => (
  *       deep-links into the reader / list screens.
  * FLOW: 1) useStudentDataRefresh keeps studentData fresh (focus reload gated while a
  *       pull is in flight — a mid-pull reload would show PARTIAL data — plus a
- *       syncing->synced watcher); 2) RESUME resolves lastRead -> page via
- *       getVersePage (script-aware) + juz via JUZ_MAP scan; 3) rows navigate with
- *       the same { surahId, scrollToVerse } / { page } params QuranViewScreen consumes.
- * CALLS: getStudentData, getVersePage (localDB/quranData), navigation.navigate.
+ *       syncing->synced watcher); 2) RESUME resolves the LOCAL last-viewed page
+ *       (lastPageSeen in local_student_state — never synced) -> page via
+ *       getVersePage (script-aware) + juz via JUZ_MAP scan, falling back to
+ *       lastRead, else page 1; 3) DAILY RECITATION = the lastRead reading mark;
+ *       4) rows navigate with the same { surahId, scrollToVerse } / { page }
+ *       params QuranViewScreen consumes.
+ * CALLS: getStudentData, getLastPageSeenLocal (localDB), getVersePage (quranData), navigation.navigate.
  * CALLED BY: React Navigation (registered in the root stack; opened via DashboardScreen).
  * AFFECTS: s.student.studentData (focus re-hydration); navigation.
- * NOTES: RESUME is always enabled — a student with no reading mark yet defaults
- *        to page 1 / Al-Fatiha (surah 1 verse 1); DAILY RECITATION greys out
- *        only when the student has no bookmarks at all.
+ * NOTES: RESUME is always enabled — header w/ no saved page yet falls back to
+ *        lastRead, else page 1 / Al-Fatiha (surah 1 verse 1); DAILY RECITATION
+ *        greys out only when the student has no reading mark (lastRead) at all.
  */
 export default function StudentHubScreen({ navigation }: any) {
   const dispatch = useDispatch();
@@ -83,7 +87,6 @@ export default function StudentHubScreen({ navigation }: any) {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const [pageInput, setPageInput] = useState('');
-  const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number } | null>(null);
 
   useStudentDataRefresh();
 
@@ -91,41 +94,55 @@ export default function StudentHubScreen({ navigation }: any) {
   const lrSurah = lastRead ? Number(lastRead.surah) : 0;
   const lrVerse = lastRead ? Number(lastRead.verse) : 0;
 
-  // RESUME info: page (script-aware, async) + para — recomputed when the mark moves.
-  // No mark yet (new student): default to page 1 (Al-Fatiha) instead of 'Not started'.
+  /**
+   * RESUME target — LOCAL last-viewed page (lastPageSeen), falling back to the
+   * lastRead mark, else page 1. lastPageSeen is read from SQLite (per student,
+   * never synced) and resolved script-aware to {page, juz, surah, verse}.
+   * DAILY RECITATION reads the same lastRead below (the reading mark).
+   */
+  const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
+  const [lastSeenAt, setLastSeenAt] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
-    if (lrSurah > 0 && lrVerse > 0) {
-      getVersePage(lrSurah, lrVerse, textStyle).then(pg => {
-        if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(lrSurah, lrVerse) });
-      }).catch(() => {});
+    const choose = (seen: any) => {
+      setLastSeenAt(seen?.at ? String(seen.at) : '');
+      if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) return { surah: Number(seen.surah), verse: Number(seen.verse) };
+      if (lrSurah > 0 && lrVerse > 0) return { surah: lrSurah, verse: lrVerse };
+      return null;
+    };
+    const apply = (src: any) => {
+      if (cancelled) return;
+      if (!src) { setResumeInfo({ page: 1, juz: 1, surah: 1, verse: 1 }); return; }
+      getVersePage(src.surah, src.verse, textStyle).then(pg => {
+        if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(src.surah, src.verse), surah: src.surah, verse: src.verse });
+      }).catch(() => { if (!cancelled) setResumeInfo({ page: 1, juz: getJuzForVerse(src.surah, src.verse), surah: src.surah, verse: src.verse }); });
+    };
+    if (currentStudent?.id) {
+      getLastPageSeenLocal(currentStudent.id).then(seen => apply(choose(seen))).catch(() => apply(choose(null)));
     } else {
-      setResumeInfo({ page: 1, juz: 1 });
+      apply(choose(null));
     }
     return () => { cancelled = true; };
-  }, [lrSurah, lrVerse, textStyle]);
-
-  // DAILY RECITATION target: the most recent bookmark by createdAt.
-  const recentBookmark = useMemo(() => {
-    const marks = studentData?.bookmarks ? Object.values(studentData.bookmarks) as any[] : [];
-    if (!marks.length) return null;
-    return marks.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-  }, [studentData?.bookmarks]);
-
-  const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
-  const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
+  }, [currentStudent?.id, lrSurah, lrVerse, textStyle]);
 
   const resumeSubtitle = useMemo(() => {
     if (!resumeInfo) return '';
     const parts = [`Reading page ${resumeInfo.page}`, `Para ${resumeInfo.juz}`];
-    const ago = lastRead?.updatedAt ? timeAgo(lastRead.updatedAt) : '';
+    const t = lastSeenAt || (lastRead?.updatedAt ? String(lastRead.updatedAt) : '');
+    const ago = timeAgo(t);
     if (ago) parts.push(ago);
     return parts.join(' · ');
-  }, [lastRead, resumeInfo]);
+  }, [lastRead, resumeInfo, lastSeenAt]);
 
-  const dailySubtitle = recentBookmark
-    ? `${surahNames?.[recentBookmark.surah] || `Surah ${recentBookmark.surah}`} · Verse ${recentBookmark.verse}`
-    : 'No bookmark yet';
+  // DAILY RECITATION target: the reading mark (lastRead) — set via the
+  // "Set Reading Mark" menu in the reader. Enabled only when it exists.
+  const dailyTarget = lrSurah > 0 && lrVerse > 0 ? { surah: lrSurah, verse: lrVerse } : null;
+  const dailySubtitle = dailyTarget
+    ? `${surahNames?.[lrSurah] || `Surah ${lrSurah}`} · Verse ${lrVerse}`
+    : 'No reading mark yet';
+
+  const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
+  const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
 
   const pageNum = pageInput !== '' ? parseInt(pageInput, 10) : 0;
   const pageValid = pageInput !== '' && pageNum >= 1 && pageNum <= 610;
@@ -163,9 +180,9 @@ export default function StudentHubScreen({ navigation }: any) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
-          {/* 1 — RESUME (defaults to page 1 / Al-Fatiha when the student has no reading mark yet) */}
+          {/* 1 — RESUME: local last page VIEWED (falls back to lastRead, else page 1). */}
           <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]}
-            onPress={() => openVerse(lrSurah > 0 ? lrSurah : 1, lrVerse > 0 ? lrVerse : 1)} activeOpacity={0.7}>
+            onPress={() => resumeInfo && openVerse(resumeInfo.surah, resumeInfo.verse)} activeOpacity={0.7}>
             <Text style={[styles.rowLabel, { color: titleC }]}>RESUME</Text>
             <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>
@@ -183,9 +200,9 @@ export default function StudentHubScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {/* 3 — DAILY RECITATION (enabled only when a bookmark exists) */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }, !recentBookmark && styles.rowDisabled]}
-            onPress={() => recentBookmark && openVerse(recentBookmark.surah, recentBookmark.verse)} disabled={!recentBookmark} activeOpacity={0.7}>
+          {/* 3 — DAILY RECITATION (the lastRead reading mark; enabled only when it exists) */}
+          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }, !dailyTarget && styles.rowDisabled]}
+            onPress={() => dailyTarget && openVerse(dailyTarget.surah, dailyTarget.verse)} disabled={!dailyTarget} activeOpacity={0.7}>
             <Text style={[styles.rowLabel, { color: titleC }]}>DAILY RECITATION</Text>
             <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{dailySubtitle}</Text>
           </TouchableOpacity>
