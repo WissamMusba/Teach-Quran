@@ -20,6 +20,7 @@ const initialState = {
   showPageInfo: true,         // DEAD: only read by its own Settings switch
   mushafSplit: false,         // tablet two-page spread
   playBasmala: true,          // play the reciter's basmala before verse 1 of a surah (surah 1 & 9 excluded)
+  adCollapsed: false,         // CollapsibleBannerAd user preference: true = banner hidden (tiny ▴ only)
 };
 
 export const settingsSlice = createSlice({
@@ -83,8 +84,15 @@ export const settingsSlice = createSlice({
      *          of any surah except 1 (Al-Fatiha) and 9 (At-Tawbah).
      */
     togglePlayBasmala: (state) => { state.playBasmala = !state.playBasmala; },
+    /**
+     * WHAT: Sets the collapsible-banner collapsed flag (persisted via whitelist —
+     *       the user's "hide the ad" preference survives restarts).
+     * CALLED BY: CollapsibleBannerAd (collapse ▾ / expand ▴ buttons), Dashboard FAB
+     *            clearance reads the same value.
+     */
+    setAdCollapsed: (state, action) => { state.adCollapsed = !!action.payload; },
   }
 });
 
-export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, toggleShowPageInfo, setMushafSplit, togglePlayBasmala } = settingsSlice.actions;
+export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, toggleShowPageInfo, setMushafSplit, togglePlayBasmala, setAdCollapsed } = settingsSlice.actions;
 export default settingsSlice.reducer;

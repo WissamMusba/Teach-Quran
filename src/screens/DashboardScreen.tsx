@@ -24,6 +24,7 @@ import { setToolbarExpanded } from '../store/drawingSlice';
 import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { getManifest, purgeLocalStudent } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
@@ -286,7 +287,7 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <FlatList data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
+      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
       <TouchableOpacity style={styles.fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
@@ -315,8 +316,9 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <SyncIndicator />
+<SyncIndicator />
       <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
+      <CollapsibleBannerAd />
     </View>
   );
 }

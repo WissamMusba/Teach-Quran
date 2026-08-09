@@ -8,6 +8,7 @@
  */
 import React, { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import mobileAds from 'react-native-google-mobile-ads';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useDispatch, useSelector } from 'react-redux';
@@ -219,6 +220,9 @@ const AppInner = () => {
  *        would blank the app with no timeout/fallback.
  */
 const App = () => {
+  // Initialize the Google Mobile Ads SDK once at launch (silent best-effort; banner
+  // components tolerate a late init — they just request after it settles).
+  useEffect(() => { mobileAds().initialize().catch(() => {}); }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>

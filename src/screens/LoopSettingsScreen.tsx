@@ -20,6 +20,7 @@ import { setLoop } from '../store/audioSlice';
 import { SURAH_VERSE_COUNTS } from '../utils/audioPlayback';
 import { getVersesByPage } from '../database/quranData';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 const ACCENT = '#00d4aa';
 const COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -256,6 +257,7 @@ export default function LoopSettingsScreen({ route }: any) {
         draft={edit?.draft || ''}
         onChangeText={(t: string) => setEdit({ mode: edit!.mode, draft: t.replace(/[^0-9]/g, '') })}
         onSave={commitEdit} onClose={() => setEdit(null)} />
+      <CollapsibleBannerAd />
     </View>
   );
 }

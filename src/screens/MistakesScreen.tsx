@@ -19,6 +19,7 @@ import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -214,12 +215,14 @@ export default function MistakesScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={sortedVerses}
           keyExtractor={(item: any) => item.verseKey}
           contentContainerStyle={styles.list}
           renderItem={renderCard}
         />
       )}
+      <CollapsibleBannerAd />
     </View>
   );
 }

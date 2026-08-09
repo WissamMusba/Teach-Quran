@@ -26,6 +26,7 @@ import { playAudioNote } from '../api/audioNotes';
 import { getStudentData, getLastPullAt } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 /**
  * WHAT: One shared AudioRecorderPlayer instance for the whole screen; ensures only one clip plays at a time.
@@ -311,12 +312,14 @@ export default function NotesScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={rows}
           keyExtractor={(i: NoteRow) => i.verseKey}
           contentContainerStyle={styles.list}
           renderItem={renderItem}
         />
       )}
+      <CollapsibleBannerAd />
     </View>
   );
 }

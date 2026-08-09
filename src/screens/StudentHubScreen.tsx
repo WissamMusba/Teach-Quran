@@ -19,6 +19,7 @@ import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 /** Epoch-ms normalization for any timestamp-ish value (ISO string / ms / Firestore Timestamp). */
 const toMillis = (v: any): number => {
@@ -232,6 +233,7 @@ export default function StudentHubScreen({ navigation }: any) {
           </View>
         </View>
       </ScrollView>
+      <CollapsibleBannerAd />
     </View>
   );
 }

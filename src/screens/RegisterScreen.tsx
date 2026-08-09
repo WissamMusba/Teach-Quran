@@ -10,6 +10,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { registerUser } from '../api/auth';
 import AlertModal from '../components/common/AlertModal';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function RegisterScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', isSuccess: false });
@@ -57,29 +58,33 @@ export default function RegisterScreen({ navigation }: any) {
     else setAlert({ visible: true, title: 'Registration Failed', message: res.error, isSuccess: false });
   }, [u, p, navigation]);
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
-      <View style={styles.pwRow}>
-        <TextInput style={styles.pwInput} placeholder="Password (6+ chars)" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
-        <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
-          <View style={styles.eyeIconWrap}>
-            <Text style={styles.eyeIcon}>👁</Text>
-            {!showP && <View style={styles.eyeSlash} />}
-          </View>
+    <View style={styles.root}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Create Account</Text>
+        <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
+        <View style={styles.pwRow}>
+          <TextInput style={styles.pwInput} placeholder="Password (6+ chars)" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
+          <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
+            <View style={styles.eyeIconWrap}>
+              <Text style={styles.eyeIcon}>👁</Text>
+              {!showP && <View style={styles.eyeSlash} />}
+            </View>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.btn} onPress={handleReg} disabled={loading} activeOpacity={0.7}>
+          {loading ? <ActivityIndicator color="#121212" /> : <Text style={styles.btnText}>Register</Text>}
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}><Text style={styles.link}>Back to Login</Text></TouchableOpacity>
+        <AlertModal visible={alert.visible} title={alert.title} message={alert.message}
+          buttons={alert.isSuccess ? [{ text: 'Log In', onPress: () => navigation.navigate('Login') }] : undefined}
+          onClose={() => { setAlert({ ...alert, visible: false }); if (alert.isSuccess) navigation.navigate('Login'); }} />
       </View>
-      <TouchableOpacity style={styles.btn} onPress={handleReg} disabled={loading} activeOpacity={0.7}>
-        {loading ? <ActivityIndicator color="#121212" /> : <Text style={styles.btnText}>Register</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}><Text style={styles.link}>Back to Login</Text></TouchableOpacity>
-      <AlertModal visible={alert.visible} title={alert.title} message={alert.message}
-        buttons={alert.isSuccess ? [{ text: 'Log In', onPress: () => navigation.navigate('Login') }] : undefined}
-        onClose={() => { setAlert({ ...alert, visible: false }); if (alert.isSuccess) navigation.navigate('Login'); }} />
+      <CollapsibleBannerAd />
     </View>
   );
 }
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#121212' },
   container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#121212' },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#00d4aa' },
   input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#fff', backgroundColor: '#1e1e1e' },

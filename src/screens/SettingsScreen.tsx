@@ -13,6 +13,7 @@ import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont } from '../utils/theme';
 import { RootState } from '../store';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 const ACCENT = '#00d4aa';
 const PREVIEW_BG = '#0f4038';
@@ -142,6 +143,7 @@ const SettingsScreen = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+      <CollapsibleBannerAd />
     </View>
   );
 };

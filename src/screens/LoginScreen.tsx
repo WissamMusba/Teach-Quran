@@ -14,6 +14,7 @@ import { useDispatch } from 'react-redux';
 import { loginUser } from '../api/auth';
 import { setUser } from '../store/authSlice';
 import AlertModal from '../components/common/AlertModal';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function LoginScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
@@ -59,27 +60,31 @@ export default function LoginScreen({ navigation }: any) {
     }
   }, [u, p, navigation]);
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Teach Quran</Text>
-      <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
-      <View style={styles.pwRow}>
-        <TextInput style={styles.pwInput} placeholder="Password" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
-        <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
-          <View style={styles.eyeIconWrap}>
-            <Text style={styles.eyeIcon}>👁</Text>
-            {!showP && <View style={styles.eyeSlash} />}
-          </View>
+    <View style={styles.root}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Teach Quran</Text>
+        <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
+        <View style={styles.pwRow}>
+          <TextInput style={styles.pwInput} placeholder="Password" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
+          <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
+            <View style={styles.eyeIconWrap}>
+              <Text style={styles.eyeIcon}>👁</Text>
+              {!showP && <View style={styles.eyeSlash} />}
+            </View>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading} activeOpacity={0.7}>
+          {loading ? <ActivityIndicator color="#121212" /> : <Text style={styles.btnText}>Login</Text>}
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}><Text style={styles.link}>Create Account</Text></TouchableOpacity>
+        <AlertModal visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
       </View>
-      <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading} activeOpacity={0.7}>
-        {loading ? <ActivityIndicator color="#121212" /> : <Text style={styles.btnText}>Login</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}><Text style={styles.link}>Create Account</Text></TouchableOpacity>
-      <AlertModal visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
+      <CollapsibleBannerAd />
     </View>
   );
 }
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#121212' },
   container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#121212' },
   title: { fontSize: 32, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#00d4aa' },
   input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#fff', backgroundColor: '#1e1e1e' },

@@ -18,6 +18,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
 import { getVersePagesDB } from '../database/localDB';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
@@ -258,12 +259,14 @@ export default function BookmarksScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={sortedBookmarks}
           keyExtractor={(i: any, idx: number) => idx.toString()}
           contentContainerStyle={styles.list}
           renderItem={renderBookmark}
         />
       )}
+      <CollapsibleBannerAd />
     </View>
   );
 }
