@@ -1303,8 +1303,30 @@ export default function QuranViewScreen({ navigation, route }: any) {
     return lr && s > 0 && s === Number(currentSurahId) ? Number(lr.verse) : null;
   })();
   const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
-  const pageLastKey = pageLastVerse ? `${pageLastVerse.surahId}_${pageLastVerse.verseNumber}` : null;
-  const pageLastBookmarked = pageLastKey ? !!studentData?.bookmarks?.[pageLastKey] : false;
+  const pageLastIsReadingMark = (() => {
+    const lr = studentData?.lastRead;
+    return !!pageLastVerse && !!lr && Number(lr.surah) === Number(pageLastVerse.surahId) && Number(lr.verse) === Number(pageLastVerse.verseNumber);
+  })();
+
+  /**
+   * WHAT: Toggles the READ BOOKMARK (studentData.lastRead) anchored at the
+   *   visible page's LAST verse — the same reading mark StudentHub's DAILY
+   *   RECITATION row reads. One tap pins it at the end of the page; a second
+   *   tap on the same verse clears it back to null.
+   * CALLS: updateData (optimistic Redux + debounced SQLite/sync funnel).
+   * CALLED BY: the floating bottom-page bookmark button (page mode only).
+   * AFFECTS: studentData.lastRead.{surah, verse, updatedAt}.
+   */
+  const handleReadingMarkToggle = useCallback(() => {
+    if (!pageLastVerse) return;
+    const lr = studentData?.lastRead;
+    const isMarked = lr && Number(lr.surah) === Number(pageLastVerse.surahId) && Number(lr.verse) === Number(pageLastVerse.verseNumber);
+    updateData({
+      ...studentData,
+      lastRead: isMarked ? null : { surah: Number(pageLastVerse.surahId), verse: Number(pageLastVerse.verseNumber), updatedAt: new Date().toISOString() },
+    });
+    ReactNativeHapticFeedback.trigger('impactLight');
+  }, [pageLastVerse, studentData, updateData]);
 
   /**
    * WHAT: Plays from a given verse (menu "Play"). qariId = currentQari includes
@@ -1629,11 +1651,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {isCapturing && shareDrawings && capturePaths?.length > 0 && (<StaticDrawingOverlay paths={capturePaths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
-        {/* ---- floating page-bookmark button (top-right; INSIDE the captured region for share) ---- */}
+        {/* ---- floating page-bookmark button (bottom-right; INSIDE the captured region for share) ----
+             NOW toggles the READING BOOKMARK (lastRead) at the page's last verse, not a normal bookmark. */}
         {readingMode === 'page' && !isCapturing && pageLastVerse && (
           <TouchableOpacity style={styles.pageBookmark}
-            onPress={() => handleBookmarkFlow(pageLastVerse.verseNumber, pageLastVerse.surahId)} activeOpacity={0.5} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <BookmarkIcon c="#00D4AA" size={24} filled={pageLastBookmarked} />
+            onPress={handleReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <BookmarkIcon c="#00D4AA" size={24} filled={pageLastIsReadingMark} />
           </TouchableOpacity>
         )}
       </View>
@@ -1672,6 +1695,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded */}
       {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
+
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); when the player
+             bar is up it floats just above it (bottom 96) so it is never covered ---- */}
+      {!isDrawing && !isCapturing && !recordingVerseKey && (
+        <View style={[styles.headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
+          <TouchableOpacity style={styles.headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}
       <SurahList visible={showList} mode={searchMode} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} onSelectPage={handleSelectPage} onSelectJuz={handleSelectJuz} />
@@ -1781,7 +1814,10 @@ const styles = StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: -2, right: 0, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  pageBookmark: { position: 'absolute', bottom: 14, right: 10, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999, backgroundColor: 'rgba(18,18,20,0.55)', borderRadius: 19, borderWidth: 1, borderColor: 'rgba(0,212,170,0.45)' },
+  headerToggleWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 9998, elevation: 9998 },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: 'rgba(18,18,20,0.78)', borderWidth: 1, borderColor: 'rgba(0,212,170,0.6)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  headerToggleText: { color: '#00d4aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

@@ -46,6 +46,7 @@ export default function DashboardScreen({ navigation }: any) {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const syncStatus = useSelector((s: any) => s.sync.status);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
+  const adCollapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const prevSyncStatus = useRef<string | null>(null);
 
   /**
@@ -288,7 +289,7 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </View>
       <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
-      <TouchableOpacity style={styles.fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.fab, { bottom: adCollapsed ? 24 : 84 }]} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
         <View style={styles.modalOverlay}>
