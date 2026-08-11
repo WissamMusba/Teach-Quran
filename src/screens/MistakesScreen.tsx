@@ -27,6 +27,17 @@ import { JUZ_MAP } from '../utils/theme';
 const ACCENT = '#00b2aa';
 
 /**
+ * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
+ * CALLS: none. AFFECTS: UI only.
+ */
+const MetaChip = ({ label, value, nightMode }: { label: string; value: string; nightMode: boolean }) => (
+  <View style={[styles.metaChip, nightMode ? styles.metaChipDark : styles.metaChipLight]}>
+    <Text style={styles.metaLabel}>{label}</Text>
+    <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{value}</Text>
+  </View>
+);
+
+/**
  * WHAT: Resolves the juz of a verse (surahId, verseNum) by scanning JUZ_MAP for the
  *       last entry whose start point is <= the verse (surah before, or same surah
  *       with start ayah <= ayah).
@@ -170,27 +181,15 @@ export default function MistakesScreen() {
             ) : null}
           </View>
         ) : null}
-        <Text style={[styles.surahName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
-        <View style={[styles.metaStack, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Surah</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{s}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Ayah</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{v}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Juz</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{juz}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Page</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{page || '…'}</Text>
-          </View>
+        <View style={styles.titleRow}>
+          <Text style={styles.surahName} numberOfLines={1}>{name}</Text>
+          <Text style={styles.chevron}>›</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <MetaChip label="Surah #" value={String(s)} nightMode={nightMode} />
+          <MetaChip label="Juz" value={String(juz)} nightMode={nightMode} />
+          <MetaChip label="Page" value={page > 0 ? String(page) : '…'} nightMode={nightMode} />
+          <MetaChip label="Ayat" value={String(v)} nightMode={nightMode} />
         </View>
         {dots.length > 0 || extra > 0 ? (
           <View style={styles.dotsRow}>
@@ -229,20 +228,25 @@ export default function MistakesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16, paddingBottom: 32 },
-  card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 3 },
-  chipsRow: { flexDirection: 'row', marginBottom: 12 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, marginRight: 8 },
-  chipText: { fontSize: 11, fontWeight: '600' },
-  surahName: { fontSize: 20, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 10, marginBottom: 12 },
-  metaStack: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, marginBottom: 12 },
-  metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  metaLabel: { fontSize: 12, fontWeight: '600' },
-  metaValue: { fontSize: 12, fontWeight: '700' },
-  metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.6 },
-  dotsRow: { flexDirection: 'row', alignItems: 'center' },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, marginRight: 8 },
-  moreText: { fontSize: 12, fontWeight: '600' },
+  list: { padding: 10, paddingBottom: 16 },
+  card: { borderRadius: 12, borderWidth: 1, padding: 10, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2 },
+  chipsRow: { flexDirection: 'row', marginBottom: 5 },
+  chip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, marginRight: 6 },
+  chipText: { fontSize: 9, fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  surahName: { color: ACCENT, fontSize: 15, fontWeight: '800' },
+  chevron: { color: ACCENT, fontSize: 20, fontWeight: '400', opacity: 0.7, marginTop: -2 },
+  metaRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  metaChip: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  metaChipDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
+  metaChipLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },
+  metaLabel: { color: '#9aa0b5', fontSize: 8, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  metaValue: { fontSize: 11, fontWeight: '800', marginTop: 1 },
+  metaValueDark: { color: '#ffffff' },
+  metaValueLight: { color: '#1a1a2e' },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
+  dot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, marginRight: 6 },
+  moreText: { fontSize: 9, fontWeight: '600' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600' },

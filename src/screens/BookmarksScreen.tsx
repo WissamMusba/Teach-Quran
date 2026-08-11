@@ -33,17 +33,6 @@ const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
 const sessionPageCache: Record<string, number> = {};
 
 /**
- * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
- * CALLS: none. AFFECTS: UI only.
- */
-const MetaChip = ({ label, value, nightMode }: { label: string; value: string; nightMode: boolean }) => (
-  <View style={[styles.metaChip, nightMode ? styles.metaChipDark : styles.metaChipLight]}>
-    <Text style={styles.metaLabel}>{label}</Text>
-    <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{value}</Text>
-  </View>
-);
-
-/**
  * WHAT: Screen component: derives the sorted bookmark list + last read from Redux, renders
  *       ScreenHeader (fixed, above the list), empty state, pinned card, or FlatList of
  *       premium bookmark cards.
@@ -180,26 +169,38 @@ export default function BookmarksScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.topRow}>
-          <View style={[styles.chip, styles.chipDate, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
+          <View style={[styles.chip, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
             <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
               Date: {meta.date}
             </Text>
           </View>
-          <View style={[styles.chip, styles.chipTime, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
+          <View style={[styles.chip, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
             <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
               Time: {meta.time}
             </Text>
           </View>
         </View>
-        <View style={styles.titleRow}>
-          <Text style={styles.surahName}>{meta.name}</Text>
-          <Text style={styles.chevron}>›</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <MetaChip label="Surah #" value={String(item.surah)} nightMode={nightMode} />
-          <MetaChip label="Juz" value={String(meta.juz)} nightMode={nightMode} />
-          <MetaChip label="Page" value={page !== undefined && page > 0 ? String(page) : '…'} nightMode={nightMode} />
-          <MetaChip label="Ayat" value={String(item.verse)} nightMode={nightMode} />
+        <Text style={styles.surahName} numberOfLines={1}>{meta.name}</Text>
+        <View style={[styles.metaStack, nightMode ? styles.metaStackDark : styles.metaStackLight]}>
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
+            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{item.surah}</Text>
+          </View>
+          <View style={styles.metaSeparator} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
+            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{item.verse}</Text>
+          </View>
+          <View style={styles.metaSeparator} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
+            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{meta.juz}</Text>
+          </View>
+          <View style={styles.metaSeparator} />
+          <View style={styles.metaItem}>
+            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Page</Text>
+            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -217,30 +218,41 @@ export default function BookmarksScreen() {
       >
         {ts ? (
           <View style={styles.topRow}>
-            <View style={[styles.chip, styles.chipDate, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
+            <View style={[styles.chip, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
               <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
                 Date: {pinnedMeta.date}
               </Text>
             </View>
-            <View style={[styles.chip, styles.chipTime, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
+            <View style={[styles.chip, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
               <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
                 Time: {pinnedMeta.time}
               </Text>
             </View>
           </View>
         ) : null}
-        <View style={styles.titleRow}>
-          <Text style={styles.lastReadTag}>LAST READ</Text>
-          {!ts ? <Text style={styles.verseNum}>Ayat {lrVerse}</Text> : null}
-          <Text style={styles.chevron}>›</Text>
-        </View>
-        <Text style={styles.surahName}>{pinnedMeta.name}</Text>
+        <Text style={styles.lastReadTag}>LAST READ</Text>
+        <Text style={styles.surahName} numberOfLines={1}>{pinnedMeta.name}</Text>
         {ts ? (
-          <View style={styles.metaRow}>
-            <MetaChip label="Surah #" value={String(lrSurah)} nightMode={nightMode} />
-            <MetaChip label="Juz" value={String(pinnedMeta.juz)} nightMode={nightMode} />
-            <MetaChip label="Page" value={page !== undefined && page > 0 ? String(page) : '…'} nightMode={nightMode} />
-            <MetaChip label="Ayat" value={String(lrVerse)} nightMode={nightMode} />
+          <View style={[styles.metaStack, nightMode ? styles.metaStackDark : styles.metaStackLight]}>
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
+              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{lrSurah}</Text>
+            </View>
+            <View style={styles.metaSeparator} />
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
+              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{lrVerse}</Text>
+            </View>
+            <View style={styles.metaSeparator} />
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
+              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{pinnedMeta.juz}</Text>
+            </View>
+            <View style={styles.metaSeparator} />
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Page</Text>
+              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
+            </View>
           </View>
         ) : null}
       </TouchableOpacity>
@@ -272,39 +284,35 @@ export default function BookmarksScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, padding: 10 },
   containerDark: { backgroundColor: '#121212' },
   containerLight: { backgroundColor: '#f5f5f5' },
-  list: { paddingBottom: 20 },
-  card: { padding: 16, borderRadius: 16, marginBottom: 14, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  list: { paddingBottom: 12 },
+  card: { padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   cardDark: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
   cardLight: { backgroundColor: '#ffffff', borderColor: '#e5e7f2' },
-  topRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  chipDate: {},
-  chipTime: {},
+  topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
+  chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   chipDateDark: { backgroundColor: 'rgba(0,212,170,0.12)' },
   chipDateLight: { backgroundColor: '#e6f8f4' },
   chipTimeDark: { backgroundColor: 'rgba(139,92,246,0.14)' },
   chipTimeLight: { backgroundColor: '#f1ecfe' },
-  chipText: { fontSize: 11, fontWeight: '700' },
+  chipText: { fontSize: 9, fontWeight: '700' },
   chipDateTextDark: { color: '#2ee6bd' },
   chipDateTextLight: { color: '#0b8f77' },
   chipTimeTextDark: { color: '#a78bfa' },
   chipTimeTextLight: { color: '#7c3aed' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  surahName: { color: ACCENT, fontSize: 20, fontWeight: '800', marginTop: 2 },
-  verseNum: { color: '#888', fontSize: 13, fontWeight: '600' },
-  chevron: { color: ACCENT, fontSize: 26, fontWeight: '400', opacity: 0.7, marginTop: -2 },
-  lastReadTag: { alignSelf: 'flex-start', color: ACCENT, backgroundColor: 'rgba(0,212,170,0.12)', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  metaRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  metaChip: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
-  metaChipDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
-  metaChipLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },
-  metaLabel: { color: '#9aa0b5', fontSize: 9, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  metaValue: { fontSize: 14, fontWeight: '800', marginTop: 2 },
+  surahName: { color: ACCENT, fontSize: 15, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 8, marginBottom: 5 },
+  lastReadTag: { alignSelf: 'flex-start', color: ACCENT, backgroundColor: 'rgba(0,212,170,0.12)', fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
+  metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
+  metaStackDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
+  metaStackLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },
+  metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
+  metaLabel: { fontSize: 10, fontWeight: '600' },
+  metaValue: { fontSize: 10, fontWeight: '700' },
   metaValueDark: { color: '#ffffff' },
   metaValueLight: { color: '#1a1a2e' },
+  metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5, backgroundColor: '#888' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { color: '#888', fontSize: 16, fontWeight: '600' },
