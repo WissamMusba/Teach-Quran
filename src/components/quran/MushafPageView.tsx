@@ -72,15 +72,16 @@ const SPARSE_FONT_BOOST = 1.3;
  * -1/+2y when the header is visible, default +0. The size feeds fs (and thus the layout cache
  * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
  * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
+ * y is NEGATIVE (words lifted ~3px up) so the last line clears the frame/bottom edge.
  */
 const getFontAdj = (ts: string, hv: boolean) => {
   switch (ts) {
-    case 'saleem': return { size: 2, y: 0 };
-    case 'alqalam': return { size: 0, y: 0 };
-    case 'uthmani': return { size: 0, y: 0 };
-    case 'lateef': return { size: 4, y: 0 };
+    case 'saleem': return { size: 2, y: -3 };
+    case 'alqalam': return { size: 0, y: -3 };
+    case 'uthmani': return { size: 0, y: -3 };
+    case 'lateef': return { size: 4, y: -3 };
     case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
-    default: return { size: 0, y: 0 };
+    default: return { size: 0, y: -3 };
   }
 };
 

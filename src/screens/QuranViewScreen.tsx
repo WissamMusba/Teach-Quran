@@ -1684,7 +1684,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         {/* ---- floating reading-mark bookmark button (top-right; INSIDE the captured region for share) ----
              NOW toggles the READING BOOKMARK (lastRead) at the page's last verse, not a normal bookmark. */}
         {readingMode === 'page' && !isCapturing && stablePageLastVerse && (
-          <TouchableOpacity
+          <TouchableOpacity style={styles.pageBookmark}
             onPress={handleReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <IconBookmark c="#00D4AA" s={30} filled={pageLastIsReadingMark} />
           </TouchableOpacity>
@@ -1723,15 +1723,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share spinner overlay */}
       {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
-      {/* bottom playback bar — always on-screen (not tied to the header) so the
-          prev/next arrows never vanish mid-playback; hidden only while a note is
-          being recorded or a share capture is running */}
-      {!recordingVerseKey && !isCapturing && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
+      {/* bottom playback bar — visible only while the header is visible and no note is being recorded
+          (hides together with the header, incl. via the edge/dead taps) */}
+      {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); the player
-             bar is now always visible, so the toggle always floats just above it ---- */}
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); when the player
+             bar is up it floats just above it (bottom 96) so it is never covered ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles.headerToggleWrap, { bottom: 96 }]} pointerEvents="box-none">
+        <View style={[styles.headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
           <TouchableOpacity style={styles.headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles.headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
