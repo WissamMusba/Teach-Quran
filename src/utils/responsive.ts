@@ -16,16 +16,20 @@ export const scaleFont = (size: number): number => {
 
 export const getMushafFontSize = (headerVisible?: boolean): number => {
   const base = (() => {
-    if (SCREEN_WIDTH < 360) return 18;
-    if (SCREEN_WIDTH < 400) return 20;
-    if (SCREEN_WIDTH < 500) return 22;
-    if (SCREEN_WIDTH < 700) return 25;
+    if (SCREEN_WIDTH < 360) return 16;
+    if (SCREEN_WIDTH < 400) return 18;
+    if (SCREEN_WIDTH < 500) return 20;
+    if (SCREEN_WIDTH < 700) return 22;
     // Tablets / iPad sizes: drastically increased as requested, 
     // leveraging the extra available space to make the text way bigger.
     if (SCREEN_WIDTH < 900) return 38; 
     return 48; // For very large screens (was 32)
   })();
-  if (headerVisible === false) return base + (SCREEN_WIDTH < 500 ? 1 : 3);
+  // NOTE: headerVisible must NOT change the size here. The page layout cache persists ONE set
+  // of measured line widths shared by both header states, and the cache-hit scale math assumes
+  // they were measured at the current render size — a hidden-header size bump (+1/+3) made
+  // hidden-header pages under-scale and spill past the padding into the frame. Both states
+  // render at the same size now, so the fit is identical (and correct).
   return base;
 };
 

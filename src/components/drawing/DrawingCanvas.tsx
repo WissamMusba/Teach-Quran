@@ -243,9 +243,17 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       setCurrentPath(newPath);
       currentPathRef.current = newPath;
     },
-    // MOVE — laser is frozen (return); eraser/pen append each point; underline collapses to [first, current] so it stays a straight line.
+    // MOVE — laser rewrites its single point to the current finger position (pointer tracking); eraser/pen append each point; underline collapses to [first, current] so it stays a straight line.
     onPanResponderMove: (e) => {
-      if (stateRef.current.activeTool === 'laser') return;
+      if (stateRef.current.activeTool === 'laser') {
+        if (currentPathRef.current) {
+          const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
+          const updatedPath = { ...currentPathRef.current, points: [newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+        }
+        return;
+      }
       if (currentPathRef.current) {
         const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
         if (stateRef.current.activeTool === 'eraser') {

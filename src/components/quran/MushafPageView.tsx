@@ -197,9 +197,11 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
  *     scales on a cache hit may differ from first-visit ones until the cache entry is cleared.
- *   - headerVisible is absent from BOTH effect dep arrays: toggling the header shifts fs (cache
- *     key) but does NOT clear measurement refs — a stale-measure/cache mismatch window for which
- *     the fixNonce bump is the recovery path.
+ *   - headerVisible is absent from BOTH effect dep arrays: getMushafFontSize returns the SAME
+ *     size for both header states (responsive.ts), so fs (cache key) never shifts on a header
+ *     toggle — both states share one layout row. If the size bump is ever re-added, cache-hit
+ *     scales would under-shrink the hidden-header variant and text would spill into the frame
+ *     (see the note in responsive.ts).
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
@@ -288,9 +290,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
   // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
-  // from the deps (and from the cache key — hardcoded false at both DB call sites), yet it still
-  // shifts fs which IS in the cache key; a fixNonce bump is the recovery path (see component
-  // NOTES).
+  // from the deps — and must stay absent: the two header states share one fs (responsive.ts) and
+  // one layout-cache row, so a toggle is a same-key cache hit, not a re-measure.
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
@@ -357,8 +358,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       setLineScale({});
       const keySparse = sparse ? 1 : 0;
       const sumsW = Math.round(pageWidth);
-      // Persist BOTH header variants: the persisted sums are raw (full-size) widths, valid for
-      // any font size, so the toggled-header state opens from cache instead of re-measuring.
+    // Persist for BOTH header variants: the sums are raw (full-size) widths, valid for any
+    // font size, and the two header states share one fs, so the toggled-header state opens
+    // from cache instead of re-measuring.
       savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, sumsW, sums);
       savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, sumsW, sums);
     }
@@ -456,28 +458,31 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
   // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
-  // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). All badges are
-  // hidden while headerVisible and gated on pageNum > 0 / firstSurahId > 0 (firstSurahId parsed
-  // from the first word's location "surah:verse"); compact (<600px) shrinks the pill styles.
+  // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). Badges ALWAYS
+  // render (header visibility does not gate them) and sit OUTSIDE the frame — negative offsets
+  // place them in the margin band between the screen edge and the frame (band heights are
+  // marginTop >= 22 / marginBottom >= 20 in QuranViewScreen's page wrappers); gated only on
+  // pageNum > 0 / firstSurahId > 0 (firstSurahId parsed from the first word's location
+  // "surah:verse"); compact (<600px) shrinks the pill styles.
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
-      {!headerVisible && firstSurahId > 0 && (
+      {firstSurahId > 0 && (
         <View style={[styles.badgePill, styles.topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
           <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
-      {!headerVisible && pageNum > 0 && (
+      {pageNum > 0 && (
         <View style={[styles.badgePill, styles.bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
           <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
         </View>
       )}
-      {!headerVisible && firstSurahId > 0 && (
+      {firstSurahId > 0 && (
         <View style={[styles.badgePill, styles.topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
           <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
-      {!headerVisible && pageNum > 0 && (
+      {pageNum > 0 && (
         <View style={[styles.badgePill, styles.bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
           <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Page {pageNum + 1}</Text>
         </View>
@@ -707,10 +712,10 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 9.5, fontWeight: '600' },
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
-  topLeft: { position: 'absolute', top: 2, left: 10 },
-  topRight: { position: 'absolute', top: 2, right: 40 },
-  bottomMid: { position: 'absolute', bottom: 2, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: 2, right: 10 },
+  topLeft: { position: 'absolute', top: -24, left: 6 },
+  topRight: { position: 'absolute', top: -24, right: 40 },
+  bottomMid: { position: 'absolute', bottom: -20, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: -20, right: 10 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });

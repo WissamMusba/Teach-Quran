@@ -288,7 +288,7 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
+      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14 }} renderItem={renderItem} />
       <TouchableOpacity style={[styles.fab, { bottom: adCollapsed ? 24 : 84 }]} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
@@ -331,14 +331,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', letterSpacing: 0.2 },
   syncBtn: { color: '#00d4aa', marginLeft: 12, fontSize: 13, fontWeight: '600' },
   logout: { color: '#ff4444', marginLeft: 12, fontSize: 13, fontWeight: '600' },
-  card: { padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  card: { padding: 10, borderRadius: 12, marginBottom: 6, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#00d4aa', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  avatarText: { color: '#121212', fontSize: 22, fontWeight: '800' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#00d4aa', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  avatarText: { color: '#121212', fontSize: 16, fontWeight: '800' },
   cardBody: { flex: 1 },
-  studentName: { fontSize: 17, fontWeight: '700' },
-  readingLine: { color: '#00d4aa', fontSize: 13, fontWeight: '600', marginTop: 4 },
-  dateLine: { fontSize: 12, marginTop: 2 },
+  studentName: { fontSize: 15, fontWeight: '700' },
+  readingLine: { color: '#00d4aa', fontSize: 11.5, fontWeight: '600', marginTop: 2 },
+  dateLine: { fontSize: 10.5, marginTop: 1 },
   fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#00d4aa', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
   fabText: { color: '#121212', fontSize: 28, fontWeight: '700', lineHeight: 30 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },

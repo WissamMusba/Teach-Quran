@@ -27,7 +27,7 @@ export const quranSlice = createSlice({
     readingMode: 'page' as 'continuous' | 'page' | 'ayah',  // renderer mode; 'page' = mushaf layout 
     surahNames: {} as any,  // { id: englishName } map (id as object key) 
     flashingVerse: null as number | null,  // verse num briefly highlighted during audio/deep-link 
-    textStyle: 'lateef' as 'saleem' | 'uthmani' | 'alqalam' | 'lateef'  // Arabic font family 
+    textStyle: 'alqalam' as 'saleem' | 'uthmani' | 'alqalam' | 'lateef'  // Arabic font family (default Indopak 1) 
   },
   reducers: {
     /**

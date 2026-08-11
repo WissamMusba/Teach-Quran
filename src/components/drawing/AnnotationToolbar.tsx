@@ -73,32 +73,35 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const BOT = Math.max(Platform.OS === 'android' ? 16 : 34, 16);
 
   // Layout geometry — all sizes derive from window width (TAB/ROUND/GAP/COL...); BAR_W = 9*TAB + 2*pad; initial Y sits below the top edge; position is not persisted across mounts.
-  const TAB = Math.min(52, Math.max(26, Math.floor((width - SAFETY) / 11.5)));
-  const ROUND = Math.max(40, Math.round(TAB * 1.3));
+  // COMPACT (v65): TAB/ROUND/icon/label/palette all shrunk ~20-25% so the bar is shorter and the
+  // hit areas smaller (more frame surface to grab for dragging). Drag/dock math below derives
+  // from these values, so the responder chain, clamps and docking are byte-for-byte unchanged.
+  const TAB = Math.min(44, Math.max(22, Math.floor((width - SAFETY) / 13)));
+  const ROUND = Math.max(34, Math.round(TAB * 1.25));
   const GAP = Math.max(4, Math.round(TAB * 0.15));
   const COL = TAB;
   const MARGIN = 6;
   const pad = GAP;
-  const barPadV = Math.min(pad, 5);
-  const colPadV = 6;
-  const palPad = Math.max(8, Math.round(TAB * 0.25));
+  const barPadV = Math.min(pad, 4);
+  const colPadV = 4;
+  const palPad = Math.max(6, Math.round(TAB * 0.2));
   const swGap = Math.max(2, Math.round(TAB * 0.06));
-  const swW = Math.max(36, Math.min(44, Math.round(TAB * 1.2)));
-  const PAL_W = Math.min(Math.round(4 * swW + 3 * swGap + 2 * palPad), width - 2 * MARGIN);
-  const PAL_H = Math.max(Math.round(TAB * 3.5), 104);
+  const swS = Math.max(24, Math.min(32, Math.round(TAB * 0.95)));
+  const PAL_W = Math.min(Math.round(4 * swS + 3 * swGap + 2 * palPad), width - 2 * MARGIN);
+  const PAL_H = Math.max(Math.round(TAB * 3.5), 108);
   const BAR_W = 9 * TAB + 2 * pad;
-  const SZ1 = 22;
-  const SZ2 = 20;
-  const SZ3 = 22;
+  const SZ1 = 18;
+  const SZ2 = 16;
+  const SZ3 = 18;
   const LAB_SZ = Math.min(8, Math.max(7, Math.round(TAB * 0.24)));
-  const ZIG_W = Math.min(42, Math.round(swW * 0.95));
-  const ZIG_H = Math.min(22, Math.round(swW * 0.5));
+  const ZIG_W = Math.min(34, Math.round(swS * 1.0));
+  const ZIG_H = Math.min(18, Math.round(swS * 0.5));
   const swt = Math.max(1.7, Math.round(TAB * 0.055 * 10) / 10);
   const COL_H = SZ2 + 3 + LAB_SZ + 2 * colPadV;
   const BAR_H = Math.max(ROUND, COL_H + 2 * barPadV);
   const V_EXTRA = Math.max(0, Math.ceil((BAR_H - ROUND) / 2));
   const expandedWidth = BAR_W + GAP + ROUND;
-  const initY = height - BOT - V_EXTRA - Math.max(100, ROUND + 60);
+  const initY = height - BOT - V_EXTRA - Math.max(150, ROUND + 120);
 
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
@@ -230,15 +233,15 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const d = {
     grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 0, alignItems: 'center' as const, justifyContent: 'center' as const, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
     bar: { flexDirection: 'row' as const, alignItems: 'center' as const, borderRadius: Math.round(TAB * 0.3), paddingHorizontal: pad, paddingVertical: barPadV, borderWidth: 0, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-    col: { width: COL, minHeight: 40, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: colPadV },
+    col: { width: COL, minHeight: 30, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: colPadV },
     lab: { fontSize: LAB_SZ, marginTop: 2, fontWeight: '600' as const },
-    dot: { width: Math.min(26, Math.max(22, Math.round(TAB * 0.6))), height: Math.min(26, Math.max(22, Math.round(TAB * 0.6))), borderRadius: Math.min(13, Math.max(11, Math.round(TAB * 0.3))), borderWidth: Math.max(2, Math.round(TAB * 0.06)) },
+    dot: { width: Math.min(22, Math.max(18, Math.round(TAB * 0.5))), height: Math.min(22, Math.max(18, Math.round(TAB * 0.5))), borderRadius: Math.min(11, Math.max(9, Math.round(TAB * 0.25))), borderWidth: Math.max(2, Math.round(TAB * 0.06)) },
     pal: { position: 'absolute' as const, left: -(PAL_W - COL) / 2, width: PAL_W, borderRadius: Math.round(TAB * 0.375), padding: palPad, elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
     arr: { alignSelf: 'center' as const, width: 0, height: 0, borderLeftWidth: Math.max(5, Math.round(TAB * 0.22)), borderRightWidth: Math.max(5, Math.round(TAB * 0.22)), borderTopWidth: Math.max(6, Math.round(TAB * 0.25)), borderBottomWidth: Math.max(6, Math.round(TAB * 0.25)), borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
-    row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, marginBottom: Math.round(TAB * 0.25) },
-    wcol: { alignItems: 'center' as const, paddingVertical: Math.max(4, Math.round(TAB * 0.14)) },
+    row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, marginBottom: Math.round(TAB * 0.2) },
+    wcol: { alignItems: 'center' as const, paddingVertical: Math.max(3, Math.round(TAB * 0.12)) },
     zw: { fontSize: LAB_SZ, marginTop: 1, fontWeight: '700' as const },
-    sw: { width: swW, height: Math.round(swW * 0.8), borderRadius: Math.round(swW * 0.22), borderWidth: 2, marginBottom: Math.round(TAB * 0.19) },
+    sw: { width: swS, height: swS, borderRadius: swS / 2, borderWidth: 2, marginBottom: Math.round(TAB * 0.19) },
   };
 
   /**
@@ -284,7 +287,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         onResponderGrant={onTouchStart}
         onResponderMove={onTouchMove}
         onResponderRelease={onTouchEnd}>
-        {open ? <HandleIcon c={iconC} sz={SZ1} sw={swt} /> : docked === 'left' ? <ChevR c={iconC} sz={SZ3} sw={swt} /> : docked === 'right' ? <ChevL c={iconC} sz={SZ3} sw={swt} /> : docked === 'top' ? <ChevD c={iconC} sz={SZ3} sw={swt} /> : docked === 'bottom' ? <ChevU c={iconC} sz={SZ3} sw={swt} /> : <ChevR c={iconC} sz={SZ3} sw={swt} />}
+        {open ? <HandleIcon c={iconC} sz={SZ1} sw={swt} /> : docked === 'left' ? <ChevR c={iconC} sz={SZ3} sw={swt} /> : docked === 'right' ? <ChevL c={iconC} sz={SZ3} sw={swt} /> : docked === 'top' ? <ChevD c={iconC} sz={SZ3} sw={swt} /> : docked === 'bottom' ? <ChevU c={iconC} sz={SZ3} sw={swt} /> : <Pencil c={iconC} sz={SZ1} sw={swt} />}
       </View>
 
       {open && (

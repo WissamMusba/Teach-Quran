@@ -10,11 +10,12 @@
  * USED BY: registered as stack screen "StudentHub" in App.tsx; reached from
  *          DashboardScreen.tsx (student card tap).
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Keyboard } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
-import { getStudentData, getLastPageSeenLocal } from '../database/localDB';
+import { getStudentData, getLastPageSeenLocal, getManifest } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -91,7 +92,17 @@ export default function StudentHubScreen({ navigation }: any) {
 
   useStudentDataRefresh();
 
-  const lastRead = studentData?.lastRead;
+  /**
+   * DAILY RECITATION source — the SQLite MANIFEST's lastRead, re-read on every
+   * focus (authoritative). Redux studentData.lastRead is ONLY a pre-read
+   * fallback (undefined = not loaded yet): a stale reload clobbering the
+   * optimistic mark must never grey out the row, and the reader now flushes
+   * lastRead to SQLite immediately, so by the time the hub regains focus the
+   * manifest is fresh. Reference-stable setState (JSON compare) so the focus
+   * re-read never loops.
+   */
+  const [manifestLastRead, setManifestLastRead] = useState<any>(undefined);
+  const lastRead = manifestLastRead === undefined ? studentData?.lastRead : manifestLastRead;
   const lrSurah = lastRead ? Number(lastRead.surah) : 0;
   const lrVerse = lastRead ? Number(lastRead.verse) : 0;
 
@@ -100,10 +111,14 @@ export default function StudentHubScreen({ navigation }: any) {
    * lastRead mark, else page 1. lastPageSeen is read from SQLite (per student,
    * never synced) and resolved script-aware to {page, juz, surah, verse}.
    * DAILY RECITATION reads the same lastRead below (the reading mark).
+   * Runs on EVERY focus (not just mount): the reader writes saveLastPageSeenLocal
+   * per page change, so returning from QuranView must re-read it here — a plain
+   * useEffect keyed only on student/lastRead/textStyle would stay stale forever
+   * (the mounted hub's deps don't change when the reader scrolls).
    */
   const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
   const [lastSeenAt, setLastSeenAt] = useState<string>('');
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let cancelled = false;
     const choose = (seen: any) => {
       setLastSeenAt(seen?.at ? String(seen.at) : '');
@@ -120,11 +135,16 @@ export default function StudentHubScreen({ navigation }: any) {
     };
     if (currentStudent?.id) {
       getLastPageSeenLocal(currentStudent.id).then(seen => apply(choose(seen))).catch(() => apply(choose(null)));
+      getManifest(currentStudent.id).then(m => {
+        if (cancelled) return;
+        const lr = m?.data?.lastRead || null;
+        setManifestLastRead(prev => JSON.stringify(prev) === JSON.stringify(lr) ? prev : lr);
+      }).catch(() => {});
     } else {
       apply(choose(null));
     }
     return () => { cancelled = true; };
-  }, [currentStudent?.id, lrSurah, lrVerse, textStyle]);
+  }, [currentStudent?.id, lrSurah, lrVerse, textStyle]));
 
   const resumeSubtitle = useMemo(() => {
     if (!resumeInfo) return '';
