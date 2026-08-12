@@ -1,61 +1,72 @@
 /**
  * FILE: src/components/quran/OrnamentalFrame.tsx
- * ROLE: Decorative mushaf border — teal interlace chain (chain-link knotwork) + diamond accents + thin gold edge rules + corner knots.
- *       No filled background band: the chain floats directly on the page. Gold = edge rules/corner brackets; teal = chain/diamonds/inner rule.
- * DEPENDS ON: react-native-svg (Svg/Defs/Path/G/Use/Rect); color/bg/nightMode props
- * USED BY: src/components/quran/MushafPageView.tsx (inside overlayLayer — rendered on EVERY page, both normal and fallback paths)
+ * ROLE: Decorative mushaf border — the classic Quranic blue frame: an outer thin rule, a
+ *       repeating geometric pattern band (square tile with an X → interlocking braid), and
+ *       four elaborate corner nodes (nested diamonds/knots) covering the band joints.
+ *       Colors follow the classic mushaf palette: Quranic blue #1C3D72 lines on white,
+ *       band background #F8F9FA (night mode swaps in a lighter steel blue + dark band/corner
+ *       fills so the frame stays readable on dark pages).
+ * DEPENDS ON: react-native-svg (Svg/Defs/Pattern/Rect/Line/Polygon/G/Use); color/bg/nightMode props
+ * USED BY: src/components/quran/MushafPageView.tsx (inside overlayLayer — rendered on EVERY page,
+ *          both normal and fallback paths)
  *
- * FIT NOTES (fixed vs original draft):
- *  - Container-measured geometry via onLayout, NOT window Dimensions: MushafPageView renders the frame
- *    on half-width pages in split mode and on tablets, so window-size math would overflow/clip.
- *  - <Use> carries transform ONLY (no x/y) — x/y + translate would double-offset every link.
+ * GEOMETRY (parametric, scales from a 1000×1400 design canvas to the measured container):
+ *   paddingOuter = W×0.010   (design: 10px offset of the outer thin border)
+ *   gapOuter     = W×0.006   (design: 6px white gap between thin border and main frame)
+ *   bandWidth    = W×0.040   (design: 40px decorative pattern band)
+ *   gapInner     = W×0.004   (design: 4px gap between pattern band and the text box)
+ *   tile         = bandWidth/2          → perfect 2× repetition across the band (20px on 40px)
+ *   stroke       = max(0.75, W×0.0015)  → 1.5px hairline scaled to the actual page width
+ *   Layers outside→inside: outer thin rect (po) → gap (go) → main frame outer rect (po+go) →
+ *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → gap (gi) →
+ *   inner text bounding box (po+go+band+gi). The four bands are drawn as separate rects filled
+ *   with the repeating pattern (NO continuous band through the corners), then four corner-node
+ *   squares are placed exactly over the band intersections. <Use> carries x/y ONLY (no extra
+ *   transform — RN-SVG x/y already translate, adding both would double-offset every node).
+ *   The text continuation box inset is exposed via frameInsetFor(W) so MushafPageView can pad
+ *   the mushaf text container to keep every glyph strictly inside the light text zone.
+ *
+ * FIT NOTES:
+ *  - Container-measured geometry via onLayout, NOT window Dimensions: MushafPageView renders the
+ *    frame on half-width pages in split mode and on tablets, so window-size math would
+ *    overflow/clip.
  *  - viewBox == measured pixel size → 1:1 mapping, strokes never distort.
- *  - Glyph-clearance (2026-08-08): the band used to intrude far enough into the page that the mushaf
- *    text's first/last lines could poke under the chain (Arabic ascenders, descenders and hamza marks clip).
- *    The chain now hugs the paper edge tighter (margin shrinks) while the oversizing half-height hh is
- *    clamped for small/split pages (hh ≤ max(2.5, W×0.006)), so the band stays in a thin crown next to the
- *    edge — the inner rule moves out accordingly (innerInset is smaller) and glyphs get guaranteed room.
- *    Palette and shapes are untouched: only insets/margins/line geometry changed.
- *  - Light mode: teal is dimmed (see TEAL_MUTED) so the ornament doesn't glare in light theme;
- *    night mode keeps the exact original teal.
+ *  - The pattern's origin follows the SVG user space (0,0) — the tile grid is continuous, so
+ *    band placement never shows seams.
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Dimensions, View, StyleSheet } from 'react-native';
-import Svg, { Defs, Path, G, Use, Rect } from 'react-native-svg';
+import Svg, { Defs, Pattern, Rect, Line, Polygon, G, Use } from 'react-native-svg';
 import { getFrameBox, saveFrameBox } from '../../database/localDB';
 
 interface OrnamentalFrameProps {
   color: string;        // kept for call-site compat; palette below wins
   bg?: string;
-  nightMode?: boolean;  // nightMode=false (light) dims teal + brightens gold; night keeps TEAL
+  nightMode?: boolean;  // night swaps blue for a lighter steel blue and dark band/corner fills
 }
 
-// Chain: night-mode teal (#00d4aa) unchanged; light mode uses a muted, lower-saturation teal so the
-// frame doesn't glare on white pages. Deep teal under-strand stays the same in both themes.
-const TEAL = '#00d4aa';
-const TEAL_MUTED = '#0f8f83';
-const TEAL_DEEP = '#0a8f73';
-const GOLD_EDGE = '#C9A227';       // light: bright gold rule
-const GOLD_EDGE_NIGHT = '#8C7320'; // night: muted gold rule
+// Classic Quranic frame palette. Night mode: lighter steel blue so the frame reads on dark
+// pages; band/corner fill backgrounds darken to match the page.
+const BLUE = '#1C3D72';
+const BLUE_NIGHT = '#7BA7DB';
+const BAND_BG = '#F8F9FA';
+const BAND_BG_NIGHT = '#1E2532';
+const CORNER_BG = '#FFFFFF';
+const CORNER_BG_NIGHT = '#232A38';
 
 /**
- * One reusable interlace LINK: a pointed-oval (vesica) ring centered at (0,0).
- * Two strokes (dark under-strand + theme teal over-strand) so adjacent links read as woven.
+ * WHAT: Exposes the frame's inner text-box inset for a given page width — the distance from
+ *       the page edge to the innermost (text continuation) bounding box. MushafPageView uses
+ *       this to pad its text container so no glyph ever crosses the frame's inner border.
+ * CALLS: none. AFFECTS: none (pure).
  */
-const LinkDef = ({ hw, hh, strand }: { hw: number; hh: number; strand: string }) => (
-  <G id="link">
-    <Path d={`M ${-hw} 0 Q 0 ${-hh} ${hw} 0 Q 0 ${hh} ${-hw} 0 Z`}
-      fill="none" stroke={TEAL_DEEP} strokeWidth={2.4} strokeLinejoin="round" />
-    <Path d={`M ${-hw} 0 Q 0 ${-hh} ${hw} 0 Q 0 ${hh} ${-hw} 0 Z`}
-      fill="none" stroke={strand} strokeWidth={1.3} strokeLinejoin="round" />
-  </G>
-);
-
-/** Small teal diamond accent that sits in the gap between links. */
-const DiamondDef = ({ s, edge, strand }: { s: number; edge: string; strand: string }) => (
-  <Path id="diamond" d={`M 0 ${-s} L ${s} 0 L 0 ${s} L ${-s} 0 Z`}
-    fill={strand} stroke={edge} strokeWidth={0.4} />
-);
+export const frameInsetFor = (W: number) => {
+  const po = Math.max(2, W * 0.010);
+  const go = Math.max(1, W * 0.006);
+  const band = Math.max(6, W * 0.040);
+  const gi = Math.max(1, W * 0.004);
+  return po + go + band + gi;
+};
 
 const SETTLE_MS = 150;
 let SESSION_BOX: { w: number; h: number } | null = null;   // session-wide instant first paint
@@ -66,8 +77,9 @@ const initialBox = (): { w: number; h: number } => {
 };
 
 const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
-  const edge = nightMode ? GOLD_EDGE_NIGHT : GOLD_EDGE;
-  const strand = nightMode ? TEAL : TEAL_MUTED;
+  const blue = nightMode ? BLUE_NIGHT : BLUE;
+  const bandBg = nightMode ? BAND_BG_NIGHT : BAND_BG;
+  const cornerBg = nightMode ? CORNER_BG_NIGHT : CORNER_BG;
 
   const [box, setBox] = useState<{ w: number; h: number }>(initialBox);
   const boxRef = useRef(box);
@@ -87,35 +99,20 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   }, []);
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
-  // Chain geometry scales gently with the actual page size (phones, tablets AND split mode).
-  // GLYPH-CLEARANCE: the band is the page's decorative crown; the mushaf text lives inside it.
-  //   · margin is slim so the chain sits close to the paper edge (the text zone starts further in);
-  //   · hh (chain band half-height) is clamped small — on small/split pages the old 0.18×linkStep
-  //     reach pushed the band's inner edge close to the first/last text lines, clipping ascenders,
-  //     descenders and hamza. Now: hh ≤ max(2.5, W × 0.006) keeps the band a thin crown;
-  //   · innerInset (= margin + hh + 2) therefore lands closer to the page edge, widening the
-  //     clean band of guaranteed clearance between the ornament and the text block.
-  const margin = Math.max(2, Math.round(W * 0.009));
-  const linkStep = Math.max(18, Math.round(W * 0.045));
-  const hw = linkStep * 0.55;
-  const hh = Math.min(linkStep * 0.18, Math.max(2.5, Math.round(W * 0.006)));
-  const diaS = Math.max(2, linkStep * 0.1);
-  const edgeInset = Math.max(1.5, margin - hh - 1.5);
-  const innerInset = margin + hh + 2;
+  // --- parametric geometry (scaled from the 1000×1400 design canvas) -------------------------
+  const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
+  const go = Math.max(1, W * 0.006);        // layer 2: first white gap
+  const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
+  const gi = Math.max(1, W * 0.004);        // layer 6: second gap
+  const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
+  const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
+  const inner = po + go + band + gi;        // layer 7: inner text box inset
 
-  const topY = margin;
-  const bottomY = H - margin;
-  const leftX = margin;
-  const rightX = W - margin;
-
-  // Strike centers along each edge, inset by one step so corners stay clean.
-  const hCount = Math.max(2, Math.floor((W - margin * 2) / linkStep));
-  const vCount = Math.max(2, Math.floor((H - margin * 2) / linkStep));
-  const hPos = Array.from({ length: hCount }, (_, i) => margin + ((W - margin * 2) / (hCount + 1)) * (i + 1));
-  const vPos = Array.from({ length: vCount }, (_, i) => margin + ((H - margin * 2) / (vCount + 1)) * (i + 1));
-
-  const place = (cx: number, cy: number) => `translate(${cx},${cy})`;
-  const rot90 = (cx: number, cy: number) => `translate(${cx},${cy}) rotate(90)`;
+  const x0 = po + go;                       // main frame outer edge
+  const x1 = po + go + band;                // main frame inner edge
+  const mainW = Math.max(0, W - 2 * x0);    // main frame outer rect size
+  const innerW = Math.max(0, W - 2 * x1);   // main frame inner rect size
+  const txtW = Math.max(0, W - 2 * inner);  // inner text bounding box size
 
   const onLayout = (e: any) => {
     const w = Math.round(e.nativeEvent.layout.width);
@@ -142,54 +139,54 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
       {W > 0 && H > 0 && (
         <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <Defs>
-          <LinkDef hw={hw} hh={hh} strand={strand} />
-          <DiamondDef s={diaS} edge={edge} strand={strand} />
+          {/* Repeating geometric tile: a square box with an X inside. Tiling it horizontally and
+              vertically creates the interlocking braided look of classic mushaf frames. */}
+          <Pattern id="framePattern" width={tile} height={tile} patternUnits="userSpaceOnUse">
+            <Rect x={0} y={0} width={tile} height={tile} fill={bandBg} stroke={blue} strokeWidth={sw} />
+            <Line x1={0} y1={0} x2={tile} y2={tile} stroke={blue} strokeWidth={sw} />
+            <Line x1={tile} y1={0} x2={0} y2={tile} stroke={blue} strokeWidth={sw} />
+          </Pattern>
+
+          {/* Modular corner node (bandWidth × bandWidth): solid base covering the pattern joints,
+              then three nested diamonds — the elaborate knot finish. Local coords 0..band. */}
+          <G id="cornerNode">
+            <Rect x={0} y={0} width={band} height={band} fill={cornerBg} stroke={blue} strokeWidth={sw} />
+            <Polygon points={`${band / 2},0 ${band},${band / 2} ${band / 2},${band} 0,${band / 2}`}
+              fill="none" stroke={blue} strokeWidth={sw} />
+            <Polygon points={`${band / 2},${band * 0.175} ${band * 0.825},${band / 2} ${band / 2},${band * 0.825} ${band * 0.175},${band / 2}`}
+              fill="none" stroke={blue} strokeWidth={sw} />
+            <Polygon points={`${band / 2},${band * 0.3} ${band * 0.7},${band / 2} ${band / 2},${band * 0.7} ${band * 0.3},${band / 2}`}
+              fill="none" stroke={blue} strokeWidth={sw} />
+          </G>
         </Defs>
 
-        {/* ---- Thin gold edge rule (outside the chain) + teal inner rule (inside the chain) ---- */}
-        <Rect x={edgeInset} y={edgeInset} width={W - edgeInset * 2} height={H - edgeInset * 2}
-          fill="none" stroke={edge} strokeWidth={1.4} />
-        <Rect x={innerInset} y={innerInset} width={W - innerInset * 2} height={H - innerInset * 2}
-          fill="none" stroke={strand} strokeWidth={0.7} opacity={0.75} />
+        {/* Layer 1: outer thin border */}
+        <Rect x={po} y={po} width={W - 2 * po} height={H - 2 * po}
+          fill="none" stroke={blue} strokeWidth={sw} />
 
-        {/* ---- Horizontal teal interlace chain (top & bottom) ---- */}
-        {hPos.map((x, i) => (
-          <Use key={`lt${i}`} href="#link" transform={place(x, topY)} />
-        ))}
-        {hPos.map((x, i) => (
-          <Use key={`lb${i}`} href="#link" transform={place(x, bottomY)} />
-        ))}
-        {/* diamond accents between horizontal links */}
-        {hPos.slice(0, -1).map((x, i) => {
-          const mx = (x + hPos[i + 1]) / 2;
-          return <Use key={`dt${i}`} href="#diamond" transform={place(mx, topY)} />;
-        })}
-        {hPos.slice(0, -1).map((x, i) => {
-          const mx = (x + hPos[i + 1]) / 2;
-          return <Use key={`db${i}`} href="#diamond" transform={place(mx, bottomY)} />;
-        })}
+        {/* Layer 3: main frame outer border (defines the pattern band's outer edge) */}
+        <Rect x={x0} y={x0} width={mainW} height={H - 2 * x0}
+          fill="none" stroke={blue} strokeWidth={sw} />
 
-        {/* ---- Vertical teal interlace chain (left & right) — links rotated 90° ---- */}
-        {vPos.map((y, i) => (
-          <Use key={`ll${i}`} href="#link" transform={rot90(leftX, y)} />
-        ))}
-        {vPos.map((y, i) => (
-          <Use key={`lr${i}`} href="#link" transform={rot90(rightX, y)} />
-        ))}
-        {/* diamond accents between vertical links */}
-        {vPos.slice(0, -1).map((y, i) => {
-          const my = (y + vPos[i + 1]) / 2;
-          return <Use key={`dl${i}`} href="#diamond" transform={place(leftX, my)} />;
-        })}
-        {vPos.slice(0, -1).map((y, i) => {
-          const my = (y + vPos[i + 1]) / 2;
-          return <Use key={`dr${i}`} href="#diamond" transform={place(rightX, my)} />;
-        })}
+        {/* Layer 5: main frame inner border (closes the pattern band) */}
+        <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
+          fill="none" stroke={blue} strokeWidth={sw} />
 
-        {/* ---- Corner knots: a link at 45° tying the two chains together (mirrored: TL/BR face one way, TR/BL the other) ---- */}
-        {[[leftX, topY, 45], [rightX, topY, -45], [leftX, bottomY, -45], [rightX, bottomY, 45]].map(([cx, cy, r], i) => (
-          <Use key={`ck${i}`} href="#link" transform={`translate(${cx},${cy}) rotate(${r})`} />
-        ))}
+        {/* Layer 4: the four pattern bands (separate rects so corners stay clean) */}
+        <Rect x={x0} y={x0} width={mainW} height={band} fill="url(#framePattern)" />
+        <Rect x={x0} y={H - x0 - band} width={mainW} height={band} fill="url(#framePattern)" />
+        <Rect x={x0} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
+        <Rect x={W - x0 - band} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
+
+        {/* Layer 7: inner text area bounding box — the mushaf text lives strictly inside */}
+        <Rect x={inner} y={inner} width={txtW} height={H - 2 * inner}
+          fill="none" stroke={blue} strokeWidth={sw} />
+
+        {/* The four corner nodes — placed exactly over the band intersections */}
+        <Use href="#cornerNode" x={x0} y={x0} />
+        <Use href="#cornerNode" x={W - x0 - band} y={x0} />
+        <Use href="#cornerNode" x={x0} y={H - x0 - band} />
+        <Use href="#cornerNode" x={W - x0 - band} y={H - x0 - band} />
       </Svg>
       )}
     </View>

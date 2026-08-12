@@ -15,7 +15,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
-import OrnamentalFrame from './OrnamentalFrame';
+import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -218,7 +218,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
   const juzInfo = pageNum > 0 ? getJuzInfoFromPage(pageNum) : { juz: 0, pagesLeft: 0 };
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
-  const frameC = nightMode ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.14)';
+  const frameC = nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)';
   const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)';
 const mushafFontSize = getMushafFontSize(headerVisible);
   const mushafLineHeight = getMushafLineHeight(headerVisible);
@@ -227,6 +227,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const adj = getFontAdj(textStyle, headerVisible);
   const compact = pageWidth < 600;
+
+  // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
+  // the mushaf text must live strictly inside it (never under the pattern band). Padding the
+  // container by the frame inset on BOTH axes keeps glyphs clear; use the larger of the
+  // classic hPad and the new frame inset so phones AND tablets stay safe.
+  const framePad = Math.max(hPad(pageWidth), frameInsetFor(pageWidth));
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -345,7 +351,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const fresh = widthsRef.current;
     const keys = Object.keys(fresh).map(Number);
     if (keys.length === 0) return;
-    const lineW = pageWidth - 2 * hPad(pageWidth);
+    const lineW = pageWidth - 2 * framePad;
     const sums: number[] = [];
     for (let k = 0; k <= Math.max(...keys); k++) {
       const arr = fresh[k];
@@ -408,7 +414,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     }
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
-    const lineW = pageWidth - 2 * hPad(pageWidth);
+    const lineW = pageWidth - 2 * framePad;
     const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     if (content > (complete ? lineW + 2 : lineW)) {
@@ -450,7 +456,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
-      const lineW = pageWidth - 2 * hPad(pageWidth);
+      const lineW = pageWidth - 2 * framePad;
       const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
@@ -512,7 +518,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
+      <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
         <View style={styles.fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -555,7 +561,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]} />;
+    return <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -563,15 +569,15 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles.container, { paddingHorizontal: hPad(pageWidth) }]}>
+    <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         const taawud = lineIdx === taawudLineIdx ? (
           <View style={styles.taawudRow}>
-            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(0,212,170,0.30)' : 'rgba(0,212,170,0.35)' }]} />
+            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
             <Text style={[styles.taawudText, { color: nightMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)', fontFamily, fontSize: Math.max(12, Math.round(fs * 0.55)) }]}>
               {'أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'}
             </Text>
-            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(0,212,170,0.30)' : 'rgba(0,212,170,0.35)' }]} />
+            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
           </View>
         ) : null;
         if (line.type === 'surah-header') {
