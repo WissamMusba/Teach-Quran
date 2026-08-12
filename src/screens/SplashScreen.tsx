@@ -83,7 +83,7 @@ export default function SplashScreen({ navigation }: any) {
       {isLoading ? (
         <>
           <Text style={styles.subtitle}>Downloading Quran Data...</Text>
-          <ActivityIndicator size="large" color="#00d4aa" style={{ marginTop: 20 }} />
+          <ActivityIndicator size="large" color='#1C3D72' style={{ marginTop: 20 }} />
         </>
       ) : error ? (
         <>
@@ -99,12 +99,12 @@ export default function SplashScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#121212' },
-  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 20, color: '#00d4aa' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F8F9FA' },
+  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 20, color: '#1C3D72' },
   subtitle: { fontSize: 16, color: '#888' },
   errorText: { fontSize: 18, color: '#ff4444', textAlign: 'center', marginBottom: 10, fontWeight: 'bold' },
-  errorBox: { maxHeight: 200, width: '100%', backgroundColor: '#1e1e1e', borderRadius: 8, padding: 10, marginBottom: 20 },
-  errorDetail: { fontSize: 12, color: '#fff' },
-  retryBtn: { backgroundColor: '#00d4aa', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8 },
-  retryText: { color: '#121212', fontSize: 16, fontWeight: '700' }
+  errorBox: { maxHeight: 200, width: '100%', backgroundColor: '#1A1A1A', borderRadius: 8, padding: 10, marginBottom: 20 },
+  errorDetail: { fontSize: 12, color: '#1A1A1A' },
+  retryBtn: { backgroundColor: '#1C3D72', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8 },
+  retryText: { color: '#F8F9FA', fontSize: 16, fontWeight: '700' }
 });

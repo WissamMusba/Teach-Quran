@@ -191,7 +191,7 @@ export default function StudentHubScreen({ navigation }: any) {
       {/* inline header (back + title + student name), consistent with the Juz/Surah index screens */}
       <View style={[styles.header, { backgroundColor: rowBg, borderBottomColor: border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft c="#00d4aa" />
+          <ChevronLeft c=(nightMode ? '#7BA7DB' : '#1C3D72') />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.headerTitle, { color: titleC }]}>Teach Quran</Text>
@@ -273,9 +273,9 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 12.5, marginTop: 4, maxWidth: '75%' },
   half: { flex: 1, minHeight: 70, alignItems: 'center', justifyContent: 'center' },
   halfLabel: { fontSize: 15, fontWeight: '700', letterSpacing: 1 },
-  halfCount: { fontSize: 24, fontWeight: '700', marginTop: 2, color: '#00d4aa' },
+  halfCount: { fontSize: 24, fontWeight: '700', marginTop: 2, color: (nightMode ? '#7BA7DB' : '#1C3D72') },
   vDivider: { width: 1, alignSelf: 'stretch' },
   pageRowRight: { flexDirection: 'row', alignItems: 'center' },
   pageInput: { width: 92, height: 36, borderRadius: 18, borderWidth: 1, textAlign: 'center', fontSize: 15, fontWeight: '600', paddingHorizontal: 8 },
-  pageGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#00d4aa', marginLeft: 10, alignItems: 'center', justifyContent: 'center' },
+  pageGo: { width: 36, height: 36, borderRadius: 18, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginLeft: 10, alignItems: 'center', justifyContent: 'center' },
 });

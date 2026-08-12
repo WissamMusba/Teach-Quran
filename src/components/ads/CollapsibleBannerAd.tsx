@@ -51,9 +51,9 @@ const CollapsibleBannerAd = () => {
 const styles = StyleSheet.create({
   wrap: { position: 'relative', width: '100%' },
   collapseBtn: { position: 'absolute', left: 6, top: 6, zIndex: 10, elevation: 10, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(18,18,20,0.75)', alignItems: 'center', justifyContent: 'center' },
-  arrow: { color: '#fff', fontSize: 14, fontWeight: '700', marginTop: -1 },
-  expandBtn: { position: 'absolute', left: 8, bottom: 8, zIndex: 10, elevation: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: '#00d4aa', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  arrowUp: { color: '#121212', fontSize: 14, fontWeight: '800', marginTop: -1 },
+  arrow: { color: '#1A1A1A', fontSize: 14, fontWeight: '700', marginTop: -1 },
+  expandBtn: { position: 'absolute', left: 8, bottom: 8, zIndex: 10, elevation: 10, width: 30, height: 30, borderRadius: 15, backgroundColor: '#1C3D72', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  arrowUp: { color: '#F8F9FA', fontSize: 14, fontWeight: '800', marginTop: -1 },
 });
 
 export default memo(CollapsibleBannerAd);

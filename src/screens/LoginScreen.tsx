@@ -74,7 +74,7 @@ export default function LoginScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading} activeOpacity={0.7}>
-          {loading ? <ActivityIndicator color="#121212" /> : <Text style={styles.btnText}>Login</Text>}
+          {loading ? <ActivityIndicator color='#F8F9FA' /> : <Text style={styles.btnText}>Login</Text>}
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}><Text style={styles.link}>Create Account</Text></TouchableOpacity>
         <AlertModal visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
@@ -84,17 +84,17 @@ export default function LoginScreen({ navigation }: any) {
   );
 }
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#121212' },
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#121212' },
-  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#00d4aa' },
-  input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#fff', backgroundColor: '#1e1e1e' },
-  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, backgroundColor: '#1e1e1e' },
-  pwInput: { flex: 1, height: 50, paddingHorizontal: 15, color: '#fff' },
+  root: { flex: 1, backgroundColor: '#F8F9FA' },
+  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#F8F9FA' },
+  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#1C3D72' },
+  input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#1A1A1A', backgroundColor: '#1A1A1A' },
+  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, backgroundColor: '#1A1A1A' },
+  pwInput: { flex: 1, height: 50, paddingHorizontal: 15, color: '#1A1A1A' },
   eyeBtn: { paddingHorizontal: 12, height: 50, justifyContent: 'center' },
   eyeIconWrap: { width: 26, height: 26, justifyContent: 'center', alignItems: 'center' },
-  eyeIcon: { fontSize: 22, color: '#00d4aa' },
+  eyeIcon: { fontSize: 22, color: '#1C3D72' },
   eyeSlash: { position: 'absolute', width: '140%', height: 2, backgroundColor: '#ff4444', transform: [{ rotate: '-45deg' }] },
-  btn: { height: 50, backgroundColor: '#00d4aa', justifyContent: 'center', alignItems: 'center', borderRadius: 8, marginTop: 5 },
-  btnText: { color: '#121212', fontSize: 18, fontWeight: '700' },
-  link: { color: '#00d4aa', marginTop: 15, textAlign: 'center', fontSize: 14 }
+  btn: { height: 50, backgroundColor: '#1C3D72', justifyContent: 'center', alignItems: 'center', borderRadius: 8, marginTop: 5 },
+  btnText: { color: '#F8F9FA', fontSize: 18, fontWeight: '700' },
+  link: { color: '#1C3D72', marginTop: 15, textAlign: 'center', fontSize: 14 }
 });

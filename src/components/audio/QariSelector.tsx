@@ -45,9 +45,9 @@ const QariSelector = ({ visible, onClose }: any) => {
   const border = nightMode ? '#2a2a2a' : '#e8e8e4';
   const text = nightMode ? '#fff' : '#1a1a1a';
   const sectionBg = nightMode ? '#1a1a2e' : '#f0f2f7';
-  const sectionText = nightMode ? '#00d4aa' : '#006e5c';
+  const sectionText = nightMode ? (nightMode ? '#7BA7DB' : '#1C3D72') : '#006e5c';
   const rowColor = nightMode ? '#fff' : '#1a1a1a';
-  const closeColor = nightMode ? '#00d4aa' : '#006e5c';
+  const closeColor = nightMode ? (nightMode ? '#7BA7DB' : '#1C3D72') : '#006e5c';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -86,6 +86,6 @@ const styles = StyleSheet.create({
   sectionHeaderText: { fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' },
   qariRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
   qariName: { fontSize: 16 },
-  checkmark: { color: '#00d4aa', fontSize: 18, fontWeight: 'bold' }
+  checkmark: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 18, fontWeight: 'bold' }
 });
 export default memo(QariSelector);

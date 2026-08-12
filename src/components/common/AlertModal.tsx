@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   message: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
   row: { flexDirection: 'row', justifyContent: 'flex-end' },
   btn: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, alignItems: 'center', minWidth: 80 },
-  primaryBtn: { backgroundColor: '#00d4aa' },
+  primaryBtn: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
   cancelBtn: { backgroundColor: '#333' },
   destructiveBtn: { backgroundColor: '#ff4444' },
   btnText: { fontSize: 15, fontWeight: '600' },

@@ -48,7 +48,7 @@ export default function JuzIndexScreen({ navigation }: any) {
     <View style={[styles.container, { backgroundColor: isDark ? '#1a1a2e' : '#f5f5f5' }]}>
       <View style={[styles.header, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft c="#00d4aa" />
+          <ChevronLeft c=(nightMode ? '#7BA7DB' : '#1C3D72') />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Teach Quran</Text>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700' },
   headerSubtitle: { fontSize: 13, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 16, borderBottomWidth: 1 },
-  rowNum: { color: '#00d4aa', fontSize: 18, fontWeight: '700', width: 34 },
+  rowNum: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 18, fontWeight: '700', width: 34 },
   rowBody: { flex: 1 },
   rowLabel: { fontSize: 18, fontWeight: '700' },
   rowSub: { fontSize: 12.5, marginTop: 2 },

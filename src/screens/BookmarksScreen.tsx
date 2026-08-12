@@ -23,7 +23,7 @@ import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/forma
 import { getVersePagesDB } from '../database/localDB';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
-const ACCENT = '#00d4aa';
+const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
 
 // Module-level session cache for mushaf pages: verse->page mappings never change during a
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   cardLight: { backgroundColor: '#ffffff', borderColor: '#e5e7f2' },
   topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
-  chipDateDark: { backgroundColor: 'rgba(0,212,170,0.12)' },
+  chipDateDark: { backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
   chipDateLight: { backgroundColor: '#e6f8f4' },
   chipTimeDark: { backgroundColor: 'rgba(139,92,246,0.14)' },
   chipTimeLight: { backgroundColor: '#f1ecfe' },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   chipTimeTextDark: { color: '#a78bfa' },
   chipTimeTextLight: { color: '#7c3aed' },
   surahName: { color: ACCENT, fontSize: 15, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 8, marginBottom: 5 },
-  lastReadTag: { alignSelf: 'flex-start', color: ACCENT, backgroundColor: 'rgba(0,212,170,0.12)', fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
+  lastReadTag: { alignSelf: 'flex-start', color: ACCENT, backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`), fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
   metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
   metaStackDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
   metaStackLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },

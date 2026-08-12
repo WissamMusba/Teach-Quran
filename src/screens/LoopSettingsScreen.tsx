@@ -22,7 +22,7 @@ import { getVersesByPage } from '../database/quranData';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
-const ACCENT = '#00d4aa';
+const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 const COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /**
@@ -149,7 +149,7 @@ export default function LoopSettingsScreen({ route }: any) {
   const cardBorder = nightMode ? '#2a2a4a' : '#e2e5f0';
   const labelColor = nightMode ? '#fff' : '#1a1a1a';
   const subColor = nightMode ? '#8a8a8a' : '#6b6b76';
-  const valueColor = nightMode ? '#00d4aa' : '#00735f';
+  const valueColor = nightMode ? (nightMode ? '#7BA7DB' : '#1C3D72') : '#00735f';
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
   const patch = (p: any) => { dispatch(setLoop({ ...loop, ...p })); };

@@ -98,7 +98,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
-            ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)
+            ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)
           ) : null}
         </View>
       </View>
@@ -108,7 +108,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
-          ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
+          ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)}
         </View>
       </View>
     </View>
@@ -1600,7 +1600,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
                 onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
-                onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color="#00d4aa" /> : null}
+                onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color=(nightMode ? '#7BA7DB' : '#1C3D72') /> : null}
                 initialNumToRender={10} maxToRenderPerBatch={10} windowSize={10} scrollEventThrottle={16} />
             )}
 
@@ -1619,7 +1619,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarks={captureBookmarks}
                   notes={canvasData.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
-                {loadingMore && <ActivityIndicator color="#00d4aa" />}
+                {loadingMore && <ActivityIndicator color=(nightMode ? '#7BA7DB' : '#1C3D72') />}
               </ScrollView>
             )}
 
@@ -1670,7 +1670,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
-                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color="#00d4aa" /></View>)}
+                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)}
                       </View>
                     </View>
                   );
@@ -1722,7 +1722,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       </ToolbarBoundary>
 
       {/* share spinner overlay */}
-      {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color="#00d4aa" /></View>}
+      {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
           (hides together with the header, incl. via the edge/dead taps) */}
       {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
@@ -1788,15 +1788,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <Text style={styles.shareMenuTitle}>Share page</Text>
             <View style={styles.shareMenuRow}>
               <Text style={styles.shareMenuLabel}>Include drawings</Text>
-              <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: '#333', true: '#00d4aa' }} />
+              <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
             <View style={styles.shareMenuRow}>
               <Text style={styles.shareMenuLabel}>Include mistakes</Text>
-              <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: '#00d4aa' }} />
+              <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
             <View style={styles.shareMenuRow}>
               <Text style={styles.shareMenuLabel}>Include bookmarks</Text>
-              <Switch value={shareBookmarks} onValueChange={setShareBookmarks} trackColor={{ false: '#333', true: '#00d4aa' }} />
+              <Switch value={shareBookmarks} onValueChange={setShareBookmarks} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
             <TouchableOpacity style={styles.shareMenuButton} onPress={runShare} activeOpacity={0.75}>
               <Text style={styles.shareMenuButtonText}>Share</Text>
@@ -1829,7 +1829,7 @@ const styles = StyleSheet.create({
   shareMenuTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 14, textAlign: 'center' },
   shareMenuRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   shareMenuLabel: { color: '#fff', fontSize: 15 },
-  shareMenuButton: { marginTop: 6, borderRadius: 14, backgroundColor: '#00d4aa', paddingVertical: 14, alignItems: 'center', shadowColor: '#00d4aa', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+  shareMenuButton: { marginTop: 6, borderRadius: 14, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), paddingVertical: 14, alignItems: 'center', shadowColor: (nightMode ? '#7BA7DB' : '#1C3D72'), shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
   shareMenuButtonText: { color: '#00110c', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
   menuOverlay: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   menuOverlayCentered: { justifyContent: 'center' },
@@ -1844,11 +1844,11 @@ const styles = StyleSheet.create({
   noteInput: { color: '#fff', borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 10, height: 100, textAlignVertical: 'top', marginBottom: 15 },
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
-  noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 8, flex: 1, marginLeft: 5 },
+  noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
   pageBookmark: { position: 'absolute', top: 0, right: 10, zIndex: 9999, elevation: 9999 },
   headerToggleWrap: { position: 'absolute', left: 12, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
-  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(18,18,20,0.78)', borderWidth: 1, borderColor: 'rgba(0,212,170,0.6)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  headerToggleText: { color: '#00d4aa', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(18,18,20,0.78)', borderWidth: 1, borderColor: (nightMode ? `rgba(123,167,219,${0.6})` : `rgba(28,61,114,${0.6})`), shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

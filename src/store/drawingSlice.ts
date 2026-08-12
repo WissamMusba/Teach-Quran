@@ -19,7 +19,7 @@ interface DrawingState {
 const initialState: DrawingState = {
   toolbarExpanded: false, // docked/collapsed vs full bar (grip-only when false)
   activeTool: 'pen',      // 'pen'|'eraser'|'underline'|'laser'
-  activeColor: '#FF0000', // stroke color (eraser overrides with '#121212')
+  activeColor: '#FF0000', // stroke color (eraser overrides with '#F8F9FA')
   penSize: 4,             // stroke width (eraser uses penSize*3)
 };
 

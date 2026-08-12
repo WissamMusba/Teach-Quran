@@ -13,7 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 
-const ACCENT = '#00d4aa';
+const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 
 const IconBack = ({ c }: { c: string }) => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

@@ -49,7 +49,7 @@ export default function SurahIndexScreen({ navigation }: any) {
     <View style={[styles.container, { backgroundColor: isDark ? '#1a1a2e' : '#f5f5f5' }]}>
       <View style={[styles.header, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft c="#00d4aa" />
+          <ChevronLeft c=(nightMode ? '#7BA7DB' : '#1C3D72') />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Teach Quran</Text>

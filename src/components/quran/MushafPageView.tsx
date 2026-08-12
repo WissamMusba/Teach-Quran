@@ -709,7 +709,7 @@ const styles = StyleSheet.create({
   wordBox: { flexShrink: 0 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, flexShrink: 1, minWidth: 18 },
-  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa' },
+  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   verseBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', fontFamily: 'normal' },

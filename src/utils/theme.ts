@@ -30,7 +30,7 @@ export const ARABIC_FONTS: Record<string, string> = {
 export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.uthmani;
 
 // Shared palette. NOTES: DEAD-ish — no src/ consumer (colors are re-hardcoded per file elsewhere); candidate for consolidation.
-export const COLORS = { primary: '#00d4aa', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };
+export const COLORS = { primary: '#1C3D72', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };
 
 // WHAT: The 30 juz start pages (index 0 = page 1 of juz 1). Hand-maintained table — must stay in sync with the DB.
 export const JUZ_PAGE_START = [1,22,42,62,82,102,121,142,162,182,201,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582];

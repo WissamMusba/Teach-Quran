@@ -199,20 +199,20 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   );
 }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#F8F9FA' },
   header: { padding: 20, borderBottomWidth: 1, borderColor: '#333' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+  title: { fontSize: 22, fontWeight: 'bold', color: '#1A1A1A' },
   closeBtn: { color: '#0066FF', fontSize: 16 },
-  searchInput: { marginTop: 14, backgroundColor: '#1e1e1e', color: '#fff', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#333' },
+  searchInput: { marginTop: 14, backgroundColor: '#1A1A1A', color: '#1A1A1A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#333' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: '#8a8a8a', fontSize: 16 },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#1e1e1e' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#1A1A1A' },
   itemLeft: { flexDirection: 'row', alignItems: 'center' },
-  itemNum: { color: '#00d4aa', fontSize: 15, fontWeight: '700', width: 34 },
-  itemText: { fontSize: 17, color: '#fff' },
+  itemNum: { color: '#1C3D72', fontSize: 15, fontWeight: '700', width: 34 },
+  itemText: { fontSize: 17, color: '#1A1A1A' },
   itemJuz: { fontSize: 12, color: '#8a8a8a', marginTop: 2 },
   itemPages: { fontSize: 12, color: '#8a8a8a', marginTop: 2 },
-  pageTag: { color: '#00d4aa', fontSize: 10, fontWeight: '700', borderWidth: 1, borderColor: '#00d4aa', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
-  itemArabic: { fontSize: 20, color: '#fff' },
+  pageTag: { color: '#1C3D72', fontSize: 10, fontWeight: '700', borderWidth: 1, borderColor: '#1C3D72', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
+  itemArabic: { fontSize: 20, color: '#1A1A1A' },
 });

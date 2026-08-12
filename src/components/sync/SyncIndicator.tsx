@@ -51,7 +51,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 16, paddingVertical: 8,
     borderRadius: 20, zIndex: 999,
   },
-  text: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  text: { color: '#1A1A1A', fontSize: 13, fontWeight: '600' },
 });
 
 export default SyncIndicator;

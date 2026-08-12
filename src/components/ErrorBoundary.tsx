@@ -50,7 +50,7 @@ export class ErrorBoundary extends React.Component<any, { hasError: boolean; err
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#fff' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#1A1A1A' },
   title: { color: 'red', fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
   subtitle: { color: '#333', fontSize: 14, marginBottom: 20 },
   errorBox: { maxHeight: 400, width: '100%', backgroundColor: '#eee', borderRadius: 8, padding: 10 },

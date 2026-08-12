@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   container: { width: '100%', padding: 12, backgroundColor: 'transparent', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
   arabicText: {},
   badgeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, minWidth: 18 },
-  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#00d4aa', marginHorizontal: 1 },
+  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 1 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
   verseBadgeText: { fontSize: 10, fontWeight: '700', fontFamily: 'normal' },

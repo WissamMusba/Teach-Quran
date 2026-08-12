@@ -15,7 +15,7 @@ import { RootState } from '../store';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
-const ACCENT = '#00d4aa';
+const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 const PREVIEW_BG = '#0f4038';
 const PREVIEW_TEXT = '#f5d98a';
 const SCRIPT_SAMPLE = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   previewWrap: { marginBottom: 4 },
   previewBox: { minHeight: 90, borderRadius: 12, backgroundColor: PREVIEW_BG, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 18, overflow: 'hidden' },
   previewText: { fontSize: 26, lineHeight: 44, color: PREVIEW_TEXT, textAlign: 'center' },
-  previewBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(0,212,170,0.6)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  previewBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: (nightMode ? `rgba(123,167,219,${0.6})` : `rgba(28,61,114,${0.6})`), borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   previewBadgeText: { color: ACCENT, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   scriptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   scriptRowLabel: { fontSize: 15, fontWeight: '600' },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   optionLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
   optionSample: { fontSize: 22, color: '#d4a24e', marginLeft: 12 },
   optionCheck: { color: ACCENT, fontSize: 18, fontWeight: 'bold', width: 24, textAlign: 'right', marginLeft: 12 },
-  cancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: 'rgba(0,212,170,0.12)' },
+  cancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
   cancelText: { color: ACCENT, fontSize: 15, fontWeight: '700' },
 });
 export default memo(SettingsScreen);

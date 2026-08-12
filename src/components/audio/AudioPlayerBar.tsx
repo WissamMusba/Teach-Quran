@@ -116,7 +116,7 @@ const darkTheme = StyleSheet.create({
   ctrl: { backgroundColor: 'rgba(255,255,255,0.08)' },
   ctrlText: { color: '#e8e8e8' },
   caption: { color: '#9a9a9a' },
-  resumeBtn: { backgroundColor: '#00d4aa' },
+  resumeBtn: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
 });
 
 const lightTheme = StyleSheet.create({
@@ -126,7 +126,7 @@ const lightTheme = StyleSheet.create({
   ctrl: { backgroundColor: 'rgba(0,0,0,0.06)' },
   ctrlText: { color: '#1a1a1a' },
   caption: { color: '#8a8a8a' },
-  resumeBtn: { backgroundColor: '#00d4aa' },
+  resumeBtn: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
 });
 
 export default memo(AudioPlayerBar);
