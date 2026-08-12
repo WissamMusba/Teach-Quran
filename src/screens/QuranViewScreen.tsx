@@ -98,7 +98,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
-            ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)
+            ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
       </View>
@@ -108,7 +108,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
-          ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)}
+          ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
     </View>
@@ -1600,7 +1600,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
                 )}
                 onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
-                onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color=(nightMode ? '#7BA7DB' : '#1C3D72') /> : null}
+                onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color={(nightMode ? '#7BA7DB' : '#1C3D72')} /> : null}
                 initialNumToRender={10} maxToRenderPerBatch={10} windowSize={10} scrollEventThrottle={16} />
             )}
 
@@ -1619,7 +1619,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarks={captureBookmarks}
                   notes={canvasData.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
-                {loadingMore && <ActivityIndicator color=(nightMode ? '#7BA7DB' : '#1C3D72') />}
+                {loadingMore && <ActivityIndicator color={(nightMode ? '#7BA7DB' : '#1C3D72')} />}
               </ScrollView>
             )}
 
@@ -1670,7 +1670,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
-                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>)}
+                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
                       </View>
                     </View>
                   );
@@ -1722,7 +1722,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       </ToolbarBoundary>
 
       {/* share spinner overlay */}
-      {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color=(nightMode ? '#7BA7DB' : '#1C3D72') /></View>}
+      {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
           (hides together with the header, incl. via the edge/dead taps) */}
       {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}

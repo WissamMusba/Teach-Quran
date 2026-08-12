@@ -191,7 +191,7 @@ export default function StudentHubScreen({ navigation }: any) {
       {/* inline header (back + title + student name), consistent with the Juz/Surah index screens */}
       <View style={[styles.header, { backgroundColor: rowBg, borderBottomColor: border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft c=(nightMode ? '#7BA7DB' : '#1C3D72') />
+          <ChevronLeft c={(nightMode ? '#7BA7DB' : '#1C3D72')} />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.headerTitle, { color: titleC }]}>Teach Quran</Text>
