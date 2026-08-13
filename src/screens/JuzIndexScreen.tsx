@@ -34,32 +34,32 @@ export default function JuzIndexScreen({ navigation }: any) {
   const isDark = nightMode;
 
   const renderItem = ({ item }: any) => (
-    <TouchableOpacity style={[styles.row, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}
+    <TouchableOpacity style={[styles(nightMode).row, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}
       onPress={() => navigation.navigate('QuranView' as any, { surahId: item.s, scrollToVerse: item.v } as any)} activeOpacity={0.7}>
-      <Text style={styles.rowNum}>{item.j}</Text>
-      <View style={styles.rowBody}>
-        <Text style={[styles.rowLabel, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Para {item.j}</Text>
-        <Text style={[styles.rowSub, { color: isDark ? '#8a8a8a' : '#777777' }]}>Starts at Surah {item.s}, Verse {item.v}</Text>
+      <Text style={styles(nightMode).rowNum}>{item.j}</Text>
+      <View style={styles(nightMode).rowBody}>
+        <Text style={[styles(nightMode).rowLabel, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Para {item.j}</Text>
+        <Text style={[styles(nightMode).rowSub, { color: isDark ? '#8a8a8a' : '#777777' }]}>Starts at Surah {item.s}, Verse {item.v}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#1a1a2e' : '#f5f5f5' }]}>
-      <View style={[styles.header, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+    <View style={[styles(nightMode).container, { backgroundColor: isDark ? '#1a1a2e' : '#f5f5f5' }]}>
+      <View style={[styles(nightMode).header, { backgroundColor: isDark ? '#22223a' : '#ffffff', borderBottomColor: isDark ? '#2a2a4a' : '#e0e0e4' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={(nightMode ? '#7BA7DB' : '#1C3D72')} />
         </TouchableOpacity>
-        <View style={styles.headerTextWrap}>
-          <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Teach Quran</Text>
-          <Text style={[styles.headerSubtitle, { color: isDark ? '#8a8a8a' : '#777777' }]} numberOfLines={1}>{studentName || 'Select Para'}</Text>
+        <View style={styles(nightMode).headerTextWrap}>
+          <Text style={[styles(nightMode).headerTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>Teach Quran</Text>
+          <Text style={[styles(nightMode).headerSubtitle, { color: isDark ? '#8a8a8a' : '#777777' }]} numberOfLines={1}>{studentName || 'Select Para'}</Text>
         </View>
       </View>
       <FlatList data={JUZ_MAP} keyExtractor={(item: any) => String(item.j)} renderItem={renderItem} />
     </View>
   );
 }
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginRight: 4 },

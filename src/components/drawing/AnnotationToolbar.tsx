@@ -18,7 +18,8 @@ import {
 // Layout/dock constants — DOCK_PEEK/DOCK_THRESHOLD control half-off-screen docking; ACCENT is the active-tool highlight; PALETTE + PEN_SIZES drive the color palette.
 const DOCK_PEEK = 20, DOCK_THRESHOLD = 50;
 const SAFETY = 12;
-const ACCENT = '#00D4AA';
+const ACCENT = '#1C3D72';
+const ACCENT_NIGHT = '#7BA7DB';
 const PALETTE = ['#FFFFFF', '#FF3B30', '#FFD60A', '#0A84FF', '#000000', '#8B5A2B', '#30D158', '#FF9F0A'];
 const PEN_SIZES = [2, 4, 6, 8];
 
@@ -38,7 +39,7 @@ const UndoI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg wi
 const RedoI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M15 7l5 5-5 5" /><Path d="M20 12H9a5 5 0 0 0 0 10h3" /></Svg>);
 const TrashI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6" /></Svg>);
 const CloseI = ({ c, sz, sw }: { c: string; sz: number; sw: number }) => (<Svg width={sz} height={sz} viewBox="0 0 24 24" {...ST} stroke={c} strokeWidth={sw}><Path d="M18 6L6 18M6 6l12 12" /></Svg>);
-const ZigZag = ({ w, active, zw, zh }: { w: number; active: boolean; zw: number; zh: number }) => (
+const ZigZag = ({ w, active, zw, zh, accent = ACCENT }: { w: number; active: boolean; zw: number; zh: number; accent?: string }) => (
   <Svg width={zw} height={zh} viewBox="0 0 34 16">
     <Path d="M2 12 C8 2, 12 14, 17 8 C22 2, 26 14, 32 8" fill="none" stroke={active ? ACCENT : '#8A8A8A'} strokeWidth={Math.max(1.5, w * 0.8)} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
@@ -106,6 +107,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const open = useSelector((s: any) => s.drawing.toolbarExpanded);
   const { activeTool, activeColor, penSize } = useSelector((s: any) => s.drawing);
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
+  const accent = nightMode ? ACCENT_NIGHT : ACCENT;
 
   // Local state — pal = color palette open; selectedTool drives the ACCENT highlight on the active tool button; docked = 'left'|'right'|'top'|'bottom'|null.
   const [pal, setPal] = useState(false);
@@ -251,9 +253,9 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
    */
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
-    const lblC = sel ? ACCENT : labC;
+    const lblC = sel ? accent : labC;
     return (<TouchableOpacity style={d.col} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
-      <Icon c={sel ? ACCENT : iconC} sz={SZ1} sw={swt} />
+      <Icon c={sel ? accent : iconC} sz={SZ1} sw={swt} />
       {k === 'underline' ? (
         <>
           <Text numberOfLines={1} style={[d.lab, { color: lblC }]}>UNDER</Text>
@@ -307,16 +309,16 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
             ])} />
           <View style={s.colorWrap}>
             <TouchableOpacity style={d.col} onPress={() => setPal((p) => !p)} activeOpacity={0.5}>
-              <View style={[d.dot, { backgroundColor: activeColor, borderColor: pal ? ACCENT : iconC }]} />
-              <Text numberOfLines={1} style={[d.lab, { color: labC }, pal && { color: ACCENT }]}>COLOR</Text>
+              <View style={[d.dot, { backgroundColor: activeColor, borderColor: pal ? accent : iconC }]} />
+              <Text numberOfLines={1} style={[d.lab, { color: labC }, pal && { color: accent }]}>COLOR</Text>
             </TouchableOpacity>
             {/* Color palette — S/M/L/XL pen sizes (dispatch setPenSize) + 8-color grid (dispatch setColor); flips above/below the bar and stays clamped on-screen */}
             {pal && (
               <View style={[d.pal, { backgroundColor: palBg, top: palTop, left: palLeft }]}>
                 <View style={d.row}>{PEN_SIZES.map((w, i) => (
                   <TouchableOpacity key={w} style={d.wcol} onPress={() => dispatch(setPenSize(w))} activeOpacity={0.6}>
-                    <ZigZag w={w} active={penSize === w} zw={ZIG_W} zh={ZIG_H} />
-                    <Text style={[d.zw, { color: labC }, penSize === w && { color: ACCENT }]}>{['S','M','L','XL'][i]}</Text>
+                    <ZigZag w={w} active={penSize === w} zw={ZIG_W} zh={ZIG_H} accent={accent} />
+                    <Text style={[d.zw, { color: labC }, penSize === w && { color: accent }]}>{['S','M','L','XL'][i]}</Text>
                   </TouchableOpacity>))}
                 </View>
                 <View style={s.grid}>{PALETTE.map((c) => (

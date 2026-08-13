@@ -22,9 +22,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChang
 import Svg, { Path, Circle } from 'react-native-svg';
 
 // Per-button accent colors; MISTAKES is #FF3B30 — same as MISTAKE_COLOR in constants.ts.
-const ACCENT = '#00D4AA';
+const ACCENT = '#1C3D72';
 const C_MISTAKES = '#FF3B30';
-const C_SHARE = '#00D4AA';
+const C_SHARE = '#1C3D72';
 const C_NOTES = '#FF9F0A';
 const C_BOOKMARKS = '#FFD700';
 const C_SETTINGS = '#8A8A8A';
@@ -169,7 +169,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
       >
         <View style={s.topRow}>
           <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
-            <IconBack c={ACCENT} />
+            <IconBack c={p.nightMode ? '#7BA7DB' : ACCENT} />
           </TouchableOpacity>
           <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
             <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
@@ -178,7 +178,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             </Text>
           </TouchableOpacity>
           <View style={s.iconsRow}>
-            <Btn label="SHARE" icon={<IconShare c={C_SHARE} />} onPress={p.onShare} />
+            <Btn label="SHARE" icon={<IconShare c={p.nightMode ? '#7BA7DB' : C_SHARE} />} onPress={p.onShare} />
             <Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} />
             <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />

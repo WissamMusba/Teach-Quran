@@ -99,20 +99,20 @@ const parseParts = (value: string): NotePart[] => {
 const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode: boolean; playingKey: string | null; onOpen: (verseKey: string) => void; onToggleAudio: (path: string, audioKey: string) => void }) => {
   const { row, surahName, nightMode, playingKey, onOpen, onToggleAudio } = props;
   return (
-    <TouchableOpacity style={[styles.card, nightMode ? styles.cardDark : styles.cardLight]} onPress={() => onOpen(row.verseKey)} activeOpacity={0.7}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.surahLabel}>SURAH {row.surah} · AYAH {row.ayah}</Text>
-        <Text style={[styles.surahName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{surahName || '...'}</Text>
-        <View style={styles.accentLine} />
+    <TouchableOpacity style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]} onPress={() => onOpen(row.verseKey)} activeOpacity={0.7}>
+      <View style={styles(nightMode).cardHeader}>
+        <Text style={styles(nightMode).surahLabel}>SURAH {row.surah} · AYAH {row.ayah}</Text>
+        <Text style={[styles(nightMode).surahName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{surahName || '...'}</Text>
+        <View style={styles(nightMode).accentLine} />
       </View>
       {row.parts.map((part, pi) => {
         const audioKey = `${row.verseKey}_${pi}`;
         return part.type === 'text' ? (
-          <Text key={pi} style={[styles.noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
+          <Text key={pi} style={[styles(nightMode).noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
         ) : (
-          <TouchableOpacity key={pi} style={[styles.audioRow, { backgroundColor: nightMode ? '#0e2a2a' : '#e8f7f3' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
-            <Text style={styles.playBtn}>{playingKey === audioKey ? '⏸' : '▶'}</Text>
-            <Text style={styles.audioLabel}>{playingKey === audioKey ? 'Playing...' : 'Voice note'}</Text>
+          <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? '#0e2a2a' : '#e8f7f3' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
+            <Text style={styles(nightMode).playBtn}>{playingKey === audioKey ? '⏸' : '▶'}</Text>
+            <Text style={styles(nightMode).audioLabel}>{playingKey === audioKey ? 'Playing...' : 'Voice note'}</Text>
           </TouchableOpacity>
         );
       })}
@@ -302,20 +302,20 @@ export default function NotesScreen() {
   ), [surahNames, nightMode, playingKey, handleNavigate, onToggleAudio]);
 
   return (
-    <View style={[styles.container, { backgroundColor: nightMode ? '#121212' : '#f5f5f5' }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f5f5f5' }]}>
       <ScreenHeader title="Notes" subtitle={`${notes.length} notes`} />
       {notes.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📝</Text>
-          <Text style={[styles.emptyText, { color: nightMode ? '#888' : '#666' }]}>No notes yet</Text>
-          <Text style={[styles.emptySub, { color: nightMode ? '#555' : '#999' }]}>Long-press a verse to add a note</Text>
+        <View style={styles(nightMode).emptyState}>
+          <Text style={styles(nightMode).emptyIcon}>📝</Text>
+          <Text style={[styles(nightMode).emptyText, { color: nightMode ? '#888' : '#666' }]}>No notes yet</Text>
+          <Text style={[styles(nightMode).emptySub, { color: nightMode ? '#555' : '#999' }]}>Long-press a verse to add a note</Text>
         </View>
       ) : (
         <FlatList
           style={{ flex: 1 }}
           data={rows}
           keyExtractor={(i: NoteRow) => i.verseKey}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={styles(nightMode).list}
           renderItem={renderItem}
         />
       )}
@@ -324,7 +324,7 @@ export default function NotesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 16, paddingBottom: 20 },
   card: { padding: 16, borderRadius: 14, marginBottom: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },

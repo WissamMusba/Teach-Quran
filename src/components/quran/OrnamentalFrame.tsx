@@ -64,7 +64,7 @@ export const frameInsetFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
   const band = Math.max(6, W * 0.040);
-  const gi = Math.max(4, W * 0.025);
+  const gi = Math.max(6, W * 0.034);
   return po + go + band + gi;
 };
 
@@ -103,7 +103,7 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
   const go = Math.max(1, W * 0.006);        // layer 2: first white gap
   const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
-  const gi = Math.max(4, W * 0.025);        // layer 6: second gap
+  const gi = Math.max(6, W * 0.034);        // layer 6: second gap
   const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
   const inner = po + go + band + gi;        // layer 7: inner text box inset

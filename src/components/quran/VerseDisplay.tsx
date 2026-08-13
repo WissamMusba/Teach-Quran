@@ -59,11 +59,11 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const yAdj: Record<string, number> = {};
   const size = baseSize + (sizeBoost[textStyle] || 0);
   return (
-    <View style={[styles.container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
-      <Pressable style={styles.arabicRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+    <View style={[styles(nightMode).container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
+      <Pressable style={styles(nightMode).arabicRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
         {verse.verseNumber > 1 && (
-          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
         )}
         {words.map((word: string, index: number) => {
@@ -72,19 +72,19 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
           return (
             <WordHitArea key={index} tapFraction={WORD_TAP_FRACTION} onWordPress={() => word && onWordPress(index)} onDeadTap={onDeadTap}>
-              <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
+              <Text style={[styles(nightMode).arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6, transform: yAdj[textStyle] ? [{ translateY: yAdj[textStyle] }] : undefined }, h && MISTAKE_HIGHLIGHT]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
             </WordHitArea>
           );
 })}
       </Pressable>
-      {showTranslation && <Text style={styles.translation}>{verse.textTranslation}</Text>}
+      {showTranslation && <Text style={styles(nightMode).translation}>{verse.textTranslation}</Text>}
     </View>
   );
 };
 // memo export — effective here: verse objects come from the redux verses array (stable
 // identities), so rows skip re-render unless their own verse/highlight props change.
 export default memo(VerseDisplay);
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},

@@ -83,6 +83,7 @@ const MENU_LABEL_C = '#b0b0b0';
 const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
   // Spread margins: outer edge ~16 (phone 12), inner gutter 7 each, frame breathing room
@@ -1577,7 +1578,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [menuY]);
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={showPageInfo}
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
@@ -1586,8 +1587,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
             {/* ---- edge-tap Pressables: header toggle in PAGE mode (PanGesture handler is disabled there) ---- */}
-            <Pressable style={[styles.edgeTapLeft, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
-            <Pressable style={[styles.edgeTapRight, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
+            <Pressable style={[styles(nightMode).edgeTapLeft, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
+            <Pressable style={[styles(nightMode).edgeTapRight, { width: IS_TABLET ? 50 : 24 }]} onPress={() => { if (!isDrawing) setIsHeaderVisible((prev: boolean) => !prev); }} />
 
             {/* ================= ayah mode: vertical FlatList of VerseDisplay rows ================= */}
             {readingMode === 'ayah' && (
@@ -1684,9 +1685,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
         {/* ---- floating reading-mark bookmark button (top-right; INSIDE the captured region for share) ----
              NOW toggles the READING BOOKMARK (lastRead) at the page's last verse, not a normal bookmark. */}
         {readingMode === 'page' && !isCapturing && stablePageLastVerse && (
-          <TouchableOpacity style={styles.pageBookmark}
+          <TouchableOpacity style={styles(nightMode).pageBookmark}
             onPress={handleReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <IconBookmark c="#00D4AA" s={30} filled={pageLastIsReadingMark} />
+            <IconBookmark c={pageLastIsReadingMark ? '#ffd700' : (nightMode ? '#7BA7DB' : '#1C3D72')} s={30} filled={pageLastIsReadingMark} />
           </TouchableOpacity>
         )}
       </View>
@@ -1722,7 +1723,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       </ToolbarBoundary>
 
       {/* share spinner overlay */}
-      {isCapturing && <View style={styles.capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
+      {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
           (hides together with the header, incl. via the edge/dead taps) */}
       {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
@@ -1730,9 +1731,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); when the player
              bar is up it floats just above it (bottom 96) so it is never covered ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles.headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
-          <TouchableOpacity style={styles.headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
+        <View style={[styles(nightMode).headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
+          <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1745,19 +1746,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- long-press verse menu: floating 6-button bubble (Play/Bookmark/Reading/Note/Record/Copy) ---- */}
       <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => { setMenuVerse(null); setMenuY(null); }}>
-        <TouchableOpacity style={[styles.menuOverlay, menuY === null && styles.menuOverlayCentered]} activeOpacity={1} onPress={() => { setMenuVerse(null); setMenuY(null); }}>
-          <View style={menuY === null ? styles.bubbleCenteredWrap : [styles.bubbleWrap, { top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, width: menuPos?.width ?? 0 }]}>
-            {menuPos?.arrowUp && <View style={[styles.bubbleArrow, { top: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
-            {menuPos?.arrowDown && <View style={[styles.bubbleArrow, { bottom: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
-            <View style={styles.bubble}>
-              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Play</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Bookmark</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Reading</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Note</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles(nightMode).menuOverlay, menuY === null && styles(nightMode).menuOverlayCentered]} activeOpacity={1} onPress={() => { setMenuVerse(null); setMenuY(null); }}>
+          <View style={menuY === null ? styles(nightMode).bubbleCenteredWrap : [styles(nightMode).bubbleWrap, { top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, width: menuPos?.width ?? 0 }]}>
+            {menuPos?.arrowUp && <View style={[styles(nightMode).bubbleArrow, { top: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
+            {menuPos?.arrowDown && <View style={[styles(nightMode).bubbleArrow, { bottom: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
+            <View style={styles(nightMode).bubble}>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Play</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Bookmark</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Note</Text></TouchableOpacity>
               {/* Record: NOTE — pauses via RAW audioPlayer.pausePlayer(), NOT pauseSurah, so the
                   audioPlayback module's playing/playToken state goes stale (ghost isSurahPlaying) */}
-              <TouchableOpacity style={styles.bubbleBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { dispatch(setPlaying(false)); try { audioPlayer.current.pausePlayer(); } catch {} } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); } setMenuVerse(null); setMenuY(null); }}><IconMic c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Record</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.bubbleBtn} onPress={() => handleCopyVerse(menuVerse!)}><IconCopy c={MENU_ICON_C} /><Text style={styles.bubbleLabel}>Copy</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { dispatch(setPlaying(false)); try { audioPlayer.current.pausePlayer(); } catch {} } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); } setMenuVerse(null); setMenuY(null); }}><IconMic c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Record</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => handleCopyVerse(menuVerse!)}><IconCopy c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Copy</Text></TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
@@ -1765,12 +1766,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- note modal (menu Note) ---- */}
       <Modal visible={showNoteModal} transparent animationType="fade">
-        <View style={styles.noteOverlay}>
-          <View style={styles.noteContainer}>
-            <TextInput style={styles.noteInput} value={noteText} onChangeText={setNoteText} multiline placeholder="Note..." placeholderTextColor="#666" />
-            <View style={styles.noteActions}>
-              <TouchableOpacity onPress={() => setShowNoteModal(false)} style={styles.noteCancelBtn}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={saveNote} style={styles.noteSaveBtn}><Text style={{color:'#000'}}>Save</Text></TouchableOpacity>
+        <View style={styles(nightMode).noteOverlay}>
+          <View style={styles(nightMode).noteContainer}>
+            <TextInput style={styles(nightMode).noteInput} value={noteText} onChangeText={setNoteText} multiline placeholder="Note..." placeholderTextColor="#666" />
+            <View style={styles(nightMode).noteActions}>
+              <TouchableOpacity onPress={() => setShowNoteModal(false)} style={styles(nightMode).noteCancelBtn}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={saveNote} style={styles(nightMode).noteSaveBtn}><Text style={{color:'#000'}}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1783,23 +1784,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share menu: include toggles + big Share button; capture runs via runShare */}
       <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => setShowShareMenu(false)}>
-        <Pressable style={styles.shareMenuBackdrop} onPress={() => setShowShareMenu(false)}>
-          <Pressable style={styles.shareMenuCard} onPress={() => {}}>
-            <Text style={styles.shareMenuTitle}>Share page</Text>
-            <View style={styles.shareMenuRow}>
-              <Text style={styles.shareMenuLabel}>Include drawings</Text>
+        <Pressable style={styles(nightMode).shareMenuBackdrop} onPress={() => setShowShareMenu(false)}>
+          <Pressable style={styles(nightMode).shareMenuCard} onPress={() => {}}>
+            <Text style={styles(nightMode).shareMenuTitle}>Share page</Text>
+            <View style={styles(nightMode).shareMenuRow}>
+              <Text style={styles(nightMode).shareMenuLabel}>Include drawings</Text>
               <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
-            <View style={styles.shareMenuRow}>
-              <Text style={styles.shareMenuLabel}>Include mistakes</Text>
+            <View style={styles(nightMode).shareMenuRow}>
+              <Text style={styles(nightMode).shareMenuLabel}>Include mistakes</Text>
               <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
-            <View style={styles.shareMenuRow}>
-              <Text style={styles.shareMenuLabel}>Include bookmarks</Text>
+            <View style={styles(nightMode).shareMenuRow}>
+              <Text style={styles(nightMode).shareMenuLabel}>Include bookmarks</Text>
               <Switch value={shareBookmarks} onValueChange={setShareBookmarks} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
-            <TouchableOpacity style={styles.shareMenuButton} onPress={runShare} activeOpacity={0.75}>
-              <Text style={styles.shareMenuButtonText}>Share</Text>
+            <TouchableOpacity style={styles(nightMode).shareMenuButton} onPress={runShare} activeOpacity={0.75}>
+              <Text style={styles(nightMode).shareMenuButtonText}>Share</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -1820,7 +1821,7 @@ class ToolbarBoundary extends Component<any, { hasError: boolean }> {
   render() { return this.state.hasError ? null : this.props.children; }
 }
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   contentArea: { flex: 1 },
   capturingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },

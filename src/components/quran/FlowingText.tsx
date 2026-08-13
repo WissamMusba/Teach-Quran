@@ -76,7 +76,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
         <WordHitArea key={`${vKey}_w${wIdx}`} tapFraction={WORD_TAP_FRACTION}
           onWordPress={() => word && onWordPress(verse.verseNumber, wIdx)} onDeadTap={onDeadTap}
           onLongPress={(e: any) => onVerseLongPress(verse.verseNumber, e?.nativeEvent?.pageY)}>
-          <Text style={[styles.arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
+          <Text style={[styles(nightMode).arabicText, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255,215,0,0.2)' }]} maxFontSizeMultiplier={1}>{word}{word ? ' ' : ''}</Text>
         </WordHitArea>
       );
     });
@@ -85,25 +85,25 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
     // intentionally gets no badge/number.
     if (verse.verseNumber > 1) {
       flow.push(
-        <View key={`${vKey}_bdg`} style={styles.badgeWrap}>
-          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+        <View key={`${vKey}_bdg`} style={styles(nightMode).badgeWrap}>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
-          {hasNote && <Text style={styles.noteIcon}>📝</Text>}
+          {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
         </View>
       );
     }
 
-    if (showTranslation) flow.push(<Text key={`${vKey}_tr`} style={styles.translation}>{verse.textTranslation}</Text>);
+    if (showTranslation) flow.push(<Text key={`${vKey}_tr`} style={styles(nightMode).translation}>{verse.textTranslation}</Text>);
   });
 
   return (
-    <Pressable style={styles.container} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+    <Pressable style={styles(nightMode).container} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
       {flow}
     </Pressable>
   );
 };
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { width: '100%', padding: 12, backgroundColor: 'transparent', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
   arabicText: {},
   badgeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, minWidth: 18 },

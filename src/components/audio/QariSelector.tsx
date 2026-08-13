@@ -45,16 +45,16 @@ const QariSelector = ({ visible, onClose }: any) => {
   const border = nightMode ? '#2a2a2a' : '#e8e8e4';
   const text = nightMode ? '#fff' : '#1a1a1a';
   const sectionBg = nightMode ? '#1a1a2e' : '#f0f2f7';
-  const sectionText = nightMode ? (nightMode ? '#7BA7DB' : '#1C3D72') : '#006e5c';
+  const sectionText = nightMode ? '#7BA7DB' : '#006e5c';
   const rowColor = nightMode ? '#fff' : '#1a1a1a';
-  const closeColor = nightMode ? (nightMode ? '#7BA7DB' : '#1C3D72') : '#006e5c';
+  const closeColor = nightMode ? '#7BA7DB' : '#006e5c';
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: containerBg }]}>
-        <View style={[styles.header, { backgroundColor: headerBg, borderColor: border }]}>
-          <Text style={[styles.title, { color: text }]}>Select a Qari</Text>
-          <TouchableOpacity onPress={onClose}><Text style={[styles.closeBtn, { color: closeColor }]}>✕</Text></TouchableOpacity>
+      <View style={[styles(nightMode).container, { backgroundColor: containerBg }]}>
+        <View style={[styles(nightMode).header, { backgroundColor: headerBg, borderColor: border }]}>
+          <Text style={[styles(nightMode).title, { color: text }]}>Select a Qari</Text>
+          <TouchableOpacity onPress={onClose}><Text style={[styles(nightMode).closeBtn, { color: closeColor }]}>✕</Text></TouchableOpacity>
         </View>
         <SectionList
           sections={[
@@ -63,12 +63,12 @@ const QariSelector = ({ visible, onClose }: any) => {
           ]}
           keyExtractor={(item) => item.id}
           renderSectionHeader={({ section }) => (
-            <View style={[styles.sectionHeader, { backgroundColor: sectionBg }]}><Text style={[styles.sectionHeaderText, { color: sectionText }]}>{section.title}</Text></View>
+            <View style={[styles(nightMode).sectionHeader, { backgroundColor: sectionBg }]}><Text style={[styles(nightMode).sectionHeaderText, { color: sectionText }]}>{section.title}</Text></View>
           )}
           renderItem={({ item }) => (
-            <TouchableOpacity style={[styles.qariRow, { borderColor: border }]} onPress={() => { dispatch(setQari(item.name)); onClose(); }}>
-              <Text style={[styles.qariName, { color: rowColor }]}>{item.name}</Text>
-              {currentQari === item.name && <Text style={styles.checkmark}>✓</Text>}
+            <TouchableOpacity style={[styles(nightMode).qariRow, { borderColor: border }]} onPress={() => { dispatch(setQari(item.name)); onClose(); }}>
+              <Text style={[styles(nightMode).qariName, { color: rowColor }]}>{item.name}</Text>
+              {currentQari === item.name && <Text style={styles(nightMode).checkmark}>✓</Text>}
             </TouchableOpacity>
           )}
         />
@@ -77,7 +77,7 @@ const QariSelector = ({ visible, onClose }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
   title: { fontSize: 20, fontWeight: 'bold' },

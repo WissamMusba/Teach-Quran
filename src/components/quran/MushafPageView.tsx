@@ -470,28 +470,28 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // place them in the margin band between the screen edge and the frame (band heights are
   // marginTop >= 22 / marginBottom >= 20 in QuranViewScreen's page wrappers); gated only on
   // pageNum > 0 / firstSurahId > 0 (firstSurahId parsed from the first word's location
-  // "surah:verse"); compact (<600px) shrinks the pill styles.
+  // "surah:verse"); compact (<600px) shrinks the pill styles(nightMode).
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
       {firstSurahId > 0 && (
-        <View style={[styles.badgePill, styles.topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
-          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Juz {juzInfo.juz}</Text>
+        <View style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
       {pageNum > 0 && (
-        <View style={[styles.badgePill, styles.bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
-          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
+        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
         </View>
       )}
       {firstSurahId > 0 && (
-        <View style={[styles.badgePill, styles.topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
-          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
+        <View style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
       {pageNum > 0 && (
-        <View style={[styles.badgePill, styles.bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}>
-          <Text style={[styles.badgeText, { color: grayC }, compact && styles.badgeTextCompact]}>Page {pageNum + 1}</Text>
+        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
         </View>
       )}
     </View>
@@ -501,11 +501,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // provided: the tablet spread toggle. (The "Fix font" pill was removed by request — the layout
   // cache now only re-measures on font/page/width/fixNonce changes.)
   const actionPills = onSpread && !headerVisible ? (
-    <View style={styles.bottomLeftRow}>
+    <View style={styles(nightMode).bottomLeftRow}>
       {onSpread && (
-        <TouchableOpacity style={[styles.badgePill, styles.actionPillGap, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles.badgePillCompact]}
+        <TouchableOpacity style={[styles(nightMode).badgePill, styles(nightMode).actionPillGap, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}
           onPress={() => onSpread()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={[styles.badgeText, { color: spread ? '#00D4AA' : grayC }, compact && styles.badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
+          <Text style={[styles(nightMode).badgeText, { color: spread ? (nightMode ? '#7BA7DB' : '#1C3D72') : grayC }, compact && styles(nightMode).badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -518,30 +518,30 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
-        <View style={styles.fallbackBody}>
+      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+        <View style={styles(nightMode).fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
             const fBookmarked = !!bookmarks?.[fKey];
             const fReadingMark = readingMarkVerse === v.verseNumber;
             const fHasNote = !!notes?.[fKey];
             return (
-              <Pressable key={`${fKey}_${i}`} style={styles.fallbackRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
-                <Pressable style={styles.fallbackTextZone}
+              <Pressable key={`${fKey}_${i}`} style={styles(nightMode).fallbackRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+                <Pressable style={styles(nightMode).fallbackTextZone}
                   onPress={() => onWordPress(v.verseNumber, 0)}
                   onLongPress={(e: any) => onVerseLongPress(v.verseNumber, e?.nativeEvent?.pageY)}
                   delayLongPress={300}>
-                  <Text style={[styles.fallbackText, { fontSize: (mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily }]} maxFontSizeMultiplier={1}>
+                  <Text style={[styles(nightMode).fallbackText, { fontSize: (mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily }]} maxFontSizeMultiplier={1}>
                     {v.textArabic}{' '}
                   </Text>
                 </Pressable>
-                <View style={styles.verseBadgeContainer}>
+                <View style={styles(nightMode).verseBadgeContainer}>
                   <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
-                    <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, fBookmarked && styles.bookmarkedBadge, fReadingMark && styles.readingMarkBadge]}>
-                      <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles.bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 && v.surahId === 1 ? '' : v.verseNumber}</Text>
+                    <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, fBookmarked && styles(nightMode).bookmarkedBadge, fReadingMark && styles(nightMode).readingMarkBadge]}>
+                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 && v.surahId === 1 ? '' : v.verseNumber}</Text>
                     </View>
                   </TouchableOpacity>
-                  {fHasNote && <Text style={styles.noteIcon}>📝</Text>}
+                  {fHasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
                 </View>
               </Pressable>
             );
@@ -561,7 +561,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]} />;
+    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -569,27 +569,27 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles.container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         const taawud = lineIdx === taawudLineIdx ? (
-          <View style={styles.taawudRow}>
-            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
-            <Text style={[styles.taawudText, { color: nightMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)', fontFamily, fontSize: Math.max(12, Math.round(fs * 0.55)) }]}>
+          <View style={styles(nightMode).taawudRow}>
+            <View style={[styles(nightMode).taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
+            <Text style={[styles(nightMode).taawudText, { color: nightMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)', fontFamily, fontSize: Math.max(12, Math.round(fs * 0.55)) }]}>
               {'أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'}
             </Text>
-            <View style={[styles.taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
+            <View style={[styles(nightMode).taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
           </View>
         ) : null;
         if (line.type === 'surah-header') {
           return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles.headerLine, { borderBottomColor: lineColor }]}><Text style={[styles.headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
+          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
           <React.Fragment key={lineIdx}>
             {taawud}
-            <Pressable style={[styles.line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -643,13 +643,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                 return (
                   <React.Fragment key={wordIdx}>
                     {isVerseBoundary && (
-                      <View style={styles.verseBadgeContainer}>
+                      <View style={styles(nightMode).verseBadgeContainer}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
-                          <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                            <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
+                          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
                           </View>
                         </TouchableOpacity>
-                        {hasNote && <Text style={styles.noteIcon}>📝</Text>}
+                        {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
                       </View>
                     )}
                   </React.Fragment>
@@ -658,22 +658,22 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
               return (
                 <React.Fragment key={wordIdx}>
-                  <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles.wordBox}
+                  <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles(nightMode).wordBox}
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles.text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
                   {isVerseBoundary && (
-                    <View style={styles.verseBadgeContainer}>
+                    <View style={styles(nightMode).verseBadgeContainer}>
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
-                        <View style={[styles.verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles.bookmarkedBadge, isReadingMark && styles.readingMarkBadge]}>
-                          <Text style={[styles.verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles.bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
+                        <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
-                      {hasNote && <Text style={styles.noteIcon}>📝</Text>}
+                      {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
                     </View>
                   )}
                 </React.Fragment>
@@ -694,7 +694,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 // the Text style prop. line: row-reverse + flex:1 so each line fills one vertical slot;
 // wordBox flexShrink:0 keeps words intact; container uses space-around (sparse pages get an
 // additional line-level space-around).
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
   taawudRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 2 },
   taawudRule: { flex: 1, height: 1, marginHorizontal: 10 },

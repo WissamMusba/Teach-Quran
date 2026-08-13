@@ -22,7 +22,6 @@ import { getVersesByPage } from '../database/quranData';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
-const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 const COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /**
@@ -38,9 +37,9 @@ const OptionPicker = ({ visible, title, options, selected, onSelect, onClose, la
   const sub = nightMode ? '#8a8a8a' : '#6b6b76';
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[styles.pickerSheet, { backgroundColor: sheetBg, borderColor: border }]}>
-          <Text style={[styles.pickerTitle, { color: text }]}>{title}</Text>
+      <TouchableOpacity style={styles(nightMode).pickerBackdrop} activeOpacity={1} onPress={onClose}>
+        <View style={[styles(nightMode).pickerSheet, { backgroundColor: sheetBg, borderColor: border }]}>
+          <Text style={[styles(nightMode).pickerTitle, { color: text }]}>{title}</Text>
           <FlatList
             data={options}
             keyExtractor={(item: any) => String(item)}
@@ -49,9 +48,9 @@ const OptionPicker = ({ visible, title, options, selected, onSelect, onClose, la
             renderItem={({ item }: any) => {
               const active = item === selected;
               return (
-                <TouchableOpacity style={[styles.pickerRow, { borderColor: border }]} onPress={() => { onSelect(item); onClose(); }} activeOpacity={0.7}>
-                  <Text style={[styles.pickerRowText, { color: active ? ACCENT : text }]}>{labelFor ? labelFor(item) : String(item)}</Text>
-                  {active && <Text style={{ color: ACCENT, fontSize: 16, fontWeight: '700' }}>✓</Text>}
+                <TouchableOpacity style={[styles(nightMode).pickerRow, { borderColor: border }]} onPress={() => { onSelect(item); onClose(); }} activeOpacity={0.7}>
+                  <Text style={[styles(nightMode).pickerRowText, { color: active ? nightMode ? '#7BA7DB' : '#1C3D72' : text }]}>{labelFor ? labelFor(item) : String(item)}</Text>
+                  {active && <Text style={{ color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 16, fontWeight: '700' }}>✓</Text>}
                 </TouchableOpacity>
               );
             }}
@@ -76,19 +75,19 @@ const NumberEditor = ({ visible, title, draft, onChangeText, onSave, onClose }: 
   const sub = nightMode ? '#8a8a8a' : '#6b6b76';
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[styles.pickerSheet, { backgroundColor: sheetBg, borderColor: border, paddingBottom: 18 }]}>
-          <Text style={[styles.pickerTitle, { color: text }]}>{title}</Text>
+      <TouchableOpacity style={styles(nightMode).pickerBackdrop} activeOpacity={1} onPress={onClose}>
+        <View style={[styles(nightMode).pickerSheet, { backgroundColor: sheetBg, borderColor: border, paddingBottom: 18 }]}>
+          <Text style={[styles(nightMode).pickerTitle, { color: text }]}>{title}</Text>
           <TextInput
-            style={[styles.numInput, { color: text, borderColor: border, backgroundColor: nightMode ? '#12122a' : '#f4f6fb' }]}
+            style={[styles(nightMode).numInput, { color: text, borderColor: border, backgroundColor: nightMode ? '#12122a' : '#f4f6fb' }]}
             value={draft} onChangeText={onChangeText} keyboardType="number-pad" autoFocus selectTextOnFocus maxLength={3}
             placeholder="Type a number" placeholderTextColor={sub} />
-          <View style={styles.numBtns}>
-            <TouchableOpacity style={[styles.numBtn, { backgroundColor: nightMode ? '#2a2a4a' : '#e2e5f0' }]} onPress={onClose} activeOpacity={0.7}>
-              <Text style={[styles.numBtnText, { color: sub }]}>Cancel</Text>
+          <View style={styles(nightMode).numBtns}>
+            <TouchableOpacity style={[styles(nightMode).numBtn, { backgroundColor: nightMode ? '#2a2a4a' : '#e2e5f0' }]} onPress={onClose} activeOpacity={0.7}>
+              <Text style={[styles(nightMode).numBtnText, { color: sub }]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.numBtn, { backgroundColor: ACCENT }]} onPress={onSave} activeOpacity={0.7}>
-              <Text style={[styles.numBtnText, { color: '#121212' }]}>Save</Text>
+            <TouchableOpacity style={[styles(nightMode).numBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} onPress={onSave} activeOpacity={0.7}>
+              <Text style={[styles(nightMode).numBtnText, { color: '#121212' }]}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -183,54 +182,54 @@ export default function LoopSettingsScreen({ route }: any) {
   };
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: bg }]}>
+    <View style={[styles(nightMode).wrapper, { backgroundColor: bg }]}>
       <ScreenHeader title="Loop Settings" subtitle={surahName} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-        <View style={[styles.section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <View style={styles.row}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode).content}>
+        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <View style={styles(nightMode).row}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: labelColor }]}>Enable loop</Text>
-              <Text style={[styles.rowSub, { color: subColor }]}>LOOP START plays the range below</Text>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Enable loop</Text>
+              <Text style={[styles(nightMode).rowSub, { color: subColor }]}>LOOP START plays the range below</Text>
             </View>
-            <Switch value={!!loop?.enabled} onValueChange={(v) => { patch({ enabled: v }); }} trackColor={{ false: switchFalse, true: ACCENT }} />
+            <Switch value={!!loop?.enabled} onValueChange={(v) => { patch({ enabled: v }); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
           </View>
-          <View style={[styles.divider, { backgroundColor: cardBorder }]} />
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowLabel, { color: labelColor }]}>Start from ▾</Text>
+          <View style={[styles(nightMode).divider, { backgroundColor: cardBorder }]} />
+          <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Start from ▾</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'start', draft: String(start) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowValue, { color: valueColor }]}>Verse {start} ✎</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('end')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowLabel, { color: labelColor }]}>End Verse ▾</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'end', draft: String(end) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowValue, { color: valueColor }]}>Verse {end} ✎</Text>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setEdit({ mode: 'start', draft: String(start) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>Verse {start} ✎</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('count')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowLabel, { color: labelColor }]}>Loop count ▾</Text>
+          <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('end')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>End Verse ▾</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'count', draft: String(count) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowValue, { color: valueColor }]}>{count} {count === 1 ? 'time' : 'times'} ✎</Text>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setEdit({ mode: 'end', draft: String(end) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>Verse {end} ✎</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setPicker('repeat')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowLabel, { color: labelColor }]}>Ayah repeat ▾</Text>
+          <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('count')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Loop count ▾</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.rowMain} onPress={() => setEdit({ mode: 'repeat', draft: String(repeat) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.rowValue, { color: valueColor }]}>{repeat} {repeat === 1 ? 'time' : 'times'} ✎</Text>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setEdit({ mode: 'count', draft: String(count) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>{count} {count === 1 ? 'time' : 'times'} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('repeat')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Ayah repeat ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setEdit({ mode: 'repeat', draft: String(repeat) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>{repeat} {repeat === 1 ? 'time' : 'times'} ✎</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={[styles.summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={[styles.summaryText, { color: subColor }]}>
+        <View style={[styles(nightMode).summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={[styles(nightMode).summaryText, { color: subColor }]}>
             {loop?.enabled
               ? `LOOP START plays verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
               : 'Loop is off — the LOOP START button is greyed out.'}
@@ -262,7 +261,7 @@ export default function LoopSettingsScreen({ route }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   wrapper: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
   section: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },

@@ -23,7 +23,6 @@ import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/forma
 import { getVersePagesDB } from '../database/localDB';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 
-const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
 
 // Module-level session cache for mushaf pages: verse->page mappings never change during a
@@ -164,42 +163,42 @@ export default function BookmarksScreen() {
     const page = pageMap[pageKey(item.surah, item.verse)];
     return (
       <TouchableOpacity
-        style={[styles.card, nightMode ? styles.cardDark : styles.cardLight]}
+        style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]}
         onPress={() => handleNavigate(item.surah, item.verse)}
         activeOpacity={0.7}
       >
-        <View style={styles.topRow}>
-          <View style={[styles.chip, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
-            <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
+        <View style={styles(nightMode).topRow}>
+          <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
+            <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
               Date: {meta.date}
             </Text>
           </View>
-          <View style={[styles.chip, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
-            <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
+          <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
+            <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
               Time: {meta.time}
             </Text>
           </View>
         </View>
-        <Text style={styles.surahName} numberOfLines={1}>{meta.name}</Text>
-        <View style={[styles.metaStack, nightMode ? styles.metaStackDark : styles.metaStackLight]}>
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
-            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{item.surah}</Text>
+        <Text style={styles(nightMode).surahName} numberOfLines={1}>{meta.name}</Text>
+        <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
+          <View style={styles(nightMode).metaItem}>
+            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
+            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{item.surah}</Text>
           </View>
-          <View style={styles.metaSeparator} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
-            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{item.verse}</Text>
+          <View style={styles(nightMode).metaSeparator} />
+          <View style={styles(nightMode).metaItem}>
+            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
+            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{item.verse}</Text>
           </View>
-          <View style={styles.metaSeparator} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
-            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{meta.juz}</Text>
+          <View style={styles(nightMode).metaSeparator} />
+          <View style={styles(nightMode).metaItem}>
+            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
+            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{meta.juz}</Text>
           </View>
-          <View style={styles.metaSeparator} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-            <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
+          <View style={styles(nightMode).metaSeparator} />
+          <View style={styles(nightMode).metaItem}>
+            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
+            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -212,46 +211,46 @@ export default function BookmarksScreen() {
     const ts = pinnedMeta.ts;
     return (
       <TouchableOpacity
-        style={[styles.card, nightMode ? styles.cardDark : styles.cardLight]}
+        style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]}
         onPress={() => handleNavigate(lrSurah, lrVerse)}
         activeOpacity={0.7}
       >
         {ts ? (
-          <View style={styles.topRow}>
-            <View style={[styles.chip, nightMode ? styles.chipDateDark : styles.chipDateLight]}>
-              <Text style={[styles.chipText, nightMode ? styles.chipDateTextDark : styles.chipDateTextLight]}>
+          <View style={styles(nightMode).topRow}>
+            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
+              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
                 Date: {pinnedMeta.date}
               </Text>
             </View>
-            <View style={[styles.chip, nightMode ? styles.chipTimeDark : styles.chipTimeLight]}>
-              <Text style={[styles.chipText, nightMode ? styles.chipTimeTextDark : styles.chipTimeTextLight]}>
+            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
+              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
                 Time: {pinnedMeta.time}
               </Text>
             </View>
           </View>
         ) : null}
-        <Text style={styles.lastReadTag}>LAST READ</Text>
-        <Text style={styles.surahName} numberOfLines={1}>{pinnedMeta.name}</Text>
+        <Text style={styles(nightMode).lastReadTag}>LAST READ</Text>
+        <Text style={styles(nightMode).surahName} numberOfLines={1}>{pinnedMeta.name}</Text>
         {ts ? (
-          <View style={[styles.metaStack, nightMode ? styles.metaStackDark : styles.metaStackLight]}>
-            <View style={styles.metaItem}>
-              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
-              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{lrSurah}</Text>
+          <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
+            <View style={styles(nightMode).metaItem}>
+              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
+              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrSurah}</Text>
             </View>
-            <View style={styles.metaSeparator} />
-            <View style={styles.metaItem}>
-              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
-              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{lrVerse}</Text>
+            <View style={styles(nightMode).metaSeparator} />
+            <View style={styles(nightMode).metaItem}>
+              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
+              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrVerse}</Text>
             </View>
-            <View style={styles.metaSeparator} />
-            <View style={styles.metaItem}>
-              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
-              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{pinnedMeta.juz}</Text>
+            <View style={styles(nightMode).metaSeparator} />
+            <View style={styles(nightMode).metaItem}>
+              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
+              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{pinnedMeta.juz}</Text>
             </View>
-            <View style={styles.metaSeparator} />
-            <View style={styles.metaItem}>
-              <Text style={[styles.metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-              <Text style={[styles.metaValue, nightMode ? styles.metaValueDark : styles.metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
+            <View style={styles(nightMode).metaSeparator} />
+            <View style={styles(nightMode).metaItem}>
+              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
+              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
             </View>
           </View>
         ) : null}
@@ -260,21 +259,21 @@ export default function BookmarksScreen() {
   }, [lastRead, pinnedMeta, pageMap, nightMode, handleNavigate]);
 
   return (
-    <View style={[styles.container, nightMode ? styles.containerDark : styles.containerLight]}>
+    <View style={[styles(nightMode).container, nightMode ? styles(nightMode).containerDark : styles(nightMode).containerLight]}>
       <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} />
       {renderPinned()}
       {sortedBookmarks.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📌</Text>
-          <Text style={styles.emptyText}>No bookmarks yet</Text>
-          <Text style={styles.emptySub}>Long-press a verse to bookmark it</Text>
+        <View style={styles(nightMode).emptyState}>
+          <Text style={styles(nightMode).emptyIcon}>📌</Text>
+          <Text style={styles(nightMode).emptyText}>No bookmarks yet</Text>
+          <Text style={styles(nightMode).emptySub}>Long-press a verse to bookmark it</Text>
         </View>
       ) : (
         <FlatList
           style={{ flex: 1 }}
           data={sortedBookmarks}
           keyExtractor={(i: any, idx: number) => idx.toString()}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={styles(nightMode).list}
           renderItem={renderBookmark}
         />
       )}
@@ -283,7 +282,7 @@ export default function BookmarksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1, padding: 10 },
   containerDark: { backgroundColor: '#121212' },
   containerLight: { backgroundColor: '#f5f5f5' },
@@ -294,16 +293,16 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   chipDateDark: { backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
-  chipDateLight: { backgroundColor: '#e6f8f4' },
+  chipDateLight: { backgroundColor: '#e8edf7' },
   chipTimeDark: { backgroundColor: 'rgba(139,92,246,0.14)' },
   chipTimeLight: { backgroundColor: '#f1ecfe' },
   chipText: { fontSize: 9, fontWeight: '700' },
-  chipDateTextDark: { color: '#2ee6bd' },
-  chipDateTextLight: { color: '#0b8f77' },
+  chipDateTextDark: { color: '#9db9e4' },
+  chipDateTextLight: { color: '#1C3D72' },
   chipTimeTextDark: { color: '#a78bfa' },
   chipTimeTextLight: { color: '#7c3aed' },
-  surahName: { color: ACCENT, fontSize: 15, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: ACCENT, paddingLeft: 8, marginBottom: 5 },
-  lastReadTag: { alignSelf: 'flex-start', color: ACCENT, backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`), fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
+  surahName: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 15, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: nightMode ? '#7BA7DB' : '#1C3D72', paddingLeft: 8, marginBottom: 5 },
+  lastReadTag: { alignSelf: 'flex-start', color: nightMode ? '#7BA7DB' : '#1C3D72', backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`), fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
   metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
   metaStackDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
   metaStackLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },

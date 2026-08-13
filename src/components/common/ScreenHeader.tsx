@@ -13,8 +13,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 
-const ACCENT = (nightMode ? '#7BA7DB' : '#1C3D72');
-
 const IconBack = ({ c }: { c: string }) => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M15 4.5L7.5 12l7.5 7.5" />
@@ -37,26 +35,26 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
   const subColor = nightMode ? '#8a8a8a' : '#777';
 
   return (
-    <View style={[styles.container, { backgroundColor: bg, borderBottomColor: border }]}>
-      <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.backBtn}>
-        <IconBack c={ACCENT} />
+    <View style={[styles(nightMode).container, { backgroundColor: bg, borderBottomColor: border }]}>
+      <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles(nightMode).backBtn}>
+        <IconBack c={nightMode ? '#7BA7DB' : '#1C3D72'} />
       </TouchableOpacity>
-      <View style={styles.textWrap}>
-        <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={[styles.subtitle, { color: subColor }]} numberOfLines={1}>{subtitle}</Text> : null}
+      <View style={styles(nightMode).textWrap}>
+        <Text style={[styles(nightMode).title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text style={[styles(nightMode).subtitle, { color: subColor }]} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
-      <View style={styles.accentDot} />
+      <View style={styles(nightMode).accentDot} />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, borderBottomWidth: 1 },
   backBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
   textWrap: { flex: 1 },
   title: { fontSize: 19, fontWeight: '800', letterSpacing: 0.3 },
   subtitle: { fontSize: 12, marginTop: 2 },
-  accentDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: ACCENT, marginRight: 14, opacity: 0.9 },
+  accentDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72', marginRight: 14, opacity: 0.9 },
 });
 
 export default React.memo(ScreenHeader);

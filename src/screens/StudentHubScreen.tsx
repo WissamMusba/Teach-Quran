@@ -187,66 +187,66 @@ export default function StudentHubScreen({ navigation }: any) {
   const inputBg = isDark ? '#1a1a2e' : '#f5f5f5';
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: bg }]}>
       {/* inline header (back + title + student name), consistent with the Juz/Surah index screens */}
-      <View style={[styles.header, { backgroundColor: rowBg, borderBottomColor: border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <View style={[styles(nightMode).header, { backgroundColor: rowBg, borderBottomColor: border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={(nightMode ? '#7BA7DB' : '#1C3D72')} />
         </TouchableOpacity>
-        <View style={styles.headerTextWrap}>
-          <Text style={[styles.headerTitle, { color: titleC }]}>Teach Quran</Text>
-          <Text style={[styles.headerSubtitle, { color: subC }]} numberOfLines={1}>{currentStudent?.name || ''}</Text>
+        <View style={styles(nightMode).headerTextWrap}>
+          <Text style={[styles(nightMode).headerTitle, { color: titleC }]}>Teach Quran</Text>
+          <Text style={[styles(nightMode).headerSubtitle, { color: subC }]} numberOfLines={1}>{currentStudent?.name || ''}</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
+      <ScrollView contentContainerStyle={styles(nightMode).scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={[styles(nightMode).card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
           {/* 1 — RESUME: local last page VIEWED (falls back to lastRead, else page 1). */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]}
+          <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }]}
             onPress={() => resumeInfo && openVerse(resumeInfo.surah, resumeInfo.verse)} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: titleC }]}>RESUME</Text>
-            <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
+            <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>RESUME</Text>
+            <Text style={[styles(nightMode).rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>
 
           {/* 2 — BOOKMARKS & NOTES: one row split in two halves (vertical divider) */}
-          <View style={[styles.row, styles.rowBorder, { borderBottomColor: border, paddingLeft: 0, paddingRight: 0 }]}>
-            <TouchableOpacity style={styles.half} onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7}>
-              <Text style={[styles.halfLabel, { color: titleC }]}>BOOKMARKS</Text>
-              <Text style={styles.halfCount}>{bookmarkCount}</Text>
+          <View style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border, paddingLeft: 0, paddingRight: 0 }]}>
+            <TouchableOpacity style={styles(nightMode).half} onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7}>
+              <Text style={[styles(nightMode).halfLabel, { color: titleC }]}>BOOKMARKS</Text>
+              <Text style={styles(nightMode).halfCount}>{bookmarkCount}</Text>
             </TouchableOpacity>
-            <View style={[styles.vDivider, { backgroundColor: border }]} />
-            <TouchableOpacity style={styles.half} onPress={() => navigation.navigate('Notes')} activeOpacity={0.7}>
-              <Text style={[styles.halfLabel, { color: titleC }]}>NOTES</Text>
-              <Text style={styles.halfCount}>{noteCount}</Text>
+            <View style={[styles(nightMode).vDivider, { backgroundColor: border }]} />
+            <TouchableOpacity style={styles(nightMode).half} onPress={() => navigation.navigate('Notes')} activeOpacity={0.7}>
+              <Text style={[styles(nightMode).halfLabel, { color: titleC }]}>NOTES</Text>
+              <Text style={styles(nightMode).halfCount}>{noteCount}</Text>
             </TouchableOpacity>
           </View>
 
           {/* 3 — DAILY RECITATION (the lastRead reading mark; enabled only when it exists) */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }, !dailyTarget && styles.rowDisabled]}
+          <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }, !dailyTarget && styles(nightMode).rowDisabled]}
             onPress={() => dailyTarget && openVerse(dailyTarget.surah, dailyTarget.verse)} disabled={!dailyTarget} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: titleC }]}>DAILY RECITATION</Text>
-            <Text style={[styles.rowSub, { color: subC }]} numberOfLines={1}>{dailySubtitle}</Text>
+            <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>DAILY RECITATION</Text>
+            <Text style={[styles(nightMode).rowSub, { color: subC }]} numberOfLines={1}>{dailySubtitle}</Text>
           </TouchableOpacity>
 
           {/* 4 — JUZ/PARA INDEX */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]} onPress={() => navigation.navigate('JuzIndex')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: titleC }]}>JUZ/PARA INDEX</Text>
+          <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }]} onPress={() => navigation.navigate('JuzIndex')} activeOpacity={0.7}>
+            <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>JUZ/PARA INDEX</Text>
           </TouchableOpacity>
 
           {/* 5 — SURAH INDEX */}
-          <TouchableOpacity style={[styles.row, styles.rowBorder, { borderBottomColor: border }]} onPress={() => navigation.navigate('SurahIndex')} activeOpacity={0.7}>
-            <Text style={[styles.rowLabel, { color: titleC }]}>SURAH INDEX</Text>
+          <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }]} onPress={() => navigation.navigate('SurahIndex')} activeOpacity={0.7}>
+            <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>SURAH INDEX</Text>
           </TouchableOpacity>
 
           {/* 6 — GO TO PAGE # (valid integer 1..610 -> QuranView { page }) */}
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <Text style={[styles.rowLabel, { color: titleC }]}>GO TO PAGE #</Text>
-            <View style={styles.pageRowRight}>
-              <TextInput style={[styles.pageInput, { color: titleC, borderColor: border, backgroundColor: inputBg }]}
+          <View style={[styles(nightMode).row, { borderBottomWidth: 0 }]}>
+            <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>GO TO PAGE #</Text>
+            <View style={styles(nightMode).pageRowRight}>
+              <TextInput style={[styles(nightMode).pageInput, { color: titleC, borderColor: border, backgroundColor: inputBg }]}
                 value={pageInput} onChangeText={(t) => setPageInput(t.replace(/[^0-9]/g, ''))}
                 keyboardType="number-pad" placeholder="1–610" placeholderTextColor={subC}
                 maxLength={3} returnKeyType="go" onSubmitEditing={handlePageSubmit} />
-              <TouchableOpacity style={[styles.pageGo, { opacity: pageValid ? 1 : 0.35 }]} onPress={handlePageSubmit} disabled={!pageValid} activeOpacity={0.7}>
+              <TouchableOpacity style={[styles(nightMode).pageGo, { opacity: pageValid ? 1 : 0.35 }]} onPress={handlePageSubmit} disabled={!pageValid} activeOpacity={0.7}>
                 <ArrowRight c="#121212" />
               </TouchableOpacity>
             </View>
@@ -257,7 +257,7 @@ export default function StudentHubScreen({ navigation }: any) {
     </View>
   );
 }
-const styles = StyleSheet.create({
+const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginRight: 4 },
