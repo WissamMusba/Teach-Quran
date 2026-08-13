@@ -24,8 +24,6 @@ import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
 
-const ACCENT = '#00b2aa';
-
 /**
  * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
  * CALLS: none. AFFECTS: UI only.
@@ -147,7 +145,7 @@ export default function MistakesScreen() {
     text: nightMode ? '#fff' : '#1a1a1a',
     sub: nightMode ? '#8a8a8a' : '#6b6b76',
     chipBg: nightMode ? '#232345' : '#f1f4fb',
-    accentSoft: nightMode ? 'rgba(0,178,170,0.16)' : 'rgba(0,178,170,0.10)',
+    accentSoft: nightMode ? 'rgba(123,167,219,0.16)' : 'rgba(28,61,114,0.10)',
     dotBorder: nightMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
   };
 
@@ -182,8 +180,8 @@ export default function MistakesScreen() {
           </View>
         ) : null}
         <View style={styles.titleRow}>
-          <Text style={styles.surahName} numberOfLines={1}>{name}</Text>
-          <Text style={styles.chevron}>›</Text>
+          <Text style={[styles.surahName, { color: nightMode ? '#7BA7DB' : '#1C3D72' }]} numberOfLines={1}>{name}</Text>
+          <Text style={[styles.chevron, { color: nightMode ? '#7BA7DB' : '#1C3D72' }]}>›</Text>
         </View>
         <View style={styles.metaRow}>
           <MetaChip label="Surah #" value={String(s)} nightMode={nightMode} />
@@ -234,8 +232,8 @@ const styles = StyleSheet.create({
   chip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, marginRight: 6 },
   chipText: { fontSize: 9, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  surahName: { color: ACCENT, fontSize: 15, fontWeight: '800' },
-  chevron: { color: ACCENT, fontSize: 20, fontWeight: '400', opacity: 0.7, marginTop: -2 },
+  surahName: { fontSize: 15, fontWeight: '800' },
+  chevron: { fontSize: 20, fontWeight: '400', opacity: 0.7, marginTop: -2 },
   metaRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
   metaChip: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metaChipDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },

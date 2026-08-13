@@ -18,14 +18,17 @@
  *       re-render only the small card subtree instead of reparsing every note entry.
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem, Modal, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { playAudioNote } from '../api/audioNotes';
-import { getStudentData, getLastPullAt } from '../database/localDB';
+import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah } from '../database/localDB';
+import { getVersePage } from '../database/quranData';
 import { setStudentData } from '../store/studentSlice';
+import { addPendingChange } from '../store/syncSlice';
 import ScreenHeader from '../components/common/ScreenHeader';
+import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 /**
@@ -96,10 +99,10 @@ const parseParts = (value: string): NotePart[] => {
  * NOTES: The `⏸`/`▶` glyph and 'Playing...'/'Voice note' label derive from playingKey ===
  *   `${row.verseKey}_${pi}` — one play button per audio line in the note.
  */
-const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode: boolean; playingKey: string | null; onOpen: (verseKey: string) => void; onToggleAudio: (path: string, audioKey: string) => void }) => {
-  const { row, surahName, nightMode, playingKey, onOpen, onToggleAudio } = props;
+const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode: boolean; playingKey: string | null; onOpen: (verseKey: string) => void; onToggleAudio: (path: string, audioKey: string) => void; onLongPress: (verseKey: string) => void }) => {
+  const { row, surahName, nightMode, playingKey, onOpen, onToggleAudio, onLongPress } = props;
   return (
-    <TouchableOpacity style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]} onPress={() => onOpen(row.verseKey)} activeOpacity={0.7}>
+    <TouchableOpacity style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]} onPress={() => onOpen(row.verseKey)} onLongPress={() => onLongPress(row.verseKey)} delayLongPress={350} activeOpacity={0.7}>
       <View style={styles(nightMode).cardHeader}>
         <Text style={styles(nightMode).surahLabel}>SURAH {row.surah} · AYAH {row.ayah}</Text>
         <Text style={[styles(nightMode).surahName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{surahName || '...'}</Text>
@@ -110,7 +113,7 @@ const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode
         return part.type === 'text' ? (
           <Text key={pi} style={[styles(nightMode).noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
         ) : (
-          <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? '#0e2a2a' : '#e8f7f3' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
+          <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? 'rgba(255,255,255,0.05)' : 'rgba(28,61,114,0.08)' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
             <Text style={styles(nightMode).playBtn}>{playingKey === audioKey ? '⏸' : '▶'}</Text>
             <Text style={styles(nightMode).audioLabel}>{playingKey === audioKey ? 'Playing...' : 'Voice note'}</Text>
           </TouchableOpacity>
@@ -215,6 +218,9 @@ export default function NotesScreen() {
   }, [notes]);
 
   const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [chooserVerseKey, setChooserVerseKey] = useState<string | null>(null);
+  const [editVerseKey, setEditVerseKey] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   /**
    * WHAT: Stops playback + removes the playback listener when the screen unmounts.
@@ -287,6 +293,65 @@ export default function NotesScreen() {
   }, [togglePlay]);
 
   /**
+   * WHAT: Opens the edit/delete chooser for a long-pressed note card.
+   * CALLED BY: NoteCard onLongPress.
+   */
+  const handleRowLongPress = useCallback((vKey: string) => {
+    setChooserVerseKey(vKey);
+  }, []);
+
+  /**
+   * WHAT: Writes editText for the edited verseKey into the notes map via the SAME
+   *   optimistic update path the app's note editor uses (setStudentData with a
+   *   new notes map), replacing the existing note value wholesale. Mirrors
+   *   QuranViewScreen.saveNote: after the Redux write, persists the note to
+   *   SQLite (saveCanvasEdit, keyed by the verse's mushaf page — or the surah
+   *   fallback when the page cannot be resolved) and bumps the sync queue so
+   *   other devices receive it.
+   * CALLS: dispatch(setStudentData), getVersePage, saveCanvasEdit, addPendingChange.
+   * CALLED BY: edit modal Save button.
+   */
+  const saveEditedNote = useCallback(() => {
+    if (!editVerseKey || !currentStudentId) return;
+    const vKey = editVerseKey;
+    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: editText } }));
+    setEditVerseKey(null);
+    setEditText('');
+    getVersePage(parseInt(vKey.split('_')[0], 10), parseInt(vKey.split('_')[1], 10)).catch(() => 0).then((page: number) => {
+      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(parseInt(vKey.split('_')[0], 10));
+      saveCanvasEdit(currentStudentId, key, 'notes', { [vKey]: editText });
+      dispatch(addPendingChange());
+    });
+  }, [editVerseKey, editText, studentData, currentStudentId, dispatch]);
+
+  /**
+   * WHAT: Removes a note from the notes map entirely (no dedicated slice action —
+   *   same removal shape as QuranViewScreen.handleVoiceNoteDelete: rebuild the map,
+   *   drop the key, dispatch setStudentData). ALSO persists the removal to SQLite
+   *   via saveCanvasEdit ('' marks the key gone for the next pull/restart) and
+   *   bumps the sync queue — otherwise the note silently returns on restart.
+   * CALLS: dispatch(setStudentData), getVersePage, saveCanvasEdit, addPendingChange.
+   * CALLED BY: chooser Delete button.
+   */
+  const deleteNote = useCallback((vKey: string) => {
+    const notes = { ...(studentData?.notes || {}) };
+    delete notes[vKey];
+    dispatch(setStudentData({ ...(studentData || {}), notes }));
+    setChooserVerseKey(null);
+    if (!currentStudentId) return;
+    getVersePage(parseInt(vKey.split('_')[0], 10), parseInt(vKey.split('_')[1], 10)).catch(() => 0).then((page: number) => {
+      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(parseInt(vKey.split('_')[0], 10));
+      saveCanvasEdit(currentStudentId, key, 'notes', { [vKey]: '' });
+      dispatch(addPendingChange());
+    });
+  }, [studentData, currentStudentId, dispatch]);
+
+  const openEditFor = useCallback((vKey: string) => {
+    setEditText(studentData?.notes?.[vKey] || '');
+    setEditVerseKey(vKey);
+  }, [studentData]);
+
+  /**
    * WHAT: Renders a prebuilt NoteRow through the memoized NoteCard. Stably recreated only
    *   when the data/theme/playback actually changed, so scrolling rows are not recreated.
    */
@@ -298,8 +363,9 @@ export default function NotesScreen() {
       playingKey={playingKey}
       onOpen={handleNavigate}
       onToggleAudio={onToggleAudio}
+      onLongPress={handleRowLongPress}
     />
-  ), [surahNames, nightMode, playingKey, handleNavigate, onToggleAudio]);
+  ), [surahNames, nightMode, playingKey, handleNavigate, onToggleAudio, handleRowLongPress]);
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f5f5f5' }]}>
@@ -320,6 +386,30 @@ export default function NotesScreen() {
         />
       )}
       <CollapsibleBannerAd />
+
+      <AlertModal
+        visible={chooserVerseKey !== null}
+        title="Note options"
+        message={chooserVerseKey ? `Surah ${chooserVerseKey.split('_')[0]} · Ayah ${chooserVerseKey.split('_')[1]}` : ''}
+        nightMode={nightMode}
+        onClose={() => setChooserVerseKey(null)}
+        buttons={[
+          { text: 'Edit', style: 'default', onPress: () => { if (chooserVerseKey) openEditFor(chooserVerseKey); } },
+          { text: 'Delete', style: 'destructive', onPress: () => { if (chooserVerseKey) deleteNote(chooserVerseKey); } },
+        ]}
+      />
+
+      <Modal visible={editVerseKey !== null} transparent animationType="fade" onRequestClose={() => setEditVerseKey(null)}>
+        <View style={styles(nightMode).noteOverlay}>
+          <View style={styles(nightMode).noteContainer}>
+            <TextInput style={styles(nightMode).noteInput} value={editText} onChangeText={setEditText} multiline placeholder="Note..." placeholderTextColor="#666" />
+            <View style={styles(nightMode).noteActions}>
+              <TouchableOpacity onPress={() => setEditVerseKey(null)} style={styles(nightMode).noteCancelBtn}><Text style={{ color: '#fff' }}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={saveEditedNote} style={styles(nightMode).noteSaveBtn}><Text style={{ color: '#121212' }}>Save</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -342,4 +432,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
+  noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
+  noteContainer: { width: '80%', backgroundColor: (nightMode ? '#1e1e1e' : '#fff'), borderRadius: 10, padding: 20, borderWidth: 1, borderColor: (nightMode ? '#2a2a2a' : '#ddd') },
+  noteInput: { color: (nightMode ? '#fff' : '#121212'), borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 10, height: 100, textAlignVertical: 'top', marginBottom: 15 },
+  noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
+  noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
+  noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
 });

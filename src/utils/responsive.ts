@@ -34,6 +34,6 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
 };
 
 export const getMushafLineHeight = (headerVisible?: boolean): number => {
-  const mult = SCREEN_WIDTH >= 900 ? 1.7 : 1.6;
+  const mult = SCREEN_WIDTH >= 900 ? 1.9 : 1.8;
   return getMushafFontSize(headerVisible) * mult;
 };

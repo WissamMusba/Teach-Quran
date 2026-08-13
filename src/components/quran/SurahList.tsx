@@ -6,6 +6,7 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { useSelector } from 'react-redux';
 import { getSurahs } from '../../database/quranData';
 import { getStartJuzOfSurah, JUZ_MAP } from '../../utils/theme';
 
@@ -101,6 +102,8 @@ const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106
  * NOTES: Not memoized (plain function) — fine, it re-renders only when the parent re-renders.
  */
 export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: any) {
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const isDark = !!nightMode;
   const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   useEffect(() => { if (visible) { setQuery(''); getSurahs().then(s => setSurahs(s as any)); } }, [visible]);
@@ -154,43 +157,43 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   }, [data, query, mode]);
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, isDark && dark.container]}>
+        <View style={[styles.header, isDark && dark.header]}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>{mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}</Text>
-            <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>Close</Text></TouchableOpacity>
+            <Text style={[styles.title, isDark && dark.title]}>{mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}</Text>
+            <TouchableOpacity onPress={onClose}><Text style={[styles.closeBtn, isDark && dark.closeBtn]}>Close</Text></TouchableOpacity>
           </View>
-          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'} placeholderTextColor="#8a8a8a" autoCapitalize="none" autoCorrect={false} />
+          <TextInput style={[styles.searchInput, isDark && dark.searchInput]} value={query} onChangeText={setQuery} placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'} placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} autoCapitalize="none" autoCorrect={false} />
         </View>
         {results.length === 0 && query.length > 0 ? (
-          <View style={styles.emptyWrap}><Text style={styles.emptyText}>No surahs found</Text></View>
+          <View style={styles.emptyWrap}><Text style={[styles.emptyText, isDark && dark.emptyText]}>No surahs found</Text></View>
         ) : (
           <FlatList data={results} keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)} keyboardShouldPersistTaps="handled"
             renderItem={({ item }: any) => (
-              <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
+              <TouchableOpacity style={[styles.item, isDark && dark.item]} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>
-                  <Text style={styles.itemNum}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
+                  <Text style={[styles.itemNum, isDark && dark.itemNum]}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
                   <View>
-                    <Text style={styles.itemText}>{item.englishName}</Text>
+                    <Text style={[styles.itemText, isDark && dark.itemText]}>{item.englishName}</Text>
                     {item.type === 'page' ? (
                       <>
-                        <Text style={styles.pageTag}>PAGE</Text>
-                        <Text style={styles.itemJuz}>Go to page {item.page}</Text>
+                        <Text style={[styles.pageTag, isDark && dark.pageTag]}>PAGE</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to page {item.page}</Text>
                       </>
                     ) : item.type === 'juz' ? (
                       <>
-                        <Text style={styles.pageTag}>JUZ</Text>
-                        <Text style={styles.itemJuz}>Go to juz {item.juz}</Text>
+                        <Text style={[styles.pageTag, isDark && dark.pageTag]}>JUZ</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to juz {item.juz}</Text>
                       </>
                     ) : (
                       <>
-                        <Text style={styles.itemJuz}>Juz {item.startJuz} · {item.verses} ayahs</Text>
-                        <Text style={styles.itemPages}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Juz {item.startJuz} · {item.verses} ayahs</Text>
+                        <Text style={[styles.itemPages, isDark && dark.itemPages]}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
                       </>
                     )}
                   </View>
                 </View>
-                <Text style={styles.itemArabic}>{item.name}</Text>
+                <Text style={[styles.itemArabic, isDark && dark.itemArabic]}>{item.name}</Text>
               </TouchableOpacity>
             )} />
         )}
@@ -200,14 +203,14 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { padding: 20, borderBottomWidth: 1, borderColor: '#333' },
+  header: { padding: 20, borderBottomWidth: 1, borderColor: '#e0e0e4' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: 'bold', color: '#1A1A1A' },
   closeBtn: { color: '#0066FF', fontSize: 16 },
-  searchInput: { marginTop: 14, backgroundColor: '#1A1A1A', color: '#1A1A1A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#333' },
+  searchInput: { marginTop: 14, backgroundColor: '#ffffff', color: '#1A1A1A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#e0e0e4' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: '#8a8a8a', fontSize: 16 },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#1A1A1A' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#e0e0e4' },
   itemLeft: { flexDirection: 'row', alignItems: 'center' },
   itemNum: { color: '#1C3D72', fontSize: 15, fontWeight: '700', width: 34 },
   itemText: { fontSize: 17, color: '#1A1A1A' },
@@ -215,4 +218,19 @@ const styles = StyleSheet.create({
   itemPages: { fontSize: 12, color: '#8a8a8a', marginTop: 2 },
   pageTag: { color: '#1C3D72', fontSize: 10, fontWeight: '700', borderWidth: 1, borderColor: '#1C3D72', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
   itemArabic: { fontSize: 20, color: '#1A1A1A' },
+});
+const dark = StyleSheet.create({
+  container: { backgroundColor: '#1a1a2e' },
+  header: { borderColor: '#2a2a4a' },
+  title: { color: '#ffffff' },
+  closeBtn: { color: '#7BA7DB' },
+  searchInput: { backgroundColor: '#22223a', color: '#ffffff', borderColor: '#2a2a4a' },
+  emptyText: { color: '#8a8a8a' },
+  item: { borderColor: '#2a2a4a' },
+  itemNum: { color: '#7BA7DB' },
+  itemText: { color: '#ffffff' },
+  itemJuz: { color: '#8a8a8a' },
+  itemPages: { color: '#8a8a8a' },
+  pageTag: { color: '#7BA7DB', borderColor: '#7BA7DB' },
+  itemArabic: { color: '#e8e8e8' },
 });

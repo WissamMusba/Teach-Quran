@@ -19,7 +19,6 @@ import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const hPad = (w: number) => (w >= 600 ? w * 0.08 : 13);
 // Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
 // overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
 // rewrites them. Must be added identically at EVERY get/save call site.
@@ -230,9 +229,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
   // the mushaf text must live strictly inside it (never under the pattern band). Padding the
-  // container by the frame inset on BOTH axes keeps glyphs clear; use the larger of the
-  // classic hPad and the new frame inset so phones AND tablets stay safe.
-  const framePad = Math.max(hPad(pageWidth), frameInsetFor(pageWidth));
+  // container by the frame inset on BOTH axes keeps glyphs clear; the text inset must equal the
+  // frame's inner-rule inset EXACTLY so the measured line width matches the visible rule.
+  const framePad = frameInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -334,6 +333,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         if (cancelled) return;
         if (cached) {
           layoutContentRef.current = cached;
+          cacheWrittenRef.current = true;
           setCacheState('hit');
           scheduleVerify();
         } else {
@@ -355,7 +355,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const sums: number[] = [];
     for (let k = 0; k <= Math.max(...keys); k++) {
       const arr = fresh[k];
-      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) + (lineExtraRef.current[k] || 0) : 0;
+      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) : 0;
     }
     const saved = layoutContentRef.current || [];
     const differs = sums.length !== saved.length ||
@@ -402,7 +402,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (!fontReady) return;
-    if (layoutContentRef.current) return;
     // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
     // scale to recover the raw unscaled width so the store (and the persisted sums) always hold
     // full-size widths. Cache-hit scale then mirrors first-visit exactly — no under-count, no
@@ -415,7 +414,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
     const lineW = pageWidth - 2 * framePad;
-    const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
+    // Effective sum = max of the persisted (possibly under-counted) cached sum and the live
+    // measured sum, so a cache-hit page whose cached line under-counts still re-scales instead
+    // of letting words spill past the inner rule.
+    const cached = layoutContentRef.current?.[lineKey] || 0;
+    const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
+    const content = Math.max(cached, liveArrSum) + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     if (content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.5, (lineW - 12) / content);
@@ -457,7 +461,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
       const lineW = pageWidth - 2 * framePad;
-      const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
+      const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
+      const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) + (lineExtraRef.current[lineIdx] || 0);
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
     return lineScale[lineIdx] || 1;
@@ -466,9 +471,10 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
   // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
   // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). Badges ALWAYS
-  // render (header visibility does not gate them) and sit OUTSIDE the frame — negative offsets
-  // place them in the margin band between the screen edge and the frame (band heights are
-  // marginTop >= 22 / marginBottom >= 20 in QuranViewScreen's page wrappers); gated only on
+  // render (header visibility does not gate them) and overlay the frame's top/bottom band —
+  // small positive offsets place them just inside the frame edge (band heights are
+  // marginTop >= 10 / marginBottom >= 10 in QuranViewScreen's page wrappers, since the
+  // old 22/20 header pill bands moved out of the page in the geometry rework); gated only on
   // pageNum > 0 / firstSurahId > 0 (firstSurahId parsed from the first word's location
   // "surah:verse"); compact (<600px) shrinks the pill styles(nightMode).
   const overlayLayer = (
@@ -662,7 +668,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, includeFontPadding: true, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
@@ -719,10 +725,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgeText: { fontSize: 9.5, fontWeight: '600' },
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
-  topLeft: { position: 'absolute', top: -24, left: 6 },
-  topRight: { position: 'absolute', top: -24, right: 40 },
-  bottomMid: { position: 'absolute', bottom: -20, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: -20, right: 10 },
+  topLeft: { position: 'absolute', top: 2, left: 6 },
+  topRight: { position: 'absolute', top: 2, right: 40 },
+  bottomMid: { position: 'absolute', bottom: 2, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: 2, right: 10 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });

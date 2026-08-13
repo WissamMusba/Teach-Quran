@@ -1,3 +1,5 @@
+import { frameInsetFor } from '../components/quran/OrnamentalFrame';
+
 export const MIN_POINT_DIST = 2;
 export function thinStrokePoints(points: string[], minDist = MIN_POINT_DIST): string[] {
   if (!points || points.length < 3) return points || [];
@@ -31,7 +33,7 @@ export function simplifyStroke(points: string[], epsilon = 1.2): string[] {
   }
   return points.filter((_, i) => keep[i]);
 }
-export const hPadFor = (w: number) => (w >= 600 ? w * 0.08 : 13);
+export const hPadFor = (w: number) => frameInsetFor(w);
 export const compactStroke = (points: string[], canvasW: number, canvasH: number, padX = 0): string[] => {
   const cw = canvasW - 2 * padX > 1 ? canvasW - 2 * padX : canvasW;
   return simplifyStroke(thinStrokePoints(points, 3), 1.5)

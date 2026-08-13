@@ -14,12 +14,13 @@
  *   paddingOuter = W×0.010   (design: 10px offset of the outer thin border)
  *   gapOuter     = W×0.006   (design: 6px white gap between thin border and main frame)
  *   bandWidth    = W×0.040   (design: 40px decorative pattern band)
- *   gapInner     = W×0.004   (design: 4px gap between pattern band and the text box)
+ *   gapInner     = W×0.002, min 1.5px    (inner thin rule sits on the band's inner edge)
  *   tile         = bandWidth/2          → perfect 2× repetition across the band (20px on 40px)
  *   stroke       = max(0.75, W×0.0015)  → 1.5px hairline scaled to the actual page width
  *   Layers outside→inside: outer thin rect (po) → gap (go) → main frame outer rect (po+go) →
- *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → gap (gi) →
- *   inner text bounding box (po+go+band+gi). The four bands are drawn as separate rects filled
+ *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → thin inner rule
+ *   sitting directly on the band's inner edge (gi ≈ 1-2px) → inner text bounding box (po+go+band+gi).
+ *   The four bands are drawn as separate rects filled
  *   with the repeating pattern (NO continuous band through the corners), then four corner-node
  *   squares are placed exactly over the band intersections. <Use> carries x/y ONLY (no extra
  *   transform — RN-SVG x/y already translate, adding both would double-offset every node).
@@ -64,7 +65,7 @@ export const frameInsetFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
   const band = Math.max(6, W * 0.040);
-  const gi = Math.max(6, W * 0.034);
+  const gi = Math.max(1.5, W * 0.002);
   return po + go + band + gi;
 };
 
@@ -103,7 +104,7 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
   const go = Math.max(1, W * 0.006);        // layer 2: first white gap
   const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
-  const gi = Math.max(6, W * 0.034);        // layer 6: second gap
+  const gi = Math.max(1.5, W * 0.002);      // layer 6: inner rule hugs the band edge (1-2px)
   const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
   const inner = po + go + band + gi;        // layer 7: inner text box inset
