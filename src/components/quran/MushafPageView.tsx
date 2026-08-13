@@ -239,6 +239,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
   const adj = getFontAdj(textStyle, headerVisible);
+  // Header-visible descender clearance: with the header showing, the page box is shorter and
+  // vScale pins every line to its exact slot, so the QPC fonts' descenders poke ~3-5px below
+  // the line box and get visually clipped. Lifting every word 4px up keeps the tails visible;
+  // no header → no lift (layout position unchanged either way — pure visual transform).
+  const wordLiftY = adj.y + (headerVisible ? -4 : 0);
   const compact = pageWidth < 600;
 
   // User-specified padding (percent-based): top/bottom = 2.5% of the SCREEN HEIGHT, left/right =
@@ -740,7 +745,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, color: textColor, fontFamily, includeFontPadding: true, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
