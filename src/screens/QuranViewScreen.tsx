@@ -80,15 +80,15 @@ const MENU_LABEL_C = '#b0b0b0';
  * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
  *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
  */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, stablePageLastVerse, currentPageNum, pageLastIsReadingMark, handleReadingMarkToggle }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
-  // top 24 / bottom 22 are exactly the pill rows, so the frame starts right after the pill band.
-  const spreadMargin = { marginTop: 24, marginBottom: 22 };
+  // top 24 / bottom 14 (pill offset -12) — the frame sits lower with no dead space at the screen edge.
+  const spreadMargin = { marginTop: 24, marginBottom: 14 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
@@ -97,7 +97,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             pageCache[odd] ? (
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
+                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && odd === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
@@ -107,7 +108,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
           {pageCache[even] ? (
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && even === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
@@ -1657,19 +1659,22 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                    readingMode={readingMode} isCapturing={isCapturing} stablePageLastVerse={stablePageLastVerse} currentPageNum={currentPageNum}
+                    pageLastIsReadingMark={pageLastIsReadingMark} handleReadingMarkToggle={handleReadingMarkToggle} />
                 ) : ({ item }: any) => {
                   ensurePageLoaded(item);
                   ensurePageVersesLoaded(item);
                   const pData = pageCache[item];
                   return (
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 22 }}>
+                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 14 }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
+                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && item === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
                       </View>
                     </View>
@@ -1682,14 +1687,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
           </View>
         </PanGestureHandler></GestureHandlerRootView>
       </View>
-        {/* ---- floating reading-mark bookmark button (screen top-right; OUTSIDE the captured region for share) ----
-             NOW toggles the READING BOOKMARK (lastRead) at the page's last verse, not a normal bookmark. */}
-        {readingMode === 'page' && !isCapturing && stablePageLastVerse && (
-          <TouchableOpacity style={[styles(nightMode).pageBookmark, { top: isHeaderVisible ? 4 : 76 }]}
-            onPress={handleReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <IconBookmark c={nightMode ? '#7BA7DB' : '#1C3D72'} s={30} filled={pageLastIsReadingMark} />
-          </TouchableOpacity>
-        )}
 
       {/* ================= drawing wiring: canvas + toolbar (error-boundary wrapped) ================= */}
       {isDrawing && (
@@ -1727,10 +1724,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
           (hides together with the header, incl. via the edge/dead taps) */}
       {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); when the player
-             bar is up it floats just above it (bottom 96) so it is never covered ---- */}
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); pinned to
+             bottom:12 so it sits on the frame band / bottom margin, never over the text lines.
+             It may overlap the frame band or the player bar region but never the mushaf text ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
+        <View style={[styles(nightMode).headerToggleWrap, { bottom: 12 }]} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
@@ -1845,7 +1843,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: 1, right: 3, zIndex: 999, elevation: 999 },
   headerToggleWrap: { position: 'absolute', left: 12, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },

@@ -16,7 +16,8 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame from './OrnamentalFrame';
-import { textInsetFor } from '../../utils/mushafLayout';
+import Svg, { Path } from 'react-native-svg';
+import { textInsetFor, textInsetV } from '../../utils/mushafLayout';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -117,6 +118,15 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
   } catch { /* best-effort */ }
 };
 
+// Reading-mark bookmark glyph — small outline bookmark; filled when the reading mark is set.
+// Defined HERE (module level) on purpose: MushafPageView must not import from QuranViewScreen
+// (that would be a circular import), so its icon cannot come from the parent.
+const BookmarkIcon = ({ c, s = 18, filled = false }: { c: string; s?: number; filled?: boolean }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={filled ? c : 'none'} stroke={c}>
+    <Path d="M7 3h10v18l-5-3.6L7 21V3z" />
+  </Svg>
+);
+
 /**
  * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
  * word widths: +28 per verse boundary inside the line, +14 more when that verse has a note.
@@ -206,7 +216,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -230,9 +240,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
   // the mushaf text must live strictly inside it (never under the pattern band). textInsetFor
-  // adds 10px of air so words never touch the inner rule. Padding the container by the text
-  // inset on BOTH axes keeps glyphs clear; this inset must match stroke.ts's hPadFor EXACTLY
-  // so measured line widths and drawing registration use the same box.
+  // adds 10px of air so words never touch the inner rule. The container pads HORIZONTALLY by
+  // this inset — it must match stroke.ts's hPadFor EXACTLY so measured line widths and drawing
+  // registration use the same box. VERTICALLY the air is deliberately small (textInsetV = 8):
+  // the frame band still clears the glyphs, and last-line descenders are protected by the
+  // last-line margin below instead of by tall padding.
   const framePad = textInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
@@ -476,33 +488,47 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     return lineScale[lineIdx] || 1;
   };
 
-  // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
-  // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
-  // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). Badges ALWAYS
-  // render (header visibility does not gate them) and sit in the page's margin bands OUTSIDE the
-  // frame: negative top/bottom offsets lift them above the top band edge / below the bottom band
-  // edge (wrapper bands are marginTop 24 / marginBottom 22, pill bands ~22px), so they never
-  // overlap the frame rule in either header state. compact (<600px) shrinks the pill styles.
+  // overlayLayer — absolute-fill layer that NEVER intercepts taps itself but lets its children
+  // be targets: the root uses pointerEvents="box-none" (not "none") because a "none" parent
+  // blocks the ENTIRE subtree from hit-testing (PointerEvents.canChildrenBeTouchTarget(NONE) is
+  // false in RN native), which would make the reading-mark bookmark button un-tappable. With
+  // box-none the layer itself still passes taps through to the mushaf lines underneath, while
+  // the button (a child) receives its own presses. The decorative badge pills and the frame are
+  // explicitly pointerEvents="none" (the frame already is, inside OrnamentalFrame) so taps over
+  // them fall through to the page rows exactly like the pre-button "none" root did. Holds:
+  //   the OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
+  //   pages-left (bottom-right), surah name (top-right), page number (bottom-mid), plus the
+  //   optional reading-mark bookmark button (top-right, left of the surah pill). Badges ALWAYS
+  //   render (header visibility does not gate them) and sit in the page's margin bands OUTSIDE
+  //   the frame: top pills at top: -22 lift them above the top band edge (wrapper marginTop is
+  //   24); bottom pills at bottom: -12 sit snug above the screen edge (wrapper marginBottom is
+  //   14 — pill bottom lands ~2px above the screen edge, pill top rests just inside the frame's
+  //   bottom band — over the frame, never over text). compact (<600px) shrinks the pill styles.
   const overlayLayer = (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
       {firstSurahId > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
       {pageNum > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
         </View>
       )}
       {firstSurahId > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
+      {showReadingMarkBtn && onReadingMarkToggle && (
+        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
+        </TouchableOpacity>
+      )}
       {pageNum > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
         </View>
       )}
@@ -530,7 +556,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]}>
         <View style={styles(nightMode).fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -573,7 +599,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]} />;
+    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -581,8 +607,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]}>
       {pageData.lines.map((line: any, lineIdx: number) => {
+        const isLastRendered = !pageData.lines.slice(lineIdx + 1).some((l: any) => l.type !== 'surah-header');
         const taawud = lineIdx === taawudLineIdx ? (
           <View style={styles(nightMode).taawudRow}>
             <View style={[styles(nightMode).taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
@@ -596,12 +623,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
+          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }, isLastRendered && styles(nightMode).lineLast]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
           <React.Fragment key={lineIdx}>
             {taawud}
-            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }, isLastRendered && styles(nightMode).lineLast]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -733,8 +760,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgeTextCompact: { fontSize: 8.5 },
   topLeft: { position: 'absolute', top: -22, left: 6 },
   topRight: { position: 'absolute', top: -22, right: 30 },
-  bottomMid: { position: 'absolute', bottom: -20, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: -20, right: 6 },
+  readingMarkBtn: { position: 'absolute', top: -22, right: 6, zIndex: 20, elevation: 20 },
+  bottomMid: { position: 'absolute', bottom: -12, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: -12, right: 6 },
+  lineLast: { marginBottom: 12 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });
