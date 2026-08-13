@@ -15,16 +15,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
-import OrnamentalFrame from './OrnamentalFrame';
+import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
 import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 // Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
 // overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
 // rewrites them. Must be added identically at EVERY get/save call site.
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -74,7 +75,8 @@ const SPARSE_FONT_BOOST = 1.3;
  * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
  * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
  * y is 0 for ALL fonts: the old ~3px upward lift is gone; top/bottom balance now comes
- * from the container's asymmetric padding (paddingTop = framePad + 6, paddingBottom = framePad - 8).
+ * from the container's percent-based padding (padTop/padBottom = 2.5% of screen height,
+ * padSide = 6.7% of page width — floored at frameInsetFor so text never crosses the frame).
  */
 const getFontAdj = (ts: string, hv: boolean) => {
   switch (ts) {
@@ -239,14 +241,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const adj = getFontAdj(textStyle, headerVisible);
   const compact = pageWidth < 600;
 
-  // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
-  // the mushaf text must live strictly inside it (never under the pattern band). textInsetFor
-  // adds 10px of air so words never touch the inner rule. The container pads HORIZONTALLY by
-  // this inset — it must match stroke.ts's hPadFor EXACTLY so measured line widths and drawing
-  // registration use the same box. VERTICALLY the air is now asymmetric from the same inset:
-  // paddingTop = framePad + 6 (more room up top for high Arabic diacritics) and
-  // paddingBottom = max(4, framePad - 8), replacing the old uniform 8px air + last-line margin.
-  const framePad = textInsetFor(pageWidth);
+  // User-specified padding (percent-based): top/bottom = 2.5% of the SCREEN HEIGHT, left/right =
+  // 6.7% of the PAGE WIDTH (textInsetFor, shared with stroke.ts for drawing registration). Each
+  // is floored at frameInsetFor(pageWidth) so the text always stays strictly inside the frame's
+  // inner text box (never under the pattern band or its rules).
+  const padTop = Math.max(0.025 * SCREEN_HEIGHT, frameInsetFor(pageWidth));
+  const padBottom = padTop;
+  const padSide = textInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -283,14 +284,14 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar
   // (~60) in flow the page box is screenH - 124 - 24 - 28 = screenH - 176 tall. A tall 15-line
   // page at the largest font of its width tier needs 15 x lineHeight: e.g. 375x667 -> 15 x 32.4
-  // = 486 vs (667 - 176) - (33.6 + 19.6) = 437.7 -> OVERFLOW by ~48px; short screens overflow,
-  // tall ones fit (412x915 -> 594 <= 682.6). Fix: when the measured inner height (onLayout below)
+  // = 486 vs (667 - 176) - (17.6 + 17.6) = 455.8 -> OVERFLOW by ~30px; short screens overflow,
+  // tall ones fit (412x915 -> 594 <= 693.2). Fix: when the measured inner height (onLayout below)
   // proves it, shrink fontSize + lineHeight by one pure number (vScale). The width-fit scale
   // (scaleForLine) is untouched - it handles horizontal overflow from un-scaled widths only.
   const wordLineCount = (pageData?.lines || []).reduce(
     (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
-  const fitPadTop = framePad + 6;
-  const fitPadBottom = Math.max(4, framePad - 8);
+  const fitPadTop = padTop;
+  const fitPadBottom = padBottom;
   const fitLineH = mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1);
   const vScale = innerH > 0 && wordLineCount > 0
     ? Math.min(1, Math.max(0.5, (innerH - fitPadTop - fitPadBottom) / (wordLineCount * fitLineH)))
@@ -367,8 +368,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         if (cancelled) return;
         if (cached) {
           layoutContentRef.current = cached;
-          frozenRef.current = true;
-          cacheWrittenRef.current = true;
+          cacheWrittenRef.current = false;
           setCacheState('hit');
           scheduleVerify();
         } else {
@@ -383,10 +383,18 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   }, []);
 
   const commitVerify = useCallback(() => {
+    // Post-settle: the completion handler already compared/froze — never re-correct after that
+    // (at most ONE correction per page, then stable forever, no pulsing).
+    if (frozenRef.current) return;
     const fresh = widthsRef.current;
     const keys = Object.keys(fresh).map(Number);
     if (keys.length === 0) return;
-    const lineW = pageWidth - 2 * framePad;
+    const totalLines = (pageData?.lines || []).reduce(
+      (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
+    // Only a FULLY-measured pass may rewrite the row — partial live sums must never clobber
+    // the persisted (possibly fuller) sums, that is how under-counts got written before.
+    if (completedLinesRef.current.size < totalLines) return;
+    const lineW = pageWidth - 2 * padSide;
     const sums: number[] = [];
     for (let k = 0; k <= Math.max(...keys); k++) {
       const arr = fresh[k];
@@ -406,7 +414,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, sumsW, sums);
       savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, sumsW, sums);
     }
-  }, [pageNum, textStyle, fs, pageWidth, sparse, headerVisible]);
+  }, [pageNum, textStyle, fs, pageWidth, sparse, headerVisible, pageData]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -449,7 +457,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     }
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
-    const lineW = pageWidth - 2 * framePad;
+    const lineW = pageWidth - 2 * padSide;
     // Effective sum = max of the persisted (possibly under-counted) cached sum and the live
     // measured sum, so a cache-hit page whose cached line under-counts still re-scales instead
     // of letting words spill past the inner rule.
@@ -457,8 +465,10 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
     const content = Math.max(cached, liveArrSum) + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
-    // Frozen pages never re-run the (partial-)overflow pre-check — the scale is settled.
-    if (!frozenRef.current && content > (complete ? lineW + 2 : lineW)) {
+    // The scale-setting branch is MISS-path only: during a cache-HIT verify pass the render
+    // already sizes via scaleForLine's arithmetic (max(cached, live)), so we only RECORD widths
+    // here; the completion handler below compares live vs cached and corrects AT MOST ONCE.
+    if (!frozenRef.current && !layoutContentRef.current && content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.5, (lineW - 12) / content);
       const prevScale = scaleRef.current[lineKey];
       if (!prevScale || Math.abs(prevScale - scale) > 1e-3) {
@@ -471,21 +481,33 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       const totalLines = (pageData?.lines || []).reduce(
         (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
       if (completedLinesRef.current.size >= totalLines) {
-        cacheWrittenRef.current = true;
-        frozenRef.current = true;
         const keys = Object.keys(widthsRef.current).map(Number);
-        if (keys.length === 0) return;
+        if (keys.length === 0) { cacheWrittenRef.current = true; frozenRef.current = true; return; }
         const sums: number[] = [];
         for (let k = 0; k <= Math.max(...keys); k++) {
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        // Sums are raw (full-size) widths — persist BOTH header variants so the
-        // toggled-header state renders from cache instead of re-measuring the page.
-        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), sparse ? 1 : 0,
-          Math.round(pageWidth), sums);
-        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), sparse ? 1 : 0,
-          Math.round(pageWidth), sums);
+        // Cache-HIT verify: compare the fully-measured live sums against the cached row. If any
+        // live sum exceeds its cached sum by more than 2px the row under-counts (stale/partial
+        // write from an older version) — correct the render (single re-render via setLineScale)
+        // and rewrite BOTH header-variant rows with the fresh raw sums. If they match, keep the
+        // cached row untouched. Either way the page FREEZES here: no further re-scaling ever.
+        const saved = layoutContentRef.current;
+        const needsRewrite = !saved || sums.length !== saved.length ||
+          sums.some((s, i) => s - (saved[i] || 0) > 2);
+        if (needsRewrite) {
+          layoutContentRef.current = sums;
+          setLineScale({});
+          // Sums are raw (full-size) widths — persist BOTH header variants so the
+          // toggled-header state renders from cache instead of re-measuring the page.
+          savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), sparse ? 1 : 0,
+            Math.round(pageWidth), sums);
+          savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), sparse ? 1 : 0,
+            Math.round(pageWidth), sums);
+        }
+        cacheWrittenRef.current = true;
+        frozenRef.current = true;
       }
     }
   };
@@ -498,7 +520,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
-      const lineW = pageWidth - 2 * framePad;
+      const lineW = pageWidth - 2 * padSide;
       const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
       const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) + (lineExtraRef.current[lineIdx] || 0);
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
@@ -574,7 +596,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]}>
+      <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]}>
         <View style={styles(nightMode).fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -617,7 +639,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]} />;
+    return <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -625,7 +647,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]} onLayout={(e: any) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0 && h !== innerH) setInnerH(h); }}>
+    <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={(e: any) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0 && h !== innerH) setInnerH(h); }}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         const taawud = lineIdx === taawudLineIdx ? (
           <View style={styles(nightMode).taawudRow}>
@@ -776,8 +798,8 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
   topLeft: { position: 'absolute', top: -22, left: 6 },
-  topRight: { position: 'absolute', top: -22, right: 24 },
-  readingMarkBtn: { position: 'absolute', top: -22, right: 1, zIndex: 20, elevation: 20 },
+  topRight: { position: 'absolute', top: -22, right: 19 },
+  readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
   bottomMid: { position: 'absolute', bottom: -26, alignSelf: 'center' },
   bottomRight: { position: 'absolute', bottom: -26, right: 6 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },

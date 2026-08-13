@@ -114,9 +114,11 @@ export default function LoopSettingsScreen({ route }: any) {
   const [picker, setPicker] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ mode: string; draft: string } | null>(null);
 
-  const verseCount = SURAH_VERSE_COUNTS[surahId - 1] || 1;
-  const surahName = surahNames?.[surahId] || `Surah ${surahId}`;
+  const verseCount = SURAH_VERSE_COUNTS[(Number(loop.surahId) || surahId) - 1] || 1;
+  const loopSurahId = Number(loop.surahId) || surahId;
+  const surahName = surahNames?.[loopSurahId] || `Surah ${loopSurahId}`;
   const verseOptions = Array.from({ length: verseCount }, (_, i) => i + 1);
+  const surahOptions = Array.from({ length: 114 }, (_, i) => i + 1);
 
   // Auto-default: until the user builds a CUSTOM loop (any start/end/count/repeat pick
   // flips `customized`), the range follows the page the reader is on at the moment this
@@ -152,6 +154,15 @@ export default function LoopSettingsScreen({ route }: any) {
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
   const patch = (p: any) => { dispatch(setLoop({ ...loop, ...p })); };
+
+  const pickSurah = (s: number) => {
+    const vc = SURAH_VERSE_COUNTS[s - 1] || 1;
+    const next: any = { surahId: s, customized: true };
+    if ((loop.startVerse || 1) > vc) next.startVerse = vc;
+    if ((loop.endVerse || vc) > vc) next.endVerse = vc;
+    if (next.endVerse && next.startVerse && next.endVerse < next.startVerse) next.endVerse = next.startVerse;
+    patch(next);
+  };
 
   const pickStart = (v: number) => {
     const next: any = { startVerse: v, customized: true };
@@ -195,6 +206,14 @@ export default function LoopSettingsScreen({ route }: any) {
           </View>
           <View style={[styles(nightMode).divider, { backgroundColor: cardBorder }]} />
           <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Surah ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>{surahName} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles(nightMode).row}>
             <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Start from ▾</Text>
             </TouchableOpacity>
@@ -231,12 +250,15 @@ export default function LoopSettingsScreen({ route }: any) {
         <View style={[styles(nightMode).summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={[styles(nightMode).summaryText, { color: subColor }]}>
             {loop?.enabled
-              ? `LOOP START plays verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
+              ? `LOOP START plays ${surahName} verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
               : 'Loop is off — the LOOP START button is greyed out.'}
           </Text>
         </View>
       </ScrollView>
 
+      <OptionPicker
+        visible={picker === 'surah'} title="Which surah to loop" options={surahOptions} selected={loopSurahId}
+        onSelect={pickSurah} onClose={() => setPicker(null)} labelFor={(s: number) => surahNames?.[s] || `Surah ${s}`} />
       <OptionPicker
         visible={picker === 'start'} title={`Start from — ${surahName}`} options={verseOptions} selected={start}
         onSelect={pickStart} onClose={() => setPicker(null)} labelFor={(v: number) => `Verse ${v}`} />

@@ -13,20 +13,12 @@ export const GUTTER = 12;
 // SPLIT_MIN_WIDTH = 768 (dp) — below this width the app NEVER shows spreads (splitOn = settings.mushafSplit && winW >= SPLIT_MIN_WIDTH), and SettingsScreen hides the Spread switch entirely.
 export const SPLIT_MIN_WIDTH = 768;
 
-// WHAT: The mushaf text inset for a given page width — the frame's inner text-box inset plus
-//       10px of air, so words never touch the frame rule. THE shared inset: MushafPageView pads
-//       the text container by it, and stroke.ts's hPadFor delegates to it, keeping drawings
-//       registered under the same words.
-// CALLED BY: MushafPageView.tsx (framePad), stroke.ts (hPadFor).
-export const textInsetFor = (w: number) => frameInsetFor(w) + 10;
-
-// WHAT: The vertical (top/bottom) air between the mushaf text and the frame edge —
-//       deliberately small (~5-10px) per user request; horizontal stays textInsetFor.
-//       Only paddingVertical of MushafPageView's container uses this; the frame's
-//       bottom-band clearance for last-line descenders lives in MushafPageView's
-//       last-line margin (lines must never clip under the wrapper's overflow hidden).
-// CALLED BY: MushafPageView.tsx (paddingVertical at the container's three render sites).
-export const textInsetV = 8;
+// WHAT: THE shared horizontal text inset for a given page width — 6.7% of the page width,
+//       floored at the frame's inner text-box edge (frameInsetFor) so words never cross the
+//       frame rule. MushafPageView pads the text container by it, and stroke.ts's hPadFor
+//       delegates to it, keeping drawings registered under the same words.
+// CALLED BY: MushafPageView.tsx (padSide — container paddingHorizontal + lineW), stroke.ts (hPadFor).
+export const textInsetFor = (w: number) => Math.max(0.067 * w, frameInsetFor(w));
 
 // WHAT: Maps a real page number to its FlatList index: p <= 1 -> 0 (page 1 is a lone right page), else floor(p/2).
 // CALLED BY: QuranViewScreen scroll math — onMomentumScrollEnd, handleSelectPage, deep-link, scroll-sync.

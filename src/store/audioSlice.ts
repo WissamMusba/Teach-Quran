@@ -17,11 +17,13 @@ const initialState = {
   position: 0,             // DEAD field — no writer/reader in src/
   duration: 0,             // DEAD field — no writer/reader in src/
   // Loop settings (PERSISTED — audio is in the redux whitelist): when enabled, PAGE START
-  // plays [startVerse..endVerse] of the current surah loopCount times total, replaying each
-  // ayah ayahRepeat times before advancing. loopCount=1 = range plays once then playback
-  // continues past endVerse; ayahRepeat default 1 = each ayah plays once.
+  // plays [startVerse..endVerse] of the loop's surah (surahId; 0 = the surah currently
+  // open) loopCount times total, replaying each ayah ayahRepeat times before advancing.
+  // loopCount=1 = range plays once then playback continues past endVerse; ayahRepeat
+  // default 1 = each ayah plays once.
   loop: {
     enabled: false,
+    surahId: 0,
     startVerse: 1,
     endVerse: 1,
     loopCount: 1,

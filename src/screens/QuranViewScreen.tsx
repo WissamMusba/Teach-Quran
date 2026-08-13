@@ -54,7 +54,7 @@ import Share from 'react-native-share';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
-import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
+import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, cancelLoop, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
 import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Feature 1: session-wide "already pulled on toolbar-expand" set (${sid}/${range|key}).
@@ -69,6 +69,28 @@ const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
 /**
+ * WHAT: Derives a page's LAST VERSE (surahId, verseNumber) SYNCHRONOUSLY from the mushaf page
+ *       JSON (`lines[].words[].location` = "surah:verse:word") — the same data the page already
+ *       renders from, so the reading-mark bookmark button can appear in the SAME commit as the
+ *       page (single + spread), including pre-rendered pages while swiping. No async verse-cache
+ *       lookup, no debounce. Returns null when pageData is missing (caller falls back).
+ * CALLS: none. AFFECTS: none (pure).
+ */
+const pageLastVerseFromPageData = (pd: any) => {
+  const lines = pd?.lines;
+  if (!lines?.length) return null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const words = lines[i]?.words;
+    if (words?.length) {
+      const loc = String(words[words.length - 1]?.location || '').split(':');
+      const surahId = parseInt(loc[0], 10);
+      const verseNumber = parseInt(loc[1], 10);
+      if (surahId > 0 && verseNumber > 0) return { surahId, verseNumber };
+    }
+  }
+  return null;
+};
+/**
  * WHAT: Memoized split-mode row — renders the two pages of a spread side by side,
  *   each as its own MushafPageView with an independent loading spinner.
  * FLOW: 1) render calls ensurePageLoaded + ensurePageVersesLoaded for both page
@@ -80,12 +102,18 @@ const MENU_LABEL_C = '#b0b0b0';
  * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
  *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
  */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, stablePageLastVerse, currentPageNum, pageLastIsReadingMark, handleReadingMarkToggle }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
+  // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
+  // button renders in the same commit as its page (including pre-rendered pages while swiping).
+  const oddLast = pageLastVerseFor?.(odd);
+  const evenLast = pageLastVerseFor?.(even);
+  const oddMarkActive = readingMarkActiveFor?.(oddLast);
+  const evenMarkActive = readingMarkActiveFor?.(evenLast);
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
   // top 24 / bottom band 28px (bottom pills offset -26 — fully below the frame band, ~2px above
   // the audio bar/screen edge) — no dead space.
@@ -99,7 +127,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && odd === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
@@ -110,7 +138,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && even === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
@@ -1329,38 +1357,44 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const s = Number(lr?.surah);
     return lr && s > 0 && s === Number(currentSurahId) ? Number(lr.verse) : null;
   })();
-  const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
+  // Reading-mark ribbon is driven PER PAGE: pageLastVerseFor derives the last verse
+  // synchronously from the page's own mushaf JSON (pageCache) — fallback to the async
+  // pageVersesCache row only when pageData is missing — so the button appears in the same
+  // commit as the page, single + spread, including pre-rendered pages while swiping.
+  const pageLastVerseFor = useCallback((p: number) =>
+    pageLastVerseFromPageData(pageCache[p]) ||
+    (pageVersesCache[p] || [])[pageVersesCache[p].length - 1] || null,
+    [pageCache, pageVersesCache]);
   /**
-   * WHAT: Persists the last known page-last verse so the floating bookmark
-   *   button stays on-screen while playback auto-turns to a page whose verse
-   *   cache is still loading (pageLastVerse goes undefined in that window).
+   * WHAT: Whether the given page-last verse carries the READ BOOKMARK (studentData.lastRead) —
+   *   per-page active state for the reading-mark ribbon. Same match logic StudentHub's DAILY
+   *   RECITATION row uses.
+   * CALLS: none (pure read of studentData).
+   * CALLED BY: SpreadItem + single-page MushafPageView (readingMarkActive prop).
    */
-  const [stablePageLastVerse, setStablePageLastVerse] = useState(pageLastVerse);
-  useEffect(() => { if (pageLastVerse) setStablePageLastVerse(pageLastVerse); }, [pageLastVerse]);
-  const pageLastIsReadingMark = (() => {
+  const readingMarkActiveFor = useCallback((lv: any) => {
     const lr = studentData?.lastRead;
-    return !!stablePageLastVerse && !!lr && Number(lr.surah) === Number(stablePageLastVerse.surahId) && Number(lr.verse) === Number(stablePageLastVerse.verseNumber);
-  })();
+    return !!lv && !!lr && Number(lr.surah) === Number(lv.surahId) && Number(lr.verse) === Number(lv.verseNumber);
+  }, [studentData?.lastRead]);
 
   /**
-   * WHAT: Toggles the READ BOOKMARK (studentData.lastRead) anchored at the
-   *   visible page's LAST verse — the same reading mark StudentHub's DAILY
-   *   RECITATION row reads. One tap pins it at the end of the page; a second
-   *   tap on the same verse clears it back to null.
+   * WHAT: Toggles the READ BOOKMARK (studentData.lastRead) anchored at the given page's LAST
+   *   verse — the same reading mark StudentHub's DAILY RECITATION row reads. One tap pins it at
+   *   the end of that page; a second tap on the same verse clears it back to null.
    * CALLS: updateData (optimistic Redux + debounced SQLite/sync funnel).
-   * CALLED BY: the floating bottom-page bookmark button (page mode only).
+   * CALLED BY: the floating top-page bookmark ribbon (page mode only).
    * AFFECTS: studentData.lastRead.{surah, verse, updatedAt}.
    */
-  const handleReadingMarkToggle = useCallback(() => {
-    if (!stablePageLastVerse) return;
+  const handleReadingMarkToggle = useCallback((lv: any) => {
+    if (!lv) return;
     const lr = studentData?.lastRead;
-    const isMarked = lr && Number(lr.surah) === Number(stablePageLastVerse.surahId) && Number(lr.verse) === Number(stablePageLastVerse.verseNumber);
+    const isMarked = lr && Number(lr.surah) === Number(lv.surahId) && Number(lr.verse) === Number(lv.verseNumber);
     updateData({
       ...studentData,
-      lastRead: isMarked ? null : { surah: Number(stablePageLastVerse.surahId), verse: Number(stablePageLastVerse.verseNumber), updatedAt: new Date().toISOString() },
+      lastRead: isMarked ? null : { surah: Number(lv.surahId), verse: Number(lv.verseNumber), updatedAt: new Date().toISOString() },
     });
     ReactNativeHapticFeedback.trigger('impactLight');
-  }, [stablePageLastVerse, studentData, updateData]);
+  }, [studentData, updateData]);
 
   /**
    * WHAT: Plays from a given verse (menu "Play"). qariId = currentQari includes
@@ -1479,7 +1513,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const playPageStart = async () => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
-    if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
+    if (isPlaying) {
+      // LOOP END while playing: STOP (not restart). pauseSurahWithResume keeps the
+      // resume session at the exact mid-verse position and cancelLoop clears the
+      // active range, so the next RESUME continues from the current verse and flows
+      // linearly past the range (7 -> 8 -> 9 -> 10 ...) instead of cycling back.
+      cancelLoop();
+      dispatch(setPlaying(false));
+      await pauseSurahWithResume(audioPlayer.current).catch(() => {});
+      dispatch(setFlashingVerse(null));
+      return;
+    }
     let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
     if (!firstVerse && readingMode === 'page') {
       try { const list = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = Array.isArray(list) ? list[0] : undefined; } catch {}
@@ -1489,12 +1533,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
       onEnd: () => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); },
       onError: (msg: string) => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); Alert.alert('Playback error', msg); },
     };
-    const lastVerse = SURAH_VERSE_COUNTS[currentSurahId - 1] || 1;
     const loopOn = !!loopSettings?.enabled;
+    // Loop targets its OWN surah when one is picked in Loop Settings (0 = the surah
+    // currently open); every range value below is clamped against that surah's length.
+    const loopSurahId = loopOn && Number(safeLoop.surahId) ? Number(safeLoop.surahId) : currentSurahId;
+    const lastVerse = SURAH_VERSE_COUNTS[loopSurahId - 1] || 1;
     const startVerse = loopOn ? Math.max(1, Math.min(safeLoop.startVerse || 1, lastVerse)) : (firstVerse?.verseNumber || 1);
-    // Loop range is defined against the CURRENT surah — always play with its numbering,
-    // even when the page's first verse belongs to a different surah (page boundary).
-    const surahId = loopOn ? currentSurahId : (firstVerse?.surahId || currentSurahId);
+    const surahId = loopOn ? loopSurahId : (firstVerse?.surahId || currentSurahId);
     const loopOpts = loopOn ? { loop: { startVerse: startVerse, endVerse: Math.max(startVerse, Math.min(safeLoop.endVerse || lastVerse, lastVerse)), loopCount: Math.max(1, safeLoop.loopCount || 1), ayahRepeat: Math.max(1, safeLoop.ayahRepeat || 1) } } : {};
     try {
       await playSurahFromVerse(audioPlayer.current, qariId, surahId, startVerse, callbacks, { playBasmala: !!playBasmala, ...loopOpts });
@@ -1664,8 +1709,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                    readingMode={readingMode} isCapturing={isCapturing} stablePageLastVerse={stablePageLastVerse} currentPageNum={currentPageNum}
-                    pageLastIsReadingMark={pageLastIsReadingMark} handleReadingMarkToggle={handleReadingMarkToggle} />
+                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} />
                 ) : ({ item }: any) => {
                   ensurePageLoaded(item);
                   ensurePageVersesLoaded(item);
@@ -1679,7 +1724,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && stablePageLastVerse != null && item === currentPageNum} readingMarkActive={pageLastIsReadingMark} onReadingMarkToggle={handleReadingMarkToggle} />
+                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!pageLastVerseFor(item)} readingMarkActive={readingMarkActiveFor(pageLastVerseFor(item))} onReadingMarkToggle={() => handleReadingMarkToggle(pageLastVerseFor(item))} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
                       </View>
                     </View>
@@ -1734,17 +1779,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
         </View>
       )}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); its bottom edge is
-             anchored to the SAME margin band as the bottom pills: 26px above the screen bottom when the
-             header is hidden, and 26px above the audio bar's top edge when the header is visible (the
-             page's bottom edge then sits directly above the in-flow bar, and the 28px band hangs 26px
-             below it). playerBarH (measured via onLayout on the bar's layout-only wrapper) is added to
-             the 26 base because bottom is screen-relative — so the pill NEVER lands on the bar's
-             controls (play/prev/next buttons live inside the bar, below its top edge) nor overlaps the
-             mushaf text. One-frame edge case: when the header becomes visible playerBarH may still be 0
-             → bottom:26, above where the bar is mounting (no overlap while it appears) ---- */}
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); aligned to the
+             SAME visual row as the bottom pills (Page N / N pages left): those pills hang at
+             bottom:-26 inside the page wrapper (wrapper marginBottom 28), so their bottom edge sits
+             ~2px above the screen bottom (header hidden) or ~2px above the audio bar's top edge
+             (header visible — the page's bottom edge then sits directly above the in-flow bar).
+             The toggle is screen-level, so bottom = playerBarH + 2 reproduces that exact row in
+             both states; the pill NEVER lands on the bar's controls (play/prev/next live inside the
+             bar, below its top edge) nor on the frame's bottom band (the 28px margin band is below
+             the frame entirely). One-frame edge case: when the header becomes visible playerBarH
+             may still be 0 → bottom:2, on the row, above where the bar is mounting ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap, { bottom: (isHeaderVisible ? playerBarH : 0) + 26 }]} pointerEvents="box-none">
+        <View style={[styles(nightMode).headerToggleWrap, { bottom: (isHeaderVisible ? playerBarH : 0) + 2 }]} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>

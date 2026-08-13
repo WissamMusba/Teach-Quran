@@ -1,6 +1,7 @@
 /**
  * FILE: src/screens/BookmarksScreen.tsx
- * ROLE: Lists the current student's bookmarks (newest first) plus a pinned "LAST READ" card;
+ * ROLE: Lists the current student's bookmarks (newest first) with the reading mark (lastRead)
+ *       as the FIRST row (tagged "LAST READ", same card style — not pinned above the list);
  *       tapping any item deep-links back into QuranView at that verse.
  * DEPENDS ON: Redux s.student.studentData.bookmarks (keyed `surah_verse`) + studentData.lastRead
  *             (studentData is hydrated only by QuranViewScreen's mount effect via getStudentData
@@ -46,7 +47,7 @@ const sessionPageCache: Record<string, number> = {};
  *          the bookmark/lastRead set and deduped in-flight, so the DB is touched once per
  *          change — never per card render;
  *       4) renderBookmark: onPress → handleNavigate(item.surah, item.verse);
- *       5) renders pinned "LAST READ" card if lastRead exists, else empty state or FlatList.
+ *       5) renders the FlatList (reading mark first when it exists), else empty state.
  * CALLS: handleNavigate → navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
  *        deep-link contract (QuranViewScreen consumes these params); getJuzForVerse /
  *        formatDate / formatTime for badges + timestamps; getVersePagesDB (single batched
@@ -128,14 +129,38 @@ export default function BookmarksScreen() {
     [navigation],
   );
 
+  // Unified list data: the reading mark (lastRead) is NOT pinned above the list — it is simply
+  // the FIRST row (same card style, keeps its LAST READ tag), followed by the bookmarks sorted
+  // newest-first by createdAt. A bookmark that IS the reading mark's verse is deduped (it would
+  // otherwise appear both first and in its chronological position).
+  const listData = React.useMemo(() => {
+    const out: any[] = [];
+    if (lrSurah > 0) out.push({ surah: lrSurah, verse: lrVerse, __lastRead: true });
+    for (const b of sortedBookmarks as any[]) {
+      if (lrSurah === Number(b.surah) && lrVerse === Number(b.verse)) continue;
+      out.push(b);
+    }
+    return out;
+  }, [lrSurah, lrVerse, sortedBookmarks]);
+
   // Per-card display data (surah name, juz, Date/Time strings) is computed ONCE per bookmark
   // set instead of inside every card render — pageMap flips (which re-render visible cards)
   // now never re-parse dates, and the juz linear-scan happens once per bookmark, not per frame.
   const cardMeta = React.useMemo(() => {
     const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
+    const tsOf = (b: any) => toMillis(b.createdAt || b.updatedAt);
+    if (lrSurah > 0 && lastRead) {
+      const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
+      out[pageKey(lrSurah, lrVerse)] = {
+        name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
+        juz: getJuzForVerse(lrSurah, lrVerse),
+        date: ts ? formatDate(ts) : '',
+        time: ts ? formatTime(ts) : '',
+      };
+    }
     for (const b of sortedBookmarks as any[]) {
       const key = pageKey(b.surah, b.verse);
-      const ts = toMillis(b.createdAt);
+      const ts = tsOf(b);
       out[key] = {
         name: surahNames?.[b.surah] || `Surah ${b.surah}`,
         juz: getJuzForVerse(b.surah, b.verse),
@@ -144,19 +169,7 @@ export default function BookmarksScreen() {
       };
     }
     return out;
-  }, [sortedBookmarks, surahNames]);
-
-  const pinnedMeta = React.useMemo(() => {
-    if (lrSurah <= 0) return null;
-    const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
-    return {
-      name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
-      juz: getJuzForVerse(lrSurah, lrVerse),
-      date: ts ? formatDate(ts) : '',
-      time: ts ? formatTime(ts) : '',
-      ts,
-    };
-  }, [lastRead, lrSurah, lrVerse, surahNames]);
+  }, [sortedBookmarks, surahNames, lastRead, lrSurah, lrVerse]);
 
   const renderBookmark = React.useCallback(({ item }: any) => {
     const meta = cardMeta[pageKey(item.surah, item.verse)];
@@ -167,19 +180,24 @@ export default function BookmarksScreen() {
         onPress={() => handleNavigate(item.surah, item.verse)}
         activeOpacity={0.7}
       >
-        <View style={styles(nightMode).topRow}>
+        {/* One-line top row: [LAST READ tag] [Surah name] [Date] [Time] — the name flexes and
+            truncates so the chips stay right-aligned; saves a full row per card. */}
+        <View style={[styles(nightMode).topRow, styles(nightMode).topRowCompact]}>
+          {item.__lastRead ? (
+            <Text style={[styles(nightMode).lastReadTag, { marginBottom: 0 }]}>LAST READ</Text>
+          ) : null}
+          <Text style={[styles(nightMode).surahName, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{meta.name}</Text>
           <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
             <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
-              Date: {meta.date}
+              {meta.date}
             </Text>
           </View>
           <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
             <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
-              Time: {meta.time}
+              {meta.time}
             </Text>
           </View>
         </View>
-        <Text style={styles(nightMode).surahName} numberOfLines={1}>{meta.name}</Text>
         <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
           <View style={styles(nightMode).metaItem}>
             <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
@@ -205,64 +223,10 @@ export default function BookmarksScreen() {
     );
   }, [cardMeta, pageMap, nightMode, handleNavigate]);
 
-  const renderPinned = React.useCallback(() => {
-    if (lrSurah <= 0 || !pinnedMeta) return null;
-    const page = pageMap[pageKey(lrSurah, lrVerse)];
-    const ts = pinnedMeta.ts;
-    return (
-      <TouchableOpacity
-        style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]}
-        onPress={() => handleNavigate(lrSurah, lrVerse)}
-        activeOpacity={0.7}
-      >
-        {ts ? (
-          <View style={styles(nightMode).topRow}>
-            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
-              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
-                Date: {pinnedMeta.date}
-              </Text>
-            </View>
-            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
-              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
-                Time: {pinnedMeta.time}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-        <Text style={styles(nightMode).lastReadTag}>LAST READ</Text>
-        <Text style={styles(nightMode).surahName} numberOfLines={1}>{pinnedMeta.name}</Text>
-        {ts ? (
-          <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrSurah}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrVerse}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{pinnedMeta.juz}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
-            </View>
-          </View>
-        ) : null}
-      </TouchableOpacity>
-    );
-  }, [lastRead, pinnedMeta, pageMap, nightMode, handleNavigate]);
-
   return (
     <View style={[styles(nightMode).container, nightMode ? styles(nightMode).containerDark : styles(nightMode).containerLight]}>
       <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} />
-      {renderPinned()}
-      {sortedBookmarks.length === 0 ? (
+      {listData.length === 0 ? (
         <View style={styles(nightMode).emptyState}>
           <Text style={styles(nightMode).emptyIcon}>📌</Text>
           <Text style={styles(nightMode).emptyText}>No bookmarks yet</Text>
@@ -271,7 +235,7 @@ export default function BookmarksScreen() {
       ) : (
         <FlatList
           style={{ flex: 1 }}
-          data={sortedBookmarks}
+          data={listData}
           keyExtractor={(i: any, idx: number) => idx.toString()}
           contentContainerStyle={styles(nightMode).list}
           renderItem={renderBookmark}
@@ -291,6 +255,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   cardDark: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
   cardLight: { backgroundColor: '#ffffff', borderColor: '#e5e7f2' },
   topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
+  topRowCompact: { alignItems: 'center' },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   chipDateDark: { backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
   chipDateLight: { backgroundColor: '#e8edf7' },

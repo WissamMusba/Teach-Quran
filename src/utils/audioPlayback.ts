@@ -67,6 +67,17 @@ export const getCurrentPlaybackVerse = (): number => currentVerse;
 
 export const isResumable = (): boolean => resumeSession !== null;
 
+/**
+ * Cancels any active loop range so the next play/resume flows linearly past the
+ * current verse instead of cycling back to the range start. Called by the footer
+ * LOOP END button (QuranViewScreen playPageStart) — pressing it while a loop is
+ * playing stops playback and clears the loop so resume continues verse+1, +2, ...
+ */
+export const cancelLoop = (): void => { loopState = null; };
+
+/** The surahId of the currently active loop range, or 0 when no loop is running. */
+export const getActiveLoopSurahId = (): number => (loopState ? loopState.surahId : 0);
+
 export const pauseSurah = async (player: any): Promise<void> => {
   playToken++;
   clearWatchdog();
