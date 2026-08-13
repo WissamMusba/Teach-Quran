@@ -3,7 +3,7 @@
  * ROLE: Reader appearance + reading preferences (all persisted).
  * DEPENDS ON: none.
  * USED BY: src/screens/SettingsScreen.tsx:5 (toggleNightMode, setTextBrightness,
- *          setBgBrightness, toggleShowPageInfo, setMushafSplit);
+ *          setBgBrightness, setMushafSplit);
  *          src/screens/QuranViewScreen.tsx:10 (setMushafSplit);
  *          readers of nightMode/textBrightness/bgBrightness/mushafSplit across
  *          DashboardScreen, QuranViewScreen, VerseDisplay, FlowingText,
@@ -17,7 +17,6 @@ const initialState = {
   textBrightness: 255,        // 0-255 alpha of Arabic text color
   bgBrightness: 18,           // 0-255 background dim (UNUSED in render — dead setting)
   translationTextSize: 16,    // DEAD: setter exists, no dispatcher, no reader
-  showPageInfo: true,         // DEAD: only read by its own Settings switch
   mushafSplit: false,         // tablet two-page spread
   playBasmala: true,          // play the reciter's basmala before verse 1 of a surah (surah 1 & 9 excluded)
   adCollapsed: false,         // CollapsibleBannerAd user preference: true = banner hidden (tiny ▴ only)
@@ -59,14 +58,6 @@ export const settingsSlice = createSlice({
      */
     setTranslationTextSize: (state, action) => { state.translationTextSize = action.payload; },
     /**
-     * WHAT: Flips showPageInfo.
-     * CALLED BY: SettingsScreen.tsx:75 (Show page info switch).
-     * AFFECTS: Only the switch UI itself (SettingsScreen.tsx:14/:75). No reader in
-     *          QuranViewScreen/MushafPageView — page info is instead controlled by
-     *          `headerVisible` local state. Dead setting.
-     */
-    toggleShowPageInfo: (state) => { state.showPageInfo = !state.showPageInfo; },
-    /**
      * WHAT: Sets two-page spread flag.
      * CALLED BY: SettingsScreen.tsx:80 (Spread view switch, tablet only — row hidden
      *            unless width >= SPLIT_MIN_WIDTH); QuranViewScreen.tsx:511
@@ -94,5 +85,5 @@ export const settingsSlice = createSlice({
   }
 });
 
-export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, toggleShowPageInfo, setMushafSplit, togglePlayBasmala, setAdCollapsed } = settingsSlice.actions;
+export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, setMushafSplit, togglePlayBasmala, setAdCollapsed } = settingsSlice.actions;
 export default settingsSlice.reducer;

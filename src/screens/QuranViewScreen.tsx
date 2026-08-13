@@ -87,8 +87,9 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
-  // top 24 / bottom 14 (pill offset -12) — the frame sits lower with no dead space at the screen edge.
-  const spreadMargin = { marginTop: 24, marginBottom: 14 };
+  // top 24 / bottom band 28px (bottom pills offset -26 — fully below the frame band, ~2px above
+  // the audio bar/screen edge) — no dead space.
+  const spreadMargin = { marginTop: 24, marginBottom: 28 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
@@ -164,6 +165,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [shareBookmarks, setShareBookmarks] = useState(true);
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const [flashingSurah, setFlashingSurah] = useState(0);
+  // Measured rendered height of the in-flow AudioPlayerBar (0 while absent) — the header-toggle
+  // pill anchors to the margin band above the bar, so it must never land on the bar's controls.
+  const [playerBarH, setPlayerBarH] = useState(0);
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   
@@ -203,7 +207,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
-  const { nightMode, bgBrightness, playBasmala, showPageInfo } = useSelector((s: any) => s.settings);
+  const { nightMode, bgBrightness, playBasmala } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
   const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
@@ -1580,7 +1584,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
-      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={showPageInfo}
+      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
         onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
@@ -1668,7 +1672,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const pData = pageCache[item];
                   return (
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 14 }}>
+                      {/* bottom band 28px, bottom pills offset -26 (fully below the frame band, ~2px above the audio bar/screen edge), no dead space */}
+                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
@@ -1721,14 +1726,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* share spinner overlay */}
       {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
-          (hides together with the header, incl. via the edge/dead taps) */}
-      {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
+          (hides together with the header, incl. via the edge/dead taps). Layout-only wrapper measured
+          via onLayout (playerBarH) so the header-toggle pill can anchor above the bar, never on it. */}
+      {!recordingVerseKey && isHeaderVisible && (
+        <View onLayout={(e: any) => { const h = e.nativeEvent.layout.height; if (h > 0 && h !== playerBarH) setPlayerBarH(h); }}>
+          <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />
+        </View>
+      )}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); pinned to
-             bottom:12 so it sits on the frame band / bottom margin, never over the text lines.
-             It may overlap the frame band or the player bar region but never the mushaf text ---- */}
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); its bottom edge is
+             anchored to the SAME margin band as the bottom pills: 26px above the screen bottom when the
+             header is hidden, and 26px above the audio bar's top edge when the header is visible (the
+             page's bottom edge then sits directly above the in-flow bar, and the 28px band hangs 26px
+             below it). playerBarH (measured via onLayout on the bar's layout-only wrapper) is added to
+             the 26 base because bottom is screen-relative — so the pill NEVER lands on the bar's
+             controls (play/prev/next buttons live inside the bar, below its top edge) nor overlaps the
+             mushaf text. One-frame edge case: when the header becomes visible playerBarH may still be 0
+             → bottom:26, above where the bar is mounting (no overlap while it appears) ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap, { bottom: 12 }]} pointerEvents="box-none">
+        <View style={[styles(nightMode).headerToggleWrap, { bottom: (isHeaderVisible ? playerBarH : 0) + 26 }]} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
@@ -1843,7 +1859,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  headerToggleWrap: { position: 'absolute', left: 12, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
+  headerToggleWrap: { position: 'absolute', left: 6, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },

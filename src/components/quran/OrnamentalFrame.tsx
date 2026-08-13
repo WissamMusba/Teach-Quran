@@ -13,10 +13,13 @@
  * GEOMETRY (parametric, scales from a 1000×1400 design canvas to the measured container):
  *   paddingOuter = W×0.010   (design: 10px offset of the outer thin border)
  *   gapOuter     = W×0.006   (design: 6px white gap between thin border and main frame)
- *   bandWidth    = W×0.040   (design: 40px decorative pattern band)
+ *   bandWidth    = W×0.027, min 4px (frameBandFor — the shared band source of truth; ~32% thinner
+ *                  than the original W×0.040 design band so the text area reclaims width)
  *   gapInner     = W×0.002, min 1.5px    (inner thin rule sits on the band's inner edge)
  *   tile         = bandWidth/2          → perfect 2× repetition across the band (20px on 40px)
  *   stroke       = max(0.75, W×0.0015)  → 1.5px hairline scaled to the actual page width
+ *   outerStroke  = max(1.5, W×0.0035)   → ~2.3× the hairline; the frame's OUTER outline (layers
+ *                  1+3) draws with this so the border is clearly visible at a glance
  *   Layers outside→inside: outer thin rect (po) → gap (go) → main frame outer rect (po+go) →
  *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → thin inner rule
  *   sitting directly on the band's inner edge (gi ≈ 1-2px) → inner text bounding box (po+go+band+gi).
@@ -56,6 +59,15 @@ const CORNER_BG = '#FFFFFF';
 const CORNER_BG_NIGHT = '#232A38';
 
 /**
+ * WHAT: SINGLE SOURCE OF TRUTH for the decorative pattern band width at a given page width.
+ *       Used by BOTH the frame's painted band (component `band`) and frameInsetFor, so the
+ *       painted inner edge and the text inset stay in perfect sync. ~32% thinner than the
+ *       original W×0.040 (min 6) band; clamped so it never collapses below 4px.
+ * CALLS: none. AFFECTS: none (pure).
+ */
+const frameBandFor = (W: number) => Math.max(4, W * 0.027);
+
+/**
  * WHAT: Exposes the frame's inner text-box inset for a given page width — the distance from
  *       the page edge to the innermost (text continuation) bounding box. MushafPageView uses
  *       this to pad its text container so no glyph ever crosses the frame's inner border.
@@ -64,7 +76,7 @@ const CORNER_BG_NIGHT = '#232A38';
 export const frameInsetFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
-  const band = Math.max(6, W * 0.040);
+  const band = frameBandFor(W);
   const gi = Math.max(1.5, W * 0.002);
   return po + go + band + gi;
 };
@@ -105,9 +117,15 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   // margins (marginHorizontal 10/6, marginTop 24, marginBottom 22) supply the distance to the
   // screen edge, so the band starts immediately at the page edge. The inner thin rule (layer 7)
   // sits flush on the band's inner edge (x1 = band). Text placement still uses frameInsetFor.
+  // FIX 6: the band comes from the SHARED frameBandFor(W) (W×0.027, min 4 — ~32% thinner than the
+  // old W×0.040, min 6). frameInsetFor uses the same function, so the painted inner edge and the
+  // text inset stay in perfect sync and the reclaimed width flows into lineW automatically (via
+  // MushafPageView's framePad = textInsetFor = frameInsetFor + 10). The tile (band/2) and the
+  // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
-  const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
-  const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
+  const band = frameBandFor(W);             // layer 4: decorative band width (shared with frameInsetFor)
+  const sw = Math.max(0.75, W * 0.0015);    // hairline stroke — pattern tiles, corner knots, inner rules
+  const outSw = Math.max(1.5, W * 0.0035);  // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
 
   const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
@@ -161,13 +179,13 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
           </G>
         </Defs>
 
-        {/* Layer 1: outer thin border */}
+        {/* Layer 1: outer thin border (BOLD — outSw) */}
         <Rect x={po} y={po} width={W - 2 * po} height={H - 2 * po}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          fill="none" stroke={blue} strokeWidth={outSw} />
 
-        {/* Layer 3: main frame outer border (defines the pattern band's outer edge) */}
+        {/* Layer 3: main frame outer border — defines the pattern band's outer edge (BOLD — outSw) */}
         <Rect x={x0} y={x0} width={mainW} height={H - 2 * x0}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          fill="none" stroke={blue} strokeWidth={outSw} />
 
         {/* Layer 5: main frame inner border (closes the pattern band) */}
         <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}

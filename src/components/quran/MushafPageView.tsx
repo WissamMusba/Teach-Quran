@@ -17,7 +17,7 @@ import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
-import { textInsetFor, textInsetV } from '../../utils/mushafLayout';
+import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -70,19 +70,20 @@ const SPARSE_FONT_BOOST = 1.3;
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
  * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
- * -1/+2y when the header is visible, default +0. The size feeds fs (and thus the layout cache
+ * -1 when the header is visible, default +0. The size feeds fs (and thus the layout cache
  * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
  * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
- * y is NEGATIVE (words lifted ~3px up) so the last line clears the frame/bottom edge.
+ * y is 0 for ALL fonts: the old ~3px upward lift is gone; top/bottom balance now comes
+ * from the container's asymmetric padding (paddingTop = framePad + 6, paddingBottom = framePad - 8).
  */
 const getFontAdj = (ts: string, hv: boolean) => {
   switch (ts) {
-    case 'saleem': return { size: 2, y: -3 };
-    case 'alqalam': return { size: 0, y: -3 };
-    case 'uthmani': return { size: 0, y: -3 };
-    case 'lateef': return { size: 4, y: -3 };
-    case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
-    default: return { size: 0, y: -3 };
+    case 'saleem': return { size: 2, y: 0 };
+    case 'alqalam': return { size: 0, y: 0 };
+    case 'uthmani': return { size: 0, y: 0 };
+    case 'lateef': return { size: 4, y: 0 };
+    case 'scheherazade': return { size: hv ? -1 : 0, y: 0 };
+    default: return { size: 0, y: 0 };
   }
 };
 
@@ -242,9 +243,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // the mushaf text must live strictly inside it (never under the pattern band). textInsetFor
   // adds 10px of air so words never touch the inner rule. The container pads HORIZONTALLY by
   // this inset — it must match stroke.ts's hPadFor EXACTLY so measured line widths and drawing
-  // registration use the same box. VERTICALLY the air is deliberately small (textInsetV = 8):
-  // the frame band still clears the glyphs, and last-line descenders are protected by the
-  // last-line margin below instead of by tall padding.
+  // registration use the same box. VERTICALLY the air is now asymmetric from the same inset:
+  // paddingTop = framePad + 6 (more room up top for high Arabic diacritics) and
+  // paddingBottom = max(4, framePad - 8), replacing the old uniform 8px air + last-line margin.
   const framePad = textInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
@@ -277,6 +278,23 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const frozenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(false);
+  const [innerH, setInnerH] = useState(0);
+
+  // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar
+  // (~60) in flow the page box is screenH - 124 - 24 - 28 = screenH - 176 tall. A tall 15-line
+  // page at the largest font of its width tier needs 15 x lineHeight: e.g. 375x667 -> 15 x 32.4
+  // = 486 vs (667 - 176) - (33.6 + 19.6) = 437.7 -> OVERFLOW by ~48px; short screens overflow,
+  // tall ones fit (412x915 -> 594 <= 682.6). Fix: when the measured inner height (onLayout below)
+  // proves it, shrink fontSize + lineHeight by one pure number (vScale). The width-fit scale
+  // (scaleForLine) is untouched - it handles horizontal overflow from un-scaled widths only.
+  const wordLineCount = (pageData?.lines || []).reduce(
+    (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
+  const fitPadTop = framePad + 6;
+  const fitPadBottom = Math.max(4, framePad - 8);
+  const fitLineH = mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1);
+  const vScale = innerH > 0 && wordLineCount > 0
+    ? Math.min(1, Math.max(0.5, (innerH - fitPadTop - fitPadBottom) / (wordLineCount * fitLineH)))
+    : 1;
 
   useEffect(() => {
     let mounted = true;
@@ -556,7 +574,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]}>
+      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]}>
         <View style={styles(nightMode).fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -599,7 +617,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]} />;
+    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -607,9 +625,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: textInsetV }]}>
+    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingTop: framePad + 6, paddingBottom: Math.max(4, framePad - 8) }]} onLayout={(e: any) => { const h = Math.round(e.nativeEvent.layout.height); if (h > 0 && h !== innerH) setInnerH(h); }}>
       {pageData.lines.map((line: any, lineIdx: number) => {
-        const isLastRendered = !pageData.lines.slice(lineIdx + 1).some((l: any) => l.type !== 'surah-header');
         const taawud = lineIdx === taawudLineIdx ? (
           <View style={styles(nightMode).taawudRow}>
             <View style={[styles(nightMode).taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
@@ -623,12 +640,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }, isLastRendered && styles(nightMode).lineLast]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
+          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
           <React.Fragment key={lineIdx}>
             {taawud}
-            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }, isLastRendered && styles(nightMode).lineLast]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -701,7 +718,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, includeFontPadding: true, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, color: textColor, fontFamily, includeFontPadding: true, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
@@ -759,11 +776,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
   topLeft: { position: 'absolute', top: -22, left: 6 },
-  topRight: { position: 'absolute', top: -22, right: 30 },
-  readingMarkBtn: { position: 'absolute', top: -22, right: 6, zIndex: 20, elevation: 20 },
-  bottomMid: { position: 'absolute', bottom: -12, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: -12, right: 6 },
-  lineLast: { marginBottom: 12 },
+  topRight: { position: 'absolute', top: -22, right: 24 },
+  readingMarkBtn: { position: 'absolute', top: -22, right: 1, zIndex: 20, elevation: 20 },
+  bottomMid: { position: 'absolute', bottom: -26, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: -26, right: 6 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });
