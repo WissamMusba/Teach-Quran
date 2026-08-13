@@ -86,14 +86,13 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
-  // Spread margins: outer edge ~16 (phone 12), inner gutter 7 each, frame breathing room
-  // top/bottom so the ornamental border never touches the screen edges.
-  const outerEdgeH = winW >= 600 ? 16 : 12;
-  const spreadMargin = { marginTop: 10, marginBottom: 10 };
+  // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
+  // top 24 / bottom 22 are exactly the pill rows, so the frame starts right after the pill band.
+  const spreadMargin = { marginTop: 24, marginBottom: 22 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginLeft: outerEdgeH, marginRight: 7 }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6 }, spreadMargin]}>
           {odd ? (
             pageCache[odd] ? (
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
@@ -104,7 +103,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginLeft: 7, marginRight: outerEdgeH }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6 }, spreadMargin]}>
           {pageCache[even] ? (
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -1665,7 +1664,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const pData = pageCache[item];
                   return (
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 20 : 16, marginTop: winW >= 600 ? 10 : 6, marginBottom: winW >= 600 ? 10 : 6 }}>
+                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 22 }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
@@ -1846,7 +1845,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: 4, right: 4, zIndex: 999, elevation: 999 },
+  pageBookmark: { position: 'absolute', top: 1, right: 3, zIndex: 999, elevation: 999 },
   headerToggleWrap: { position: 'absolute', left: 12, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },

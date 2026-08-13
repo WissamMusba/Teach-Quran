@@ -101,19 +101,19 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
   // --- parametric geometry (scaled from the 1000×1400 design canvas) -------------------------
+  // FIX 5: the pattern band is anchored at the wrapper edge (x0 = 0) — Worker B's wrapper
+  // margins (marginHorizontal 10/6, marginTop 24, marginBottom 22) supply the distance to the
+  // screen edge, so the band starts immediately at the page edge. The inner thin rule (layer 7)
+  // sits flush on the band's inner edge (x1 = band). Text placement still uses frameInsetFor.
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
-  const go = Math.max(1, W * 0.006);        // layer 2: first white gap
   const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
-  const gi = Math.max(1.5, W * 0.002);      // layer 6: inner rule hugs the band edge (1-2px)
   const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
-  const inner = po + go + band + gi;        // layer 7: inner text box inset
 
-  const x0 = po + go;                       // main frame outer edge
-  const x1 = po + go + band;                // main frame inner edge
+  const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
+  const x1 = band;                          // main frame inner edge (band inner edge)
   const mainW = Math.max(0, W - 2 * x0);    // main frame outer rect size
   const innerW = Math.max(0, W - 2 * x1);   // main frame inner rect size
-  const txtW = Math.max(0, W - 2 * inner);  // inner text bounding box size
 
   const onLayout = (e: any) => {
     const w = Math.round(e.nativeEvent.layout.width);
@@ -180,7 +180,7 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
         <Rect x={W - x0 - band} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
 
         {/* Layer 7: inner text area bounding box — the mushaf text lives strictly inside */}
-        <Rect x={inner} y={inner} width={txtW} height={H - 2 * inner}
+        <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
           fill="none" stroke={blue} strokeWidth={sw} />
 
         {/* The four corner nodes — placed exactly over the band intersections */}

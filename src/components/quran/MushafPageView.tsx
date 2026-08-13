@@ -15,7 +15,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
-import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
+import OrnamentalFrame from './OrnamentalFrame';
+import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -228,10 +229,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const compact = pageWidth < 600;
 
   // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
-  // the mushaf text must live strictly inside it (never under the pattern band). Padding the
-  // container by the frame inset on BOTH axes keeps glyphs clear; the text inset must equal the
-  // frame's inner-rule inset EXACTLY so the measured line width matches the visible rule.
-  const framePad = frameInsetFor(pageWidth);
+  // the mushaf text must live strictly inside it (never under the pattern band). textInsetFor
+  // adds 10px of air so words never touch the inner rule. Padding the container by the text
+  // inset on BOTH axes keeps glyphs clear; this inset must match stroke.ts's hPadFor EXACTLY
+  // so measured line widths and drawing registration use the same box.
+  const framePad = textInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -260,6 +262,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const layoutContentRef = useRef<number[] | null>(null);
   const completedLinesRef = useRef<Set<number>>(new Set());
   const cacheWrittenRef = useRef(false);
+  const frozenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(false);
 
@@ -306,6 +309,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     layoutContentRef.current = null;
     completedLinesRef.current = new Set();
     cacheWrittenRef.current = false;
+    frozenRef.current = false;
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
@@ -333,6 +337,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         if (cancelled) return;
         if (cached) {
           layoutContentRef.current = cached;
+          frozenRef.current = true;
           cacheWrittenRef.current = true;
           setCacheState('hit');
           scheduleVerify();
@@ -401,6 +406,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+    if (frozenRef.current) return;
     if (!fontReady) return;
     // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
     // scale to recover the raw unscaled width so the store (and the persisted sums) always hold
@@ -421,7 +427,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
     const content = Math.max(cached, liveArrSum) + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
-    if (content > (complete ? lineW + 2 : lineW)) {
+    // Frozen pages never re-run the (partial-)overflow pre-check — the scale is settled.
+    if (!frozenRef.current && content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.5, (lineW - 12) / content);
       const prevScale = scaleRef.current[lineKey];
       if (!prevScale || Math.abs(prevScale - scale) > 1e-3) {
@@ -435,6 +442,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
       if (completedLinesRef.current.size >= totalLines) {
         cacheWrittenRef.current = true;
+        frozenRef.current = true;
         const keys = Object.keys(widthsRef.current).map(Number);
         if (keys.length === 0) return;
         const sums: number[] = [];
@@ -471,12 +479,10 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
   // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
   // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). Badges ALWAYS
-  // render (header visibility does not gate them) and overlay the frame's top/bottom band —
-  // small positive offsets place them just inside the frame edge (band heights are
-  // marginTop >= 10 / marginBottom >= 10 in QuranViewScreen's page wrappers, since the
-  // old 22/20 header pill bands moved out of the page in the geometry rework); gated only on
-  // pageNum > 0 / firstSurahId > 0 (firstSurahId parsed from the first word's location
-  // "surah:verse"); compact (<600px) shrinks the pill styles(nightMode).
+  // render (header visibility does not gate them) and sit in the page's margin bands OUTSIDE the
+  // frame: negative top/bottom offsets lift them above the top band edge / below the bottom band
+  // edge (wrapper bands are marginTop 24 / marginBottom 22, pill bands ~22px), so they never
+  // overlap the frame rule in either header state. compact (<600px) shrinks the pill styles.
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
@@ -725,10 +731,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgeText: { fontSize: 9.5, fontWeight: '600' },
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
-  topLeft: { position: 'absolute', top: 2, left: 6 },
-  topRight: { position: 'absolute', top: 2, right: 40 },
-  bottomMid: { position: 'absolute', bottom: 2, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: 2, right: 10 },
+  topLeft: { position: 'absolute', top: -22, left: 6 },
+  topRight: { position: 'absolute', top: -22, right: 30 },
+  bottomMid: { position: 'absolute', bottom: -20, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: -20, right: 6 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });

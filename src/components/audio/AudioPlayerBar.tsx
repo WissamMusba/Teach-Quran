@@ -23,10 +23,10 @@ const IconPause = ({ c, s = 18 }: { c: string; s?: number }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" /></Svg>
 );
 const IconPrevTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M5.5 4v16H8V4zM17.5 5.5l-9 5.5 9 5.5z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M5.5 4v16H8V4zM17.5 5.5l-9 5.5 9 5.5z" /></Svg>
 );
 const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
 );
 
 /**
@@ -74,13 +74,13 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageSt
       </View>
       <View style={styles.ctrlRow}>
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7}>
-          <IconPrevTrack c={String(canStep ? theme.ctrlText : disC)} />
+          <IconPrevTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85}>
           {isPlaying ? <IconPause c="#121212" s={22} /> : <IconPlay c="#121212" s={22} />}
         </TouchableOpacity>
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7}>
-          <IconNextTrack c={String(canStep ? theme.ctrlText : disC)} />
+          <IconNextTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.action, loopEnabled ? theme.ctrl : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7}>
           <Text style={[styles.actionText, theme.ctrlText, !loopEnabled && { color: disC }]}>{loopEnabled && isPlaying ? 'LOOP END' : 'LOOP START'}</Text>

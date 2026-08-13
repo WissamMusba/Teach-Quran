@@ -1,7 +1,9 @@
+import { frameInsetFor } from '../components/quran/OrnamentalFrame';
+
 /**
  * FILE: src/utils/mushafLayout.ts
  * ROLE: Split-view (two-page spread) geometry helpers — the only module for the tablet spread math used by QuranViewScreen's page-mode FlatList.
- * DEPENDS ON: nothing (pure functions + two constants).
+ * DEPENDS ON: OrnamentalFrame.tsx (frameInsetFor — via textInsetFor) plus pure functions + two constants.
  * USED BY: QuranViewScreen.tsx (GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor); SettingsScreen.tsx (SPLIT_MIN_WIDTH).
  * NOTES: The pair model is why page-mode scroll targets are index-based in split mode (scrollToIndex index = pairIndexForPage(page)) while single mode is offset-based (offset = (page-1)*winW). Keep the two mappings in sync with each other.
  */
@@ -10,6 +12,13 @@
 export const GUTTER = 12;
 // SPLIT_MIN_WIDTH = 768 (dp) — below this width the app NEVER shows spreads (splitOn = settings.mushafSplit && winW >= SPLIT_MIN_WIDTH), and SettingsScreen hides the Spread switch entirely.
 export const SPLIT_MIN_WIDTH = 768;
+
+// WHAT: The mushaf text inset for a given page width — the frame's inner text-box inset plus
+//       10px of air, so words never touch the frame rule. THE shared inset: MushafPageView pads
+//       the text container by it, and stroke.ts's hPadFor delegates to it, keeping drawings
+//       registered under the same words.
+// CALLED BY: MushafPageView.tsx (framePad), stroke.ts (hPadFor).
+export const textInsetFor = (w: number) => frameInsetFor(w) + 10;
 
 // WHAT: Maps a real page number to its FlatList index: p <= 1 -> 0 (page 1 is a lone right page), else floor(p/2).
 // CALLED BY: QuranViewScreen scroll math — onMomentumScrollEnd, handleSelectPage, deep-link, scroll-sync.
