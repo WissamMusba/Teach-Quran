@@ -87,62 +87,12 @@ const isIndopakStyle = (mushaf?: string) => {
   return mushaf && indopakFonts.includes(mushaf);
 };
 
-// indopakPagesPromise: single-flight guard so importIndopakPages runs its bulk
-// import at most once per process (reset to null only on failure).
-let indopakPagesPromise: Promise<boolean> | null = null;
-
-/**
- * WHAT: One-time (promise-guarded) bulk import of the bundled indopak mushaf
- *       page JSON into SQLite, so indopak pages never need the network.
- * FLOW: 1) If indopakPagesPromise exists, return it (single-flight).
- *       2) If mushaf_pages_indopak already has rows -> resolve true, done.
- *       3) require('../assets/data/indopak_pages.json'); missing/invalid -> false.
- *       4) Single transaction: INSERT OR REPLACE (page, JSON) per page entry.
- *       5) Success -> true; failure -> reset promise to null (retry next call)
- *          and log warning.
- * CALLS: getDB() + db.transaction (native)
- * CALLED BY: QuranViewScreen.tsx (ensurePageLoaded, indopak mode; split-view
- *            init) — fire-and-forget before page reads, so the FIRST indopak
- *            page load can race the import (see NOTES).
- * AFFECTS: mushaf_pages_indopak (bulk write, ~604 rows).
- * NOTES: Uses `require()` of a JSON asset, so the data ships inside the APK
- *        (~big; check asset size in rebuild). The import is NOT awaited by
- *        callers: getMushafPageData may return { lines: [] } for the first
- *        frames if the transaction is still running — MushafPageView treats
- *        empty lines as a no-render page.
- */
-export const importIndopakPages = async () => {
-  if (!indopakPagesPromise) {
-    indopakPagesPromise = (async () => {
-      const db = getDB();
-      const check = await db.executeSql(`SELECT COUNT(*) as c FROM mushaf_pages_indopak`);
-      if (check && check.length > 0 && check[0].rows.item(0).c > 0) return true;
-      try {
-        const allPages = require('../assets/data/indopak_pages.json');
-        if (!allPages?.pages) return false;
-        const entries = Object.values(allPages.pages) as any[];
-        // CHUNKED inserts (~60 rows per transaction) instead of ONE 610-row transaction:
-        // react-native-sqlite-storage serializes every query on a single connection, so a giant
-        // transaction stalls ALL other DB work (layout-cache reads, verse lookups, student data)
-        // for the whole import — the "first open crawls for seconds" on slow phones. With chunks
-        // the connection frees between them, so reads interleave and the mushaf is usable while
-        // the seeding finishes in the background.
-        const CHUNK = 60;
-        for (let i = 0; i < entries.length; i += CHUNK) {
-          const slice = entries.slice(i, i + CHUNK);
-          await db.transaction((tx: any) => {
-            for (const p of slice) {
-              tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
-                [p.page, JSON.stringify(p)]);
-            }
-          });
-        }
-        return true;
-      } catch (e) { console.warn('importIndopakPages failed', e); indopakPagesPromise = null; return false; }
-    })();
-  }
-  return indopakPagesPromise;
-};
+// importIndopakPages was REMOVED (v75): the indopak mushaf pages are served from the in-memory
+// bundle index (getIndopakPageIndex) on every read, and the 610-row INSERT OR REPLACE into
+// mushaf_pages_indopak did nothing but hold the single SQLite connection for seconds on first
+// open — queueing every layout-cache / verse / student-data read behind it (the "first open
+// crawls, then 10 pages load at once" pattern). The table stays (harmless, never written) and
+// reads still fall back to it if the bundle ever missed.
 
 /**
  * WHAT: Single-flight, DEFERRED loader of the bundled indopak_verse_pages.json
@@ -685,5 +635,4 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
 export const warmIndopakIndexes = async () => {
   try { getIndopakPageIndex() } catch {}
   try { loadIndopakVerseMap() } catch {}
-  try { importIndopakPages() } catch {}
 };

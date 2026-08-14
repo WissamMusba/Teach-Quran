@@ -76,13 +76,6 @@ const SPARSE_FONT_BOOST = 1.3;
 // metrics are already stable (RN loads a font family once per process).
 let fontLoadedOnce = false;
 
-// Active VISIBLE measure counter (module-level): a visible (hideFrame=false) MushafPageView
-// increments this when it starts an on-screen measure pass and decrements when it freezes or
-// unmounts. QuranViewScreen's idle whole-mushaf warm worker pauses while it is > 0, so the
-// background pre-measuring never contends with the page the user is actually looking at.
-let visibleMeasureCount = 0;
-export const getVisibleMeasureCount = () => visibleMeasureCount;
-
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
  * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
@@ -377,24 +370,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // order, so a warm mount resets first and the cache-load hit lands before the frame paints
   // (a plain useEffect here would run AFTER the layout effect's hit and clobber it back to
   // 'loading' — a stuck skeleton).
-  // Visible-measure lifecycle helpers (see getVisibleMeasureCount above): start when the first
-  // word of a visible page begins measuring; end on freeze/unmount/reset so the counter never
-  // leaks.
-  const measureLifeRef = useRef({ started: false, ended: false });
-  const startVisibleMeasure = () => {
-    if (hideFrame || measureLifeRef.current.started) return;
-    measureLifeRef.current.started = true;
-    visibleMeasureCount++;
-  };
-  const endVisibleMeasure = () => {
-    if (!measureLifeRef.current.started || measureLifeRef.current.ended) return;
-    measureLifeRef.current.ended = true;
-    visibleMeasureCount = Math.max(0, visibleMeasureCount - 1);
-  };
-
   useLayoutEffect(() => {
-    endVisibleMeasure();
-    measureLifeRef.current = { started: false, ended: false };
     scaleRef.current = {};
     widthsRef.current = {};
     lineExtraRef.current = {};
@@ -406,9 +382,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
-
-  // Unmount: end a possibly in-flight visible measure so the warm worker can resume.
-  useEffect(() => () => { endVisibleMeasure(); }, []);
 
   // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read does
   // not need the font (only the measure pass does), so a cache-hit page renders the moment it
@@ -430,8 +403,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         layoutContentRef.current = cached;
         frozenRef.current = true;
         setCacheState('hit');
-        // Layout row already persisted (cache hit) — the page needs nothing more; the
-        // traversed-range backfill uses this to unmount the hidden instance.
+        // Layout row already persisted (cache hit) — the page needs nothing more; onMeasured
+        // lets an optional hidden-instance owner know the row is settled.
         if (onMeasured) onMeasured(pageNum);
       } else {
         setCacheState('miss');
@@ -483,8 +456,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (frozenRef.current) return;
     if (!fontReady) return;
-    // Mark this visible instance as mid-measure so the idle warm worker pauses (contention).
-    startVisibleMeasure();
     // Normalize to the font-size-independent unit — the persisted sums are always in these
     // units, and the cache-hit replay multiplies them back by the current base size.
     w = normPx(w);
@@ -500,7 +471,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
       if (completedLinesRef.current.size >= totalLines) {
         const keys = Object.keys(widthsRef.current).map(Number);
-        if (keys.length === 0) { endVisibleMeasure(); cacheWrittenRef.current = true; frozenRef.current = true; return; }
+        if (keys.length === 0) { cacheWrittenRef.current = true; frozenRef.current = true; return; }
         const sums: number[] = [];
         for (let k = 0; k <= Math.max(...keys); k++) {
           const arr = widthsRef.current[k];
@@ -513,10 +484,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         layoutContentRef.current = sums;
         setLineScale({});
         savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
-        // The page's layout row is now persisted; the traversed-range backfill unmounts the
-        // hidden instance here.
+        // The page's layout row is now persisted; onMeasured lets an optional hidden-instance
+        // owner know the row is settled.
         if (onMeasured) onMeasured(pageNum);
-        endVisibleMeasure();
         cacheWrittenRef.current = true;
         frozenRef.current = true;
       }
