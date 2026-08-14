@@ -37,9 +37,9 @@ import SurahList from '../components/quran/SurahList';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
-import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
+import MushafPageView, { warmPageLayoutFor, getVisibleMeasureCount } from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, importIndopakPages } from '../database/quranData';
-import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
+import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal, getLayoutCacheSync } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
 import { pushDrawings, pullDrawings, pullAudioRange } from '../api/sync';
@@ -488,6 +488,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const hiddenWarmDoneRef = useRef<Set<number>>(new Set());
   const [hiddenWarmQueue, setHiddenWarmQueue] = useState<number[]>([]);
   const [hiddenWarmMounted, setHiddenWarmMounted] = useState<number[]>([]);
+  // Whole-mushaf idle warm worker state: walks the ENTIRE mushaf (nearest-first from the
+  // current page) in the background and measures every unmeasured page into the layout cache,
+  // so a jump to a far surah or a fast fling anywhere is a warm cache HIT (v62 feel) instead
+  // of a slow on-screen measure. Pauses while the user is actively scrolling or while a VISIBLE
+  // page is mid-measure (getVisibleMeasureCount > 0) so background work never steals frames.
+  const fillDoneRef = useRef<Set<number>>(new Set());
+  const fillPendingRef = useRef(0);
+  const fillDataRef = useRef<Record<number, any>>({});
+  const [fillMounted, setFillMounted] = useState<number[]>([]);
+  const scrollingRef = useRef(false);
   // Traversed-range backfill (fast-fling layout persistence): remembers the range the user
   // just swiped through so every page in between gets re-mounted off-screen (hidden) and its
   // layout row persisted. A fast fling can unmount an intermediate page BEFORE its measure
@@ -504,8 +514,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) { setHiddenWarmMounted([]); return; }
     const want: number[] = [];
-    for (let p = currentPageNum + 1; p <= currentPageNum + 10; p++) if (p <= pageNumbers.length) want.push(p);
-    for (let p = currentPageNum - 6; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
+    // Active window widened: 14 ahead / 10 behind so fast flings land on pre-measured pages.
+    for (let p = currentPageNum + 1; p <= currentPageNum + 14; p++) if (p <= pageNumbers.length) want.push(p);
+    for (let p = currentPageNum - 10; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
     setHiddenWarmMounted(prev => prev.filter(p => want.includes(p)));
     const missing: number[] = [];
     for (const p of want) if (!hiddenWarmDoneRef.current.has(p) && pageCache[p]?.lines?.length) missing.push(p);
@@ -517,16 +528,72 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const tick = () => {
       setHiddenWarmQueue(prev => {
         if (!prev.length) return prev;
-        const take = prev.slice(0, 2);
+        const take = prev.slice(0, 3);
         for (const p of take) hiddenWarmDoneRef.current.add(p);
         setHiddenWarmMounted(mprev => Array.from(new Set([...mprev, ...take])));
-        return prev.slice(2);
+        return prev.slice(3);
       });
-      if (!cancelled) t = setTimeout(tick, 200);
+      if (!cancelled) t = setTimeout(tick, 150);
     };
     t = setTimeout(tick, 0);
     return () => { cancelled = true; if (t) clearTimeout(t); };
   }, []);
+
+  // WHOLE-MUSHAF IDLE WARM WORKER — see the fillMounted comment above. One page at a time,
+  // nearest-first (ahead to the end, then behind to page 1), only when the user is idle
+  // (not scrolling, no visible page mid-measure) and never more than 2 hidden measures in
+  // flight. Uses getMushafPageData directly (module memo — far pages never enter pageCache
+  // state/LRU), skips pages whose layout row already exists, and unmounts each hidden page
+  // as soon as its measure reports (onMeasured) or after an 8s safety timeout.
+  useEffect(() => {
+    if (readingMode !== 'page' || !pageNumbers.length) { setFillMounted([]); fillPendingRef.current = 0; return; }
+    // Restart the in-flight counter from scratch: pages still mounted from a previous run of
+    // this effect finish on their own (onMeasured / 30s safety decrement, clamped at 0), so a
+    // stale count must never block the cap check on a fresh run.
+    fillPendingRef.current = 0;
+    let cancelled = false;
+    let t: any = null;
+    let front = currentPageNum + 15;   // just past the harness window (+14)
+    let back = currentPageNum - 11;    // just past the harness behind window (-10)
+    let doneAhead = front > pageNumbers.length;
+    const step = async () => {
+      if (cancelled) return;
+      if (scrollingRef.current || getVisibleMeasureCount() > 0 || fillPendingRef.current >= 2) {
+        t = setTimeout(step, 300);
+        return;
+      }
+      let p = 0;
+      if (!doneAhead && front <= pageNumbers.length) { p = front; front++; if (front > pageNumbers.length) doneAhead = true; }
+      else if (back >= 1) { p = back; back--; }
+      else return; // whole mushaf covered for this position
+      if (fillDoneRef.current.has(p)) { t = setTimeout(step, 60); return; }
+      const pd = await getMushafPageData(p, textStyle).catch(() => null);
+      if (cancelled) return;
+      if (!pd?.lines?.length) { t = setTimeout(step, 60); return; }
+      // Skip pages already measured (row in layoutCacheMem) — only genuinely-unmeasured pages
+      // get mounted and measured.
+      const totalWords = pd.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0);
+      const sparse = totalWords < 50 ? 1 : 0;
+      const row = getLayoutCacheSync(p, textStyle, false, sparse, Math.round(pageW));
+      if (row !== undefined && row !== null) { t = setTimeout(step, 60); return; }
+      fillDoneRef.current.add(p);
+      fillPendingRef.current++;
+      fillDataRef.current[p] = pd;
+      setFillMounted(mprev => Array.from(new Set([...mprev, p])));
+      // Safety: if the hidden measure never reports (rare failure), drop the hidden instance
+      // AND un-mark the page so it can be re-attempted later — but only after a generous 30s
+      // (a single slow page can legitimately take several seconds to measure).
+      setTimeout(() => {
+        fillPendingRef.current = Math.max(0, fillPendingRef.current - 1);
+        fillDoneRef.current.delete(p);
+        delete fillDataRef.current[p];
+        setFillMounted(mprev => mprev.filter(x => x !== p));
+      }, 30000);
+      t = setTimeout(step, 120);
+    };
+    t = setTimeout(step, 500);
+    return () => { cancelled = true; if (t) clearTimeout(t); };
+  }, [readingMode, pageNumbers.length, currentPageNum, pageW, textStyle]);
 
   // Backfill worker: drains the traversed-range queue 2 at a time, mounting each page hidden
   // until its layout row is settled (onMeasured) or an 8s safety timeout drops it. Fixed-tick
@@ -572,6 +639,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (pg < 1 || pg > pageNumbers.length) return;
     programmaticScrollRef.current = Date.now();
     lastLandedPageRef.current = pg; // so the next MANUAL scroll's backfill range is correct
+    scrollingRef.current = false; // a programmatic landing is not a user scroll — let the warmers run
     // FIX 8 — a programmatic landing settles immediately (no 120ms swipe debounce).
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     setSettledPage(pg);
@@ -1890,7 +1958,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 initialNumToRender={3} maxToRenderPerBatch={6} windowSize={13}
                 updateCellsBatchingPeriod={100}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
+                onScrollBeginDrag={() => { scrollingRef.current = true; }}
+                onScrollEndDrag={() => { scrollingRef.current = false; }}
+                onMomentumScrollBegin={() => { scrollingRef.current = true; }}
                 onMomentumScrollEnd={(e) => {
+                  scrollingRef.current = false;
                   if (Date.now() - programmaticScrollRef.current < 400) return;
                   const idx = Math.round(e.nativeEvent.contentOffset.x / winW);
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
@@ -1957,7 +2029,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {/* hidden pre-render harness: invisible MushafPageViews measuring the near
                 ahead/behind window AND the traversed-range backfill into the layout cache
                 before the user scrolls there */}
-            {readingMode === 'page' && (hiddenWarmMounted.length > 0 || backfillMounted.length > 0) && (
+            {readingMode === 'page' && (hiddenWarmMounted.length > 0 || backfillMounted.length > 0 || fillMounted.length > 0) && (
               <View style={{ position: 'absolute', top: -10000, left: 0, width: pageW, height: winH }} pointerEvents="none">
                 {hiddenWarmMounted.map(pg => {
                   const pd = pageCache[pg];
@@ -1969,6 +2041,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   if (!pd?.lines?.length) return null;
                   return <MushafPageView key={`b-${pg}`} hideFrame headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader}
                     onMeasured={() => setBackfillMounted(mprev => mprev.filter(x => x !== pg))} />;
+                })}
+                {fillMounted.map(pg => {
+                  const pd = fillDataRef.current[pg];
+                  if (!pd?.lines?.length) return null;
+                  return <MushafPageView key={`f-${pg}`} hideFrame headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader}
+                    onMeasured={() => {
+                      fillPendingRef.current = Math.max(0, fillPendingRef.current - 1);
+                      delete fillDataRef.current[pg];
+                      setFillMounted(mprev => mprev.filter(x => x !== pg));
+                    }} />;
                 })}
               </View>
             )}

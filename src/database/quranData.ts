@@ -121,12 +121,22 @@ export const importIndopakPages = async () => {
         const allPages = require('../assets/data/indopak_pages.json');
         if (!allPages?.pages) return false;
         const entries = Object.values(allPages.pages) as any[];
-        await db.transaction((tx: any) => {
-          for (const p of entries) {
-            tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
-              [p.page, JSON.stringify(p)]);
-          }
-        });
+        // CHUNKED inserts (~60 rows per transaction) instead of ONE 610-row transaction:
+        // react-native-sqlite-storage serializes every query on a single connection, so a giant
+        // transaction stalls ALL other DB work (layout-cache reads, verse lookups, student data)
+        // for the whole import — the "first open crawls for seconds" on slow phones. With chunks
+        // the connection frees between them, so reads interleave and the mushaf is usable while
+        // the seeding finishes in the background.
+        const CHUNK = 60;
+        for (let i = 0; i < entries.length; i += CHUNK) {
+          const slice = entries.slice(i, i + CHUNK);
+          await db.transaction((tx: any) => {
+            for (const p of slice) {
+              tx.executeSql(`INSERT OR REPLACE INTO mushaf_pages_indopak (pageNumber, data) VALUES (?, ?)`,
+                [p.page, JSON.stringify(p)]);
+            }
+          });
+        }
         return true;
       } catch (e) { console.warn('importIndopakPages failed', e); indopakPagesPromise = null; return false; }
     })();

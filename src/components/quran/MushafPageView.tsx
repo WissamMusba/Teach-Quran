@@ -76,6 +76,13 @@ const SPARSE_FONT_BOOST = 1.3;
 // metrics are already stable (RN loads a font family once per process).
 let fontLoadedOnce = false;
 
+// Active VISIBLE measure counter (module-level): a visible (hideFrame=false) MushafPageView
+// increments this when it starts an on-screen measure pass and decrements when it freezes or
+// unmounts. QuranViewScreen's idle whole-mushaf warm worker pauses while it is > 0, so the
+// background pre-measuring never contends with the page the user is actually looking at.
+let visibleMeasureCount = 0;
+export const getVisibleMeasureCount = () => visibleMeasureCount;
+
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
  * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
@@ -370,7 +377,24 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // order, so a warm mount resets first and the cache-load hit lands before the frame paints
   // (a plain useEffect here would run AFTER the layout effect's hit and clobber it back to
   // 'loading' — a stuck skeleton).
+  // Visible-measure lifecycle helpers (see getVisibleMeasureCount above): start when the first
+  // word of a visible page begins measuring; end on freeze/unmount/reset so the counter never
+  // leaks.
+  const measureLifeRef = useRef({ started: false, ended: false });
+  const startVisibleMeasure = () => {
+    if (hideFrame || measureLifeRef.current.started) return;
+    measureLifeRef.current.started = true;
+    visibleMeasureCount++;
+  };
+  const endVisibleMeasure = () => {
+    if (!measureLifeRef.current.started || measureLifeRef.current.ended) return;
+    measureLifeRef.current.ended = true;
+    visibleMeasureCount = Math.max(0, visibleMeasureCount - 1);
+  };
+
   useLayoutEffect(() => {
+    endVisibleMeasure();
+    measureLifeRef.current = { started: false, ended: false };
     scaleRef.current = {};
     widthsRef.current = {};
     lineExtraRef.current = {};
@@ -382,6 +406,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
+
+  // Unmount: end a possibly in-flight visible measure so the warm worker can resume.
+  useEffect(() => () => { endVisibleMeasure(); }, []);
 
   // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read does
   // not need the font (only the measure pass does), so a cache-hit page renders the moment it
@@ -431,74 +458,49 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
-   * Accumulates measured word widths per line; on overflow computes a shrink scale; when every
-   * line is complete and nothing written yet, persists the sums to the layout cache.
+   * Accumulates measured word widths per line; when every line is complete and nothing written
+   * yet, persists the sums to the layout cache.
    * FLOW:
    *   1. Bail when the cache already loaded (cache-hit path needs no measuring); font not ready.
-   *   2. Normalize the measured width back to a RAW value when the line is already scaled
-   *      (divide by scale), so the width store is always unscaled and complete.
-   *   3. content = Σ widths + live lineExtra; overflow when content > lineW+2 on a complete line,
-   *      or > lineW on a PARTIAL one — the partial check pre-empts the overflow flash before the
-   *      line finishes measuring.
-   *   4. On overflow: scale = max(0.5, (lineW-12)/content) → scaleRef + lineScale state, which
-   *      re-renders the line with the scaled font.
-   *   5. On complete: track in completedLinesRef; when ALL lines (counted only where the line
+   *   2. Normalize each measured width by normFontSize into the NORMALIZED (font-size-independent)
+   *      unit — the persisted sums are always in these units, and the cache-hit replay multiplies
+   *      them back by the current base size. Measured once per device, replayed forever.
+   *   3. On complete: track in completedLinesRef; when ALL lines (counted only where the line
    *      holds any real Arabic word) are done and nothing written yet → build sums[] indexed
    *      0..maxLineIdx and savePageLayoutCache. Write-back omits lineExtra — correct, because
    *      extra is notes-dependent and re-derived per render.
+   * SINGLE-COMMIT scaling (no progressive per-word rescale): every word of the page measures at
+   * scale 1, and ALL line scales are applied in ONE state update at completion (layoutContentRef
+   * + setLineScale({}) switch scaleForLine to the arithmetic path). This kills the visible
+   * "font fixing / Y offset changing for seconds" artifact — a cold page settles with a single
+   * snap instead of re-sizing word by word — and slashes the re-renders per measure pass.
    * NOTES/QUIRKS:
    *   - expected comes from the render-time closure (words where hasArabicLetters(stripPua(word)))
    *     and matches the RENDERED WordHitArea count exactly, so completeness is exact.
-   *   - A scaled line keeps recording widths, normalized back to raw via division by the current
-   *     scale, so the persisted sums are ALWAYS full-size — the cache-hit path recomputes the
-   *     identical scale and reloaded pages never overflow.
-   *   - setLineScale fires only when the scale actually changes (>1e-3), so the measure pass
-   *     causes at most one extra render per overflow line.
-   *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
+   *   - During the measure pass lines render at scale 1, so overflowing lines may briefly spill
+   *     past the inner rule until the single completion snap — acceptable vs. multi-second jitter.
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (frozenRef.current) return;
     if (!fontReady) return;
-    // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
-    // scale to recover the raw unscaled width, then by normFontSize to get the NORMALIZED
-    // (font-size-independent) unit — the persisted sums are always in these units, and the
-    // cache-hit replay multiplies them back by the current base size. This is what lets a page
-    // survive any font-size change: measured once per device, replayed forever from SQLite.
-    if (scaleRef.current[lineKey]) w = w / scaleRef.current[lineKey];
+    // Mark this visible instance as mid-measure so the idle warm worker pauses (contention).
+    startVisibleMeasure();
+    // Normalize to the font-size-independent unit — the persisted sums are always in these
+    // units, and the cache-hit replay multiplies them back by the current base size.
     w = normPx(w);
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
       filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
     }
     widthsRef.current[lineKey][wordIdx] = w;
-    const arr = widthsRef.current[lineKey];
-    const lineW = pageWidth - 2 * padSide;
-    // Effective content in PIXELS = max of the persisted (possibly under-counted) cached sum and
-    // the live measured sum, both normalized units x current base size, + live lineExtra — so a
-    // cache-hit page whose cached line under-counts still re-scales instead of letting words
-    // spill past the inner rule.
-    const cached = layoutContentRef.current?.[lineKey] || 0;
-    const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
-    const content = Math.max(cached, liveArrSum) * normFontSize + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
-    // The scale-setting branch is MISS-path only: during a cache-HIT verify pass the render
-    // already sizes via scaleForLine's arithmetic (max(cached, live)), so we only RECORD widths
-    // here; the completion handler below compares live vs cached and corrects AT MOST ONCE.
-    if (!frozenRef.current && !layoutContentRef.current && content > (complete ? lineW + 2 : lineW)) {
-      const scale = Math.max(0.5, (lineW - 12) / content);
-      const prevScale = scaleRef.current[lineKey];
-      if (!prevScale || Math.abs(prevScale - scale) > 1e-3) {
-        scaleRef.current[lineKey] = scale;
-        setLineScale(prev => ({ ...prev, [lineKey]: scale }));
-      }
-    }
     if (complete && !cacheWrittenRef.current) {
       completedLinesRef.current.add(lineKey);
       const totalLines = (pageData?.lines || []).reduce(
         (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
       if (completedLinesRef.current.size >= totalLines) {
         const keys = Object.keys(widthsRef.current).map(Number);
-        if (keys.length === 0) { cacheWrittenRef.current = true; frozenRef.current = true; return; }
+        if (keys.length === 0) { endVisibleMeasure(); cacheWrittenRef.current = true; frozenRef.current = true; return; }
         const sums: number[] = [];
         for (let k = 0; k <= Math.max(...keys); k++) {
           const arr = widthsRef.current[k];
@@ -514,6 +516,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         // The page's layout row is now persisted; the traversed-range backfill unmounts the
         // hidden instance here.
         if (onMeasured) onMeasured(pageNum);
+        endVisibleMeasure();
         cacheWrittenRef.current = true;
         frozenRef.current = true;
       }
