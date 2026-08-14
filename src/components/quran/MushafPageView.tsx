@@ -212,7 +212,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -570,9 +570,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   //   24); bottom pills at bottom: -12 sit snug above the screen edge (wrapper marginBottom is
   //   14 — pill bottom lands ~2px above the screen edge, pill top rests just inside the frame's
   //   bottom band — over the frame, never over text). compact (<600px) shrinks the pill styles.
+  // hideFrame (hidden pre-render harness only): skips the OrnamentalFrame entirely — hidden
+  //   off-screen pages must NOT touch the shared frame_cache/SESSION_BOX (a different-height
+  //   hidden box would leak into every visible page's frame and squash it). Word measurement
+  //   is frame-independent (textInsetFor is width-only), so hidden pages measure identically.
   const overlayLayer = (
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
-      <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
+      {!hideFrame && <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />}
       {firstSurahId > 0 && (
         <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>

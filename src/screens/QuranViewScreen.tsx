@@ -462,11 +462,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * Hidden pre-render harness — mounts invisible MushafPageView instances for the near
-   * ahead/behind window (3 behind / 4 ahead, only pages whose data already arrived in
+   * ahead/behind window (4 ahead / 3 behind, only pages whose data already arrived in
    * pageCache). Their measure pass writes the font-size-independent layout cache BEFORE the
    * user scrolls there, so pages land fully rendered instead of blank + font refit. Pages are
-   * paced 2 at a time every 300ms (never a storm); once popped they never re-enter
-   * (hiddenWarmDoneRef), and leaving the window unmounts them — a later remount is an instant
+   * popped 2 at a time on a FIXED 250ms ticker (a queue-change-reset timer was the bug: data
+   * trickling in kept postponing pops, so ahead pages were measured only after the user had
+   * already scrolled past). hideFrame keeps the hidden pages out of the shared frame cache —
+   * their winH-tall boxes were leaking into every visible page's frame and squashing it.
+   * Forward pages have priority (people scroll forward); once popped a page never re-enters
+   * (hiddenWarmDoneRef) and leaving the window unmounts it — a later remount is an instant
    * cache-hit no-op. Pure measurement — taps/handlers are not wired.
    * AFFECTS: layoutCacheMem + page_layout_cache (via the hidden MushafPageView measure pass).
    */
@@ -476,23 +480,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) { setHiddenWarmMounted([]); return; }
     const want: number[] = [];
-    for (let p = currentPageNum - 3; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
     for (let p = currentPageNum + 1; p <= currentPageNum + 4; p++) if (p <= pageNumbers.length) want.push(p);
+    for (let p = currentPageNum - 3; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
     setHiddenWarmMounted(prev => prev.filter(p => want.includes(p)));
     const missing: number[] = [];
     for (const p of want) if (!hiddenWarmDoneRef.current.has(p) && pageCache[p]?.lines?.length) missing.push(p);
     if (missing.length) setHiddenWarmQueue(prev => Array.from(new Set([...prev, ...missing])));
   }, [currentPageNum, pageNumbers.length, readingMode, pageCache]);
   useEffect(() => {
-    if (!hiddenWarmQueue.length) return;
-    const t = setTimeout(() => {
-      const take = hiddenWarmQueue.slice(0, 2);
-      for (const p of take) hiddenWarmDoneRef.current.add(p);
-      setHiddenWarmMounted(prev => Array.from(new Set([...prev, ...take])));
-      setHiddenWarmQueue(prev => prev.slice(2));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [hiddenWarmQueue]);
+    let cancelled = false;
+    let t: any = null;
+    const tick = () => {
+      setHiddenWarmQueue(prev => {
+        if (!prev.length) return prev;
+        const take = prev.slice(0, 2);
+        for (const p of take) hiddenWarmDoneRef.current.add(p);
+        setHiddenWarmMounted(mprev => Array.from(new Set([...mprev, ...take])));
+        return prev.slice(2);
+      });
+      if (!cancelled) t = setTimeout(tick, 250);
+    };
+    t = setTimeout(tick, 0);
+    return () => { cancelled = true; if (t) clearTimeout(t); };
+  }, []);
 
   /**
    * WHAT: Landing-path scroll — waits for the page data (deduped by the in-flight
@@ -1841,7 +1851,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 {hiddenWarmMounted.map(pg => {
                   const pd = pageCache[pg];
                   if (!pd?.lines?.length) return null;
-                  return <MushafPageView key={pg} headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader} />;
+                  return <MushafPageView key={pg} hideFrame headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader} />;
                 })}
               </View>
             )}

@@ -97,14 +97,20 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   const [box, setBox] = useState<{ w: number; h: number }>(initialBox);
   const boxRef = useRef(box);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cacheKey = `frame_${Math.round(Dimensions.get('window').width)}`;
+  // Frame cache key = the CONTAINER width the box was measured at (v2 prefix purges rows the
+  // v71 hidden pre-render harness polluted — hidden pages measured winH-tall boxes under the
+  // window-width key, so cold starts adopted a squashed box and frames flipped between sizes).
+  // Full-width pages all share one stable row; split/half-width pages get their own. Reads
+  // before the first onLayout use the initial box (window dims) — full pages land on the same
+  // row the settle will write, so adoption and save stay consistent.
+  const cacheKeyFor = (w: number) => `frame_v2_${w}`;
   const W = box.w;
   const H = box.h;
 
   // Cold start: adopt the persisted per-device box once (best-effort).
   useEffect(() => {
     let mounted = true;
-    getFrameBox(cacheKey).then((c) => {
+    getFrameBox(cacheKeyFor(initialBox().w)).then((c) => {
       if (!mounted || !c) return;
       if (c.w !== boxRef.current.w || c.h !== boxRef.current.h) { boxRef.current = c; setBox(c); }
     }).catch(() => {});
@@ -145,7 +151,7 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
       boxRef.current = next;
       SESSION_BOX = next;
       setBox(next);                                                     // ONE re-render, after layout settles
-      saveFrameBox(cacheKey, w, h).catch(() => {});
+      saveFrameBox(cacheKeyFor(w), w, h).catch(() => {});
     }, SETTLE_MS);
   };
 
