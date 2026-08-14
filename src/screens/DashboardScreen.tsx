@@ -24,7 +24,6 @@ import { setToolbarExpanded } from '../store/drawingSlice';
 import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
-import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { getManifest, purgeLocalStudent } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
@@ -46,7 +45,6 @@ export default function DashboardScreen({ navigation }: any) {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const syncStatus = useSelector((s: any) => s.sync.status);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
-  const adCollapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const prevSyncStatus = useRef<string | null>(null);
 
   /**
@@ -225,13 +223,13 @@ export default function DashboardScreen({ navigation }: any) {
   /**
    * Renders a student card; tap selects the student and enters QuranView.
    * FLOW (onPress): 1) dispatch(setCurrentStudent(item)) (currentStudent=item, studentData=null
-   *          — forces StudentHub/QuranView to re-hydrate); 2) dispatch(setSurah({surahId: 1, verses: []}))
+   *          — forces QuranView to re-hydrate); 2) dispatch(setSurah({surahId: 1, verses: []}))
    *          resets the reader to surah 1; 3) dispatch(setToolbarExpanded(false)) collapses the
-   *          drawing toolbar; 4) navigation.navigate('StudentHub') — behind it the StudentHub
-   *          deep-links into QuranView ({surahId, scrollToVerse} / {page}) or the list screens.
+   *          drawing toolbar; 4) navigation.navigate('QuranView') — no params; QuranView reads
+   *          currentStudent from Redux.
    * CALLS: setCurrentStudent, setSurah, setToolbarExpanded; navigation.navigate.
    * AFFECTS: studentSlice.currentStudent/studentData; quranSlice; drawingSlice.toolbarExpanded;
-   *          navigation -> StudentHub.
+   *          navigation -> QuranView.
    */
   const renderItem = useCallback(({ item }: any) => {
     // Last-read line: manifest is cached per student in local state (see mount effect).
@@ -240,22 +238,20 @@ export default function DashboardScreen({ navigation }: any) {
     let readingLine: string;
     let dateLine: string | null = null;
     if (manifest && lr?.surah) {
-      const ls = Number(lr.surah);
-      const lv = Number(lr.verse);
-      const nm = surahNames?.[ls] || `Surah ${ls}`;
-      readingLine = `Reading: ${nm} · Ayat ${lv}`;
+      const nm = surahNames?.[lr.surah] || `Surah ${lr.surah}`;
+      readingLine = `Reading: ${nm} · Ayat ${lr.verse}`;
       dateLine = lr.updatedAt ? `Date: ${formatDate(lr.updatedAt)} · Time: ${formatTime(lr.updatedAt)}` : '';
     } else { readingLine = manifest ? 'Not read yet' : '…'; }
     const initial = (item.name || '?').charAt(0).toUpperCase();
 
     return (
-      <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
-        <View style={styles(nightMode).cardRow}>
-          <View style={styles(nightMode).avatar}><Text style={styles(nightMode).avatarText}>{initial}</Text></View>
-          <View style={styles(nightMode).cardBody}>
-            <Text style={[styles(nightMode).studentName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles(nightMode).readingLine} numberOfLines={1}>{readingLine}</Text>
-            {dateLine ? <Text style={[styles(nightMode).dateLine, { color: nightMode ? '#8a90a0' : '#6b7280' }]} numberOfLines={1}>{dateLine}</Text> : null}
+      <TouchableOpacity style={[styles.card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('QuranView'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+        <View style={styles.cardRow}>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{initial}</Text></View>
+          <View style={styles.cardBody}>
+            <Text style={[styles.studentName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.readingLine} numberOfLines={1}>{readingLine}</Text>
+            {dateLine ? <Text style={[styles.dateLine, { color: nightMode ? '#8a90a0' : '#6b7280' }]} numberOfLines={1}>{dateLine}</Text> : null}
           </View>
         </View>
       </TouchableOpacity>
@@ -264,7 +260,7 @@ export default function DashboardScreen({ navigation }: any) {
 
   /**
    * UI WIRING:
-   * - Header: title (with blue accent dot) + SyncStatus pill + manual "Sync (n)" button
+   * - Header: title (with teal accent dot) + SyncStatus pill + manual "Sync (n)" button
    *   (n = pendingChanges badge; disabled only while a sync is in flight — always runs a full
    *   push+run) + Logout button.
    * - Sorted FlatList of students (sortedStudents, oldest first); renderItem above.
@@ -273,73 +269,72 @@ export default function DashboardScreen({ navigation }: any) {
    * - SyncIndicator overlay (global syncing spinner) + AlertModal for confirm/error dialogs.
    */
   return (
-    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}>
-      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
-        <View style={styles(nightMode).titleRow}><View style={styles(nightMode).titleDot} /><Text style={[styles(nightMode).title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
+    <View style={[styles.container, { backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}>
+      <View style={[styles.header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
+        <View style={styles.titleRow}><View style={styles.titleDot} /><Text style={[styles.title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <SyncStatus />
           <TouchableOpacity onPress={handleManualSync} disabled={isSyncing}>
-            <Text style={[styles(nightMode).syncBtn, (isSyncing || pendingChanges === 0) && { color: '#555' }]}>{isSyncing ? 'Syncing...' : `Sync (${pendingChanges})`}</Text>
+            <Text style={[styles.syncBtn, (isSyncing || pendingChanges === 0) && { color: '#555' }]}>{isSyncing ? 'Syncing...' : `Sync (${pendingChanges})`}</Text>
           </TouchableOpacity>
           {/* LOGOUT (inline async onPress): await logoutUser() (Firebase signOut) ->
               dispatch(logout()) (authSlice user=null, isAuthenticated=false) -> navigation.replace('Login'). */}
           <TouchableOpacity onPress={async () => { await logoutUser(); dispatch(logout()); navigation.replace('Login'); }}>
-            <Text style={styles(nightMode).logout}>Logout</Text>
+            <Text style={styles.logout}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
-      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14 }} renderItem={renderItem} />
-      <TouchableOpacity style={[styles(nightMode).fab, { bottom: adCollapsed ? 24 : 84 }]} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles(nightMode).fabText}>+</Text></TouchableOpacity>
+      <FlatList data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={renderItem} />
+      <TouchableOpacity style={styles.fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles.fabText}>+</Text></TouchableOpacity>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
-        <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
-            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Add Student</Text>
-            <TextInput style={[styles(nightMode).input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} placeholder="Student name" placeholderTextColor="#666" onChangeText={setName} autoFocus />
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
+            <Text style={[styles.modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Add Student</Text>
+            <TextInput style={[styles.input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} placeholder="Student name" placeholderTextColor="#666" onChangeText={setName} autoFocus />
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
-              <TouchableOpacity style={[styles(nightMode).cancelBtn, { backgroundColor: nightMode ? '#333' : '#e0e0e0' }]} onPress={() => setAddModal(false)}><Text style={[styles(nightMode).cancelText, { color: nightMode ? '#fff' : '#333' }]}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).saveBtn} onPress={handleCreate}><Text style={styles(nightMode).saveText}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: nightMode ? '#333' : '#e0e0e0' }]} onPress={() => setAddModal(false)}><Text style={[styles.cancelText, { color: nightMode ? '#fff' : '#333' }]}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleCreate}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
       <Modal visible={editModal} transparent animationType="fade" onRequestClose={() => setEditModal(false)}>
-        <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
-            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Edit Student Name</Text>
-            <TextInput style={[styles(nightMode).input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} value={editName} onChangeText={setEditName} placeholder="Student name" placeholderTextColor="#666" autoFocus />
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
+            <Text style={[styles.modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Edit Student Name</Text>
+            <TextInput style={[styles.input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} value={editName} onChangeText={setEditName} placeholder="Student name" placeholderTextColor="#666" autoFocus />
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
-              <TouchableOpacity style={[styles(nightMode).cancelBtn, { backgroundColor: nightMode ? '#333' : '#e0e0e0' }]} onPress={() => setEditModal(false)}><Text style={[styles(nightMode).cancelText, { color: nightMode ? '#fff' : '#333' }]}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).saveBtn} onPress={handleEdit}><Text style={styles(nightMode).saveText}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: nightMode ? '#333' : '#e0e0e0' }]} onPress={() => setEditModal(false)}><Text style={[styles.cancelText, { color: nightMode ? '#fff' : '#333' }]}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleEdit}><Text style={styles.saveText}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-<SyncIndicator />
+      <SyncIndicator />
       <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
-      <CollapsibleBannerAd />
     </View>
   );
 }
-const styles = (nightMode: boolean) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center' },
-  titleDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginRight: 8 },
+  titleDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#00d4aa', marginRight: 8 },
   title: { fontSize: 24, fontWeight: '800', letterSpacing: 0.2 },
-  syncBtn: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), marginLeft: 12, fontSize: 13, fontWeight: '600' },
+  syncBtn: { color: '#00d4aa', marginLeft: 12, fontSize: 13, fontWeight: '600' },
   logout: { color: '#ff4444', marginLeft: 12, fontSize: 13, fontWeight: '600' },
-  card: { padding: 10, borderRadius: 12, marginBottom: 6, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  card: { padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  avatarText: { color: '#121212', fontSize: 16, fontWeight: '800' },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#00d4aa', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  avatarText: { color: '#121212', fontSize: 22, fontWeight: '800' },
   cardBody: { flex: 1 },
-  studentName: { fontSize: 15, fontWeight: '700' },
-  readingLine: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 11.5, fontWeight: '600', marginTop: 2 },
-  dateLine: { fontSize: 10.5, marginTop: 1 },
-  fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  studentName: { fontSize: 17, fontWeight: '700' },
+  readingLine: { color: '#00d4aa', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  dateLine: { fontSize: 12, marginTop: 2 },
+  fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#00d4aa', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
   fabText: { color: '#121212', fontSize: 28, fontWeight: '700', lineHeight: 30 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContent: { width: '82%', padding: 24, borderRadius: 16, borderWidth: 1 },
@@ -347,6 +342,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15 },
   cancelBtn: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#333', borderRadius: 10, marginRight: 6 },
   cancelText: { color: '#fff', fontWeight: '600' },
-  saveBtn: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 10, marginLeft: 6 },
+  saveBtn: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#00d4aa', borderRadius: 10, marginLeft: 6 },
   saveText: { color: '#121212', fontWeight: '700' }
 });
