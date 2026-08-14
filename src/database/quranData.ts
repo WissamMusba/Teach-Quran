@@ -650,3 +650,30 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));
   return out;
 };
+
+/**
+ * WHAT: One-shot startup warm-up of the three indopak single-flight builders
+ *       (getIndopakPageIndex, loadIndopakVerseMap, importIndopakPages) so the
+ *       multi-MB JSON require()s and the ~604-row SQLite bulk import run on the
+ *       splash, NOT on the first indopak page press. Every target is already
+ *       single-flight/deferred — it returns the same promise to all concurrent
+ *       callers — so press-path reads that await them just join the promise
+ *       started here (near-zero).
+ * FLOW: Fire each builder in an isolated try/catch — a failure in one must not
+ *       abort the others; importIndopakPages additionally resets its promise on
+ *       failure, so a later press-path call retries the import itself.
+ * CALLED BY: SplashScreen.tsx (right after downloadAndCacheQuran) —
+ *            fire-and-forget, NOT awaited: the splash must not block on the
+ *            multi-MB parses.
+ * AFFECTS: indopakPagesByNum, indopakVerseCache, mushaf_pages_indopak — all
+ *          pre-warmed once per process.
+ * NOTES: No page/verse READ logic changes — reads still lazy-await the same
+ *        single-flight promises, which resolve instantly once warm. The import
+ *        transaction races nothing on the press path: indopak page reads are
+ *        served from the bundle index, never from the table being written.
+ */
+export const warmIndopakIndexes = async () => {
+  try { getIndopakPageIndex() } catch {}
+  try { loadIndopakVerseMap() } catch {}
+  try { importIndopakPages() } catch {}
+};

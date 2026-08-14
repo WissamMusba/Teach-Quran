@@ -213,6 +213,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageCacheOrderRef = useRef<number[]>([]);
   const pageVersesOrderRef = useRef<number[]>([]);
   const currentPageNumRef = useRef(currentPageNum);
+  // Timestamp of the last PROGRAMMATIC FlatList scroll (scrollToIndex/scrollToOffset)
+  // — onMomentumScrollEnd ignores momentum for 400ms after one, so the stale settle
+  // from a landing jump can't report an old index and yank the reader back.
+  const programmaticScrollRef = useRef(0);
 
   // Live mirror of drawingGestureActive (re-written every render) so the
   // fire-and-forget cloud-restore helper can check the CURRENT gesture state
@@ -263,43 +267,49 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * WHAT: Loads a mushaf page JSON into pageCache once (from mushaf_pages or
-   *   mushaf_pages_indopak via getMushafPageData), with a ~40-page LRU.
-   * FLOW: 1) skip if cached or promise in flight 2) if isIndopak, lazily seed
-   *   indopak pages via importIndopakPages() 3) getMushafPageData(pageNum,
-   *   textStyleRef.current) 4) setPageCache + LRU: append to order ref, evict
-   *   pages >12 away from currentPageNumRef while len>40 5) clear promise flag.
-   * CALLS: getMushafPageData, importIndopakPages (quranData.ts).
-   * CALLED BY: renderItem of the page FlatList (single) / SpreadItem (split),
-   *   prefetchAround, prefetchPartner, handleSelectPage, deep-link + surah-change
-   *   + lastRead effects.
+   *   mushaf_pages_indopak via getMushafPageData), with a ~64-page LRU. Resolves
+   *   with the page data (or null when unloadable) so landing paths can await
+   *   the SAME load they trigger and warm the layout before scrolling.
+   * FLOW: 1) cached -> resolve immediately (Promise.resolve) 2) in-flight ->
+   *   await the SAME stored promise (pagePromiseRef holds the promise, not true)
+   *   3) else kick the load, store its promise; isIndopak lazily seeds via
+   *   importIndopakPages() first 4) getMushapPageData(pageNum,
+   *   textStyleRef.current) 5) empty-lines miss -> ensureMushafPageData fetch
+   *   (resolve with it when found, null on failure) 6) setPageCache + LRU:
+   *   append to order ref, evict pages >24 away from currentPageNumRef while
+   *   len>64 7) delete the promise entry on settle (resolve or reject).
+   * CALLS: getMushafPageData, ensureMushafPageData, importIndopakPages (quranData.ts).
+   * CALLED BY: renderItem of the page FlatList (single) / SpreadItem (split) —
+   *   fire-and-forget, the returned promise is ignored — prefetchAround,
+   *   prefetchPartner, handleSelectPage, deep-link + surah-change + lastRead
+   *   effects, landOnPage (awaited; single-flight via the stored promise).
    * AFFECTS: pageCache (local state).
    * NOTES: Uses the LIVE textStyleRef so a mid-flight font change doesn't cache
    *   the wrong mushaf under the new key — pages loaded under an old style stay
    *   cached until the textStyle reset effect wipes both caches.
    */
-  const ensurePageLoaded = useCallback(async (pageNum: number) => {
-    if (pageCache[pageNum] || pagePromiseRef.current[pageNum]) return;
-    pagePromiseRef.current[pageNum] = true;
-    if (isIndopak) importIndopakPages();
-    getMushafPageData(pageNum, textStyleRef.current).then(data => {
+  const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
+    if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
+    if (pagePromiseRef.current[pageNum]) return pagePromiseRef.current[pageNum];
+    const promise = (async () => {
+      if (isIndopak) importIndopakPages();
+      const data = await getMushafPageData(pageNum, textStyleRef.current);
       // Fresh installs fill mushaf pages sequentially from page 1, so a far page
       // (deep-link to Waaqia) can be a { lines: [] } miss — fetch it on demand
       // instead of rendering an empty page (or a permanent hole from a failed
       // background chunk). indopak pages are bulk-seeded by importIndopakPages.
       if (!data?.lines || data.lines.length === 0) {
-        ensureMushafPageData(pageNum, textStyleRef.current).then(missing => {
-          if (missing) {
-            setPageCache(prev => {
-              const next = { ...prev, [pageNum]: missing };
-              const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
-              order.push(pageNum);
-              pageCacheOrderRef.current = order;
-              return next;
-            });
-          }
-          delete pagePromiseRef.current[pageNum];
-        }).catch(() => { delete pagePromiseRef.current[pageNum]; });
-        return;
+        const missing = await ensureMushafPageData(pageNum, textStyleRef.current).catch(() => null);
+        if (missing) {
+          setPageCache(prev => {
+            const next = { ...prev, [pageNum]: missing };
+            const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
+            order.push(pageNum);
+            pageCacheOrderRef.current = order;
+            return next;
+          });
+        }
+        return missing;
       }
       setPageCache(prev => {
         const next = { ...prev, [pageNum]: data };
@@ -315,8 +325,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
         pageCacheOrderRef.current = order;
         return next;
       });
-      delete pagePromiseRef.current[pageNum];
-    }).catch(() => { delete pagePromiseRef.current[pageNum]; });
+      return data;
+    })().finally(() => { delete pagePromiseRef.current[pageNum]; });
+    pagePromiseRef.current[pageNum] = promise;
+    return promise;
   }, [pageCache, isIndopak]);
 
   /**
@@ -355,72 +367,122 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageVersesCache]);
 
   /**
-   * WHAT: Progressive page warm-ahead for FAST swiping. On every page settle the
-   *   instant window [c-12, c+24] is loaded (page JSON + verses) plus the layout
-   *   rows for BOTH header states via warmPageLayoutFor for the near band
-   *   [c-2, c+9]; layout warming for the outer window is staggered ~140ms per
-   *   6-page chunk so low-end devices never jank (JSON/verse loads are cheap —
-   *   the pricey native measurement is what gets spread out). Then a creeping
-   *   scheduler keeps extending the frontier in 8-page chunks (420ms apart) so
-   *   sustained scrolling keeps far-ahead pages ready: their mushaf JSON lands in
-   *   the quranData memo, their verses in versesByPageMemo, their frames in
-   *   layoutCacheMem — all of which are LRU-bounded elsewhere, so running to the
-   *   end of the mushaf is safe. This keeps ~37 pages resident as a fast-swiping
-   *   user slams through a whole page-per-swipe run.
-   * CALLS: getMushafPageData / getVersesByPage (memoized — the far-ahead pages
-   *   never trigger ensureMushafPageData), warmPageLayoutFor.
-   * AFFECTS: quranData memos + layoutCacheMem; the near band also gets the normal
-   *   ensurePageLoaded/ensurePageVersesLoaded state-cache treatment.
+   * WHAT: PRIORITIZED sliding-window warm-ahead for FAST swiping — ~16 pages
+   *   max in flight (window 5 back / 12 ahead), spread across four tiers so no
+   *   single tick saturates the JS thread: TIER 0 loads data+verses for
+   *   [c-2, c+3] in this synchronous effect run; TIER 1 (60ms) [c-5, c-3] and
+   *   [c+4, c+7]; TIER 2 (150ms) [c+8, c+12]. LAYOUT WARM fires immediately
+   *   (memoized getMushafPageData -> warmPageLayoutFor, DB-only) for [c-2, c+9]
+   *   and one 80ms-staggered batch for [c+10, c+12]. A 350ms CREEP keeps
+   *   extending the frontier to the end of the mushaf in 6-page batches (mushaf
+   *   JSON + verses only — data + verse memos, no state caches, no network
+   *   self-heal) so sustained fast swipes always find ready pages.
+   * CALLS: ensurePageLoaded/ensurePageVersesLoaded, getMushafPageData /
+   *   getVersesByPage (memoized — far pages never trigger ensureMushafPageData),
+   *   warmPageLayoutFor. All loads single-flight via the promise guards inside
+   *   the ensure* functions; warmLayoutByPage dedupes per page.
+   * AFFECTS: pageCache/pageVersesCache (state, window only); quranData memos +
+   *   layoutCacheMem (window + creep).
+   * NOTES: Every timer created here is cleared on re-run/unmount. The creep
+   *   ALWAYS restarts from max(prefetchNextRef.current, c+13) — never reset
+   *   backwards by the window settling — and stops when the frontier passes
+   *   the end of the mushaf.
    */
   const prefetchTimerRef = useRef<any>(0);
   const prefetchNextRef = useRef(0);
-  const staggerTimerRef = useRef<any>(0);
-  const staggerQueueRef = useRef<number[]>([]);
+  const tier1TimerRef = useRef<any>(0);
+  const tier2TimerRef = useRef<any>(0);
+  const layoutTimerRef = useRef<any>(0);
+  const layoutQueueRef = useRef<number[]>([]);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
-    const warm = (p: number) => {
-      getMushafPageData(p, textStyleRef.current).then((pd: any) => {
+    const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
+    const loadPage = (p: number) => {
+      ensurePageLoaded(p);
+      ensurePageVersesLoaded(p);
+    };
+    const warmLayoutByPage = new Set<number>();
+    const warmLayout = (p: number) => {
+      if (warmLayoutByPage.has(p)) return;
+      warmLayoutByPage.add(p);
+      getMushafPageData(p, textStyleRef.current).then(pd => {
         if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
       }).catch(() => {});
-      getVersesByPage(p, textStyleRef.current).catch(() => {});
     };
-    // INSTANT band — everything the UI might need for fast swipes: data + verses
-    // for all, plus BOTH layout variants for the pages that can appear on screen.
-    const lo = Math.max(1, currentPageNum - 12);
-    const hi = Math.min(currentPageNum + 24, pageNumbers.length);
-    const nearLo = Math.max(1, currentPageNum - 2);
-    const nearHi = Math.min(currentPageNum + 9, pageNumbers.length);
-    const queue: number[] = [];
-    for (let p = lo; p <= hi; p++) {
-      ensurePageLoaded(p); ensurePageVersesLoaded(p);
-      if (p >= nearLo && p <= nearHi) warm(p); else queue.push(p);
-    }
-    clearTimeout(staggerTimerRef.current);
-    staggerQueueRef.current = queue;
-    const staggerStep = () => {
-      const batch = staggerQueueRef.current.splice(0, 6);
-      for (const p of batch) warm(p);
-      if (staggerQueueRef.current.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
+    // TIER 0 — everything the currently visible pages can need, this tick only.
+    for (let p = currentPageNum - 2; p <= currentPageNum + 3; p++) loadPage(clampP(p));
+    // TIER 1 — the outer window either side, one 60ms tick later.
+    tier1TimerRef.current = setTimeout(() => {
+      for (let p = currentPageNum - 5; p <= currentPageNum - 3; p++) loadPage(clampP(p));
+      for (let p = currentPageNum + 4; p <= currentPageNum + 7; p++) loadPage(clampP(p));
+    }, 60);
+    // TIER 2 — the far-ahead band, 150ms later.
+    tier2TimerRef.current = setTimeout(() => {
+      for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) loadPage(clampP(p));
+    }, 150);
+    // LAYOUT WARM — the near [c-2, c+9] window immediately, the far [c+10, c+12]
+    // band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
+    for (let p = currentPageNum - 2; p <= currentPageNum + 9; p++) warmLayout(clampP(p));
+    layoutQueueRef.current = [];
+    for (let p = currentPageNum + 10; p <= currentPageNum + 12; p++) layoutQueueRef.current.push(clampP(p));
+    const layoutStep = () => {
+      clearTimeout(layoutTimerRef.current);
+      const batch = layoutQueueRef.current.splice(0, 3);
+      for (const p of batch) warmLayout(p);
+      if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
     };
-    if (queue.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
-    // CREEP — keep advancing the frontier to the end of the mushaf (data + verses
-    // only; layout warms when a page enters the stagger band next settle). Always
-    // restarts from the max frontier seen; the near window never resets it.
-    prefetchNextRef.current = Math.max(prefetchNextRef.current, currentPageNum + 25);
-    if (prefetchTimerRef.current) return () => { clearTimeout(staggerTimerRef.current); };
+    if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+    // CREEP — data + verses only, advancing from the max frontier seen; the
+    // near window here never resets prefetchNextRef backwards.
+    prefetchNextRef.current = Math.max(prefetchNextRef.current, currentPageNum + 13);
     const step = () => {
       prefetchTimerRef.current = 0;
       const from = prefetchNextRef.current;
       if (from <= pageNumbers.length) {
-        const to = Math.min(from + 7, pageNumbers.length);
-        for (let p = from; p <= to; p++) { getMushafPageData(p, textStyleRef.current).then((pd: any) => { if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW)); }).catch(() => {}); getVersesByPage(p, textStyleRef.current).catch(() => {}); }
+        const to = Math.min(from + 5, pageNumbers.length);
+        for (let p = from; p <= to; p++) {
+          getMushafPageData(p, textStyleRef.current).then(pd => {
+            if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+          }).catch(() => {});
+          getVersesByPage(p, textStyleRef.current).catch(() => {});
+        }
         prefetchNextRef.current = to + 1;
       }
-      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 420);
+      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 350);
     };
-    prefetchTimerRef.current = setTimeout(step, 700);
-    return () => { clearTimeout(staggerTimerRef.current); clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = 0; };
+    prefetchTimerRef.current = setTimeout(step, 350);
+    return () => {
+      clearTimeout(tier1TimerRef.current);
+      clearTimeout(tier2TimerRef.current);
+      clearTimeout(layoutTimerRef.current);
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = 0;
+    };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
+
+  /**
+   * WHAT: Landing-path scroll — waits for the page data (deduped by the in-flight
+   *   ensurePageLoaded promise, 450ms cap), warms the layout rows for the target
+   *   page so pages land fully rendered, then scrolls the FlatList to it (pair
+   *   index in split mode). Stamps programmaticScrollRef so the momentum settle
+   *   from this jump is ignored by onMomentumScrollEnd.
+   * FLOW: stamp -> race ensurePageLoaded(pg) against a 450ms null timer -> if
+   *   data arrived warmPageLayoutFor (guarded, no-op on failure) -> scrollToIndex.
+   * CALLS: ensurePageLoaded, warmPageLayoutFor, flatListRef.scrollToIndex.
+   * CALLED BY: handleSelectPage, deep-link effect, surah-change effect.
+   * AFFECTS: FlatList scroll offset; layoutCacheMem (via warmPageLayoutFor);
+   *   programmaticScrollRef stamp.
+   * NOTES: Must live AFTER ensurePageLoaded (its deps array references the const).
+   */
+  const landOnPage = useCallback(async (pg: number) => {
+    if (pg < 1 || pg > pageNumbers.length) return;
+    programmaticScrollRef.current = Date.now();
+    const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 450))]);
+    if (data && data.lines?.length && Math.round(pageW) > 0) {
+      try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
+    }
+    flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
+  }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
    * WHAT: Prefetches pages ±1, ±2 around the current page (single mode) or the
@@ -459,9 +521,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   headerPage 3) derive the surah from the first word location of the cached
    *   page and dispatch setSurah if different (pageScrollSurahChangeRef guard
    *   stops the surah-change effect from re-scrolling to verse 1) 4) ensure
-   *   loads + prefetchPartner (split) 5) scrollToIndex after 100ms.
+   *   loads + prefetchPartner (split) 5) landOnPage — waits for the page data
+   *   (deduped by its in-flight promise, 450ms cap) then scrolls + warms layout.
    * CALLS: setReadingMode, setSurah, ensurePageLoaded, ensurePageVersesLoaded,
-   *   prefetchPartner, flatListRef.scrollToIndex.
+   *   prefetchPartner, landOnPage.
    * CALLED BY: SurahList onSelectPage.
    * AFFECTS: readingMode, currentPageNum/headerPage, s.quran.currentSurahId.
    */
@@ -479,7 +542,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     }
     ensurePageLoaded(pg); ensurePageVersesLoaded(pg);
     if (splitOn) prefetchPartner(pg);
-    setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+    landOnPage(pg);
   };
 
   /**
@@ -507,7 +570,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW (page param, e.g. GO TO PAGE # / SurahIndex page rows): land in page
    *   mode at that exact page; header surah resolved from the page's first verse.
    * FLOW (surahId, page mode): getVersePage(surahId, verse, textStyle) -> set current
-   *   page/header state, ensurePageLoaded, prefetchPartner, scrollToIndex (100ms).
+   *   page/header state, ensurePageLoaded, prefetchPartner, landOnPage (waits for
+   *   page data, 450ms cap, then scrolls + warms layout).
    * FLOW (surahId, ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
    *   getVersesBySurahPaginated(surahId, 1, targetPage*20) -> deepLinkLoadedRef
    *   = true (suppresses the surah-change effect's loadSurah) -> setSurah +
@@ -534,14 +598,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (readingMode !== 'page') dispatch(setReadingMode('page'));
       setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p); prefetchPartner(p);
       getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
-      setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(p) : p - 1, animated: false }), 100);
+      landOnPage(p);
     } else if (surahId) {
       paramsHandledRef.current = true;
       setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode === 'page') {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
-          setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+          landOnPage(pg);
         });
       } else {
         const targetPage = Math.ceil((scrollToVerse || 1) / 20);
@@ -618,9 +682,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   whenever currentSurahId / readingMode / textStyle change.
    * FLOW: setHeaderSurahId; page mode -> unless pageScrollSurahChangeRef is set
    *   (surah came from a page scroll), resolve getVersePage(currentSurahId, 1)
-   *   -> scroll to it + prefetchPartner; ayah/continuous -> headerPage=0 and
-   *   loadSurah unless the deep link already loaded (deepLinkLoadedRef).
-   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner.
+   *   -> stale-guard against a surah switch mid-flight -> set the page state +
+   *   prefetchPartner + landOnPage (waits for page data, 450ms cap, then scrolls);
+   *   ayah/continuous -> headerPage=0 and loadSurah unless the deep link already
+   *   loaded (deepLinkLoadedRef).
+   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner, landOnPage.
    * AFFECTS: headerSurahId/headerPage/currentPageNum; s.quran.verses.
    * NOTES: THE pageScrollSurahChangeRef guard is what stops a page-scroll surah
    *   change from yanking the user back to that surah's page 1. Triggered by
@@ -636,8 +702,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
         return;
       }
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
-        setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg); prefetchPartner(pg);
-        setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+        if (surahIdRef.current !== currentSurahId) return;
+        setCurrentPageNum(pg); setHeaderPage(pg); prefetchPartner(pg);
+        landOnPage(pg);
       });
     } else {
       setHeaderPage(0);
@@ -950,7 +1017,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (!(surah > 0 && verse > 0)) return;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
       if (readingMode === 'page') {
-        getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 500); });
+        getVersePage(surah, verse, textStyle).then(pg => { if (surahIdRef.current !== currentSurahId) return; setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); landOnPage(pg); });
       } else if (readingMode === 'ayah') {
         setTimeout(() => { const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse); if (idx !== -1 && flatListRef.current) flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 }); }, 500);
       } else if (readingMode === 'continuous') {
@@ -966,7 +1033,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   useEffect(() => {
     const target = splitOn ? pairIndexForPage(currentPageNum) : currentPageNum - 1;
-    const t = setTimeout(() => flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }), 120);
+    const t = setTimeout(() => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }); }, 120);
     return () => clearTimeout(t);
   }, [splitOn, winW]);
 
@@ -1685,8 +1752,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
-                onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false })}
+                onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
+                  if (Date.now() - programmaticScrollRef.current < 400) return;
                   const idx = Math.round(e.nativeEvent.contentOffset.x / winW);
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
                   if (p !== currentPageNum) {

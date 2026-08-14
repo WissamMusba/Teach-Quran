@@ -16,10 +16,10 @@ export const scaleFont = (size: number): number => {
 
 export const getMushafFontSize = (headerVisible?: boolean): number => {
   const base = (() => {
-    if (SCREEN_WIDTH < 360) return 16;
-    if (SCREEN_WIDTH < 400) return 18;
-    if (SCREEN_WIDTH < 500) return 20;
-    if (SCREEN_WIDTH < 700) return 22;
+    if (SCREEN_WIDTH < 360) return 18;
+    if (SCREEN_WIDTH < 400) return 20;
+    if (SCREEN_WIDTH < 500) return 22;
+    if (SCREEN_WIDTH < 700) return 25;
     // Tablets / iPad sizes: drastically increased as requested, 
     // leveraging the extra available space to make the text way bigger.
     if (SCREEN_WIDTH < 900) return 38; 
@@ -29,11 +29,14 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
   // of measured line widths shared by both header states, and the cache-hit scale math assumes
   // they were measured at the current render size — a hidden-header size bump (+1/+3) made
   // hidden-header pages under-scale and spill past the padding into the frame. Both states
-  // render at the same size now, so the fit is identical (and correct).
+  // render at the same size now, so the fit is identical (and correct). Vertical room is NOT
+  // handled here either: MushafPageView's pitchScale squeezes line pitch when the shorter
+  // header-visible box demands it, while fontScale keeps the font full-size down to a pitch
+  // floor — so this shared size stays the same in both header states by design.
   return base;
 };
 
 export const getMushafLineHeight = (headerVisible?: boolean): number => {
-  const mult = SCREEN_WIDTH >= 900 ? 1.9 : 1.8;
+  const mult = SCREEN_WIDTH >= 900 ? 1.7 : 1.6;
   return getMushafFontSize(headerVisible) * mult;
 };

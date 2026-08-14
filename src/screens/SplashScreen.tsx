@@ -3,7 +3,8 @@
  * ROLE: App gatekeeper — downloads/caches the full Quran into SQLite on first
  *       launch, seeds the surah-name map into Redux, then routes to Dashboard or
  *       Login based on Firebase auth state.
- * DEPENDS ON: src/database/quranData.ts (downloadAndCacheQuran, getSurahs),
+ * DEPENDS ON: src/database/quranData.ts (downloadAndCacheQuran, getSurahs,
+ *             warmIndopakIndexes),
  *             src/store/quranSlice.ts (setSurahNames), @react-native-firebase/auth,
  *             react-redux (useDispatch)
  * USED BY: registered as stack screen "Splash" in App.tsx:103 (initialRouteName,
@@ -11,7 +12,7 @@
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { downloadAndCacheQuran, getSurahs } from '../database/quranData';
+import { downloadAndCacheQuran, getSurahs, warmIndopakIndexes } from '../database/quranData';
 import auth from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setSurahNames } from '../store/quranSlice';
@@ -29,23 +30,26 @@ export default function SplashScreen({ navigation }: any) {
    *       2) await downloadAndCacheQuran() — seeds SQLite (verses/surahs/
    *          mushaf_pages); idempotent verse-count check; does NOT throw on
    *          partial completion (MIN_USABLE_VERSES path)
-   *       3) await getSurahs() — SELECT * FROM surahs ORDER BY id
-   *       4) Build map = {surah.id: surah.englishName}, dispatch setSurahNames(map)
-   *       5) Subscribe auth().onAuthStateChanged — fires once with the restored
+   *       3) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
+   *          pre-warms the indopak page index/verse map + SQLite bulk import
+   *          so the first indopak page press never pays those multi-MB costs
+   *       4) await getSurahs() — SELECT * FROM surahs ORDER BY id
+   *       5) Build map = {surah.id: surah.englishName}, dispatch setSurahNames(map)
+   *       6) Subscribe auth().onAuthStateChanged — fires once with the restored
    *          session, then unsubscribes
-   *       6) navigation.replace(user ? 'Dashboard' : 'Login') — replace (not
+   *       7) navigation.replace(user ? 'Dashboard' : 'Login') — replace (not
    *          navigate) so Splash is removed from the back stack
-   *       7) On thrown error: setError(true) + errorMessage, setIsLoading(false);
+   *       8) On thrown error: setError(true) + errorMessage, setIsLoading(false);
    *          retry screen shown, auth listener never runs
    * CALLS: downloadAndCacheQuran -> initDatabase, verse count, fetchMissing +
-   *        fetchMushafPages; getSurahs; dispatch(setSurahNames);
-   *        auth().onAuthStateChanged
+   *        fetchMushafPages; warmIndopakIndexes (fire-and-forget); getSurahs;
+   *        dispatch(setSurahNames); auth().onAuthStateChanged
    * CALLED BY: useEffect on mount (line 30) and "Retry Download" button onPress
    *            (line 44)
    * AFFECTS: SQLite (verses, surahs, mushaf_pages), quranSlice.surahNames,
    *          navigation stack (Splash -> Dashboard/Login)
    * NOTES: Route decision happens ONLY inside the onAuthStateChanged callback —
-   *        if steps 2-4 throw, the listener is never subscribed and the app
+   *        if steps 2-5 throw, the listener is never subscribed and the app
    *        stays on the retry screen. No dispatch(setUser) here: on cold start
    *        redux auth is rehydrated from AsyncStorage (persistConfig whitelist),
    *        but a stale/expired session is still caught by onAuthStateChanged —
@@ -55,6 +59,7 @@ export default function SplashScreen({ navigation }: any) {
     setIsLoading(true); setError(false);
     try {
       await downloadAndCacheQuran();
+      warmIndopakIndexes().catch(() => {});
       const surahs = await getSurahs();
       const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
       dispatch(setSurahNames(map));

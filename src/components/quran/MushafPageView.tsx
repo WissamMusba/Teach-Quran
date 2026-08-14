@@ -211,11 +211,14 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
  *     scales on a cache hit may differ from first-visit ones until the cache entry is cleared.
- *   - headerVisible is absent from BOTH effect dep arrays: getMushafFontSize returns the SAME
- *     size for both header states (responsive.ts), so fs (cache key) never shifts on a header
- *     toggle — both states share one layout row. If the size bump is ever re-added, cache-hit
- *     scales would under-shrink the hidden-header variant and text would spill into the frame
- *     (see the note in responsive.ts).
+  *   - headerVisible is absent from BOTH effect dep arrays: getMushafFontSize returns the SAME
+  *     size for both header states (responsive.ts), so fs (cache key) never shifts on a header
+  *     toggle — both states share one layout row. If the size bump is ever re-added, cache-hit
+  *     scales would under-shrink the hidden-header variant and text would spill into the frame
+  *     (see the note in responsive.ts).
+  *   - The vertical fit (pitchScale/fontScale) is render-time only: derived from the measured
+  *     innerH, applied inline to the word Text, and never part of fs — so it cannot invalidate
+  *     cached rows or interact with the header-shared layout key.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
@@ -240,9 +243,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const adj = getFontAdj(textStyle, headerVisible);
   // Header-visible descender clearance: with the header showing, the page box is shorter and
-  // vScale pins every line to its exact slot, so the QPC fonts' descenders poke below the line
-  // box and get visually clipped. Lifting every word 2px up keeps the tails visible;
-  // no header → no lift (layout position unchanged either way — pure visual transform).
+  // the pitch squeeze (pitchScale) keeps the line stack inside it, so the QPC fonts' descenders
+  // poke below the line box and get visually clipped. Lifting every word 2px up keeps the tails
+  // visible; no header → no lift (layout position unchanged either way — pure visual transform).
   const wordLiftY = adj.y + (headerVisible ? -2 : 0);
   const compact = pageWidth < 600;
 
@@ -288,8 +291,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // Vertical box height measurement. CRITICAL: this must fire on the VERY FIRST layout of the
   // mounted view — which happens while the 'loading' GATE is rendered (cache-hit pages swap the
   // gate for the full mushaf at the SAME size, so the full container's own onLayout would never
-  // fire and innerH would stay 0 → vScale 1 → full-size text in the shorter header-visible box
-  // → bottom clipped until a header toggle resizes the box). All three containers (fallback,
+  // fire and innerH would stay 0 → pitchScale/fontScale 1 → full-size text in the shorter
+  // header-visible box → bottom clipped until a header toggle resizes the box). All three
+  // containers (fallback,
   // gate, full) therefore share this handler: whichever renders first captures the true height;
   // later resizes (header toggle, player bar mount, rotation) re-fire it because the size changes.
   const onBoxLayout = useCallback((e: any) => {
@@ -299,19 +303,28 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar
   // (~60) in flow the page box is screenH - 124 - 24 - 28 = screenH - 176 tall. A tall 15-line
-  // page at the largest font of its width tier needs 15 x lineHeight: e.g. 375x667 -> 15 x 32.4
-  // = 486 vs (667 - 176) - (17.6 + 17.6) = 455.8 -> OVERFLOW by ~30px; short screens overflow,
+  // page at the largest font of its width tier needs 15 x lineHeight: e.g. 375x667 -> 15 x 32
+  // = 480 vs (667 - 176) - (17.6 + 17.6) = 455.8 -> OVERFLOW by ~24px; short screens overflow,
   // tall ones fit (412x915 -> 594 <= 693.2). Fix: when the measured inner height (onLayout below)
-  // proves it, shrink fontSize + lineHeight by one pure number (vScale). The width-fit scale
-  // (scaleForLine) is untouched - it handles horizontal overflow from un-scaled widths only.
+  // proves it, pitchScale below squeezes the LINE PITCH to fit the stack — the font itself stays
+  // full-size until the pitch would fall below PITCH_FLOOR_RATIO (fontScale's only job). The
+  // width-fit scale (scaleForLine) is untouched - it handles horizontal overflow from un-scaled
+  // widths only.
   const wordLineCount = (pageData?.lines || []).reduce(
     (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
   const fitPadTop = padTop;
   const fitPadBottom = padBottom;
   const fitLineH = mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1);
-  const vScale = innerH > 0 && wordLineCount > 0
-    ? Math.min(1, Math.max(0.5, (innerH - fitPadTop - fitPadBottom) / (wordLineCount * fitLineH)))
-    : 1;
+  // Two-factor vertical fit: pitchScale squeezes LINE PITCH only; fontScale
+  // keeps the font at full size until the pitch would fall below PITCH_FLOOR_RATIO
+  // (glyph-collision prevention) — then both shrink gracefully, so fonts stay big
+  // with the header visible and bottoms never clip.
+  const naturalRatio = mushafLineHeight / (mushafFontSize + adj.size);
+  const PITCH_FLOOR_RATIO = 1.2;
+  const needH = wordLineCount * fitLineH;
+  const availH = innerH - fitPadTop - fitPadBottom;
+  const pitchScale = needH > 0 && availH > 0 ? Math.min(1, Math.max(0.5, availH / needH)) : 1;
+  const fontScale = Math.min(1, Math.max(0.5, (pitchScale * naturalRatio) / PITCH_FLOOR_RATIO));
 
   useEffect(() => {
     let mounted = true;
@@ -756,7 +769,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * vScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
