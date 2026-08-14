@@ -212,7 +212,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false, onMeasured = undefined }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -398,6 +398,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           cacheWrittenRef.current = false;
           setCacheState('hit');
           scheduleVerify();
+          // Layout row already persisted (cache hit) — the page needs nothing more;
+          // the traversed-range backfill uses this to unmount the hidden instance.
+          if (onMeasured) onMeasured(pageNum);
         } else {
           setCacheState('miss');
         }
@@ -439,6 +442,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       // The sums are NORMALIZED (font-size-independent) widths — one row serves every header
       // state and any font size, so a page is measured once per device, then replayed forever.
       savePageLayoutCache(pageNum, textStyle, false, keySparse, sumsW, sums);
+      if (onMeasured) onMeasured(pageNum);
     }
   }, [pageNum, textStyle, pageWidth, sparse, headerVisible, pageData, normFontSize]);
 
@@ -531,6 +535,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           setLineScale({});
           savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
         }
+        // Measure pass concluded (fresh write or verified-match) — the page's layout row is
+        // now persisted; the traversed-range backfill unmounts the hidden instance here.
+        if (onMeasured) onMeasured(pageNum);
         cacheWrittenRef.current = true;
         frozenRef.current = true;
       }

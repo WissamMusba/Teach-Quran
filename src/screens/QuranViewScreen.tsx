@@ -411,18 +411,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
     };
     // TIER 0 — everything the currently visible pages can need, this tick only.
     for (let p = currentPageNum - 2; p <= currentPageNum + 3; p++) loadPage(clampP(p));
-    // TIER 1 — the outer window either side, one 60ms tick later.
+    // TIER 1 — the outer window either side, one 60ms tick later (extended behind to -10 so
+    // scrolling BACK up to 10 pages never hits a cold page either).
     tier1TimerRef.current = setTimeout(() => {
       for (let p = currentPageNum - 5; p <= currentPageNum - 3; p++) loadPage(clampP(p));
       for (let p = currentPageNum + 4; p <= currentPageNum + 7; p++) loadPage(clampP(p));
+      for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) loadPage(clampP(p));
     }, 60);
     // TIER 2 — the far-ahead band, 150ms later.
     tier2TimerRef.current = setTimeout(() => {
       for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) loadPage(clampP(p));
     }, 150);
-    // LAYOUT WARM — the near [c-5, c+9] window immediately (5 behind / 9 ahead), the far
+    // LAYOUT WARM — the [c-10, c+10] window immediately (10 behind / 10 ahead), the far
     // [c+10, c+12] band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
-    for (let p = currentPageNum - 5; p <= currentPageNum + 9; p++) warmLayout(clampP(p));
+    for (let p = currentPageNum - 10; p <= currentPageNum + 10; p++) warmLayout(clampP(p));
     layoutQueueRef.current = [];
     for (let p = currentPageNum + 10; p <= currentPageNum + 12; p++) layoutQueueRef.current.push(clampP(p));
     const layoutStep = () => {
@@ -462,10 +464,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * Hidden pre-render harness — mounts invisible MushafPageView instances for the near
-   * ahead/behind window (4 ahead / 3 behind, only pages whose data already arrived in
+   * ahead/behind window (10 ahead / 6 behind, only pages whose data already arrived in
    * pageCache). Their measure pass writes the font-size-independent layout cache BEFORE the
    * user scrolls there, so pages land fully rendered instead of blank + font refit. Pages are
-   * popped 2 at a time on a FIXED 250ms ticker (a queue-change-reset timer was the bug: data
+   * popped 2 at a time on a FIXED 200ms ticker (a queue-change-reset timer was the bug: data
    * trickling in kept postponing pops, so ahead pages were measured only after the user had
    * already scrolled past). hideFrame keeps the hidden pages out of the shared frame cache —
    * their winH-tall boxes were leaking into every visible page's frame and squashing it.
@@ -477,11 +479,24 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const hiddenWarmDoneRef = useRef<Set<number>>(new Set());
   const [hiddenWarmQueue, setHiddenWarmQueue] = useState<number[]>([]);
   const [hiddenWarmMounted, setHiddenWarmMounted] = useState<number[]>([]);
+  // Traversed-range backfill (fast-fling layout persistence): remembers the range the user
+  // just swiped through so every page in between gets re-mounted off-screen (hidden) and its
+  // layout row persisted. A fast fling can unmount an intermediate page BEFORE its measure
+  // pass finishes (150ms font gate + ~150 word measurements), leaving its row unwritten — the
+  // first revisit would re-measure on screen. The worker below pops 2 pages per 250ms and
+  // unmounts each one when MushafPageView reports the row settled (onMeasured) or after an
+  // 8s safety timeout, so the whole traversed range is "measured once, replayed forever".
+  const backfillQueueRef = useRef<number[]>([]);
+  const [backfillMounted, setBackfillMounted] = useState<number[]>([]);
+  const backfillDoneRef = useRef<Set<number>>(new Set());
+  const lastLandedPageRef = useRef(1);
+  const ensurePageLoadedRef = useRef(ensurePageLoaded);
+  ensurePageLoadedRef.current = ensurePageLoaded;
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) { setHiddenWarmMounted([]); return; }
     const want: number[] = [];
-    for (let p = currentPageNum + 1; p <= currentPageNum + 4; p++) if (p <= pageNumbers.length) want.push(p);
-    for (let p = currentPageNum - 3; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
+    for (let p = currentPageNum + 1; p <= currentPageNum + 10; p++) if (p <= pageNumbers.length) want.push(p);
+    for (let p = currentPageNum - 6; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
     setHiddenWarmMounted(prev => prev.filter(p => want.includes(p)));
     const missing: number[] = [];
     for (const p of want) if (!hiddenWarmDoneRef.current.has(p) && pageCache[p]?.lines?.length) missing.push(p);
@@ -498,9 +513,35 @@ export default function QuranViewScreen({ navigation, route }: any) {
         setHiddenWarmMounted(mprev => Array.from(new Set([...mprev, ...take])));
         return prev.slice(2);
       });
-      if (!cancelled) t = setTimeout(tick, 250);
+      if (!cancelled) t = setTimeout(tick, 200);
     };
     t = setTimeout(tick, 0);
+    return () => { cancelled = true; if (t) clearTimeout(t); };
+  }, []);
+
+  // Backfill worker: drains the traversed-range queue 2 at a time, mounting each page hidden
+  // until its layout row is settled (onMeasured) or an 8s safety timeout drops it. Fixed-tick
+  // like the window harness so it never bursts the JS thread — idle work after the user stops
+  // scrolling, gentle enough for low-end phones.
+  useEffect(() => {
+    let cancelled = false;
+    let t: any = null;
+    const tick = () => {
+      if (cancelled) return;
+      const take = backfillQueueRef.current.splice(0, 2);
+      for (const pg of take) {
+        ensurePageLoadedRef.current(pg).then(pd => {
+          if (cancelled || !pd?.lines?.length) return;
+          backfillDoneRef.current.add(pg);
+          setBackfillMounted(mprev => Array.from(new Set([...mprev, pg])));
+          // Safety: if the page never reports settled (measure write failure), drop the hidden
+          // instance after 8s so a hidden page can never leak into the layout.
+          setTimeout(() => setBackfillMounted(mprev => mprev.filter(x => x !== pg)), 8000);
+        }).catch(() => {});
+      }
+      t = setTimeout(tick, 250);
+    };
+    t = setTimeout(tick, 250);
     return () => { cancelled = true; if (t) clearTimeout(t); };
   }, []);
 
@@ -521,6 +562,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const landOnPage = useCallback(async (pg: number) => {
     if (pg < 1 || pg > pageNumbers.length) return;
     programmaticScrollRef.current = Date.now();
+    lastLandedPageRef.current = pg; // so the next MANUAL scroll's backfill range is correct
     const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 450))]);
     if (data && data.lines?.length && Math.round(pageW) > 0) {
       try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
@@ -628,9 +670,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: currentPageNum/headerPage/headerSurahId; s.quran.verses/flashingVerse.
    * NOTES: Re-runs on every route.params identity change. getVersePage is
    *   textStyle-dependent (page differs between uthmani 604 / indopak 610).
-   *   paramsHandledRef suppresses the two mount-time restore effects (lastRead
-   *   restore + surah-change) for ~600ms after a deep link lands, so the
-   *   requested page/verse wins the race against the persisted reading position.
+   *   paramsHandledRef suppresses the mount-time restore effects (lastRead
+   *   restore + surah-change) WHILE this deep link's landing is still in
+   *   flight — cleared on completion, NOT on a fixed 600ms timer, so a slow
+   *   device can never let them override the requested page/verse mid-landing
+   *   (the old timer expired mid-flight and RESUME/surah jumps lost the race
+   *   to the persisted reading position).
    */
   const paramsHandledRef = useRef(false);
   useEffect(() => {
@@ -638,19 +683,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const p = page !== undefined ? Number(page) : 0;
     if (p >= 1 && p <= 610) {
       paramsHandledRef.current = true;
-      setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode !== 'page') dispatch(setReadingMode('page'));
       setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p); prefetchPartner(p);
       getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
-      landOnPage(p);
+      landOnPage(p).finally(() => { paramsHandledRef.current = false; });
     } else if (surahId) {
       paramsHandledRef.current = true;
-      setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode === 'page') {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
-          landOnPage(pg);
-        });
+          return landOnPage(pg);
+        }).catch(() => {}).finally(() => { paramsHandledRef.current = false; });
       } else {
         const targetPage = Math.ceil((scrollToVerse || 1) / 20);
         getVersesBySurahPaginated(surahId, 1, targetPage * 20).then(({ verses: v, total }) => {
@@ -665,7 +708,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             }
             dispatch(setFlashingVerse(scrollToVerse)); setTimeout(() => dispatch(setFlashingVerse(null)), 2000);
           }, 500);
-        });
+        }).catch(() => {}).finally(() => { paramsHandledRef.current = false; });
       }
     }
   }, [route.params]);
@@ -1054,7 +1097,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   Mark" menu item + page bookmark interplay).
    */
   useEffect(() => {
-    if (paramsHandledRef.current) return; // a route-params deep link owns the landing position
+    // A route-params deep link (StudentHub RESUME / DAILY RECITATION / GO TO PAGE,
+    // Bookmarks / Mistakes / Notes / Surah / Juz index) OWNS the landing position for
+    // this mount. The persisted lastRead restore must never override it — it used to,
+    // racing the old 600ms paramsHandledRef timer on slow devices: RESUME landed on the
+    // reading mark (e.g. Fatiha) instead of the requested page, and a surah jump showed
+    // the mark's page for seconds before the deep link finally landed. Route params are
+    // stable for the life of a pushed screen, so this check is sticky for the mount.
+    const hasDeepLinkParams = !!(route?.params && (route.params.surahId !== undefined || route.params.page !== undefined));
+    if (hasDeepLinkParams || paramsHandledRef.current) return;
     if (studentData?.lastRead) {
       const surah = Number(studentData.lastRead.surah);
       const verse = Number(studentData.lastRead.verse);
@@ -1068,7 +1119,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         setTimeout(() => { const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse); if (idx !== -1 && scrollViewRef.current) scrollViewRef.current.scrollTo({ y: idx * 45, animated: true }); }, 500);
       }
     }
-  }, [studentData?.lastRead?.surah]);
+  }, [studentData?.lastRead?.surah, route?.params]);
 
   /**
    * WHAT: After splitOn/winW changes, re-snaps the page FlatList to the current
@@ -1794,8 +1845,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 removeClippedSubviews scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
-                updateCellsBatchingPeriod={40}
+                initialNumToRender={5} maxToRenderPerBatch={6} windowSize={5}
+                updateCellsBatchingPeriod={25}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
                   if (Date.now() - programmaticScrollRef.current < 400) return;
@@ -1803,6 +1854,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
                   if (p !== currentPageNum) {
                     setCurrentPageNum(p); setHeaderPage(p);
+                    // Traversed-range backfill: queue every page the user swiped PAST so the
+                    // backfill worker re-mounts them hidden and persists their layout rows
+                    // (fast flings can otherwise leave intermediate pages unmeasured).
+                    const prevPage = lastLandedPageRef.current;
+                    lastLandedPageRef.current = p;
+                    if (Math.abs(p - prevPage) >= 2) {
+                      const lo = Math.min(prevPage, p);
+                      const hi = Math.max(prevPage, p);
+                      for (let pg = lo; pg <= hi; pg++) {
+                        if (pg === p || backfillDoneRef.current.has(pg) || hiddenWarmDoneRef.current.has(pg) || backfillQueueRef.current.includes(pg)) continue;
+                        backfillQueueRef.current.push(pg);
+                      }
+                    }
                     prefetchAround(splitOn ? 'split' : 'single', p);
                     const pData = pageCache[p];
                     if (pData) {
@@ -1845,13 +1909,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
             )}
 
             {/* hidden pre-render harness: invisible MushafPageViews measuring the near
-                ahead/behind window into the layout cache before the user scrolls there */}
-            {readingMode === 'page' && hiddenWarmMounted.length > 0 && (
+                ahead/behind window AND the traversed-range backfill into the layout cache
+                before the user scrolls there */}
+            {readingMode === 'page' && (hiddenWarmMounted.length > 0 || backfillMounted.length > 0) && (
               <View style={{ position: 'absolute', top: -10000, left: 0, width: pageW, height: winH }} pointerEvents="none">
                 {hiddenWarmMounted.map(pg => {
                   const pd = pageCache[pg];
                   if (!pd?.lines?.length) return null;
                   return <MushafPageView key={pg} hideFrame headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader} />;
+                })}
+                {backfillMounted.map(pg => {
+                  const pd = pageCache[pg];
+                  if (!pd?.lines?.length) return null;
+                  return <MushafPageView key={`b-${pg}`} hideFrame headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader}
+                    onMeasured={() => setBackfillMounted(mprev => mprev.filter(x => x !== pg))} />;
                 })}
               </View>
             )}
