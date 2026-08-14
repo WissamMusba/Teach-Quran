@@ -1,4 +1,4 @@
-﻿====================================================================================================
+====================================================================================================
 FILE: android\app\src\debug\AndroidManifest.xml
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\debug\AndroidManifest.xml
 ====================================================================================================
@@ -15,7 +15,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\debug\AndroidManif
         <activity android:name="com.facebook.react.devsupport.DevSettingsActivity" android:exported="false" />
     </application>
 </manifest>
-
 
 ====================================================================================================
 FILE: android\app\src\debug\java\com\com.teachquran.app\ReactNativeFlipper.java
@@ -97,7 +96,6 @@ public class ReactNativeFlipper {
   }
 }
 
-
 ====================================================================================================
 FILE: android\app\src\main\AndroidManifest.xml
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\AndroidManifest.xml
@@ -134,7 +132,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\AndroidManife
       </activity>
     </application>
 </manifest>
-
 
 ====================================================================================================
 FILE: android\app\src\main\java\com\com.teachquran.app\MainActivity.java
@@ -179,7 +176,6 @@ public class MainActivity extends ReactActivity {
         DefaultNewArchitectureEntryPoint.getFabricEnabled());
   }
 }
-
 
 ====================================================================================================
 FILE: android\app\src\main\java\com\com.teachquran.app\MainApplication.java
@@ -248,7 +244,6 @@ public class MainApplication extends Application implements ReactApplication {
   }
 }
 
-
 ====================================================================================================
 FILE: android\app\src\main\res\drawable\rn_edit_text_material.xml
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\drawable\rn_edit_text_material.xml
@@ -290,7 +285,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\drawable\
 
 </inset>
 
-
 ====================================================================================================
 FILE: android\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml
@@ -319,7 +313,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\values\st
     <string name="app_name">Teach Quran</string>
 </resources>
 
-
 ====================================================================================================
 FILE: android\app\src\main\res\values\styles.xml
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\values\styles.xml
@@ -333,7 +326,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\app\src\main\res\values\st
     </style>
 
 </resources>
-
 
 ====================================================================================================
 FILE: android\app\src\release\java\com\com.teachquran.app\ReactNativeFlipper.java
@@ -359,7 +351,6 @@ public class ReactNativeFlipper {
     // Do nothing as we don't want to initialize Flipper on Release.
   }
 }
-
 
 ====================================================================================================
 FILE: android\build.gradle
@@ -415,7 +406,6 @@ allprojects {
         }
     }
 }
-
 
 ====================================================================================================
 FILE: android\gradle.properties
@@ -473,7 +463,6 @@ kotlin.jvm.target.validation.mode=warning
 org.gradle.java.home=C:/Users/wissa/Downloads/jdk17/jdk-17.0.19+10
 android.suppressUnsupportedCompileSdk=34
 
-
 ====================================================================================================
 FILE: android\gradle\wrapper\gradle-wrapper.properties
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\gradle\wrapper\gradle-wrapper.properties
@@ -485,13 +474,11 @@ networkTimeout=10000
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 
-
 ====================================================================================================
 FILE: android\local.properties
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\android\local.properties
 ====================================================================================================
 sdk.dir=C\:\\Users\\wissa\\AppData\\Local\\Android\\Sdk
-
 
 ====================================================================================================
 FILE: android\settings.gradle
@@ -501,7 +488,6 @@ rootProject.name = 'com.teachquran.app'
 apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
-
 
 ====================================================================================================
 FILE: app.json
@@ -764,7 +750,6 @@ const App = () => {
 
 export default App;
 
-
 ====================================================================================================
 FILE: babel.config.js
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\babel.config.js
@@ -785,7 +770,6 @@ module.exports = {
   presets: ['module:metro-react-native-babel-preset'],
 };
 
-
 ====================================================================================================
 FILE: firestore.rules
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\firestore.rules
@@ -798,7 +782,6 @@ service cloud.firestore {
     }
   }
 }
-
 
 ====================================================================================================
 FILE: index.js
@@ -872,7 +855,6 @@ module.exports = (async () => {
   };
 })();
 
-
 ====================================================================================================
 FILE: package.json
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\package.json
@@ -934,7 +916,6 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\react-native.config.js
 ====================================================================================================
 module.exports = { assets: ['./assets/fonts'] };
 
-
 ====================================================================================================
 FILE: src\api\audioNotes.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\api\audioNotes.ts
@@ -978,7 +959,6 @@ export const playAudioNote = async (fileId: string): Promise<string | null> => {
     return cachePath;
   } catch { return null; }
 };
-
 
 ====================================================================================================
 FILE: src\api\auth.ts
@@ -1841,7 +1821,6 @@ export const pullAudioRange = async (studentId: string, rangeKey: string) => {
   } catch (e) { console.warn('pullAudioRange', e); }
 };
 
-
 ====================================================================================================
 FILE: src\assets\data\indopak_pages.json
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\assets\data\indopak_pages.json
@@ -1947,10 +1926,10 @@ const IconPause = ({ c, s = 18 }: { c: string; s?: number }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" /></Svg>
 );
 const IconPrevTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M5.5 4v16H8V4zM17.5 5.5l-9 5.5 9 5.5z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M5.5 4v16H8V4zM17.5 5.5l-9 5.5 9 5.5z" /></Svg>
 );
 const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
+  <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
 );
 
 /**
@@ -1998,13 +1977,13 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageSt
       </View>
       <View style={styles.ctrlRow}>
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7}>
-          <IconPrevTrack c={String(canStep ? theme.ctrlText : disC)} />
+          <IconPrevTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85}>
           {isPlaying ? <IconPause c="#121212" s={22} /> : <IconPlay c="#121212" s={22} />}
         </TouchableOpacity>
         <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7}>
-          <IconNextTrack c={String(canStep ? theme.ctrlText : disC)} />
+          <IconNextTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.action, loopEnabled ? theme.ctrl : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7}>
           <Text style={[styles.actionText, theme.ctrlText, !loopEnabled && { color: disC }]}>{loopEnabled && isPlaying ? 'LOOP END' : 'LOOP START'}</Text>
@@ -2054,7 +2033,6 @@ const lightTheme = StyleSheet.create({
 });
 
 export default memo(AudioPlayerBar);
-
 
 ====================================================================================================
 FILE: src\components\audio\QariSelector.tsx
@@ -2423,7 +2401,6 @@ const styles = StyleSheet.create({
 
 export default VoiceNoteRecorder;
 
-
 ====================================================================================================
 FILE: src\components\common\AlertModal.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\common\AlertModal.tsx
@@ -2531,7 +2508,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
 });
 
 export default AlertModal;
-
 
 ====================================================================================================
 FILE: src\components\common\AnimatedHeader.tsx
@@ -2935,7 +2911,6 @@ const WordHitArea = ({ tapFraction = 0.5, onWordPress, onDeadTap, onLongPress, o
 
 export default WordHitArea;
 
-
 ====================================================================================================
 FILE: src\components\drawing\AnnotationToolbar.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\drawing\AnnotationToolbar.tsx
@@ -3289,7 +3264,6 @@ const s = StyleSheet.create({
 });
 
 export default AnnotationToolbar;
-
 
 ====================================================================================================
 FILE: src\components\drawing\DrawingCanvas.tsx
@@ -3714,7 +3688,6 @@ const styles = StyleSheet.create({
 
 export default DrawingCanvas;
 
-
 ====================================================================================================
 FILE: src\components\drawing\StaticDrawingOverlay.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\drawing\StaticDrawingOverlay.tsx
@@ -3776,7 +3749,6 @@ const styles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' },
   svg: { flex: 1, width: '100%', height: '100%', backgroundColor: 'transparent' }
 });
-
 
 ====================================================================================================
 FILE: src\components\ErrorBoundary.tsx
@@ -3840,7 +3812,6 @@ const styles = StyleSheet.create({
   errorBox: { maxHeight: 400, width: '100%', backgroundColor: '#eee', borderRadius: 8, padding: 10 },
   errorText: { color: '#000', fontSize: 12 }
 });
-
 
 ====================================================================================================
 FILE: src\components\quran\FlowingText.tsx
@@ -3966,7 +3937,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
 // memo export — effective: verses come from the redux verses array (stable identities).
 export default memo(FlowingText);
 
-
 ====================================================================================================
 FILE: src\components\quran\MushafPageView.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\quran\MushafPageView.tsx
@@ -3989,14 +3959,19 @@ import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
+import Svg, { Path } from 'react-native-svg';
+import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const hPad = (w: number) => (w >= 600 ? w * 0.08 : 13);
-// Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
-// overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
-// rewrites them. Must be added identically at EVERY get/save call site.
-const CACHE_VERSION = 1;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+// The layout cache stores NORMALIZED line-width sums: every measured word width is divided by
+// the page's rendered base size (normFontSize = (mushafFontSize + adj.size) x sparse boost x
+// fontScale), and every cache-hit replay multiplies the sums back by the current base size.
+// Rows are therefore FONT-SIZE-INDEPENDENT — changing the app's mushaf font size (settings or a
+// new release) never invalidates the cache, so a page is measured ONCE per (page, textStyle,
+// sparse, width) per device and then replayed forever from SQLite. The DB key no longer carries
+// fs (always 0); localDB's layoutVer bump wiped the old fs-keyed rows.
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -4042,39 +4017,30 @@ const SPARSE_FONT_BOOST = 1.3;
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
  * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
- * -1/+2y when the header is visible, default +0. The size feeds fs (and thus the layout cache
+ * -1 when the header is visible, default +0. The size feeds fs (and thus the layout cache
  * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
  * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
- * y is NEGATIVE (words lifted ~3px up) so the last line clears the frame/bottom edge.
+ * y is 0 for ALL fonts: the old ~3px upward lift is gone; top/bottom balance now comes
+ * from the container's percent-based padding (padTop/padBottom = 2.5% of screen height,
+ * padSide = 6.7% of page width — floored at frameInsetFor so text never crosses the frame).
  */
 const getFontAdj = (ts: string, hv: boolean) => {
   switch (ts) {
-    case 'saleem': return { size: 2, y: -3 };
-    case 'alqalam': return { size: 0, y: -3 };
-    case 'uthmani': return { size: 0, y: -3 };
-    case 'lateef': return { size: 4, y: -3 };
-    case 'scheherazade': return { size: hv ? -1 : 0, y: 2 };
-    default: return { size: 0, y: -3 };
+    case 'saleem': return { size: 2, y: 0 };
+    case 'alqalam': return { size: 0, y: 0 };
+    case 'uthmani': return { size: 0, y: 0 };
+    case 'lateef': return { size: 4, y: 0 };
+    case 'scheherazade': return { size: hv ? -1 : 0, y: 0 };
+    default: return { size: 0, y: 0 };
   }
 };
 
 /**
- * layoutFsFor / layoutKeyFs — the fs value that rounds into the page_layout_cache key for a
- * (textStyle, headerVisible, sparse) triple: (mushaf size + font adj) x the sparse boost.
- * The headerVisible variant is NOT a separate cache column usage (DB column stays at the
- * legacy false everywhere) — the header shift lands in fs itself, so preloading BOTH header
- * variants means the layout row for each state is ready the moment the header toggles.
- */
-const layoutFsFor = (textStyle: string, headerVisible: boolean, sparse: boolean) =>
-  Math.round((getMushafFontSize(headerVisible) + getFontAdj(textStyle, headerVisible).size) * (sparse ? SPARSE_FONT_BOOST : 1));
-const layoutKeyFs = (textStyle: string, headerVisible: boolean, sparse: boolean) => layoutFsFor(textStyle, headerVisible, sparse) + CACHE_VERSION;
-
-/**
- * warmPageLayoutFor — preloads BOTH header variants' layout rows (mem + SQLite range query) for
- * ONE page, for the mushaf + width + sparse pairing of that page. Called by the QuranView
- * progressive page-warm pipeline for far-ahead pages whose MushafPageView has not mounted yet,
- * so the frame renders the moment they scroll into view regardless of header state.
- * CALLS: preloadPageLayoutCacheRange (localDB) x2 (header shown/header hidden).
+ * warmPageLayoutFor — preloads the layout row (mem + SQLite range query) for ONE page, for the
+ * mushaf + width + sparse pairing of that page. Called by the QuranView progressive page-warm
+ * pipeline for far-ahead pages whose MushafPageView has not mounted yet, so the frame renders
+ * the moment they scroll into view regardless of header state.
+ * CALLS: preloadPageLayoutCacheRange (localDB).
  * AFFECTS: layoutCacheMem + page_layout_cache read caching (no writes).
  */
 export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: string, pageWidth: number) => {
@@ -4085,10 +4051,18 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
     const sparse = totalWords < SPARSE_WORD_THRESHOLD;
     const keySparse = sparse ? 1 : 0;
     const keyW = Math.round(pageWidth);
-    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, true, sparse), keySparse, keyW);
-    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, false, sparse), keySparse, keyW);
+    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, keySparse, keyW);
   } catch { /* best-effort */ }
 };
+
+// Reading-mark bookmark glyph — small outline bookmark; filled when the reading mark is set.
+// Defined HERE (module level) on purpose: MushafPageView must not import from QuranViewScreen
+// (that would be a circular import), so its icon cannot come from the parent.
+const BookmarkIcon = ({ c, s = 18, filled = false }: { c: string; s?: number; filled?: boolean }) => (
+  <Svg width={s} height={s} viewBox="0 0 24 24" fill={filled ? c : 'none'} stroke={c}>
+    <Path d="M7 3h10v18l-5-3.6L7 21V3z" />
+  </Svg>
+);
 
 /**
  * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
@@ -4132,9 +4106,9 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   3. Reset effect clears all measurement refs + lineScale + cacheState('loading') when
  *      pageNum/textStyle/pageWidth/fixNonce change (headerVisible is NOT among the deps — see
  *      NOTES). Cache-load effect then async-reads the page_layout_cache row keyed by
- *      (pageNum, textStyle, headerVisible=false, fs, sparse, rounded pageWidth); headerVisible
- *      is hardcoded false at BOTH the get and save call sites, so header toggling does not
- *      invalidate the cache (it still shifts fs, which IS in the cache key).
+ *      (pageNum, textStyle, headerVisible=false, sparse, rounded pageWidth) — the row holds
+ *      NORMALIZED (font-size-independent) line-width sums, so it serves every header state and
+ *      any font size.
  *   4. Render gate: cacheState 'loading' → empty container; no measurement starts before the
  *      cache verdict arrives.
  *   5. Lines render row-reverse RTL: per word stripPua → isVerseEndMarker? badge-only fragment :
@@ -4171,15 +4145,17 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
  *     scales on a cache hit may differ from first-visit ones until the cache entry is cleared.
- *   - headerVisible is absent from BOTH effect dep arrays: getMushafFontSize returns the SAME
- *     size for both header states (responsive.ts), so fs (cache key) never shifts on a header
- *     toggle — both states share one layout row. If the size bump is ever re-added, cache-hit
- *     scales would under-shrink the hidden-header variant and text would spill into the frame
- *     (see the note in responsive.ts).
+  *   - headerVisible is absent from BOTH effect dep arrays: the layout cache row is
+  *     font-size-independent (normalized sums), so both header states and every font size share
+  *     ONE row per (page, textStyle, sparse, width) — measured once per device, replayed forever.
+  *   - The vertical fit (pitchScale/fontScale) is render-time only AND folded into the
+  *     normalization base: measured widths are divided by (base size x fontScale) before
+  *     persisting and multiplied back on replay, so the fit itself cannot invalidate cached
+  *     rows — it just changes the multiplier.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -4199,13 +4175,21 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
   const adj = getFontAdj(textStyle, headerVisible);
+  // Header-visible descender clearance: with the header showing, the page box is shorter and
+  // the pitch squeeze (pitchScale) keeps the line stack inside it, so the QPC fonts' descenders
+  // poke below the line box and get visually clipped. Every word is nudged 2px DOWN (requested
+  // tuning) to keep the tails visible; no header → no shift (layout position unchanged either
+  // way — pure visual transform).
+  const wordLiftY = adj.y + (headerVisible ? 2 : 0);
   const compact = pageWidth < 600;
 
-  // The frame's inner text bounding box starts frameInsetFor(pageWidth) from every edge —
-  // the mushaf text must live strictly inside it (never under the pattern band). Padding the
-  // container by the frame inset on BOTH axes keeps glyphs clear; use the larger of the
-  // classic hPad and the new frame inset so phones AND tablets stay safe.
-  const framePad = Math.max(hPad(pageWidth), frameInsetFor(pageWidth));
+  // User-specified padding (percent-based): top/bottom = 2.5% of the SCREEN HEIGHT, left/right =
+  // 6.7% of the PAGE WIDTH (textInsetFor, shared with stroke.ts for drawing registration). Each
+  // is floored at frameInsetFor(pageWidth) so the text always stays strictly inside the frame's
+  // inner text box (never under the pattern band or its rules).
+  const padTop = Math.max(0.025 * SCREEN_HEIGHT, frameInsetFor(pageWidth));
+  const padBottom = padTop;
+  const padSide = textInsetFor(pageWidth);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -4214,7 +4198,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
     : (versesForPage || []).reduce((a: number, v: any) => a + ((v.textArabic || '').trim().split(/\s+/).filter(Boolean).length), 0);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
-  const fs = layoutFsFor(textStyle, headerVisible, sparse);
+  // fs (base rendered size WITHOUT the per-line scale) — used for the ta'awwud line only; the
+  // layout cache no longer keys on it (normalized sums are font-size-independent).
+  const fs = Math.round(getMushafFontSize(headerVisible) + adj.size);
 
   // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
   //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
@@ -4234,8 +4220,53 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const layoutContentRef = useRef<number[] | null>(null);
   const completedLinesRef = useRef<Set<number>>(new Set());
   const cacheWrittenRef = useRef(false);
+  const frozenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(false);
+  const [innerH, setInnerH] = useState(0);
+  // Vertical box height measurement. CRITICAL: this must fire on the VERY FIRST layout of the
+  // mounted view — which happens while the 'loading' GATE is rendered (cache-hit pages swap the
+  // gate for the full mushaf at the SAME size, so the full container's own onLayout would never
+  // fire and innerH would stay 0 → pitchScale/fontScale 1 → full-size text in the shorter
+  // header-visible box → bottom clipped until a header toggle resizes the box). All three
+  // containers (fallback,
+  // gate, full) therefore share this handler: whichever renders first captures the true height;
+  // later resizes (header toggle, player bar mount, rotation) re-fire it because the size changes.
+  const onBoxLayout = useCallback((e: any) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (h > 0 && h !== innerH) setInnerH(h);
+  }, [innerH]);
+
+  // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar
+  // (~60) in flow the page box is screenH - 124 - 24 - 28 = screenH - 176 tall. A tall 15-line
+  // page at the largest font of its width tier needs 15 x lineHeight: e.g. 375x667 -> 15 x 32
+  // = 480 vs (667 - 176) - (17.6 + 17.6) = 455.8 -> OVERFLOW by ~24px; short screens overflow,
+  // tall ones fit (412x915 -> 594 <= 693.2). Fix: when the measured inner height (onLayout below)
+  // proves it, pitchScale below squeezes the LINE PITCH to fit the stack — the font itself stays
+  // full-size until the pitch would fall below PITCH_FLOOR_RATIO (fontScale's only job). The
+  // width-fit scale (scaleForLine) is untouched - it handles horizontal overflow from un-scaled
+  // widths only.
+  const wordLineCount = (pageData?.lines || []).reduce(
+    (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
+  const fitPadTop = padTop;
+  const fitPadBottom = padBottom;
+  const fitLineH = mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1);
+  // Two-factor vertical fit: pitchScale squeezes LINE PITCH only; fontScale
+  // keeps the font at full size until the pitch would fall below PITCH_FLOOR_RATIO
+  // (glyph-collision prevention) — then both shrink gracefully, so fonts stay big
+  // with the header visible and bottoms never clip.
+  const naturalRatio = mushafLineHeight / (mushafFontSize + adj.size);
+  const PITCH_FLOOR_RATIO = 1.2;
+  const needH = wordLineCount * fitLineH;
+  const availH = innerH - fitPadTop - fitPadBottom;
+  const pitchScale = needH > 0 && availH > 0 ? Math.min(1, Math.max(0.5, availH / needH)) : 1;
+  const fontScale = Math.min(1, Math.max(0.5, (pitchScale * naturalRatio) / PITCH_FLOOR_RATIO));
+  // Normalization base for the layout cache: the rendered size every word is drawn at (before
+  // the per-line scaleForLine). Measured widths are divided by this BEFORE persisting and
+  // multiplied back on replay, so cached rows survive any font-size change (settings, header
+  // toggle, release updates) — each page is measured once per device, not once per font size.
+  const normFontSize = (mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale;
+  const normPx = (px: number) => (normFontSize > 0 ? px / normFontSize : 0);
 
   useEffect(() => {
     let mounted = true;
@@ -4270,8 +4301,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
   // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
-  // from the deps — and must stay absent: the two header states share one fs (responsive.ts) and
-  // one layout-cache row, so a toggle is a same-key cache hit, not a re-measure.
+  // from the deps — and must stay absent: one font-size-independent layout row serves both
+  // header states, so a toggle is a same-key cache hit, not a re-measure.
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
@@ -4280,6 +4311,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     layoutContentRef.current = null;
     completedLinesRef.current = new Set();
     cacheWrittenRef.current = false;
+    frozenRef.current = false;
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
@@ -4288,11 +4320,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // does not need the font (only the measure pass does), so a cache-hit page renders the moment
   // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms 3 behind /
   // 7+ ahead pages in ONE SQLite query via preloadPageLayoutCacheRange (they land in
-  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic) — for BOTH
-  // header states (fs variant), so toggling the header never cold-recomputes. 'hit' →
-  // layoutContentRef set and scaleForLine switches to the arithmetic single-pass path; 'miss' →
-  // measurement path (which still waits for fontReady inside handleWordMeasured). Cancellation
-  // flag guards the unmount race. headerVisible is a dep so a header toggle hot-swaps the row.
+  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic). Rows are
+  // font-size-independent (normalized sums), so the SAME row serves both header states and any
+  // font size. 'hit' → layoutContentRef set and scaleForLine switches to the arithmetic
+  // single-pass path; 'miss' → measurement path (which still waits for fontReady inside
+  // handleWordMeasured). Cancellation flag guards the unmount race.
   useEffect(() => {
     if (!pageData?.lines?.length) return;
     let cancelled = false;
@@ -4300,13 +4332,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const keyW = Math.round(pageWidth);
     const first = Math.max(1, pageNum - 3);
     const last = pageNum + 7;
-    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW);
-    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, keyW);
-    getPageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW)
+    preloadPageLayoutCacheRange(first, last, textStyle, false, keySparse, keyW);
+    getPageLayoutCache(pageNum, textStyle, false, keySparse, keyW)
       .then((cached) => {
         if (cancelled) return;
         if (cached) {
           layoutContentRef.current = cached;
+          cacheWrittenRef.current = false;
           setCacheState('hit');
           scheduleVerify();
         } else {
@@ -4314,37 +4346,44 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         }
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, fs, pageWidth, fixNonce, headerVisible]);
+  }, [pageNum, textStyle, pageWidth, fixNonce, headerVisible]);
 
   const scheduleVerify = useCallback(() => {
     setTimeout(() => commitVerify(), 350);
   }, []);
 
   const commitVerify = useCallback(() => {
+    // Post-settle: the completion handler already compared/froze — never re-correct after that
+    // (at most ONE correction per page, then stable forever, no pulsing).
+    if (frozenRef.current) return;
     const fresh = widthsRef.current;
     const keys = Object.keys(fresh).map(Number);
     if (keys.length === 0) return;
-    const lineW = pageWidth - 2 * framePad;
+    const totalLines = (pageData?.lines || []).reduce(
+      (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
+    // Only a FULLY-measured pass may rewrite the row — partial live sums must never clobber
+    // the persisted (possibly fuller) sums, that is how under-counts got written before.
+    if (completedLinesRef.current.size < totalLines) return;
+    const lineW = pageWidth - 2 * padSide;
     const sums: number[] = [];
     for (let k = 0; k <= Math.max(...keys); k++) {
       const arr = fresh[k];
-      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) + (lineExtraRef.current[k] || 0) : 0;
+      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) : 0;
     }
     const saved = layoutContentRef.current || [];
+    // Widths (and the saved row) are normalized by normFontSize — compare in normalized units.
     const differs = sums.length !== saved.length ||
-      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > 1.5);
+      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > normPx(1.5));
     if (differs) {
       layoutContentRef.current = sums;
       setLineScale({});
       const keySparse = sparse ? 1 : 0;
       const sumsW = Math.round(pageWidth);
-    // Persist for BOTH header variants: the sums are raw (full-size) widths, valid for any
-    // font size, and the two header states share one fs, so the toggled-header state opens
-    // from cache instead of re-measuring.
-      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, sumsW, sums);
-      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, sumsW, sums);
+      // The sums are NORMALIZED (font-size-independent) widths — one row serves every header
+      // state and any font size, so a page is measured once per device, then replayed forever.
+      savePageLayoutCache(pageNum, textStyle, false, keySparse, sumsW, sums);
     }
-  }, [pageNum, textStyle, fs, pageWidth, sparse, headerVisible]);
+  }, [pageNum, textStyle, pageWidth, sparse, headerVisible, pageData, normFontSize]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -4374,23 +4413,34 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    *   - The overflow scale is computed from PARTIAL data (step 3) to avoid an overflow flash.
    */
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
+    if (frozenRef.current) return;
     if (!fontReady) return;
-    if (layoutContentRef.current) return;
     // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
-    // scale to recover the raw unscaled width so the store (and the persisted sums) always hold
-    // full-size widths. Cache-hit scale then mirrors first-visit exactly — no under-count, no
-    // overflow on reload, single measurement pass, never causes new re-renders by itself.
+    // scale to recover the raw unscaled width, then by normFontSize to get the NORMALIZED
+    // (font-size-independent) unit — the persisted sums are always in these units, and the
+    // cache-hit replay multiplies them back by the current base size. This is what lets a page
+    // survive any font-size change: measured once per device, replayed forever from SQLite.
     if (scaleRef.current[lineKey]) w = w / scaleRef.current[lineKey];
+    w = normPx(w);
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
       filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
     }
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
-    const lineW = pageWidth - 2 * framePad;
-    const content = arr.reduce<number>((a, b) => a + (b || 0), 0) + (lineExtraRef.current[lineKey] || 0);
+    const lineW = pageWidth - 2 * padSide;
+    // Effective content in PIXELS = max of the persisted (possibly under-counted) cached sum and
+    // the live measured sum, both normalized units x current base size, + live lineExtra — so a
+    // cache-hit page whose cached line under-counts still re-scales instead of letting words
+    // spill past the inner rule.
+    const cached = layoutContentRef.current?.[lineKey] || 0;
+    const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
+    const content = Math.max(cached, liveArrSum) * normFontSize + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
-    if (content > (complete ? lineW + 2 : lineW)) {
+    // The scale-setting branch is MISS-path only: during a cache-HIT verify pass the render
+    // already sizes via scaleForLine's arithmetic (max(cached, live)), so we only RECORD widths
+    // here; the completion handler below compares live vs cached and corrects AT MOST ONCE.
+    if (!frozenRef.current && !layoutContentRef.current && content > (complete ? lineW + 2 : lineW)) {
       const scale = Math.max(0.5, (lineW - 12) / content);
       const prevScale = scaleRef.current[lineKey];
       if (!prevScale || Math.abs(prevScale - scale) > 1e-3) {
@@ -4403,20 +4453,29 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       const totalLines = (pageData?.lines || []).reduce(
         (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
       if (completedLinesRef.current.size >= totalLines) {
-        cacheWrittenRef.current = true;
         const keys = Object.keys(widthsRef.current).map(Number);
-        if (keys.length === 0) return;
+        if (keys.length === 0) { cacheWrittenRef.current = true; frozenRef.current = true; return; }
         const sums: number[] = [];
         for (let k = 0; k <= Math.max(...keys); k++) {
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        // Sums are raw (full-size) widths — persist BOTH header variants so the
-        // toggled-header state renders from cache instead of re-measuring the page.
-        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), sparse ? 1 : 0,
-          Math.round(pageWidth), sums);
-        savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), sparse ? 1 : 0,
-          Math.round(pageWidth), sums);
+        // Cache-HIT verify: compare the fully-measured live sums (normalized units) against the
+        // cached row. If any live sum exceeds its cached sum by more than 2px (in normalized
+        // units) the row under-counts (stale/partial write from an older version) — correct the
+        // render (single re-render via setLineScale) and rewrite the row with the fresh sums. If
+        // they match, keep the cached row untouched. Either way the page FREEZES here: no
+        // further re-scaling ever.
+        const saved = layoutContentRef.current;
+        const needsRewrite = !saved || sums.length !== saved.length ||
+          sums.some((s, i) => s - (saved[i] || 0) > normPx(2));
+        if (needsRewrite) {
+          layoutContentRef.current = sums;
+          setLineScale({});
+          savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
+        }
+        cacheWrittenRef.current = true;
+        frozenRef.current = true;
       }
     }
   };
@@ -4429,41 +4488,56 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
-      const lineW = pageWidth - 2 * framePad;
-      const total = (layoutContentRef.current[lineIdx] || 0) + (lineExtraRef.current[lineIdx] || 0);
+      const lineW = pageWidth - 2 * padSide;
+      const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
+      // Cached sums are normalized units — multiply back by the CURRENT base size.
+      const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) * normFontSize + (lineExtraRef.current[lineIdx] || 0);
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
     return lineScale[lineIdx] || 1;
   };
 
-  // overlayLayer — absolute-fill pointerEvents="none" layer (never intercepts taps) holding the
-  // OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
-  // pages-left (bottom-right), surah name (top-right), page number (bottom-mid). Badges ALWAYS
-  // render (header visibility does not gate them) and sit OUTSIDE the frame — negative offsets
-  // place them in the margin band between the screen edge and the frame (band heights are
-  // marginTop >= 22 / marginBottom >= 20 in QuranViewScreen's page wrappers); gated only on
-  // pageNum > 0 / firstSurahId > 0 (firstSurahId parsed from the first word's location
-  // "surah:verse"); compact (<600px) shrinks the pill styles(nightMode).
+  // overlayLayer — absolute-fill layer that NEVER intercepts taps itself but lets its children
+  // be targets: the root uses pointerEvents="box-none" (not "none") because a "none" parent
+  // blocks the ENTIRE subtree from hit-testing (PointerEvents.canChildrenBeTouchTarget(NONE) is
+  // false in RN native), which would make the reading-mark bookmark button un-tappable. With
+  // box-none the layer itself still passes taps through to the mushaf lines underneath, while
+  // the button (a child) receives its own presses. The decorative badge pills and the frame are
+  // explicitly pointerEvents="none" (the frame already is, inside OrnamentalFrame) so taps over
+  // them fall through to the page rows exactly like the pre-button "none" root did. Holds:
+  //   the OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
+  //   pages-left (bottom-right), surah name (top-right), page number (bottom-mid), plus the
+  //   optional reading-mark bookmark button (top-right, left of the surah pill). Badges ALWAYS
+  //   render (header visibility does not gate them) and sit in the page's margin bands OUTSIDE
+  //   the frame: top pills at top: -22 lift them above the top band edge (wrapper marginTop is
+  //   24); bottom pills at bottom: -12 sit snug above the screen edge (wrapper marginBottom is
+  //   14 — pill bottom lands ~2px above the screen edge, pill top rests just inside the frame's
+  //   bottom band — over the frame, never over text). compact (<600px) shrinks the pill styles.
   const overlayLayer = (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
       <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />
       {firstSurahId > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
       {pageNum > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
         </View>
       )}
       {firstSurahId > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
+      {showReadingMarkBtn && onReadingMarkToggle && (
+        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
+        </TouchableOpacity>
+      )}
       {pageNum > 0 && (
-        <View style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
         </View>
       )}
@@ -4491,7 +4565,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // plus the bookmark badge and note icon.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
     return (
-      <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+      <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).fallbackBody}>
           {(versesForPage || []).map((v: any, i: number) => {
             const fKey = `${v.surahId}_${v.verseNumber}`;
@@ -4534,7 +4608,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]} />;
+    return <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout} />;
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -4542,7 +4616,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
   // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
   return (
-    <View style={[styles(nightMode).container, { paddingHorizontal: framePad, paddingVertical: framePad }]}>
+    <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
       {pageData.lines.map((line: any, lineIdx: number) => {
         const taawud = lineIdx === taawudLineIdx ? (
           <View style={styles(nightMode).taawudRow}>
@@ -4635,7 +4709,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1), lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1), color: textColor, fontFamily, transform: adj.y ? [{ translateY: adj.y }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{' '}
                     </Text>
                   </WordHitArea>
@@ -4692,10 +4766,11 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgeText: { fontSize: 9.5, fontWeight: '600' },
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
-  topLeft: { position: 'absolute', top: -24, left: 6 },
-  topRight: { position: 'absolute', top: -24, right: 40 },
-  bottomMid: { position: 'absolute', bottom: -20, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: -20, right: 10 },
+  topLeft: { position: 'absolute', top: -22, left: 6 },
+  topRight: { position: 'absolute', top: -22, right: 19 },
+  readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
+  bottomMid: { position: 'absolute', bottom: -26, alignSelf: 'center' },
+  bottomRight: { position: 'absolute', bottom: -26, right: 6 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });
@@ -4723,13 +4798,17 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\quran\OrnamentalFra
  * GEOMETRY (parametric, scales from a 1000×1400 design canvas to the measured container):
  *   paddingOuter = W×0.010   (design: 10px offset of the outer thin border)
  *   gapOuter     = W×0.006   (design: 6px white gap between thin border and main frame)
- *   bandWidth    = W×0.040   (design: 40px decorative pattern band)
- *   gapInner     = W×0.004   (design: 4px gap between pattern band and the text box)
+ *   bandWidth    = W×0.027, min 4px (frameBandFor — the shared band source of truth; ~32% thinner
+ *                  than the original W×0.040 design band so the text area reclaims width)
+ *   gapInner     = W×0.002, min 1.5px    (inner thin rule sits on the band's inner edge)
  *   tile         = bandWidth/2          → perfect 2× repetition across the band (20px on 40px)
  *   stroke       = max(0.75, W×0.0015)  → 1.5px hairline scaled to the actual page width
+ *   outerStroke  = max(1.5, W×0.0035)   → ~2.3× the hairline; the frame's OUTER outline (layers
+ *                  1+3) draws with this so the border is clearly visible at a glance
  *   Layers outside→inside: outer thin rect (po) → gap (go) → main frame outer rect (po+go) →
- *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → gap (gi) →
- *   inner text bounding box (po+go+band+gi). The four bands are drawn as separate rects filled
+ *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → thin inner rule
+ *   sitting directly on the band's inner edge (gi ≈ 1-2px) → inner text bounding box (po+go+band+gi).
+ *   The four bands are drawn as separate rects filled
  *   with the repeating pattern (NO continuous band through the corners), then four corner-node
  *   squares are placed exactly over the band intersections. <Use> carries x/y ONLY (no extra
  *   transform — RN-SVG x/y already translate, adding both would double-offset every node).
@@ -4765,6 +4844,15 @@ const CORNER_BG = '#FFFFFF';
 const CORNER_BG_NIGHT = '#232A38';
 
 /**
+ * WHAT: SINGLE SOURCE OF TRUTH for the decorative pattern band width at a given page width.
+ *       Used by BOTH the frame's painted band (component `band`) and frameInsetFor, so the
+ *       painted inner edge and the text inset stay in perfect sync. ~32% thinner than the
+ *       original W×0.040 (min 6) band; clamped so it never collapses below 4px.
+ * CALLS: none. AFFECTS: none (pure).
+ */
+const frameBandFor = (W: number) => Math.max(4, W * 0.027);
+
+/**
  * WHAT: Exposes the frame's inner text-box inset for a given page width — the distance from
  *       the page edge to the innermost (text continuation) bounding box. MushafPageView uses
  *       this to pad its text container so no glyph ever crosses the frame's inner border.
@@ -4773,8 +4861,8 @@ const CORNER_BG_NIGHT = '#232A38';
 export const frameInsetFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
-  const band = Math.max(6, W * 0.040);
-  const gi = Math.max(6, W * 0.034);
+  const band = frameBandFor(W);
+  const gi = Math.max(1.5, W * 0.002);
   return po + go + band + gi;
 };
 
@@ -4810,19 +4898,25 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
   // --- parametric geometry (scaled from the 1000×1400 design canvas) -------------------------
+  // FIX 5: the pattern band is anchored at the wrapper edge (x0 = 0) — Worker B's wrapper
+  // margins (marginHorizontal 10/6, marginTop 24, marginBottom 22) supply the distance to the
+  // screen edge, so the band starts immediately at the page edge. The inner thin rule (layer 7)
+  // sits flush on the band's inner edge (x1 = band). Text placement still uses frameInsetFor.
+  // FIX 6: the band comes from the SHARED frameBandFor(W) (W×0.027, min 4 — ~32% thinner than the
+  // old W×0.040, min 6). frameInsetFor uses the same function, so the painted inner edge and the
+  // text inset stay in perfect sync and the reclaimed width flows into lineW automatically (via
+  // MushafPageView's framePad = textInsetFor = frameInsetFor + 10). The tile (band/2) and the
+  // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
-  const go = Math.max(1, W * 0.006);        // layer 2: first white gap
-  const band = Math.max(6, W * 0.040);      // layer 4: decorative band width
-  const gi = Math.max(6, W * 0.034);        // layer 6: second gap
-  const sw = Math.max(0.75, W * 0.0015);    // stroke width (1.5px on the design canvas)
+  const band = frameBandFor(W);             // layer 4: decorative band width (shared with frameInsetFor)
+  const sw = Math.max(0.75, W * 0.0015);    // hairline stroke — pattern tiles, corner knots, inner rules
+  const outSw = Math.max(1.5, W * 0.0035);  // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
-  const inner = po + go + band + gi;        // layer 7: inner text box inset
 
-  const x0 = po + go;                       // main frame outer edge
-  const x1 = po + go + band;                // main frame inner edge
+  const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
+  const x1 = band;                          // main frame inner edge (band inner edge)
   const mainW = Math.max(0, W - 2 * x0);    // main frame outer rect size
   const innerW = Math.max(0, W - 2 * x1);   // main frame inner rect size
-  const txtW = Math.max(0, W - 2 * inner);  // inner text bounding box size
 
   const onLayout = (e: any) => {
     const w = Math.round(e.nativeEvent.layout.width);
@@ -4870,13 +4964,13 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
           </G>
         </Defs>
 
-        {/* Layer 1: outer thin border */}
+        {/* Layer 1: outer thin border (BOLD — outSw) */}
         <Rect x={po} y={po} width={W - 2 * po} height={H - 2 * po}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          fill="none" stroke={blue} strokeWidth={outSw} />
 
-        {/* Layer 3: main frame outer border (defines the pattern band's outer edge) */}
+        {/* Layer 3: main frame outer border — defines the pattern band's outer edge (BOLD — outSw) */}
         <Rect x={x0} y={x0} width={mainW} height={H - 2 * x0}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          fill="none" stroke={blue} strokeWidth={outSw} />
 
         {/* Layer 5: main frame inner border (closes the pattern band) */}
         <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
@@ -4889,7 +4983,7 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
         <Rect x={W - x0 - band} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
 
         {/* Layer 7: inner text area bounding box — the mushaf text lives strictly inside */}
-        <Rect x={inner} y={inner} width={txtW} height={H - 2 * inner}
+        <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
           fill="none" stroke={blue} strokeWidth={sw} />
 
         {/* The four corner nodes — placed exactly over the band intersections */}
@@ -4917,6 +5011,7 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\quran\SurahList.tsx
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { useSelector } from 'react-redux';
 import { getSurahs } from '../../database/quranData';
 import { getStartJuzOfSurah, JUZ_MAP } from '../../utils/theme';
 
@@ -5012,6 +5107,8 @@ const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106
  * NOTES: Not memoized (plain function) — fine, it re-renders only when the parent re-renders.
  */
 export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: any) {
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const isDark = !!nightMode;
   const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   useEffect(() => { if (visible) { setQuery(''); getSurahs().then(s => setSurahs(s as any)); } }, [visible]);
@@ -5065,43 +5162,43 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   }, [data, query, mode]);
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, isDark && dark.container]}>
+        <View style={[styles.header, isDark && dark.header]}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>{mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}</Text>
-            <TouchableOpacity onPress={onClose}><Text style={styles.closeBtn}>Close</Text></TouchableOpacity>
+            <Text style={[styles.title, isDark && dark.title]}>{mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}</Text>
+            <TouchableOpacity onPress={onClose}><Text style={[styles.closeBtn, isDark && dark.closeBtn]}>Close</Text></TouchableOpacity>
           </View>
-          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'} placeholderTextColor="#8a8a8a" autoCapitalize="none" autoCorrect={false} />
+          <TextInput style={[styles.searchInput, isDark && dark.searchInput]} value={query} onChangeText={setQuery} placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'} placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} autoCapitalize="none" autoCorrect={false} />
         </View>
         {results.length === 0 && query.length > 0 ? (
-          <View style={styles.emptyWrap}><Text style={styles.emptyText}>No surahs found</Text></View>
+          <View style={styles.emptyWrap}><Text style={[styles.emptyText, isDark && dark.emptyText]}>No surahs found</Text></View>
         ) : (
           <FlatList data={results} keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)} keyboardShouldPersistTaps="handled"
             renderItem={({ item }: any) => (
-              <TouchableOpacity style={styles.item} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
+              <TouchableOpacity style={[styles.item, isDark && dark.item]} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>
-                  <Text style={styles.itemNum}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
+                  <Text style={[styles.itemNum, isDark && dark.itemNum]}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
                   <View>
-                    <Text style={styles.itemText}>{item.englishName}</Text>
+                    <Text style={[styles.itemText, isDark && dark.itemText]}>{item.englishName}</Text>
                     {item.type === 'page' ? (
                       <>
-                        <Text style={styles.pageTag}>PAGE</Text>
-                        <Text style={styles.itemJuz}>Go to page {item.page}</Text>
+                        <Text style={[styles.pageTag, isDark && dark.pageTag]}>PAGE</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to page {item.page}</Text>
                       </>
                     ) : item.type === 'juz' ? (
                       <>
-                        <Text style={styles.pageTag}>JUZ</Text>
-                        <Text style={styles.itemJuz}>Go to juz {item.juz}</Text>
+                        <Text style={[styles.pageTag, isDark && dark.pageTag]}>JUZ</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to juz {item.juz}</Text>
                       </>
                     ) : (
                       <>
-                        <Text style={styles.itemJuz}>Juz {item.startJuz} · {item.verses} ayahs</Text>
-                        <Text style={styles.itemPages}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Juz {item.startJuz} · {item.verses} ayahs</Text>
+                        <Text style={[styles.itemPages, isDark && dark.itemPages]}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
                       </>
                     )}
                   </View>
                 </View>
-                <Text style={styles.itemArabic}>{item.name}</Text>
+                <Text style={[styles.itemArabic, isDark && dark.itemArabic]}>{item.name}</Text>
               </TouchableOpacity>
             )} />
         )}
@@ -5111,14 +5208,14 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { padding: 20, borderBottomWidth: 1, borderColor: '#333' },
+  header: { padding: 20, borderBottomWidth: 1, borderColor: '#e0e0e4' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: 'bold', color: '#1A1A1A' },
   closeBtn: { color: '#0066FF', fontSize: 16 },
-  searchInput: { marginTop: 14, backgroundColor: '#1A1A1A', color: '#1A1A1A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#333' },
+  searchInput: { marginTop: 14, backgroundColor: '#ffffff', color: '#1A1A1A', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, borderWidth: 1, borderColor: '#e0e0e4' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: '#8a8a8a', fontSize: 16 },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#1A1A1A' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: '#e0e0e4' },
   itemLeft: { flexDirection: 'row', alignItems: 'center' },
   itemNum: { color: '#1C3D72', fontSize: 15, fontWeight: '700', width: 34 },
   itemText: { fontSize: 17, color: '#1A1A1A' },
@@ -5127,7 +5224,21 @@ const styles = StyleSheet.create({
   pageTag: { color: '#1C3D72', fontSize: 10, fontWeight: '700', borderWidth: 1, borderColor: '#1C3D72', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
   itemArabic: { fontSize: 20, color: '#1A1A1A' },
 });
-
+const dark = StyleSheet.create({
+  container: { backgroundColor: '#1a1a2e' },
+  header: { borderColor: '#2a2a4a' },
+  title: { color: '#ffffff' },
+  closeBtn: { color: '#7BA7DB' },
+  searchInput: { backgroundColor: '#22223a', color: '#ffffff', borderColor: '#2a2a4a' },
+  emptyText: { color: '#8a8a8a' },
+  item: { borderColor: '#2a2a4a' },
+  itemNum: { color: '#7BA7DB' },
+  itemText: { color: '#ffffff' },
+  itemJuz: { color: '#8a8a8a' },
+  itemPages: { color: '#8a8a8a' },
+  pageTag: { color: '#7BA7DB', borderColor: '#7BA7DB' },
+  itemArabic: { color: '#e8e8e8' },
+});
 
 ====================================================================================================
 FILE: src\components\quran\VerseDisplay.tsx
@@ -5231,7 +5342,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });
 
-
 ====================================================================================================
 FILE: src\components\sync\SyncIndicator.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\components\sync\SyncIndicator.tsx
@@ -5293,7 +5403,6 @@ const s = StyleSheet.create({
 });
 
 export default SyncIndicator;
-
 
 ====================================================================================================
 FILE: src\database\localDB.ts
@@ -5765,10 +5874,15 @@ async function migrateV1IfNeeded(db: any) {
 // resolve synchronously from layoutCacheMem with zero DB traffic. The Mem LRU is small (cache
 // rows are tiny) but bounded so a session of paging through the whole mushaf can't grow it
 // unboundedly: evicts when > MAX_MEM_ENTRIES (simple FIFO by insertion order — Map semantics).
+// Rows store NORMALIZED line-width sums (px divided by the page's rendered base font size), so
+// they are FONT-SIZE-INDEPENDENT: the DB key carries fs=0 always, and any app font-size change
+// (settings, header toggle, release updates) reuses the same row — each page is measured ONCE
+// per device and replayed forever. layoutVer in meta is bumped to wipe rows when the stored
+// FORMAT changes (e.g. v2: fs-keyed raw widths -> v3: normalized units).
 const MAX_MEM_ENTRIES = 900;
 const layoutCacheMem = new Map<string, number[] | null>();
-const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, fs: number, sparse: number, screenW: number) =>
-  `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${fs}|${sparse}|${screenW}`;
+const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, sparse: number, screenW: number) =>
+  `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${sparse}|${screenW}`;
 const memStore = (key: string, value: number[] | null) => {
   layoutCacheMem.set(key, value);
   if (layoutCacheMem.size > MAX_MEM_ENTRIES) {
@@ -5841,7 +5955,6 @@ export const clearPageLayoutCacheRange = async (from: number, to: number): Promi
   }
 };
 
-
 ====================================================================================================
 FILE: src\database\migrateV1toV2.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\database\migrateV1toV2.ts
@@ -5869,7 +5982,6 @@ export const migrateBlobToV2 = async (studentId: string, blob: any, textStyle: s
     pages: {}, bookmarks: blob.bookmarks || {}, audioNotes: {}, lastRead: blob.lastRead || null,
   });
 };
-
 
 ====================================================================================================
 FILE: src\database\quranData.ts
@@ -6528,6 +6640,32 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   return out;
 };
 
+/**
+ * WHAT: One-shot startup warm-up of the three indopak single-flight builders
+ *       (getIndopakPageIndex, loadIndopakVerseMap, importIndopakPages) so the
+ *       multi-MB JSON require()s and the ~604-row SQLite bulk import run on the
+ *       splash, NOT on the first indopak page press. Every target is already
+ *       single-flight/deferred — it returns the same promise to all concurrent
+ *       callers — so press-path reads that await them just join the promise
+ *       started here (near-zero).
+ * FLOW: Fire each builder in an isolated try/catch — a failure in one must not
+ *       abort the others; importIndopakPages additionally resets its promise on
+ *       failure, so a later press-path call retries the import itself.
+ * CALLED BY: SplashScreen.tsx (right after downloadAndCacheQuran) —
+ *            fire-and-forget, NOT awaited: the splash must not block on the
+ *            multi-MB parses.
+ * AFFECTS: indopakPagesByNum, indopakVerseCache, mushaf_pages_indopak — all
+ *          pre-warmed once per process.
+ * NOTES: No page/verse READ logic changes — reads still lazy-await the same
+ *        single-flight promises, which resolve instantly once warm. The import
+ *        transaction races nothing on the press path: indopak page reads are
+ *        served from the bundle index, never from the table being written.
+ */
+export const warmIndopakIndexes = async () => {
+  try { getIndopakPageIndex() } catch {}
+  try { loadIndopakVerseMap() } catch {}
+  try { importIndopakPages() } catch {}
+};
 
 ====================================================================================================
 FILE: src\hooks\useHeaderSwipe.ts
@@ -6584,7 +6722,6 @@ export const useHeaderSwipe = (setHeaderVisible: (v: boolean) => void) => {
 
   return panResponder.panHandlers;
 };
-
 
 ====================================================================================================
 FILE: src\hooks\useStudentDataRefresh.ts
@@ -6705,7 +6842,8 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\BookmarksScreen.tsx
 ====================================================================================================
 /**
  * FILE: src/screens/BookmarksScreen.tsx
- * ROLE: Lists the current student's bookmarks (newest first) plus a pinned "LAST READ" card;
+ * ROLE: Lists the current student's bookmarks (newest first) with the reading mark (lastRead)
+ *       as the FIRST row (tagged "LAST READ", same card style — not pinned above the list);
  *       tapping any item deep-links back into QuranView at that verse.
  * DEPENDS ON: Redux s.student.studentData.bookmarks (keyed `surah_verse`) + studentData.lastRead
  *             (studentData is hydrated only by QuranViewScreen's mount effect via getStudentData
@@ -6751,7 +6889,7 @@ const sessionPageCache: Record<string, number> = {};
  *          the bookmark/lastRead set and deduped in-flight, so the DB is touched once per
  *          change — never per card render;
  *       4) renderBookmark: onPress → handleNavigate(item.surah, item.verse);
- *       5) renders pinned "LAST READ" card if lastRead exists, else empty state or FlatList.
+ *       5) renders the FlatList (reading mark first when it exists), else empty state.
  * CALLS: handleNavigate → navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
  *        deep-link contract (QuranViewScreen consumes these params); getJuzForVerse /
  *        formatDate / formatTime for badges + timestamps; getVersePagesDB (single batched
@@ -6833,14 +6971,38 @@ export default function BookmarksScreen() {
     [navigation],
   );
 
+  // Unified list data: the reading mark (lastRead) is NOT pinned above the list — it is simply
+  // the FIRST row (same card style, keeps its LAST READ tag), followed by the bookmarks sorted
+  // newest-first by createdAt. A bookmark that IS the reading mark's verse is deduped (it would
+  // otherwise appear both first and in its chronological position).
+  const listData = React.useMemo(() => {
+    const out: any[] = [];
+    if (lrSurah > 0) out.push({ surah: lrSurah, verse: lrVerse, __lastRead: true });
+    for (const b of sortedBookmarks as any[]) {
+      if (lrSurah === Number(b.surah) && lrVerse === Number(b.verse)) continue;
+      out.push(b);
+    }
+    return out;
+  }, [lrSurah, lrVerse, sortedBookmarks]);
+
   // Per-card display data (surah name, juz, Date/Time strings) is computed ONCE per bookmark
   // set instead of inside every card render — pageMap flips (which re-render visible cards)
   // now never re-parse dates, and the juz linear-scan happens once per bookmark, not per frame.
   const cardMeta = React.useMemo(() => {
     const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
+    const tsOf = (b: any) => toMillis(b.createdAt || b.updatedAt);
+    if (lrSurah > 0 && lastRead) {
+      const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
+      out[pageKey(lrSurah, lrVerse)] = {
+        name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
+        juz: getJuzForVerse(lrSurah, lrVerse),
+        date: ts ? formatDate(ts) : '',
+        time: ts ? formatTime(ts) : '',
+      };
+    }
     for (const b of sortedBookmarks as any[]) {
       const key = pageKey(b.surah, b.verse);
-      const ts = toMillis(b.createdAt);
+      const ts = tsOf(b);
       out[key] = {
         name: surahNames?.[b.surah] || `Surah ${b.surah}`,
         juz: getJuzForVerse(b.surah, b.verse),
@@ -6849,19 +7011,7 @@ export default function BookmarksScreen() {
       };
     }
     return out;
-  }, [sortedBookmarks, surahNames]);
-
-  const pinnedMeta = React.useMemo(() => {
-    if (lrSurah <= 0) return null;
-    const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
-    return {
-      name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
-      juz: getJuzForVerse(lrSurah, lrVerse),
-      date: ts ? formatDate(ts) : '',
-      time: ts ? formatTime(ts) : '',
-      ts,
-    };
-  }, [lastRead, lrSurah, lrVerse, surahNames]);
+  }, [sortedBookmarks, surahNames, lastRead, lrSurah, lrVerse]);
 
   const renderBookmark = React.useCallback(({ item }: any) => {
     const meta = cardMeta[pageKey(item.surah, item.verse)];
@@ -6872,19 +7022,24 @@ export default function BookmarksScreen() {
         onPress={() => handleNavigate(item.surah, item.verse)}
         activeOpacity={0.7}
       >
-        <View style={styles(nightMode).topRow}>
+        {/* One-line top row: [LAST READ tag] [Surah name] [Date] [Time] — the name flexes and
+            truncates so the chips stay right-aligned; saves a full row per card. */}
+        <View style={[styles(nightMode).topRow, styles(nightMode).topRowCompact]}>
+          {item.__lastRead ? (
+            <Text style={[styles(nightMode).lastReadTag, { marginBottom: 0 }]}>LAST READ</Text>
+          ) : null}
+          <Text style={[styles(nightMode).surahName, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{meta.name}</Text>
           <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
             <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
-              Date: {meta.date}
+              {meta.date}
             </Text>
           </View>
           <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
             <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
-              Time: {meta.time}
+              {meta.time}
             </Text>
           </View>
         </View>
-        <Text style={styles(nightMode).surahName} numberOfLines={1}>{meta.name}</Text>
         <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
           <View style={styles(nightMode).metaItem}>
             <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
@@ -6910,64 +7065,10 @@ export default function BookmarksScreen() {
     );
   }, [cardMeta, pageMap, nightMode, handleNavigate]);
 
-  const renderPinned = React.useCallback(() => {
-    if (lrSurah <= 0 || !pinnedMeta) return null;
-    const page = pageMap[pageKey(lrSurah, lrVerse)];
-    const ts = pinnedMeta.ts;
-    return (
-      <TouchableOpacity
-        style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]}
-        onPress={() => handleNavigate(lrSurah, lrVerse)}
-        activeOpacity={0.7}
-      >
-        {ts ? (
-          <View style={styles(nightMode).topRow}>
-            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
-              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
-                Date: {pinnedMeta.date}
-              </Text>
-            </View>
-            <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
-              <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
-                Time: {pinnedMeta.time}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-        <Text style={styles(nightMode).lastReadTag}>LAST READ</Text>
-        <Text style={styles(nightMode).surahName} numberOfLines={1}>{pinnedMeta.name}</Text>
-        {ts ? (
-          <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrSurah}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{lrVerse}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{pinnedMeta.juz}</Text>
-            </View>
-            <View style={styles(nightMode).metaSeparator} />
-            <View style={styles(nightMode).metaItem}>
-              <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-              <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
-            </View>
-          </View>
-        ) : null}
-      </TouchableOpacity>
-    );
-  }, [lastRead, pinnedMeta, pageMap, nightMode, handleNavigate]);
-
   return (
     <View style={[styles(nightMode).container, nightMode ? styles(nightMode).containerDark : styles(nightMode).containerLight]}>
       <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} />
-      {renderPinned()}
-      {sortedBookmarks.length === 0 ? (
+      {listData.length === 0 ? (
         <View style={styles(nightMode).emptyState}>
           <Text style={styles(nightMode).emptyIcon}>📌</Text>
           <Text style={styles(nightMode).emptyText}>No bookmarks yet</Text>
@@ -6976,7 +7077,7 @@ export default function BookmarksScreen() {
       ) : (
         <FlatList
           style={{ flex: 1 }}
-          data={sortedBookmarks}
+          data={listData}
           keyExtractor={(i: any, idx: number) => idx.toString()}
           contentContainerStyle={styles(nightMode).list}
           renderItem={renderBookmark}
@@ -6996,6 +7097,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   cardDark: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
   cardLight: { backgroundColor: '#ffffff', borderColor: '#e5e7f2' },
   topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
+  topRowCompact: { alignItems: 'center' },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   chipDateDark: { backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
   chipDateLight: { backgroundColor: '#e8edf7' },
@@ -7022,7 +7124,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   emptyText: { color: '#888', fontSize: 16, fontWeight: '600' },
   emptySub: { color: '#555', fontSize: 12, marginTop: 4 },
 });
-
 
 ====================================================================================================
 FILE: src\screens\DashboardScreen.tsx
@@ -7476,7 +7577,7 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\LoginScreen.tsx
  */
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../api/auth';
 import { setUser } from '../store/authSlice';
 import AlertModal from '../components/common/AlertModal';
@@ -7485,6 +7586,8 @@ export default function LoginScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '' });
   const dispatch = useDispatch();
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const isDark = !!nightMode;
 
   /**
    * WHAT: Validates non-empty credentials, calls Firebase auth, and either
@@ -7526,15 +7629,15 @@ export default function LoginScreen({ navigation }: any) {
     }
   }, [u, p, navigation]);
   return (
-    <View style={styles.root}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Teach Quran</Text>
-        <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
-        <View style={styles.pwRow}>
-          <TextInput style={styles.pwInput} placeholder="Password" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
+    <View style={[styles.root, isDark && dark.root]}>
+      <View style={[styles.container, isDark && dark.container]}>
+        <Text style={[styles.title, isDark && dark.title]}>Teach Quran</Text>
+        <TextInput style={[styles.input, isDark && dark.input]} placeholder="Username" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setU} autoCapitalize="none" />
+        <View style={[styles.pwRow, isDark && dark.pwRow]}>
+          <TextInput style={[styles.pwInput, isDark && dark.pwInput]} placeholder="Password" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setP} secureTextEntry={!showP} />
           <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
             <View style={styles.eyeIconWrap}>
-              <Text style={styles.eyeIcon}>👁</Text>
+              <Text style={[styles.eyeIcon, isDark && dark.eyeIcon]}>👁</Text>
               {!showP && <View style={styles.eyeSlash} />}
             </View>
           </TouchableOpacity>
@@ -7542,7 +7645,7 @@ export default function LoginScreen({ navigation }: any) {
         <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading} activeOpacity={0.7}>
           {loading ? <ActivityIndicator color='#F8F9FA' /> : <Text style={styles.btnText}>Login</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}><Text style={styles.link}>Create Account</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Register')} activeOpacity={0.7}><Text style={[styles.link, isDark && dark.link]}>Create Account</Text></TouchableOpacity>
         <AlertModal visible={alert.visible} title={alert.title} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
       </View>
       <CollapsibleBannerAd />
@@ -7553,8 +7656,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F8F9FA' },
   container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#F8F9FA' },
   title: { fontSize: 32, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#1C3D72' },
-  input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#1A1A1A', backgroundColor: '#1A1A1A' },
-  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, backgroundColor: '#1A1A1A' },
+  input: { height: 50, borderWidth: 1, borderColor: '#e0e0e4', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#1A1A1A', backgroundColor: '#ffffff' },
+  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e0e0e4', borderRadius: 8, marginBottom: 15, backgroundColor: '#ffffff' },
   pwInput: { flex: 1, height: 50, paddingHorizontal: 15, color: '#1A1A1A' },
   eyeBtn: { paddingHorizontal: 12, height: 50, justifyContent: 'center' },
   eyeIconWrap: { width: 26, height: 26, justifyContent: 'center', alignItems: 'center' },
@@ -7564,7 +7667,16 @@ const styles = StyleSheet.create({
   btnText: { color: '#F8F9FA', fontSize: 18, fontWeight: '700' },
   link: { color: '#1C3D72', marginTop: 15, textAlign: 'center', fontSize: 14 }
 });
-
+const dark = StyleSheet.create({
+  root: { backgroundColor: '#1a1a2e' },
+  container: { backgroundColor: '#1a1a2e' },
+  title: { color: '#ffffff' },
+  input: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a', color: '#ffffff' },
+  pwRow: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
+  pwInput: { color: '#ffffff' },
+  eyeIcon: { color: '#7BA7DB' },
+  link: { color: '#7BA7DB' },
+});
 
 ====================================================================================================
 FILE: src\screens\LoopSettingsScreen.tsx
@@ -7686,9 +7798,11 @@ export default function LoopSettingsScreen({ route }: any) {
   const [picker, setPicker] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ mode: string; draft: string } | null>(null);
 
-  const verseCount = SURAH_VERSE_COUNTS[surahId - 1] || 1;
-  const surahName = surahNames?.[surahId] || `Surah ${surahId}`;
+  const verseCount = SURAH_VERSE_COUNTS[(Number(loop.surahId) || surahId) - 1] || 1;
+  const loopSurahId = Number(loop.surahId) || surahId;
+  const surahName = surahNames?.[loopSurahId] || `Surah ${loopSurahId}`;
   const verseOptions = Array.from({ length: verseCount }, (_, i) => i + 1);
+  const surahOptions = Array.from({ length: 114 }, (_, i) => i + 1);
 
   // Auto-default: until the user builds a CUSTOM loop (any start/end/count/repeat pick
   // flips `customized`), the range follows the page the reader is on at the moment this
@@ -7724,6 +7838,15 @@ export default function LoopSettingsScreen({ route }: any) {
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
   const patch = (p: any) => { dispatch(setLoop({ ...loop, ...p })); };
+
+  const pickSurah = (s: number) => {
+    const vc = SURAH_VERSE_COUNTS[s - 1] || 1;
+    const next: any = { surahId: s, customized: true };
+    if ((loop.startVerse || 1) > vc) next.startVerse = vc;
+    if ((loop.endVerse || vc) > vc) next.endVerse = vc;
+    if (next.endVerse && next.startVerse && next.endVerse < next.startVerse) next.endVerse = next.startVerse;
+    patch(next);
+  };
 
   const pickStart = (v: number) => {
     const next: any = { startVerse: v, customized: true };
@@ -7767,6 +7890,14 @@ export default function LoopSettingsScreen({ route }: any) {
           </View>
           <View style={[styles(nightMode).divider, { backgroundColor: cardBorder }]} />
           <View style={styles(nightMode).row}>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Surah ▾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles(nightMode).rowValue, { color: valueColor }]}>{surahName} ✎</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles(nightMode).row}>
             <TouchableOpacity style={styles(nightMode).rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={[styles(nightMode).rowLabel, { color: labelColor }]}>Start from ▾</Text>
             </TouchableOpacity>
@@ -7803,12 +7934,15 @@ export default function LoopSettingsScreen({ route }: any) {
         <View style={[styles(nightMode).summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={[styles(nightMode).summaryText, { color: subColor }]}>
             {loop?.enabled
-              ? `LOOP START plays verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
+              ? `LOOP START plays ${surahName} verses ${start}–${end}${count > 1 ? `, ${count} times total` : ''}${repeat > 1 ? ` (each ayah ×${repeat})` : ''}, then continues.`
               : 'Loop is off — the LOOP START button is greyed out.'}
           </Text>
         </View>
       </ScrollView>
 
+      <OptionPicker
+        visible={picker === 'surah'} title="Which surah to loop" options={surahOptions} selected={loopSurahId}
+        onSelect={pickSurah} onClose={() => setPicker(null)} labelFor={(s: number) => surahNames?.[s] || `Surah ${s}`} />
       <OptionPicker
         visible={picker === 'start'} title={`Start from — ${surahName}`} options={verseOptions} selected={start}
         onSelect={pickStart} onClose={() => setPicker(null)} labelFor={(v: number) => `Verse ${v}`} />
@@ -7856,7 +7990,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   pickerRowText: { fontSize: 15 },
 });
 
-
 ====================================================================================================
 FILE: src\screens\MistakesScreen.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\MistakesScreen.tsx
@@ -7886,8 +8019,6 @@ import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
-
-const ACCENT = '#00b2aa';
 
 /**
  * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
@@ -8010,7 +8141,7 @@ export default function MistakesScreen() {
     text: nightMode ? '#fff' : '#1a1a1a',
     sub: nightMode ? '#8a8a8a' : '#6b6b76',
     chipBg: nightMode ? '#232345' : '#f1f4fb',
-    accentSoft: nightMode ? 'rgba(0,178,170,0.16)' : 'rgba(0,178,170,0.10)',
+    accentSoft: nightMode ? 'rgba(123,167,219,0.16)' : 'rgba(28,61,114,0.10)',
     dotBorder: nightMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
   };
 
@@ -8045,8 +8176,8 @@ export default function MistakesScreen() {
           </View>
         ) : null}
         <View style={styles.titleRow}>
-          <Text style={styles.surahName} numberOfLines={1}>{name}</Text>
-          <Text style={styles.chevron}>›</Text>
+          <Text style={[styles.surahName, { color: nightMode ? '#7BA7DB' : '#1C3D72' }]} numberOfLines={1}>{name}</Text>
+          <Text style={[styles.chevron, { color: nightMode ? '#7BA7DB' : '#1C3D72' }]}>›</Text>
         </View>
         <View style={styles.metaRow}>
           <MetaChip label="Surah #" value={String(s)} nightMode={nightMode} />
@@ -8097,8 +8228,8 @@ const styles = StyleSheet.create({
   chip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, marginRight: 6 },
   chipText: { fontSize: 9, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  surahName: { color: ACCENT, fontSize: 15, fontWeight: '800' },
-  chevron: { color: ACCENT, fontSize: 20, fontWeight: '400', opacity: 0.7, marginTop: -2 },
+  surahName: { fontSize: 15, fontWeight: '800' },
+  chevron: { fontSize: 20, fontWeight: '400', opacity: 0.7, marginTop: -2 },
   metaRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
   metaChip: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   metaChipDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
@@ -8115,7 +8246,6 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
 });
-
 
 ====================================================================================================
 FILE: src\screens\NotesScreen.tsx
@@ -8141,14 +8271,17 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\NotesScreen.tsx
  *       re-render only the small card subtree instead of reparsing every note entry.
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem, Modal, TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { playAudioNote } from '../api/audioNotes';
-import { getStudentData, getLastPullAt } from '../database/localDB';
+import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah } from '../database/localDB';
+import { getVersePage } from '../database/quranData';
 import { setStudentData } from '../store/studentSlice';
+import { addPendingChange } from '../store/syncSlice';
 import ScreenHeader from '../components/common/ScreenHeader';
+import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 
 /**
@@ -8219,10 +8352,10 @@ const parseParts = (value: string): NotePart[] => {
  * NOTES: The `⏸`/`▶` glyph and 'Playing...'/'Voice note' label derive from playingKey ===
  *   `${row.verseKey}_${pi}` — one play button per audio line in the note.
  */
-const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode: boolean; playingKey: string | null; onOpen: (verseKey: string) => void; onToggleAudio: (path: string, audioKey: string) => void }) => {
-  const { row, surahName, nightMode, playingKey, onOpen, onToggleAudio } = props;
+const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode: boolean; playingKey: string | null; onOpen: (verseKey: string) => void; onToggleAudio: (path: string, audioKey: string) => void; onLongPress: (verseKey: string) => void }) => {
+  const { row, surahName, nightMode, playingKey, onOpen, onToggleAudio, onLongPress } = props;
   return (
-    <TouchableOpacity style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]} onPress={() => onOpen(row.verseKey)} activeOpacity={0.7}>
+    <TouchableOpacity style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]} onPress={() => onOpen(row.verseKey)} onLongPress={() => onLongPress(row.verseKey)} delayLongPress={350} activeOpacity={0.7}>
       <View style={styles(nightMode).cardHeader}>
         <Text style={styles(nightMode).surahLabel}>SURAH {row.surah} · AYAH {row.ayah}</Text>
         <Text style={[styles(nightMode).surahName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{surahName || '...'}</Text>
@@ -8233,7 +8366,7 @@ const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode
         return part.type === 'text' ? (
           <Text key={pi} style={[styles(nightMode).noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
         ) : (
-          <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? '#0e2a2a' : '#e8f7f3' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
+          <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? 'rgba(255,255,255,0.05)' : 'rgba(28,61,114,0.08)' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
             <Text style={styles(nightMode).playBtn}>{playingKey === audioKey ? '⏸' : '▶'}</Text>
             <Text style={styles(nightMode).audioLabel}>{playingKey === audioKey ? 'Playing...' : 'Voice note'}</Text>
           </TouchableOpacity>
@@ -8338,6 +8471,9 @@ export default function NotesScreen() {
   }, [notes]);
 
   const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [chooserVerseKey, setChooserVerseKey] = useState<string | null>(null);
+  const [editVerseKey, setEditVerseKey] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   /**
    * WHAT: Stops playback + removes the playback listener when the screen unmounts.
@@ -8410,6 +8546,65 @@ export default function NotesScreen() {
   }, [togglePlay]);
 
   /**
+   * WHAT: Opens the edit/delete chooser for a long-pressed note card.
+   * CALLED BY: NoteCard onLongPress.
+   */
+  const handleRowLongPress = useCallback((vKey: string) => {
+    setChooserVerseKey(vKey);
+  }, []);
+
+  /**
+   * WHAT: Writes editText for the edited verseKey into the notes map via the SAME
+   *   optimistic update path the app's note editor uses (setStudentData with a
+   *   new notes map), replacing the existing note value wholesale. Mirrors
+   *   QuranViewScreen.saveNote: after the Redux write, persists the note to
+   *   SQLite (saveCanvasEdit, keyed by the verse's mushaf page — or the surah
+   *   fallback when the page cannot be resolved) and bumps the sync queue so
+   *   other devices receive it.
+   * CALLS: dispatch(setStudentData), getVersePage, saveCanvasEdit, addPendingChange.
+   * CALLED BY: edit modal Save button.
+   */
+  const saveEditedNote = useCallback(() => {
+    if (!editVerseKey || !currentStudentId) return;
+    const vKey = editVerseKey;
+    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: editText } }));
+    setEditVerseKey(null);
+    setEditText('');
+    getVersePage(parseInt(vKey.split('_')[0], 10), parseInt(vKey.split('_')[1], 10)).catch(() => 0).then((page: number) => {
+      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(parseInt(vKey.split('_')[0], 10));
+      saveCanvasEdit(currentStudentId, key, 'notes', { [vKey]: editText });
+      dispatch(addPendingChange());
+    });
+  }, [editVerseKey, editText, studentData, currentStudentId, dispatch]);
+
+  /**
+   * WHAT: Removes a note from the notes map entirely (no dedicated slice action —
+   *   same removal shape as QuranViewScreen.handleVoiceNoteDelete: rebuild the map,
+   *   drop the key, dispatch setStudentData). ALSO persists the removal to SQLite
+   *   via saveCanvasEdit ('' marks the key gone for the next pull/restart) and
+   *   bumps the sync queue — otherwise the note silently returns on restart.
+   * CALLS: dispatch(setStudentData), getVersePage, saveCanvasEdit, addPendingChange.
+   * CALLED BY: chooser Delete button.
+   */
+  const deleteNote = useCallback((vKey: string) => {
+    const notes = { ...(studentData?.notes || {}) };
+    delete notes[vKey];
+    dispatch(setStudentData({ ...(studentData || {}), notes }));
+    setChooserVerseKey(null);
+    if (!currentStudentId) return;
+    getVersePage(parseInt(vKey.split('_')[0], 10), parseInt(vKey.split('_')[1], 10)).catch(() => 0).then((page: number) => {
+      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(parseInt(vKey.split('_')[0], 10));
+      saveCanvasEdit(currentStudentId, key, 'notes', { [vKey]: '' });
+      dispatch(addPendingChange());
+    });
+  }, [studentData, currentStudentId, dispatch]);
+
+  const openEditFor = useCallback((vKey: string) => {
+    setEditText(studentData?.notes?.[vKey] || '');
+    setEditVerseKey(vKey);
+  }, [studentData]);
+
+  /**
    * WHAT: Renders a prebuilt NoteRow through the memoized NoteCard. Stably recreated only
    *   when the data/theme/playback actually changed, so scrolling rows are not recreated.
    */
@@ -8421,8 +8616,9 @@ export default function NotesScreen() {
       playingKey={playingKey}
       onOpen={handleNavigate}
       onToggleAudio={onToggleAudio}
+      onLongPress={handleRowLongPress}
     />
-  ), [surahNames, nightMode, playingKey, handleNavigate, onToggleAudio]);
+  ), [surahNames, nightMode, playingKey, handleNavigate, onToggleAudio, handleRowLongPress]);
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f5f5f5' }]}>
@@ -8443,6 +8639,30 @@ export default function NotesScreen() {
         />
       )}
       <CollapsibleBannerAd />
+
+      <AlertModal
+        visible={chooserVerseKey !== null}
+        title="Note options"
+        message={chooserVerseKey ? `Surah ${chooserVerseKey.split('_')[0]} · Ayah ${chooserVerseKey.split('_')[1]}` : ''}
+        nightMode={nightMode}
+        onClose={() => setChooserVerseKey(null)}
+        buttons={[
+          { text: 'Edit', style: 'default', onPress: () => { if (chooserVerseKey) openEditFor(chooserVerseKey); } },
+          { text: 'Delete', style: 'destructive', onPress: () => { if (chooserVerseKey) deleteNote(chooserVerseKey); } },
+        ]}
+      />
+
+      <Modal visible={editVerseKey !== null} transparent animationType="fade" onRequestClose={() => setEditVerseKey(null)}>
+        <View style={styles(nightMode).noteOverlay}>
+          <View style={styles(nightMode).noteContainer}>
+            <TextInput style={styles(nightMode).noteInput} value={editText} onChangeText={setEditText} multiline placeholder="Note..." placeholderTextColor="#666" />
+            <View style={styles(nightMode).noteActions}>
+              <TouchableOpacity onPress={() => setEditVerseKey(null)} style={styles(nightMode).noteCancelBtn}><Text style={{ color: '#fff' }}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={saveEditedNote} style={styles(nightMode).noteSaveBtn}><Text style={{ color: '#121212' }}>Save</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -8465,6 +8685,12 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
+  noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
+  noteContainer: { width: '80%', backgroundColor: (nightMode ? '#1e1e1e' : '#fff'), borderRadius: 10, padding: 20, borderWidth: 1, borderColor: (nightMode ? '#2a2a2a' : '#ddd') },
+  noteInput: { color: (nightMode ? '#fff' : '#121212'), borderWidth: 1, borderColor: '#333', borderRadius: 8, padding: 10, height: 100, textAlignVertical: 'top', marginBottom: 15 },
+  noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
+  noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
+  noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
 });
 
 ====================================================================================================
@@ -8527,7 +8753,7 @@ import Share from 'react-native-share';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
-import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
+import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, cancelLoop, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
 import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Feature 1: session-wide "already pulled on toolbar-expand" set (${sid}/${range|key}).
@@ -8542,6 +8768,28 @@ const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
 /**
+ * WHAT: Derives a page's LAST VERSE (surahId, verseNumber) SYNCHRONOUSLY from the mushaf page
+ *       JSON (`lines[].words[].location` = "surah:verse:word") — the same data the page already
+ *       renders from, so the reading-mark bookmark button can appear in the SAME commit as the
+ *       page (single + spread), including pre-rendered pages while swiping. No async verse-cache
+ *       lookup, no debounce. Returns null when pageData is missing (caller falls back).
+ * CALLS: none. AFFECTS: none (pure).
+ */
+const pageLastVerseFromPageData = (pd: any) => {
+  const lines = pd?.lines;
+  if (!lines?.length) return null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const words = lines[i]?.words;
+    if (words?.length) {
+      const loc = String(words[words.length - 1]?.location || '').split(':');
+      const surahId = parseInt(loc[0], 10);
+      const verseNumber = parseInt(loc[1], 10);
+      if (surahId > 0 && verseNumber > 0) return { surahId, verseNumber };
+    }
+  }
+  return null;
+};
+/**
  * WHAT: Memoized split-mode row — renders the two pages of a spread side by side,
  *   each as its own MushafPageView with an independent loading spinner.
  * FLOW: 1) render calls ensurePageLoaded + ensurePageVersesLoaded for both page
@@ -8553,35 +8801,43 @@ const MENU_LABEL_C = '#b0b0b0';
  * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
  *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
  */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
   if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
-  // Spread margins: outer edge ~16 (phone 12), inner gutter 7 each, frame breathing room
-  // top/bottom so the ornamental border never touches the screen edges.
-  const outerEdgeH = winW >= 600 ? 16 : 12;
-  const spreadMargin = { marginTop: 22, marginBottom: 20 };
+  // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
+  // button renders in the same commit as its page (including pre-rendered pages while swiping).
+  const oddLast = pageLastVerseFor?.(odd);
+  const evenLast = pageLastVerseFor?.(even);
+  const oddMarkActive = readingMarkActiveFor?.(oddLast);
+  const evenMarkActive = readingMarkActiveFor?.(evenLast);
+  // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
+  // top 24 / bottom band 28px (bottom pills offset -26 — fully below the frame band, ~2px above
+  // the audio bar/screen edge) — no dead space.
+  const spreadMargin = { marginTop: 24, marginBottom: 28 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginLeft: outerEdgeH, marginRight: 7 }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6 }, spreadMargin]}>
           {odd ? (
             pageCache[odd] ? (
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
+                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginLeft: 7, marginRight: outerEdgeH }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6 }, spreadMargin]}>
           {pageCache[even] ? (
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread} />
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
@@ -8636,6 +8892,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [shareBookmarks, setShareBookmarks] = useState(true);
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const [flashingSurah, setFlashingSurah] = useState(0);
+  // Measured rendered height of the in-flow AudioPlayerBar (0 while absent) — the header-toggle
+  // pill anchors to the margin band above the bar, so it must never land on the bar's controls.
+  const [playerBarH, setPlayerBarH] = useState(0);
   const flatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   
@@ -8653,6 +8912,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageCacheOrderRef = useRef<number[]>([]);
   const pageVersesOrderRef = useRef<number[]>([]);
   const currentPageNumRef = useRef(currentPageNum);
+  // Timestamp of the last PROGRAMMATIC FlatList scroll (scrollToIndex/scrollToOffset)
+  // — onMomentumScrollEnd ignores momentum for 400ms after one, so the stale settle
+  // from a landing jump can't report an old index and yank the reader back.
+  const programmaticScrollRef = useRef(0);
 
   // Live mirror of drawingGestureActive (re-written every render) so the
   // fire-and-forget cloud-restore helper can check the CURRENT gesture state
@@ -8675,7 +8938,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
-  const { nightMode, bgBrightness, playBasmala, showPageInfo } = useSelector((s: any) => s.settings);
+  const { nightMode, bgBrightness, playBasmala } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
   const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
@@ -8703,43 +8966,49 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * WHAT: Loads a mushaf page JSON into pageCache once (from mushaf_pages or
-   *   mushaf_pages_indopak via getMushafPageData), with a ~40-page LRU.
-   * FLOW: 1) skip if cached or promise in flight 2) if isIndopak, lazily seed
-   *   indopak pages via importIndopakPages() 3) getMushafPageData(pageNum,
-   *   textStyleRef.current) 4) setPageCache + LRU: append to order ref, evict
-   *   pages >12 away from currentPageNumRef while len>40 5) clear promise flag.
-   * CALLS: getMushafPageData, importIndopakPages (quranData.ts).
-   * CALLED BY: renderItem of the page FlatList (single) / SpreadItem (split),
-   *   prefetchAround, prefetchPartner, handleSelectPage, deep-link + surah-change
-   *   + lastRead effects.
+   *   mushaf_pages_indopak via getMushafPageData), with a ~64-page LRU. Resolves
+   *   with the page data (or null when unloadable) so landing paths can await
+   *   the SAME load they trigger and warm the layout before scrolling.
+   * FLOW: 1) cached -> resolve immediately (Promise.resolve) 2) in-flight ->
+   *   await the SAME stored promise (pagePromiseRef holds the promise, not true)
+   *   3) else kick the load, store its promise; isIndopak lazily seeds via
+   *   importIndopakPages() first 4) getMushapPageData(pageNum,
+   *   textStyleRef.current) 5) empty-lines miss -> ensureMushafPageData fetch
+   *   (resolve with it when found, null on failure) 6) setPageCache + LRU:
+   *   append to order ref, evict pages >24 away from currentPageNumRef while
+   *   len>64 7) delete the promise entry on settle (resolve or reject).
+   * CALLS: getMushafPageData, ensureMushafPageData, importIndopakPages (quranData.ts).
+   * CALLED BY: renderItem of the page FlatList (single) / SpreadItem (split) —
+   *   fire-and-forget, the returned promise is ignored — prefetchAround,
+   *   prefetchPartner, handleSelectPage, deep-link + surah-change + lastRead
+   *   effects, landOnPage (awaited; single-flight via the stored promise).
    * AFFECTS: pageCache (local state).
    * NOTES: Uses the LIVE textStyleRef so a mid-flight font change doesn't cache
    *   the wrong mushaf under the new key — pages loaded under an old style stay
    *   cached until the textStyle reset effect wipes both caches.
    */
-  const ensurePageLoaded = useCallback(async (pageNum: number) => {
-    if (pageCache[pageNum] || pagePromiseRef.current[pageNum]) return;
-    pagePromiseRef.current[pageNum] = true;
-    if (isIndopak) importIndopakPages();
-    getMushafPageData(pageNum, textStyleRef.current).then(data => {
+  const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
+    if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
+    if (pagePromiseRef.current[pageNum]) return pagePromiseRef.current[pageNum];
+    const promise = (async () => {
+      if (isIndopak) importIndopakPages();
+      const data = await getMushafPageData(pageNum, textStyleRef.current);
       // Fresh installs fill mushaf pages sequentially from page 1, so a far page
       // (deep-link to Waaqia) can be a { lines: [] } miss — fetch it on demand
       // instead of rendering an empty page (or a permanent hole from a failed
       // background chunk). indopak pages are bulk-seeded by importIndopakPages.
       if (!data?.lines || data.lines.length === 0) {
-        ensureMushafPageData(pageNum, textStyleRef.current).then(missing => {
-          if (missing) {
-            setPageCache(prev => {
-              const next = { ...prev, [pageNum]: missing };
-              const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
-              order.push(pageNum);
-              pageCacheOrderRef.current = order;
-              return next;
-            });
-          }
-          delete pagePromiseRef.current[pageNum];
-        }).catch(() => { delete pagePromiseRef.current[pageNum]; });
-        return;
+        const missing = await ensureMushafPageData(pageNum, textStyleRef.current).catch(() => null);
+        if (missing) {
+          setPageCache(prev => {
+            const next = { ...prev, [pageNum]: missing };
+            const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
+            order.push(pageNum);
+            pageCacheOrderRef.current = order;
+            return next;
+          });
+        }
+        return missing;
       }
       setPageCache(prev => {
         const next = { ...prev, [pageNum]: data };
@@ -8755,8 +9024,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
         pageCacheOrderRef.current = order;
         return next;
       });
-      delete pagePromiseRef.current[pageNum];
-    }).catch(() => { delete pagePromiseRef.current[pageNum]; });
+      return data;
+    })().finally(() => { delete pagePromiseRef.current[pageNum]; });
+    pagePromiseRef.current[pageNum] = promise;
+    return promise;
   }, [pageCache, isIndopak]);
 
   /**
@@ -8795,72 +9066,122 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageVersesCache]);
 
   /**
-   * WHAT: Progressive page warm-ahead for FAST swiping. On every page settle the
-   *   instant window [c-12, c+24] is loaded (page JSON + verses) plus the layout
-   *   rows for BOTH header states via warmPageLayoutFor for the near band
-   *   [c-2, c+9]; layout warming for the outer window is staggered ~140ms per
-   *   6-page chunk so low-end devices never jank (JSON/verse loads are cheap —
-   *   the pricey native measurement is what gets spread out). Then a creeping
-   *   scheduler keeps extending the frontier in 8-page chunks (420ms apart) so
-   *   sustained scrolling keeps far-ahead pages ready: their mushaf JSON lands in
-   *   the quranData memo, their verses in versesByPageMemo, their frames in
-   *   layoutCacheMem — all of which are LRU-bounded elsewhere, so running to the
-   *   end of the mushaf is safe. This keeps ~37 pages resident as a fast-swiping
-   *   user slams through a whole page-per-swipe run.
-   * CALLS: getMushafPageData / getVersesByPage (memoized — the far-ahead pages
-   *   never trigger ensureMushafPageData), warmPageLayoutFor.
-   * AFFECTS: quranData memos + layoutCacheMem; the near band also gets the normal
-   *   ensurePageLoaded/ensurePageVersesLoaded state-cache treatment.
+   * WHAT: PRIORITIZED sliding-window warm-ahead for FAST swiping — ~16 pages
+   *   max in flight (window 5 back / 12 ahead), spread across four tiers so no
+   *   single tick saturates the JS thread: TIER 0 loads data+verses for
+   *   [c-2, c+3] in this synchronous effect run; TIER 1 (60ms) [c-5, c-3] and
+   *   [c+4, c+7]; TIER 2 (150ms) [c+8, c+12]. LAYOUT WARM fires immediately
+   *   (memoized getMushafPageData -> warmPageLayoutFor, DB-only) for [c-2, c+9]
+   *   and one 80ms-staggered batch for [c+10, c+12]. A 350ms CREEP keeps
+   *   extending the frontier to the end of the mushaf in 6-page batches (mushaf
+   *   JSON + verses only — data + verse memos, no state caches, no network
+   *   self-heal) so sustained fast swipes always find ready pages.
+   * CALLS: ensurePageLoaded/ensurePageVersesLoaded, getMushafPageData /
+   *   getVersesByPage (memoized — far pages never trigger ensureMushafPageData),
+   *   warmPageLayoutFor. All loads single-flight via the promise guards inside
+   *   the ensure* functions; warmLayoutByPage dedupes per page.
+   * AFFECTS: pageCache/pageVersesCache (state, window only); quranData memos +
+   *   layoutCacheMem (window + creep).
+   * NOTES: Every timer created here is cleared on re-run/unmount. The creep
+   *   ALWAYS restarts from max(prefetchNextRef.current, c+13) — never reset
+   *   backwards by the window settling — and stops when the frontier passes
+   *   the end of the mushaf.
    */
   const prefetchTimerRef = useRef<any>(0);
   const prefetchNextRef = useRef(0);
-  const staggerTimerRef = useRef<any>(0);
-  const staggerQueueRef = useRef<number[]>([]);
+  const tier1TimerRef = useRef<any>(0);
+  const tier2TimerRef = useRef<any>(0);
+  const layoutTimerRef = useRef<any>(0);
+  const layoutQueueRef = useRef<number[]>([]);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
-    const warm = (p: number) => {
-      getMushafPageData(p, textStyleRef.current).then((pd: any) => {
+    const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
+    const loadPage = (p: number) => {
+      ensurePageLoaded(p);
+      ensurePageVersesLoaded(p);
+    };
+    const warmLayoutByPage = new Set<number>();
+    const warmLayout = (p: number) => {
+      if (warmLayoutByPage.has(p)) return;
+      warmLayoutByPage.add(p);
+      getMushafPageData(p, textStyleRef.current).then(pd => {
         if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
       }).catch(() => {});
-      getVersesByPage(p, textStyleRef.current).catch(() => {});
     };
-    // INSTANT band — everything the UI might need for fast swipes: data + verses
-    // for all, plus BOTH layout variants for the pages that can appear on screen.
-    const lo = Math.max(1, currentPageNum - 12);
-    const hi = Math.min(currentPageNum + 24, pageNumbers.length);
-    const nearLo = Math.max(1, currentPageNum - 2);
-    const nearHi = Math.min(currentPageNum + 9, pageNumbers.length);
-    const queue: number[] = [];
-    for (let p = lo; p <= hi; p++) {
-      ensurePageLoaded(p); ensurePageVersesLoaded(p);
-      if (p >= nearLo && p <= nearHi) warm(p); else queue.push(p);
-    }
-    clearTimeout(staggerTimerRef.current);
-    staggerQueueRef.current = queue;
-    const staggerStep = () => {
-      const batch = staggerQueueRef.current.splice(0, 6);
-      for (const p of batch) warm(p);
-      if (staggerQueueRef.current.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
+    // TIER 0 — everything the currently visible pages can need, this tick only.
+    for (let p = currentPageNum - 2; p <= currentPageNum + 3; p++) loadPage(clampP(p));
+    // TIER 1 — the outer window either side, one 60ms tick later.
+    tier1TimerRef.current = setTimeout(() => {
+      for (let p = currentPageNum - 5; p <= currentPageNum - 3; p++) loadPage(clampP(p));
+      for (let p = currentPageNum + 4; p <= currentPageNum + 7; p++) loadPage(clampP(p));
+    }, 60);
+    // TIER 2 — the far-ahead band, 150ms later.
+    tier2TimerRef.current = setTimeout(() => {
+      for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) loadPage(clampP(p));
+    }, 150);
+    // LAYOUT WARM — the near [c-2, c+9] window immediately, the far [c+10, c+12]
+    // band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
+    for (let p = currentPageNum - 2; p <= currentPageNum + 9; p++) warmLayout(clampP(p));
+    layoutQueueRef.current = [];
+    for (let p = currentPageNum + 10; p <= currentPageNum + 12; p++) layoutQueueRef.current.push(clampP(p));
+    const layoutStep = () => {
+      clearTimeout(layoutTimerRef.current);
+      const batch = layoutQueueRef.current.splice(0, 3);
+      for (const p of batch) warmLayout(p);
+      if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
     };
-    if (queue.length) staggerTimerRef.current = setTimeout(staggerStep, 140);
-    // CREEP — keep advancing the frontier to the end of the mushaf (data + verses
-    // only; layout warms when a page enters the stagger band next settle). Always
-    // restarts from the max frontier seen; the near window never resets it.
-    prefetchNextRef.current = Math.max(prefetchNextRef.current, currentPageNum + 25);
-    if (prefetchTimerRef.current) return () => { clearTimeout(staggerTimerRef.current); };
+    if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+    // CREEP — data + verses only, advancing from the max frontier seen; the
+    // near window here never resets prefetchNextRef backwards.
+    prefetchNextRef.current = Math.max(prefetchNextRef.current, currentPageNum + 13);
     const step = () => {
       prefetchTimerRef.current = 0;
       const from = prefetchNextRef.current;
       if (from <= pageNumbers.length) {
-        const to = Math.min(from + 7, pageNumbers.length);
-        for (let p = from; p <= to; p++) { getMushafPageData(p, textStyleRef.current).then((pd: any) => { if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW)); }).catch(() => {}); getVersesByPage(p, textStyleRef.current).catch(() => {}); }
+        const to = Math.min(from + 5, pageNumbers.length);
+        for (let p = from; p <= to; p++) {
+          getMushafPageData(p, textStyleRef.current).then(pd => {
+            if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+          }).catch(() => {});
+          getVersesByPage(p, textStyleRef.current).catch(() => {});
+        }
         prefetchNextRef.current = to + 1;
       }
-      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 420);
+      if (prefetchNextRef.current <= pageNumbers.length) prefetchTimerRef.current = setTimeout(step, 350);
     };
-    prefetchTimerRef.current = setTimeout(step, 700);
-    return () => { clearTimeout(staggerTimerRef.current); clearTimeout(prefetchTimerRef.current); prefetchTimerRef.current = 0; };
+    prefetchTimerRef.current = setTimeout(step, 350);
+    return () => {
+      clearTimeout(tier1TimerRef.current);
+      clearTimeout(tier2TimerRef.current);
+      clearTimeout(layoutTimerRef.current);
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = 0;
+    };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
+
+  /**
+   * WHAT: Landing-path scroll — waits for the page data (deduped by the in-flight
+   *   ensurePageLoaded promise, 450ms cap), warms the layout rows for the target
+   *   page so pages land fully rendered, then scrolls the FlatList to it (pair
+   *   index in split mode). Stamps programmaticScrollRef so the momentum settle
+   *   from this jump is ignored by onMomentumScrollEnd.
+   * FLOW: stamp -> race ensurePageLoaded(pg) against a 450ms null timer -> if
+   *   data arrived warmPageLayoutFor (guarded, no-op on failure) -> scrollToIndex.
+   * CALLS: ensurePageLoaded, warmPageLayoutFor, flatListRef.scrollToIndex.
+   * CALLED BY: handleSelectPage, deep-link effect, surah-change effect.
+   * AFFECTS: FlatList scroll offset; layoutCacheMem (via warmPageLayoutFor);
+   *   programmaticScrollRef stamp.
+   * NOTES: Must live AFTER ensurePageLoaded (its deps array references the const).
+   */
+  const landOnPage = useCallback(async (pg: number) => {
+    if (pg < 1 || pg > pageNumbers.length) return;
+    programmaticScrollRef.current = Date.now();
+    const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 450))]);
+    if (data && data.lines?.length && Math.round(pageW) > 0) {
+      try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
+    }
+    flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
+  }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
    * WHAT: Prefetches pages ±1, ±2 around the current page (single mode) or the
@@ -8899,9 +9220,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   headerPage 3) derive the surah from the first word location of the cached
    *   page and dispatch setSurah if different (pageScrollSurahChangeRef guard
    *   stops the surah-change effect from re-scrolling to verse 1) 4) ensure
-   *   loads + prefetchPartner (split) 5) scrollToIndex after 100ms.
+   *   loads + prefetchPartner (split) 5) landOnPage — waits for the page data
+   *   (deduped by its in-flight promise, 450ms cap) then scrolls + warms layout.
    * CALLS: setReadingMode, setSurah, ensurePageLoaded, ensurePageVersesLoaded,
-   *   prefetchPartner, flatListRef.scrollToIndex.
+   *   prefetchPartner, landOnPage.
    * CALLED BY: SurahList onSelectPage.
    * AFFECTS: readingMode, currentPageNum/headerPage, s.quran.currentSurahId.
    */
@@ -8919,7 +9241,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     }
     ensurePageLoaded(pg); ensurePageVersesLoaded(pg);
     if (splitOn) prefetchPartner(pg);
-    setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+    landOnPage(pg);
   };
 
   /**
@@ -8947,7 +9269,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW (page param, e.g. GO TO PAGE # / SurahIndex page rows): land in page
    *   mode at that exact page; header surah resolved from the page's first verse.
    * FLOW (surahId, page mode): getVersePage(surahId, verse, textStyle) -> set current
-   *   page/header state, ensurePageLoaded, prefetchPartner, scrollToIndex (100ms).
+   *   page/header state, ensurePageLoaded, prefetchPartner, landOnPage (waits for
+   *   page data, 450ms cap, then scrolls + warms layout).
    * FLOW (surahId, ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
    *   getVersesBySurahPaginated(surahId, 1, targetPage*20) -> deepLinkLoadedRef
    *   = true (suppresses the surah-change effect's loadSurah) -> setSurah +
@@ -8974,14 +9297,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (readingMode !== 'page') dispatch(setReadingMode('page'));
       setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p); prefetchPartner(p);
       getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
-      setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(p) : p - 1, animated: false }), 100);
+      landOnPage(p);
     } else if (surahId) {
       paramsHandledRef.current = true;
       setTimeout(() => { paramsHandledRef.current = false; }, 600);
       if (readingMode === 'page') {
         getVersePage(surahId, scrollToVerse, textStyle).then(pg => {
           setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surahId); ensurePageLoaded(pg); prefetchPartner(pg);
-          setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+          landOnPage(pg);
         });
       } else {
         const targetPage = Math.ceil((scrollToVerse || 1) / 20);
@@ -9058,9 +9381,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   whenever currentSurahId / readingMode / textStyle change.
    * FLOW: setHeaderSurahId; page mode -> unless pageScrollSurahChangeRef is set
    *   (surah came from a page scroll), resolve getVersePage(currentSurahId, 1)
-   *   -> scroll to it + prefetchPartner; ayah/continuous -> headerPage=0 and
-   *   loadSurah unless the deep link already loaded (deepLinkLoadedRef).
-   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner.
+   *   -> stale-guard against a surah switch mid-flight -> set the page state +
+   *   prefetchPartner + landOnPage (waits for page data, 450ms cap, then scrolls);
+   *   ayah/continuous -> headerPage=0 and loadSurah unless the deep link already
+   *   loaded (deepLinkLoadedRef).
+   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner, landOnPage.
    * AFFECTS: headerSurahId/headerPage/currentPageNum; s.quran.verses.
    * NOTES: THE pageScrollSurahChangeRef guard is what stops a page-scroll surah
    *   change from yanking the user back to that surah's page 1. Triggered by
@@ -9076,8 +9401,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
         return;
       }
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
-        setCurrentPageNum(pg); setHeaderPage(pg); ensurePageLoaded(pg); prefetchPartner(pg);
-        setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 100);
+        if (surahIdRef.current !== currentSurahId) return;
+        setCurrentPageNum(pg); setHeaderPage(pg); prefetchPartner(pg);
+        landOnPage(pg);
       });
     } else {
       setHeaderPage(0);
@@ -9390,7 +9716,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (!(surah > 0 && verse > 0)) return;
       if (currentSurahId !== surah) dispatch(setSurah({ surahId: surah, verses: [] }));
       if (readingMode === 'page') {
-        getVersePage(surah, verse, textStyle).then(pg => { setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); setTimeout(() => flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false }), 500); });
+        getVersePage(surah, verse, textStyle).then(pg => { if (surahIdRef.current !== currentSurahId) return; setCurrentPageNum(pg); setHeaderPage(pg); setHeaderSurahId(surah); ensurePageLoaded(pg); prefetchPartner(pg); landOnPage(pg); });
       } else if (readingMode === 'ayah') {
         setTimeout(() => { const idx = versesRef.current.findIndex((x: any) => x.verseNumber === verse); if (idx !== -1 && flatListRef.current) flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 }); }, 500);
       } else if (readingMode === 'continuous') {
@@ -9406,7 +9732,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   useEffect(() => {
     const target = splitOn ? pairIndexForPage(currentPageNum) : currentPageNum - 1;
-    const t = setTimeout(() => flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }), 120);
+    const t = setTimeout(() => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }); }, 120);
     return () => clearTimeout(t);
   }, [splitOn, winW]);
 
@@ -9797,38 +10123,44 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const s = Number(lr?.surah);
     return lr && s > 0 && s === Number(currentSurahId) ? Number(lr.verse) : null;
   })();
-  const pageLastVerse = pageVersesCache[currentPageNum]?.[pageVersesCache[currentPageNum].length - 1];
+  // Reading-mark ribbon is driven PER PAGE: pageLastVerseFor derives the last verse
+  // synchronously from the page's own mushaf JSON (pageCache) — fallback to the async
+  // pageVersesCache row only when pageData is missing — so the button appears in the same
+  // commit as the page, single + spread, including pre-rendered pages while swiping.
+  const pageLastVerseFor = useCallback((p: number) =>
+    pageLastVerseFromPageData(pageCache[p]) ||
+    (pageVersesCache[p] || [])[pageVersesCache[p].length - 1] || null,
+    [pageCache, pageVersesCache]);
   /**
-   * WHAT: Persists the last known page-last verse so the floating bookmark
-   *   button stays on-screen while playback auto-turns to a page whose verse
-   *   cache is still loading (pageLastVerse goes undefined in that window).
+   * WHAT: Whether the given page-last verse carries the READ BOOKMARK (studentData.lastRead) —
+   *   per-page active state for the reading-mark ribbon. Same match logic StudentHub's DAILY
+   *   RECITATION row uses.
+   * CALLS: none (pure read of studentData).
+   * CALLED BY: SpreadItem + single-page MushafPageView (readingMarkActive prop).
    */
-  const [stablePageLastVerse, setStablePageLastVerse] = useState(pageLastVerse);
-  useEffect(() => { if (pageLastVerse) setStablePageLastVerse(pageLastVerse); }, [pageLastVerse]);
-  const pageLastIsReadingMark = (() => {
+  const readingMarkActiveFor = useCallback((lv: any) => {
     const lr = studentData?.lastRead;
-    return !!stablePageLastVerse && !!lr && Number(lr.surah) === Number(stablePageLastVerse.surahId) && Number(lr.verse) === Number(stablePageLastVerse.verseNumber);
-  })();
+    return !!lv && !!lr && Number(lr.surah) === Number(lv.surahId) && Number(lr.verse) === Number(lv.verseNumber);
+  }, [studentData?.lastRead]);
 
   /**
-   * WHAT: Toggles the READ BOOKMARK (studentData.lastRead) anchored at the
-   *   visible page's LAST verse — the same reading mark StudentHub's DAILY
-   *   RECITATION row reads. One tap pins it at the end of the page; a second
-   *   tap on the same verse clears it back to null.
+   * WHAT: Toggles the READ BOOKMARK (studentData.lastRead) anchored at the given page's LAST
+   *   verse — the same reading mark StudentHub's DAILY RECITATION row reads. One tap pins it at
+   *   the end of that page; a second tap on the same verse clears it back to null.
    * CALLS: updateData (optimistic Redux + debounced SQLite/sync funnel).
-   * CALLED BY: the floating bottom-page bookmark button (page mode only).
+   * CALLED BY: the floating top-page bookmark ribbon (page mode only).
    * AFFECTS: studentData.lastRead.{surah, verse, updatedAt}.
    */
-  const handleReadingMarkToggle = useCallback(() => {
-    if (!stablePageLastVerse) return;
+  const handleReadingMarkToggle = useCallback((lv: any) => {
+    if (!lv) return;
     const lr = studentData?.lastRead;
-    const isMarked = lr && Number(lr.surah) === Number(stablePageLastVerse.surahId) && Number(lr.verse) === Number(stablePageLastVerse.verseNumber);
+    const isMarked = lr && Number(lr.surah) === Number(lv.surahId) && Number(lr.verse) === Number(lv.verseNumber);
     updateData({
       ...studentData,
-      lastRead: isMarked ? null : { surah: Number(stablePageLastVerse.surahId), verse: Number(stablePageLastVerse.verseNumber), updatedAt: new Date().toISOString() },
+      lastRead: isMarked ? null : { surah: Number(lv.surahId), verse: Number(lv.verseNumber), updatedAt: new Date().toISOString() },
     });
     ReactNativeHapticFeedback.trigger('impactLight');
-  }, [stablePageLastVerse, studentData, updateData]);
+  }, [studentData, updateData]);
 
   /**
    * WHAT: Plays from a given verse (menu "Play"). qariId = currentQari includes
@@ -9947,7 +10279,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const playPageStart = async () => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
-    if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
+    if (isPlaying) {
+      // LOOP END while playing: STOP (not restart). pauseSurahWithResume keeps the
+      // resume session at the exact mid-verse position and cancelLoop clears the
+      // active range, so the next RESUME continues from the current verse and flows
+      // linearly past the range (7 -> 8 -> 9 -> 10 ...) instead of cycling back.
+      cancelLoop();
+      dispatch(setPlaying(false));
+      await pauseSurahWithResume(audioPlayer.current).catch(() => {});
+      dispatch(setFlashingVerse(null));
+      return;
+    }
     let firstVerse = readingMode === 'page' ? pageVersesCache[currentPageNum]?.[0] : null;
     if (!firstVerse && readingMode === 'page') {
       try { const list = await getVersesByPage(currentPageNum, textStyleRef.current); firstVerse = Array.isArray(list) ? list[0] : undefined; } catch {}
@@ -9957,12 +10299,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
       onEnd: () => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); },
       onError: (msg: string) => { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); Alert.alert('Playback error', msg); },
     };
-    const lastVerse = SURAH_VERSE_COUNTS[currentSurahId - 1] || 1;
     const loopOn = !!loopSettings?.enabled;
+    // Loop targets its OWN surah when one is picked in Loop Settings (0 = the surah
+    // currently open); every range value below is clamped against that surah's length.
+    const loopSurahId = loopOn && Number(safeLoop.surahId) ? Number(safeLoop.surahId) : currentSurahId;
+    const lastVerse = SURAH_VERSE_COUNTS[loopSurahId - 1] || 1;
     const startVerse = loopOn ? Math.max(1, Math.min(safeLoop.startVerse || 1, lastVerse)) : (firstVerse?.verseNumber || 1);
-    // Loop range is defined against the CURRENT surah — always play with its numbering,
-    // even when the page's first verse belongs to a different surah (page boundary).
-    const surahId = loopOn ? currentSurahId : (firstVerse?.surahId || currentSurahId);
+    const surahId = loopOn ? loopSurahId : (firstVerse?.surahId || currentSurahId);
     const loopOpts = loopOn ? { loop: { startVerse: startVerse, endVerse: Math.max(startVerse, Math.min(safeLoop.endVerse || lastVerse, lastVerse)), loopCount: Math.max(1, safeLoop.loopCount || 1), ayahRepeat: Math.max(1, safeLoop.ayahRepeat || 1) } } : {};
     try {
       await playSurahFromVerse(audioPlayer.current, qariId, surahId, startVerse, callbacks, { playBasmala: !!playBasmala, ...loopOpts });
@@ -10052,7 +10395,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
-      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={showPageInfo}
+      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
         onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
@@ -10108,8 +10451,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
-                onScrollToIndexFailed={(info) => flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false })}
+                onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
+                  if (Date.now() - programmaticScrollRef.current < 400) return;
                   const idx = Math.round(e.nativeEvent.contentOffset.x / winW);
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
                   if (p !== currentPageNum) {
@@ -10131,19 +10475,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} />
                 ) : ({ item }: any) => {
                   ensurePageLoaded(item);
                   ensurePageVersesLoaded(item);
                   const pData = pageCache[item];
                   return (
                     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 20 : 16, marginTop: winW >= 600 ? 28 : 24, marginBottom: winW >= 600 ? 24 : 20 }}>
+                      {/* bottom band 28px, bottom pills offset -26 (fully below the frame band, ~2px above the audio bar/screen edge), no dead space */}
+                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
                       {pData ? (
                         <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn} />
+                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!pageLastVerseFor(item)} readingMarkActive={readingMarkActiveFor(pageLastVerseFor(item))} onReadingMarkToggle={() => handleReadingMarkToggle(pageLastVerseFor(item))} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
                       </View>
                     </View>
@@ -10155,14 +10503,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {isCapturing && shareDrawings && capturePaths?.length > 0 && (<StaticDrawingOverlay paths={capturePaths} />)}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
-        {/* ---- floating reading-mark bookmark button (top-right; INSIDE the captured region for share) ----
-             NOW toggles the READING BOOKMARK (lastRead) at the page's last verse, not a normal bookmark. */}
-        {readingMode === 'page' && !isCapturing && stablePageLastVerse && (
-          <TouchableOpacity style={styles(nightMode).pageBookmark}
-            onPress={handleReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <IconBookmark c={pageLastIsReadingMark ? '#ffd700' : (nightMode ? '#7BA7DB' : '#1C3D72')} s={30} filled={pageLastIsReadingMark} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* ================= drawing wiring: canvas + toolbar (error-boundary wrapped) ================= */}
@@ -10198,13 +10538,26 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* share spinner overlay */}
       {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
-          (hides together with the header, incl. via the edge/dead taps) */}
-      {!recordingVerseKey && isHeaderVisible && <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />}
+          (hides together with the header, incl. via the edge/dead taps). Layout-only wrapper measured
+          via onLayout (playerBarH) so the header-toggle pill can anchor above the bar, never on it. */}
+      {!recordingVerseKey && isHeaderVisible && (
+        <View onLayout={(e: any) => { const h = e.nativeEvent.layout.height; if (h > 0 && h !== playerBarH) setPlayerBarH(h); }}>
+          <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />
+        </View>
+      )}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); when the player
-             bar is up it floats just above it (bottom 96) so it is never covered ---- */}
+      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); aligned to the
+             SAME visual row as the bottom pills (Page N / N pages left): those pills hang at
+             bottom:-26 inside the page wrapper (wrapper marginBottom 28), so their bottom edge sits
+             ~2px above the screen bottom (header hidden) or ~2px above the audio bar's top edge
+             (header visible — the page's bottom edge then sits directly above the in-flow bar).
+             The toggle is screen-level, so bottom = playerBarH + 2 reproduces that exact row in
+             both states; the pill NEVER lands on the bar's controls (play/prev/next live inside the
+             bar, below its top edge) nor on the frame's bottom band (the 28px margin band is below
+             the frame entirely). One-frame edge case: when the header becomes visible playerBarH
+             may still be 0 → bottom:2, on the row, above where the bar is mounting ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap, { bottom: isHeaderVisible ? 96 : 12 }]} pointerEvents="box-none">
+        <View style={[styles(nightMode).headerToggleWrap, { bottom: (isHeaderVisible ? playerBarH : 0) + 2 }]} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
@@ -10319,9 +10672,8 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  pageBookmark: { position: 'absolute', top: 0, right: 10, zIndex: 9999, elevation: 9999 },
-  headerToggleWrap: { position: 'absolute', left: 12, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
-  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(18,18,20,0.78)', borderWidth: 1, borderColor: (nightMode ? `rgba(123,167,219,${0.6})` : `rgba(28,61,114,${0.6})`), shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  headerToggleWrap: { position: 'absolute', left: 6, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
@@ -10350,7 +10702,6 @@ const IconCopy = ({ c }: { c: string }) => (
   <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M9 9h11v11H9z" /><Path d="M5 15H3V3h12v2" /></Svg>
 );
 
-
 ====================================================================================================
 FILE: src\screens\RegisterScreen.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\RegisterScreen.tsx
@@ -10365,12 +10716,15 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\RegisterScreen.tsx
  */
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSelector } from 'react-redux';
 import { registerUser } from '../api/auth';
 import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function RegisterScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', isSuccess: false });
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const isDark = !!nightMode;
 
   /**
    * WHAT: Validates username/password, creates the Firebase account + Firestore
@@ -10415,15 +10769,15 @@ export default function RegisterScreen({ navigation }: any) {
     else setAlert({ visible: true, title: 'Registration Failed', message: res.error, isSuccess: false });
   }, [u, p, navigation]);
   return (
-    <View style={styles.root}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Create Account</Text>
-        <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#666" onChangeText={setU} autoCapitalize="none" />
-        <View style={styles.pwRow}>
-          <TextInput style={styles.pwInput} placeholder="Password (6+ chars)" placeholderTextColor="#666" onChangeText={setP} secureTextEntry={!showP} />
+    <View style={[styles.root, isDark && dark.root]}>
+      <View style={[styles.container, isDark && dark.container]}>
+        <Text style={[styles.title, isDark && dark.title]}>Create Account</Text>
+        <TextInput style={[styles.input, isDark && dark.input]} placeholder="Username" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setU} autoCapitalize="none" />
+        <View style={[styles.pwRow, isDark && dark.pwRow]}>
+          <TextInput style={[styles.pwInput, isDark && dark.pwInput]} placeholder="Password (6+ chars)" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setP} secureTextEntry={!showP} />
           <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
             <View style={styles.eyeIconWrap}>
-              <Text style={styles.eyeIcon}>👁</Text>
+              <Text style={[styles.eyeIcon, isDark && dark.eyeIcon]}>👁</Text>
               {!showP && <View style={styles.eyeSlash} />}
             </View>
           </TouchableOpacity>
@@ -10431,7 +10785,7 @@ export default function RegisterScreen({ navigation }: any) {
         <TouchableOpacity style={styles.btn} onPress={handleReg} disabled={loading} activeOpacity={0.7}>
           {loading ? <ActivityIndicator color='#F8F9FA' /> : <Text style={styles.btnText}>Register</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}><Text style={styles.link}>Back to Login</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}><Text style={[styles.link, isDark && dark.link]}>Back to Login</Text></TouchableOpacity>
         <AlertModal visible={alert.visible} title={alert.title} message={alert.message}
           buttons={alert.isSuccess ? [{ text: 'Log In', onPress: () => navigation.navigate('Login') }] : undefined}
           onClose={() => { setAlert({ ...alert, visible: false }); if (alert.isSuccess) navigation.navigate('Login'); }} />
@@ -10444,8 +10798,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F8F9FA' },
   container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#F8F9FA' },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', color: '#1C3D72' },
-  input: { height: 50, borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#1A1A1A', backgroundColor: '#1A1A1A' },
-  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333', borderRadius: 8, marginBottom: 15, backgroundColor: '#1A1A1A' },
+  input: { height: 50, borderWidth: 1, borderColor: '#e0e0e4', borderRadius: 8, marginBottom: 15, paddingHorizontal: 15, color: '#1A1A1A', backgroundColor: '#ffffff' },
+  pwRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e0e0e4', borderRadius: 8, marginBottom: 15, backgroundColor: '#ffffff' },
   pwInput: { flex: 1, height: 50, paddingHorizontal: 15, color: '#1A1A1A' },
   eyeBtn: { paddingHorizontal: 12, height: 50, justifyContent: 'center' },
   eyeIconWrap: { width: 26, height: 26, justifyContent: 'center', alignItems: 'center' },
@@ -10455,7 +10809,16 @@ const styles = StyleSheet.create({
   btnText: { color: '#F8F9FA', fontSize: 18, fontWeight: '700' },
   link: { color: '#1C3D72', marginTop: 15, textAlign: 'center', fontSize: 14 }
 });
-
+const dark = StyleSheet.create({
+  root: { backgroundColor: '#1a1a2e' },
+  container: { backgroundColor: '#1a1a2e' },
+  title: { color: '#ffffff' },
+  input: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a', color: '#ffffff' },
+  pwRow: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
+  pwInput: { color: '#ffffff' },
+  eyeIcon: { color: '#7BA7DB' },
+  link: { color: '#7BA7DB' },
+});
 
 ====================================================================================================
 FILE: src\screens\SettingsScreen.tsx
@@ -10463,15 +10826,15 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\SettingsScreen.tsx
 ====================================================================================================
 /**
  * FILE: src/screens/SettingsScreen.tsx
- * ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and appearance/preferences toggles that dispatch to settingsSlice (nightMode, showPageInfo, mushafSplit, playBasmala). Renders the fixed ScreenHeader plus theme-aware rounded cards.
- * DEPENDS ON: ../store/quranSlice (toggleTranslation/setFontSize/setReadingMode/setTextStyle, quranSlice.ts:16-21); ../store/settingsSlice (toggleNightMode/toggleShowPageInfo/setMushafSplit/togglePlayBasmala, settingsSlice.ts:16-21); ../utils/mushafLayout SPLIT_MIN_WIDTH (768, mushafLayout.ts:2); ../utils/theme getArabicFont (font lookup for the Quran Script preview + options); ../components/common/ScreenHeader (fixed theme-aware header, self-reads nightMode); ../store RootState. Redux only â€” quranSlice state is NOT persisted; settingsSlice state IS persisted (redux-persist whitelist ['auth','drawing','sync','settings','audio'], src/store/index.ts:16).
+ * ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and appearance/preferences toggles that dispatch to settingsSlice (nightMode, mushafSplit, playBasmala). Renders the fixed ScreenHeader plus theme-aware rounded cards.
+ * DEPENDS ON: ../store/quranSlice (toggleTranslation/setFontSize/setReadingMode/setTextStyle, quranSlice.ts:16-21); ../store/settingsSlice (toggleNightMode/setMushafSplit/togglePlayBasmala, settingsSlice.ts:16-21); ../utils/mushafLayout SPLIT_MIN_WIDTH (768, mushafLayout.ts:2); ../utils/theme getArabicFont (font lookup for the Quran Script preview + options); ../components/common/ScreenHeader (fixed theme-aware header, self-reads nightMode); ../store RootState. Redux only â€” quranSlice state is NOT persisted; settingsSlice state IS persisted (redux-persist whitelist ['auth','drawing','sync','settings','audio'], src/store/index.ts:16).
  * USED BY: QuranView toolbar `onSettings` (QuranViewScreen.tsx:510).
  */
 import React, { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, toggleShowPageInfo, setMushafSplit, togglePlayBasmala } from '../store/settingsSlice';
+import { toggleNightMode, setMushafSplit, togglePlayBasmala } from '../store/settingsSlice';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont } from '../utils/theme';
 import { RootState } from '../store';
@@ -10494,18 +10857,18 @@ const scriptLabel = (key: string) => SCRIPT_OPTIONS.find((o) => o.key === key)?.
 
 /**
  * WHAT: Screen component: three cards of settings controls that dispatch Redux actions on change, topped by the fixed ScreenHeader. Wrapped in memo() (bottom of file).
- * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, showPageInfo, mushafSplit, playBasmala. 2) "Reading Settings" card: Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Quran Script preview box (Basmala in getArabicFont(textStyle)) + dropdown row that opens a bottom-sheet Modal listing Uthmani=uthmani / Indopak 1=alqalam / Indopak 2=saleem / Indopak 3=lateef (each sample word in its own font, ✓ on the current pick) -> setTextStyle(style). 3) "Appearance" card: Dark mode Switch -> toggleNightMode(). 4) "Reading Preferences" card: Show page info Switch -> toggleShowPageInfo(); Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v); Bismillah play Switch -> togglePlayBasmala().
- * CALLS: toggleTranslation / setFontSize / setReadingMode / setTextStyle (quranSlice); toggleNightMode / toggleShowPageInfo / setMushafSplit / togglePlayBasmala (settingsSlice).
+ * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, mushafSplit, playBasmala. 2) "Reading Settings" card: Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Quran Script preview box (Basmala in getArabicFont(textStyle)) + dropdown row that opens a bottom-sheet Modal listing Uthmani=uthmani / Indopak 1=alqalam / Indopak 2=saleem / Indopak 3=lateef (each sample word in its own font, ✓ on the current pick) -> setTextStyle(style). 3) "Appearance" card: Dark mode Switch -> toggleNightMode(). 4) "Reading Preferences" card: Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v); Bismillah play Switch -> togglePlayBasmala().
+ * CALLS: toggleTranslation / setFontSize / setReadingMode / setTextStyle (quranSlice); toggleNightMode / setMushafSplit / togglePlayBasmala (settingsSlice).
  * CALLED BY: React Navigation; via QuranViewScreen.tsx:510.
- * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, showPageInfo, mushafSplit, playBasmala) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.
- * NOTES: QARI IS NOT A SETTING HERE â€” no qari control exists on this screen. Qari lives in audioSlice.currentQari ('Mishary Al-Afasy' default, audioSlice.ts:5), set via QariSelector modal from AudioPlayerBar in QuranView; audio slice IS persisted. showPageInfo toggle persists settingsSlice.showPageInfo but NO component reads it (dead setting; the header overlay renders unconditionally). translationTextSize exists in settingsSlice (settingsSlice.ts:7,19) but has NO UI here and NO dispatcher/reader anywhere (dead state). quranSlice settings reset on every app restart (not whitelisted): showTranslation/fontSize/readingMode/textStyle default back to false/'medium'/'page'/'lateef'. The brightness sliders were removed from this UI â€” textBrightness/bgBrightness stay in settingsSlice untouched and persist at their last values (default 255), they just have no control here anymore. Whole screen adapts to nightMode via inline card/row/switch colors; the Quran Script preview keeps a fixed dark-navy backdrop with gold/cream text in both modes.
+ * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, mushafSplit, playBasmala) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.
+ * NOTES: QARI IS NOT A SETTING HERE â€” no qari control exists on this screen. Qari lives in audioSlice.currentQari ('Mishary Al-Afasy' default, audioSlice.ts:5), set via QariSelector modal from AudioPlayerBar in QuranView; audio slice IS persisted. translationTextSize exists in settingsSlice (settingsSlice.ts:7,19) but has NO UI here and NO dispatcher/reader anywhere (dead state). quranSlice settings reset on every app restart (not whitelisted): showTranslation/fontSize/readingMode/textStyle default back to false/'medium'/'page'/'lateef'. The brightness sliders were removed from this UI â€” textBrightness/bgBrightness stay in settingsSlice untouched and persist at their last values (default 255), they just have no control here anymore. Whole screen adapts to nightMode via inline card/row/switch colors; the Quran Script preview keeps a fixed dark-navy backdrop with gold/cream text in both modes.
  */
 const SettingsScreen = () => {
   const dispatch = useDispatch();
   const { width } = useWindowDimensions();
   const [scriptModal, setScriptModal] = useState(false);
   const { showTranslation, fontSize, readingMode, textStyle } = useSelector((state: RootState) => state.quran);
-  const { nightMode, showPageInfo, mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
+  const { nightMode, mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
 
   const bg = nightMode ? '#121212' : '#ffffff';
   const cardBg = nightMode ? '#1a1a2e' : '#f5f6ff';
@@ -10571,10 +10934,6 @@ const SettingsScreen = () => {
 
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode).sectionTitle}>Reading Preferences</Text>
-          <View style={styles(nightMode).row}>
-            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Show page info</Text><Text style={styles(nightMode).settingDesc}>Overlay page number, surah name, and juz' number while reading</Text></View>
-            <Switch value={showPageInfo} onValueChange={() => { dispatch(toggleShowPageInfo()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
-          </View>
           {width >= SPLIT_MIN_WIDTH && (
             <View style={styles(nightMode).row}>
               <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Spread view (two pages side by side)</Text><Text style={styles(nightMode).settingDesc}>Show two mushaf pages side by side on tablets</Text></View>
@@ -10648,7 +11007,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
 });
 export default memo(SettingsScreen);
 
-
 ====================================================================================================
 FILE: src\screens\SplashScreen.tsx
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\SplashScreen.tsx
@@ -10658,7 +11016,8 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\SplashScreen.tsx
  * ROLE: App gatekeeper — downloads/caches the full Quran into SQLite on first
  *       launch, seeds the surah-name map into Redux, then routes to Dashboard or
  *       Login based on Firebase auth state.
- * DEPENDS ON: src/database/quranData.ts (downloadAndCacheQuran, getSurahs),
+ * DEPENDS ON: src/database/quranData.ts (downloadAndCacheQuran, getSurahs,
+ *             warmIndopakIndexes),
  *             src/store/quranSlice.ts (setSurahNames), @react-native-firebase/auth,
  *             react-redux (useDispatch)
  * USED BY: registered as stack screen "Splash" in App.tsx:103 (initialRouteName,
@@ -10666,7 +11025,7 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\SplashScreen.tsx
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { downloadAndCacheQuran, getSurahs } from '../database/quranData';
+import { downloadAndCacheQuran, getSurahs, warmIndopakIndexes } from '../database/quranData';
 import auth from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setSurahNames } from '../store/quranSlice';
@@ -10684,23 +11043,26 @@ export default function SplashScreen({ navigation }: any) {
    *       2) await downloadAndCacheQuran() — seeds SQLite (verses/surahs/
    *          mushaf_pages); idempotent verse-count check; does NOT throw on
    *          partial completion (MIN_USABLE_VERSES path)
-   *       3) await getSurahs() — SELECT * FROM surahs ORDER BY id
-   *       4) Build map = {surah.id: surah.englishName}, dispatch setSurahNames(map)
-   *       5) Subscribe auth().onAuthStateChanged — fires once with the restored
+   *       3) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
+   *          pre-warms the indopak page index/verse map + SQLite bulk import
+   *          so the first indopak page press never pays those multi-MB costs
+   *       4) await getSurahs() — SELECT * FROM surahs ORDER BY id
+   *       5) Build map = {surah.id: surah.englishName}, dispatch setSurahNames(map)
+   *       6) Subscribe auth().onAuthStateChanged — fires once with the restored
    *          session, then unsubscribes
-   *       6) navigation.replace(user ? 'Dashboard' : 'Login') — replace (not
+   *       7) navigation.replace(user ? 'Dashboard' : 'Login') — replace (not
    *          navigate) so Splash is removed from the back stack
-   *       7) On thrown error: setError(true) + errorMessage, setIsLoading(false);
+   *       8) On thrown error: setError(true) + errorMessage, setIsLoading(false);
    *          retry screen shown, auth listener never runs
    * CALLS: downloadAndCacheQuran -> initDatabase, verse count, fetchMissing +
-   *        fetchMushafPages; getSurahs; dispatch(setSurahNames);
-   *        auth().onAuthStateChanged
+   *        fetchMushafPages; warmIndopakIndexes (fire-and-forget); getSurahs;
+   *        dispatch(setSurahNames); auth().onAuthStateChanged
    * CALLED BY: useEffect on mount (line 30) and "Retry Download" button onPress
    *            (line 44)
    * AFFECTS: SQLite (verses, surahs, mushaf_pages), quranSlice.surahNames,
    *          navigation stack (Splash -> Dashboard/Login)
    * NOTES: Route decision happens ONLY inside the onAuthStateChanged callback —
-   *        if steps 2-4 throw, the listener is never subscribed and the app
+   *        if steps 2-5 throw, the listener is never subscribed and the app
    *        stays on the retry screen. No dispatch(setUser) here: on cold start
    *        redux auth is rehydrated from AsyncStorage (persistConfig whitelist),
    *        but a stale/expired session is still caught by onAuthStateChanged —
@@ -10710,6 +11072,7 @@ export default function SplashScreen({ navigation }: any) {
     setIsLoading(true); setError(false);
     try {
       await downloadAndCacheQuran();
+      warmIndopakIndexes().catch(() => {});
       const surahs = await getSurahs();
       const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
       dispatch(setSurahNames(map));
@@ -10763,7 +11126,6 @@ const styles = StyleSheet.create({
   retryBtn: { backgroundColor: '#1C3D72', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8 },
   retryText: { color: '#F8F9FA', fontSize: 16, fontWeight: '700' }
 });
-
 
 ====================================================================================================
 FILE: src\screens\StudentHubScreen.tsx
@@ -11154,11 +11516,13 @@ const initialState = {
   position: 0,             // DEAD field — no writer/reader in src/
   duration: 0,             // DEAD field — no writer/reader in src/
   // Loop settings (PERSISTED — audio is in the redux whitelist): when enabled, PAGE START
-  // plays [startVerse..endVerse] of the current surah loopCount times total, replaying each
-  // ayah ayahRepeat times before advancing. loopCount=1 = range plays once then playback
-  // continues past endVerse; ayahRepeat default 1 = each ayah plays once.
+  // plays [startVerse..endVerse] of the loop's surah (surahId; 0 = the surah currently
+  // open) loopCount times total, replaying each ayah ayahRepeat times before advancing.
+  // loopCount=1 = range plays once then playback continues past endVerse; ayahRepeat
+  // default 1 = each ayah plays once.
   loop: {
     enabled: false,
+    surahId: 0,
     startVerse: 1,
     endVerse: 1,
     loopCount: 1,
@@ -11217,7 +11581,6 @@ export const audioSlice = createSlice({
 
 export const { setPlaying, setQari, setAudioPosition, setAudioDuration, setCurrentTrack, setLoop } = audioSlice.actions;
 export default audioSlice.reducer;
-
 
 ====================================================================================================
 FILE: src\store\authSlice.ts
@@ -11456,7 +11819,6 @@ export const persistor = persistStore(store);
 // hook exists, everything else reads `useSelector((s: any) => ...)`.
 export type RootState = ReturnType<typeof store.getState>;
 
-
 ====================================================================================================
 FILE: src\store\quranSlice.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\store\quranSlice.ts
@@ -11565,7 +11927,6 @@ export const quranSlice = createSlice({
 export const { setSurah, toggleTranslation, setFontSize, setReadingMode, setSurahNames, setFlashingVerse, setTextStyle } = quranSlice.actions;
 export default quranSlice.reducer;
 
-
 ====================================================================================================
 FILE: src\store\settingsSlice.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\store\settingsSlice.ts
@@ -11575,7 +11936,7 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\store\settingsSlice.ts
  * ROLE: Reader appearance + reading preferences (all persisted).
  * DEPENDS ON: none.
  * USED BY: src/screens/SettingsScreen.tsx:5 (toggleNightMode, setTextBrightness,
- *          setBgBrightness, toggleShowPageInfo, setMushafSplit);
+ *          setBgBrightness, setMushafSplit);
  *          src/screens/QuranViewScreen.tsx:10 (setMushafSplit);
  *          readers of nightMode/textBrightness/bgBrightness/mushafSplit across
  *          DashboardScreen, QuranViewScreen, VerseDisplay, FlowingText,
@@ -11589,7 +11950,6 @@ const initialState = {
   textBrightness: 255,        // 0-255 alpha of Arabic text color
   bgBrightness: 18,           // 0-255 background dim (UNUSED in render — dead setting)
   translationTextSize: 16,    // DEAD: setter exists, no dispatcher, no reader
-  showPageInfo: true,         // DEAD: only read by its own Settings switch
   mushafSplit: false,         // tablet two-page spread
   playBasmala: true,          // play the reciter's basmala before verse 1 of a surah (surah 1 & 9 excluded)
   adCollapsed: false,         // CollapsibleBannerAd user preference: true = banner hidden (tiny ▴ only)
@@ -11631,14 +11991,6 @@ export const settingsSlice = createSlice({
      */
     setTranslationTextSize: (state, action) => { state.translationTextSize = action.payload; },
     /**
-     * WHAT: Flips showPageInfo.
-     * CALLED BY: SettingsScreen.tsx:75 (Show page info switch).
-     * AFFECTS: Only the switch UI itself (SettingsScreen.tsx:14/:75). No reader in
-     *          QuranViewScreen/MushafPageView — page info is instead controlled by
-     *          `headerVisible` local state. Dead setting.
-     */
-    toggleShowPageInfo: (state) => { state.showPageInfo = !state.showPageInfo; },
-    /**
      * WHAT: Sets two-page spread flag.
      * CALLED BY: SettingsScreen.tsx:80 (Spread view switch, tablet only — row hidden
      *            unless width >= SPLIT_MIN_WIDTH); QuranViewScreen.tsx:511
@@ -11666,9 +12018,8 @@ export const settingsSlice = createSlice({
   }
 });
 
-export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, toggleShowPageInfo, setMushafSplit, togglePlayBasmala, setAdCollapsed } = settingsSlice.actions;
+export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, setMushafSplit, togglePlayBasmala, setAdCollapsed } = settingsSlice.actions;
 export default settingsSlice.reducer;
-
 
 ====================================================================================================
 FILE: src\store\studentSlice.ts
@@ -11888,6 +12239,17 @@ export const getPlaybackPosition = (): number => lastPositionMs;
 export const getCurrentPlaybackVerse = (): number => currentVerse;
 
 export const isResumable = (): boolean => resumeSession !== null;
+
+/**
+ * Cancels any active loop range so the next play/resume flows linearly past the
+ * current verse instead of cycling back to the range start. Called by the footer
+ * LOOP END button (QuranViewScreen playPageStart) — pressing it while a loop is
+ * playing stops playback and clears the loop so resume continues verse+1, +2, ...
+ */
+export const cancelLoop = (): void => { loopState = null; };
+
+/** The surahId of the currently active loop range, or 0 when no loop is running. */
+export const getActiveLoopSurahId = (): number => (loopState ? loopState.surahId : 0);
 
 export const pauseSurah = async (player: any): Promise<void> => {
   playToken++;
@@ -12324,7 +12686,6 @@ export const playSurahFromVerse = async (
   playVerse(player, qariId, surahId, verse, lastVerse, callbacks, !!opts?.playBasmala);
 };
 
-
 ====================================================================================================
 FILE: src\utils\constants.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\utils\constants.ts
@@ -12446,10 +12807,12 @@ export const getJuzForVerse = (surahId: number, verseNum: number): number => {
 FILE: src\utils\mushafLayout.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\utils\mushafLayout.ts
 ====================================================================================================
+import { frameInsetFor } from '../components/quran/OrnamentalFrame';
+
 /**
  * FILE: src/utils/mushafLayout.ts
  * ROLE: Split-view (two-page spread) geometry helpers — the only module for the tablet spread math used by QuranViewScreen's page-mode FlatList.
- * DEPENDS ON: nothing (pure functions + two constants).
+ * DEPENDS ON: OrnamentalFrame.tsx (frameInsetFor — via textInsetFor) plus pure functions + two constants.
  * USED BY: QuranViewScreen.tsx (GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor); SettingsScreen.tsx (SPLIT_MIN_WIDTH).
  * NOTES: The pair model is why page-mode scroll targets are index-based in split mode (scrollToIndex index = pairIndexForPage(page)) while single mode is offset-based (offset = (page-1)*winW). Keep the two mappings in sync with each other.
  */
@@ -12458,6 +12821,13 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\utils\mushafLayout.ts
 export const GUTTER = 12;
 // SPLIT_MIN_WIDTH = 768 (dp) — below this width the app NEVER shows spreads (splitOn = settings.mushafSplit && winW >= SPLIT_MIN_WIDTH), and SettingsScreen hides the Spread switch entirely.
 export const SPLIT_MIN_WIDTH = 768;
+
+// WHAT: THE shared horizontal text inset for a given page width — 6.7% of the page width,
+//       floored at the frame's inner text-box edge (frameInsetFor) so words never cross the
+//       frame rule. MushafPageView pads the text container by it, and stroke.ts's hPadFor
+//       delegates to it, keeping drawings registered under the same words.
+// CALLED BY: MushafPageView.tsx (padSide — container paddingHorizontal + lineW), stroke.ts (hPadFor).
+export const textInsetFor = (w: number) => Math.max(0.067 * w, frameInsetFor(w));
 
 // WHAT: Maps a real page number to its FlatList index: p <= 1 -> 0 (page 1 is a lone right page), else floor(p/2).
 // CALLED BY: QuranViewScreen scroll math — onMomentumScrollEnd, handleSelectPage, deep-link, scroll-sync.
@@ -12483,7 +12853,6 @@ export const pagePairsFor = (totalPages: number): (number | null)[][] => {
   return out;
 };
 
-
 ====================================================================================================
 FILE: src\utils\responsive.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\utils\responsive.ts
@@ -12506,10 +12875,13 @@ export const scaleFont = (size: number): number => {
 
 export const getMushafFontSize = (headerVisible?: boolean): number => {
   const base = (() => {
+    // Two sizes lower than the v62-era restore (18/20/22/25): the current frame +
+    // paddings are bigger than v62's, so the full restore rendered too large and
+    // clipped at the top with the header visible. Phones only — tablets stay 38/48.
     if (SCREEN_WIDTH < 360) return 16;
     if (SCREEN_WIDTH < 400) return 18;
     if (SCREEN_WIDTH < 500) return 20;
-    if (SCREEN_WIDTH < 700) return 22;
+    if (SCREEN_WIDTH < 700) return 23;
     // Tablets / iPad sizes: drastically increased as requested, 
     // leveraging the extra available space to make the text way bigger.
     if (SCREEN_WIDTH < 900) return 38; 
@@ -12519,7 +12891,10 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
   // of measured line widths shared by both header states, and the cache-hit scale math assumes
   // they were measured at the current render size — a hidden-header size bump (+1/+3) made
   // hidden-header pages under-scale and spill past the padding into the frame. Both states
-  // render at the same size now, so the fit is identical (and correct).
+  // render at the same size now, so the fit is identical (and correct). Vertical room is NOT
+  // handled here either: MushafPageView's pitchScale squeezes line pitch when the shorter
+  // header-visible box demands it, while fontScale keeps the font full-size down to a pitch
+  // floor — so this shared size stays the same in both header states by design.
   return base;
 };
 
@@ -12528,11 +12903,12 @@ export const getMushafLineHeight = (headerVisible?: boolean): number => {
   return getMushafFontSize(headerVisible) * mult;
 };
 
-
 ====================================================================================================
 FILE: src\utils\stroke.ts
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\utils\stroke.ts
 ====================================================================================================
+import { textInsetFor } from './mushafLayout';
+
 export const MIN_POINT_DIST = 2;
 export function thinStrokePoints(points: string[], minDist = MIN_POINT_DIST): string[] {
   if (!points || points.length < 3) return points || [];
@@ -12566,7 +12942,7 @@ export function simplifyStroke(points: string[], epsilon = 1.2): string[] {
   }
   return points.filter((_, i) => keep[i]);
 }
-export const hPadFor = (w: number) => (w >= 600 ? w * 0.08 : 13);
+export const hPadFor = (w: number) => textInsetFor(w);
 export const compactStroke = (points: string[], canvasW: number, canvasH: number, padX = 0): string[] => {
   const cw = canvasW - 2 * padX > 1 ? canvasW - 2 * padX : canvasW;
   return simplifyStroke(thinStrokePoints(points, 3), 1.5)
@@ -12655,7 +13031,6 @@ export const getStartJuzOfSurah = (surahId: number): number => {
   return juz;
 };
 
-
 ====================================================================================================
 FILE: storage.rules
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\storage.rules
@@ -12673,7 +13048,6 @@ service firebase.storage {
   }
 }
 
-
 ====================================================================================================
 FILE: tsconfig.json
 PATH: C:\Users\wissa\Downloads\QuranMasterApp\tsconfig.json
@@ -12688,5 +13062,4 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\tsconfig.json
   },
   "include": ["App.tsx", "src"]
 }
-
 

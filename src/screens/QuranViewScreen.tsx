@@ -420,9 +420,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     tier2TimerRef.current = setTimeout(() => {
       for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) loadPage(clampP(p));
     }, 150);
-    // LAYOUT WARM — the near [c-2, c+9] window immediately, the far [c+10, c+12]
-    // band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
-    for (let p = currentPageNum - 2; p <= currentPageNum + 9; p++) warmLayout(clampP(p));
+    // LAYOUT WARM — the near [c-5, c+9] window immediately (5 behind / 9 ahead), the far
+    // [c+10, c+12] band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
+    for (let p = currentPageNum - 5; p <= currentPageNum + 9; p++) warmLayout(clampP(p));
     layoutQueueRef.current = [];
     for (let p = currentPageNum + 10; p <= currentPageNum + 12; p++) layoutQueueRef.current.push(clampP(p));
     const layoutStep = () => {
@@ -459,6 +459,40 @@ export default function QuranViewScreen({ navigation, route }: any) {
       prefetchTimerRef.current = 0;
     };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
+
+  /**
+   * Hidden pre-render harness — mounts invisible MushafPageView instances for the near
+   * ahead/behind window (3 behind / 4 ahead, only pages whose data already arrived in
+   * pageCache). Their measure pass writes the font-size-independent layout cache BEFORE the
+   * user scrolls there, so pages land fully rendered instead of blank + font refit. Pages are
+   * paced 2 at a time every 300ms (never a storm); once popped they never re-enter
+   * (hiddenWarmDoneRef), and leaving the window unmounts them — a later remount is an instant
+   * cache-hit no-op. Pure measurement — taps/handlers are not wired.
+   * AFFECTS: layoutCacheMem + page_layout_cache (via the hidden MushafPageView measure pass).
+   */
+  const hiddenWarmDoneRef = useRef<Set<number>>(new Set());
+  const [hiddenWarmQueue, setHiddenWarmQueue] = useState<number[]>([]);
+  const [hiddenWarmMounted, setHiddenWarmMounted] = useState<number[]>([]);
+  useEffect(() => {
+    if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) { setHiddenWarmMounted([]); return; }
+    const want: number[] = [];
+    for (let p = currentPageNum - 3; p <= currentPageNum - 1; p++) if (p >= 1) want.push(p);
+    for (let p = currentPageNum + 1; p <= currentPageNum + 4; p++) if (p <= pageNumbers.length) want.push(p);
+    setHiddenWarmMounted(prev => prev.filter(p => want.includes(p)));
+    const missing: number[] = [];
+    for (const p of want) if (!hiddenWarmDoneRef.current.has(p) && pageCache[p]?.lines?.length) missing.push(p);
+    if (missing.length) setHiddenWarmQueue(prev => Array.from(new Set([...prev, ...missing])));
+  }, [currentPageNum, pageNumbers.length, readingMode, pageCache]);
+  useEffect(() => {
+    if (!hiddenWarmQueue.length) return;
+    const t = setTimeout(() => {
+      const take = hiddenWarmQueue.slice(0, 2);
+      for (const p of take) hiddenWarmDoneRef.current.add(p);
+      setHiddenWarmMounted(prev => Array.from(new Set([...prev, ...take])));
+      setHiddenWarmQueue(prev => prev.slice(2));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [hiddenWarmQueue]);
 
   /**
    * WHAT: Landing-path scroll — waits for the page data (deduped by the in-flight
@@ -1798,6 +1832,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     </View>
                   );
                 }} />
+            )}
+
+            {/* hidden pre-render harness: invisible MushafPageViews measuring the near
+                ahead/behind window into the layout cache before the user scrolls there */}
+            {readingMode === 'page' && hiddenWarmMounted.length > 0 && (
+              <View style={{ position: 'absolute', top: -10000, left: 0, width: pageW, height: winH }} pointerEvents="none">
+                {hiddenWarmMounted.map(pg => {
+                  const pd = pageCache[pg];
+                  if (!pd?.lines?.length) return null;
+                  return <MushafPageView key={pg} headerVisible={isHeaderVisible} pageNum={pg} pageWidth={pageW} pageData={pd} notes={canvasData.notes} onDeadTap={toggleHeader} />;
+                })}
+              </View>
             )}
 
             {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}

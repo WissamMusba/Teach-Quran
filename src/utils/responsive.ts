@@ -16,10 +16,13 @@ export const scaleFont = (size: number): number => {
 
 export const getMushafFontSize = (headerVisible?: boolean): number => {
   const base = (() => {
-    if (SCREEN_WIDTH < 360) return 18;
-    if (SCREEN_WIDTH < 400) return 20;
-    if (SCREEN_WIDTH < 500) return 22;
-    if (SCREEN_WIDTH < 700) return 25;
+    // Two sizes lower than the v62-era restore (18/20/22/25): the current frame +
+    // paddings are bigger than v62's, so the full restore rendered too large and
+    // clipped at the top with the header visible. Phones only — tablets stay 38/48.
+    if (SCREEN_WIDTH < 360) return 16;
+    if (SCREEN_WIDTH < 400) return 18;
+    if (SCREEN_WIDTH < 500) return 20;
+    if (SCREEN_WIDTH < 700) return 23;
     // Tablets / iPad sizes: drastically increased as requested, 
     // leveraging the extra available space to make the text way bigger.
     if (SCREEN_WIDTH < 900) return 38; 

@@ -22,10 +22,13 @@ import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } 
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-// Cache-key version bump: old rows were persisted from PARTIAL (under-counted) widths and cause
-// overflow on reload. Bump the number to invalidate stale rows app-wide; one clean re-measure
-// rewrites them. Must be added identically at EVERY get/save call site.
-const CACHE_VERSION = 2;
+// The layout cache stores NORMALIZED line-width sums: every measured word width is divided by
+// the page's rendered base size (normFontSize = (mushafFontSize + adj.size) x sparse boost x
+// fontScale), and every cache-hit replay multiplies the sums back by the current base size.
+// Rows are therefore FONT-SIZE-INDEPENDENT — changing the app's mushaf font size (settings or a
+// new release) never invalidates the cache, so a page is measured ONCE per (page, textStyle,
+// sparse, width) per device and then replayed forever from SQLite. The DB key no longer carries
+// fs (always 0); localDB's layoutVer bump wiped the old fs-keyed rows.
 import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
@@ -90,22 +93,11 @@ const getFontAdj = (ts: string, hv: boolean) => {
 };
 
 /**
- * layoutFsFor / layoutKeyFs — the fs value that rounds into the page_layout_cache key for a
- * (textStyle, headerVisible, sparse) triple: (mushaf size + font adj) x the sparse boost.
- * The headerVisible variant is NOT a separate cache column usage (DB column stays at the
- * legacy false everywhere) — the header shift lands in fs itself, so preloading BOTH header
- * variants means the layout row for each state is ready the moment the header toggles.
- */
-const layoutFsFor = (textStyle: string, headerVisible: boolean, sparse: boolean) =>
-  Math.round((getMushafFontSize(headerVisible) + getFontAdj(textStyle, headerVisible).size) * (sparse ? SPARSE_FONT_BOOST : 1));
-const layoutKeyFs = (textStyle: string, headerVisible: boolean, sparse: boolean) => layoutFsFor(textStyle, headerVisible, sparse) + CACHE_VERSION;
-
-/**
- * warmPageLayoutFor — preloads BOTH header variants' layout rows (mem + SQLite range query) for
- * ONE page, for the mushaf + width + sparse pairing of that page. Called by the QuranView
- * progressive page-warm pipeline for far-ahead pages whose MushafPageView has not mounted yet,
- * so the frame renders the moment they scroll into view regardless of header state.
- * CALLS: preloadPageLayoutCacheRange (localDB) x2 (header shown/header hidden).
+ * warmPageLayoutFor — preloads the layout row (mem + SQLite range query) for ONE page, for the
+ * mushaf + width + sparse pairing of that page. Called by the QuranView progressive page-warm
+ * pipeline for far-ahead pages whose MushafPageView has not mounted yet, so the frame renders
+ * the moment they scroll into view regardless of header state.
+ * CALLS: preloadPageLayoutCacheRange (localDB).
  * AFFECTS: layoutCacheMem + page_layout_cache read caching (no writes).
  */
 export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: string, pageWidth: number) => {
@@ -116,8 +108,7 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
     const sparse = totalWords < SPARSE_WORD_THRESHOLD;
     const keySparse = sparse ? 1 : 0;
     const keyW = Math.round(pageWidth);
-    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, true, sparse), keySparse, keyW);
-    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, layoutKeyFs(textStyle, false, sparse), keySparse, keyW);
+    preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, keySparse, keyW);
   } catch { /* best-effort */ }
 };
 
@@ -172,9 +163,9 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   3. Reset effect clears all measurement refs + lineScale + cacheState('loading') when
  *      pageNum/textStyle/pageWidth/fixNonce change (headerVisible is NOT among the deps — see
  *      NOTES). Cache-load effect then async-reads the page_layout_cache row keyed by
- *      (pageNum, textStyle, headerVisible=false, fs, sparse, rounded pageWidth); headerVisible
- *      is hardcoded false at BOTH the get and save call sites, so header toggling does not
- *      invalidate the cache (it still shifts fs, which IS in the cache key).
+ *      (pageNum, textStyle, headerVisible=false, sparse, rounded pageWidth) — the row holds
+ *      NORMALIZED (font-size-independent) line-width sums, so it serves every header state and
+ *      any font size.
  *   4. Render gate: cacheState 'loading' → empty container; no measurement starts before the
  *      cache verdict arrives.
  *   5. Lines render row-reverse RTL: per word stripPua → isVerseEndMarker? badge-only fragment :
@@ -211,14 +202,13 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - Cache-hit sums can UNDER-COUNT overflowed lines: once a line gets scaled, later word
  *     measurements for it early-return, so the persisted sum for that line is partial; restored
  *     scales on a cache hit may differ from first-visit ones until the cache entry is cleared.
-  *   - headerVisible is absent from BOTH effect dep arrays: getMushafFontSize returns the SAME
-  *     size for both header states (responsive.ts), so fs (cache key) never shifts on a header
-  *     toggle — both states share one layout row. If the size bump is ever re-added, cache-hit
-  *     scales would under-shrink the hidden-header variant and text would spill into the frame
-  *     (see the note in responsive.ts).
-  *   - The vertical fit (pitchScale/fontScale) is render-time only: derived from the measured
-  *     innerH, applied inline to the word Text, and never part of fs — so it cannot invalidate
-  *     cached rows or interact with the header-shared layout key.
+  *   - headerVisible is absent from BOTH effect dep arrays: the layout cache row is
+  *     font-size-independent (normalized sums), so both header states and every font size share
+  *     ONE row per (page, textStyle, sparse, width) — measured once per device, replayed forever.
+  *   - The vertical fit (pitchScale/fontScale) is render-time only AND folded into the
+  *     normalization base: measured widths are divided by (base size x fontScale) before
+  *     persisting and multiplied back on replay, so the fit itself cannot invalidate cached
+  *     rows — it just changes the multiplier.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
@@ -244,9 +234,10 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const adj = getFontAdj(textStyle, headerVisible);
   // Header-visible descender clearance: with the header showing, the page box is shorter and
   // the pitch squeeze (pitchScale) keeps the line stack inside it, so the QPC fonts' descenders
-  // poke below the line box and get visually clipped. Lifting every word 2px up keeps the tails
-  // visible; no header → no lift (layout position unchanged either way — pure visual transform).
-  const wordLiftY = adj.y + (headerVisible ? -2 : 0);
+  // poke below the line box and get visually clipped. Every word is nudged 2px DOWN (requested
+  // tuning) to keep the tails visible; no header → no shift (layout position unchanged either
+  // way — pure visual transform).
+  const wordLiftY = adj.y + (headerVisible ? 2 : 0);
   const compact = pageWidth < 600;
 
   // User-specified padding (percent-based): top/bottom = 2.5% of the SCREEN HEIGHT, left/right =
@@ -264,7 +255,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
     : (versesForPage || []).reduce((a: number, v: any) => a + ((v.textArabic || '').trim().split(/\s+/).filter(Boolean).length), 0);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
-  const fs = layoutFsFor(textStyle, headerVisible, sparse);
+  // fs (base rendered size WITHOUT the per-line scale) — used for the ta'awwud line only; the
+  // layout cache no longer keys on it (normalized sums are font-size-independent).
+  const fs = Math.round(getMushafFontSize(headerVisible) + adj.size);
 
   // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
   //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
@@ -325,6 +318,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const availH = innerH - fitPadTop - fitPadBottom;
   const pitchScale = needH > 0 && availH > 0 ? Math.min(1, Math.max(0.5, availH / needH)) : 1;
   const fontScale = Math.min(1, Math.max(0.5, (pitchScale * naturalRatio) / PITCH_FLOOR_RATIO));
+  // Normalization base for the layout cache: the rendered size every word is drawn at (before
+  // the per-line scaleForLine). Measured widths are divided by this BEFORE persisting and
+  // multiplied back on replay, so cached rows survive any font-size change (settings, header
+  // toggle, release updates) — each page is measured once per device, not once per font size.
+  const normFontSize = (mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale;
+  const normPx = (px: number) => (normFontSize > 0 ? px / normFontSize : 0);
 
   useEffect(() => {
     let mounted = true;
@@ -359,8 +358,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
   // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
-  // from the deps — and must stay absent: the two header states share one fs (responsive.ts) and
-  // one layout-cache row, so a toggle is a same-key cache hit, not a re-measure.
+  // from the deps — and must stay absent: one font-size-independent layout row serves both
+  // header states, so a toggle is a same-key cache hit, not a re-measure.
   useEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
@@ -378,11 +377,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // does not need the font (only the measure pass does), so a cache-hit page renders the moment
   // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms 3 behind /
   // 7+ ahead pages in ONE SQLite query via preloadPageLayoutCacheRange (they land in
-  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic) — for BOTH
-  // header states (fs variant), so toggling the header never cold-recomputes. 'hit' →
-  // layoutContentRef set and scaleForLine switches to the arithmetic single-pass path; 'miss' →
-  // measurement path (which still waits for fontReady inside handleWordMeasured). Cancellation
-  // flag guards the unmount race. headerVisible is a dep so a header toggle hot-swaps the row.
+  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic). Rows are
+  // font-size-independent (normalized sums), so the SAME row serves both header states and any
+  // font size. 'hit' → layoutContentRef set and scaleForLine switches to the arithmetic
+  // single-pass path; 'miss' → measurement path (which still waits for fontReady inside
+  // handleWordMeasured). Cancellation flag guards the unmount race.
   useEffect(() => {
     if (!pageData?.lines?.length) return;
     let cancelled = false;
@@ -390,9 +389,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     const keyW = Math.round(pageWidth);
     const first = Math.max(1, pageNum - 3);
     const last = pageNum + 7;
-    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW);
-    preloadPageLayoutCacheRange(first, last, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, keyW);
-    getPageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, keyW)
+    preloadPageLayoutCacheRange(first, last, textStyle, false, keySparse, keyW);
+    getPageLayoutCache(pageNum, textStyle, false, keySparse, keyW)
       .then((cached) => {
         if (cancelled) return;
         if (cached) {
@@ -405,7 +403,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         }
       });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, fs, pageWidth, fixNonce, headerVisible]);
+  }, [pageNum, textStyle, pageWidth, fixNonce, headerVisible]);
 
   const scheduleVerify = useCallback(() => {
     setTimeout(() => commitVerify(), 350);
@@ -430,20 +428,19 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) : 0;
     }
     const saved = layoutContentRef.current || [];
+    // Widths (and the saved row) are normalized by normFontSize — compare in normalized units.
     const differs = sums.length !== saved.length ||
-      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > 1.5);
+      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > normPx(1.5));
     if (differs) {
       layoutContentRef.current = sums;
       setLineScale({});
       const keySparse = sparse ? 1 : 0;
       const sumsW = Math.round(pageWidth);
-    // Persist for BOTH header variants: the sums are raw (full-size) widths, valid for any
-    // font size, and the two header states share one fs, so the toggled-header state opens
-    // from cache instead of re-measuring.
-      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), keySparse, sumsW, sums);
-      savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), keySparse, sumsW, sums);
+      // The sums are NORMALIZED (font-size-independent) widths — one row serves every header
+      // state and any font size, so a page is measured once per device, then replayed forever.
+      savePageLayoutCache(pageNum, textStyle, false, keySparse, sumsW, sums);
     }
-  }, [pageNum, textStyle, fs, pageWidth, sparse, headerVisible, pageData]);
+  }, [pageNum, textStyle, pageWidth, sparse, headerVisible, pageData, normFontSize]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -476,10 +473,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (frozenRef.current) return;
     if (!fontReady) return;
     // Once a line is scaled, later measurements arrive at the SCALED font. Divide by the current
-    // scale to recover the raw unscaled width so the store (and the persisted sums) always hold
-    // full-size widths. Cache-hit scale then mirrors first-visit exactly — no under-count, no
-    // overflow on reload, single measurement pass, never causes new re-renders by itself.
+    // scale to recover the raw unscaled width, then by normFontSize to get the NORMALIZED
+    // (font-size-independent) unit — the persisted sums are always in these units, and the
+    // cache-hit replay multiplies them back by the current base size. This is what lets a page
+    // survive any font-size change: measured once per device, replayed forever from SQLite.
     if (scaleRef.current[lineKey]) w = w / scaleRef.current[lineKey];
+    w = normPx(w);
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
       filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
@@ -487,12 +486,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     widthsRef.current[lineKey][wordIdx] = w;
     const arr = widthsRef.current[lineKey];
     const lineW = pageWidth - 2 * padSide;
-    // Effective sum = max of the persisted (possibly under-counted) cached sum and the live
-    // measured sum, so a cache-hit page whose cached line under-counts still re-scales instead
-    // of letting words spill past the inner rule.
+    // Effective content in PIXELS = max of the persisted (possibly under-counted) cached sum and
+    // the live measured sum, both normalized units x current base size, + live lineExtra — so a
+    // cache-hit page whose cached line under-counts still re-scales instead of letting words
+    // spill past the inner rule.
     const cached = layoutContentRef.current?.[lineKey] || 0;
     const liveArrSum = arr.reduce<number>((a, b) => a + (b || 0), 0);
-    const content = Math.max(cached, liveArrSum) + (lineExtraRef.current[lineKey] || 0);
+    const content = Math.max(cached, liveArrSum) * normFontSize + (lineExtraRef.current[lineKey] || 0);
     const complete = (filledCountRef.current[lineKey] || 0) >= expected;
     // The scale-setting branch is MISS-path only: during a cache-HIT verify pass the render
     // already sizes via scaleForLine's arithmetic (max(cached, live)), so we only RECORD widths
@@ -517,23 +517,19 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        // Cache-HIT verify: compare the fully-measured live sums against the cached row. If any
-        // live sum exceeds its cached sum by more than 2px the row under-counts (stale/partial
-        // write from an older version) — correct the render (single re-render via setLineScale)
-        // and rewrite BOTH header-variant rows with the fresh raw sums. If they match, keep the
-        // cached row untouched. Either way the page FREEZES here: no further re-scaling ever.
+        // Cache-HIT verify: compare the fully-measured live sums (normalized units) against the
+        // cached row. If any live sum exceeds its cached sum by more than 2px (in normalized
+        // units) the row under-counts (stale/partial write from an older version) — correct the
+        // render (single re-render via setLineScale) and rewrite the row with the fresh sums. If
+        // they match, keep the cached row untouched. Either way the page FREEZES here: no
+        // further re-scaling ever.
         const saved = layoutContentRef.current;
         const needsRewrite = !saved || sums.length !== saved.length ||
-          sums.some((s, i) => s - (saved[i] || 0) > 2);
+          sums.some((s, i) => s - (saved[i] || 0) > normPx(2));
         if (needsRewrite) {
           layoutContentRef.current = sums;
           setLineScale({});
-          // Sums are raw (full-size) widths — persist BOTH header variants so the
-          // toggled-header state renders from cache instead of re-measuring the page.
-          savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, headerVisible, sparse), sparse ? 1 : 0,
-            Math.round(pageWidth), sums);
-          savePageLayoutCache(pageNum, textStyle, false, layoutKeyFs(textStyle, !headerVisible, sparse), sparse ? 1 : 0,
-            Math.round(pageWidth), sums);
+          savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
         }
         cacheWrittenRef.current = true;
         frozenRef.current = true;
@@ -551,7 +547,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (layoutContentRef.current) {
       const lineW = pageWidth - 2 * padSide;
       const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
-      const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) + (lineExtraRef.current[lineIdx] || 0);
+      // Cached sums are normalized units — multiply back by the CURRENT base size.
+      const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) * normFontSize + (lineExtraRef.current[lineIdx] || 0);
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
     return lineScale[lineIdx] || 1;

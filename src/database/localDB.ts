@@ -32,9 +32,9 @@ export const initDatabase = async () => {
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
   const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
   const ver = r && r[0] && r[0].rows && r[0].rows.length ? parseInt(r[0].rows.item(0).value, 10) : 0;
-  if (ver < 2) {
+  if (ver < 3) {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
-    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','2')`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','3')`);
   }
 
   await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
@@ -464,10 +464,15 @@ async function migrateV1IfNeeded(db: any) {
 // resolve synchronously from layoutCacheMem with zero DB traffic. The Mem LRU is small (cache
 // rows are tiny) but bounded so a session of paging through the whole mushaf can't grow it
 // unboundedly: evicts when > MAX_MEM_ENTRIES (simple FIFO by insertion order — Map semantics).
+// Rows store NORMALIZED line-width sums (px divided by the page's rendered base font size), so
+// they are FONT-SIZE-INDEPENDENT: the DB key carries fs=0 always, and any app font-size change
+// (settings, header toggle, release updates) reuses the same row — each page is measured ONCE
+// per device and replayed forever. layoutVer in meta is bumped to wipe rows when the stored
+// FORMAT changes (e.g. v2: fs-keyed raw widths -> v3: normalized units).
 const MAX_MEM_ENTRIES = 900;
 const layoutCacheMem = new Map<string, number[] | null>();
-const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, fs: number, sparse: number, screenW: number) =>
-  `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${fs}|${sparse}|${screenW}`;
+const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, sparse: number, screenW: number) =>
+  `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${sparse}|${screenW}`;
 const memStore = (key: string, value: number[] | null) => {
   layoutCacheMem.set(key, value);
   if (layoutCacheMem.size > MAX_MEM_ENTRIES) {
@@ -478,37 +483,37 @@ const memStore = (key: string, value: number[] | null) => {
 /**
  * preloadPageLayoutCacheRange(first, last, ...keyParts) — one SQLite query warms every
  * page_layout_cache row in [first,last] matching the caller's exact key parts (textStyle,
- * headerVisible, fs, sparse, screenW) into the layoutCacheMem map, so the MushafPageView mounts
+ * headerVisible, sparse, screenW) into the layoutCacheMem map, so the MushafPageView mounts
  * for those pages resolve their cache synchronously instead of queueing N separate DB reads.
- * CALLED BY: MushafPageView cache-load effect (warms pageNum ± 2 before the user swipes there).
+ * CALLED BY: MushafPageView cache-load effect (warms pageNum ± 3/7 before the user swipes there).
  * NOTES: reads only; never writes. Rows with other key parts are ignored — each MushafPageView
  *   mount still falls back to a direct DB read if its own exact key is absent from the mem map.
  */
 export const preloadPageLayoutCacheRange = async (
   first: number, last: number, textStyle: string, headerVisible: boolean,
-  fs: number, sparse: number, screenW: number,
+  sparse: number, screenW: number,
 ): Promise<void> => {
   try {
     const r = await getDB().executeSql(
-      `SELECT pageNumber, headerVisible, fs, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
-      [first, last, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
+      `SELECT pageNumber, headerVisible, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
+      [first, last, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
     for (let i = 0; i < r[0].rows.length; i++) {
       const row = r[0].rows.item(i);
-      memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.fs, row.sparse, row.screenW), JSON.parse(row.lines));
+      memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.sparse, row.screenW), JSON.parse(row.lines));
     }
   } catch { /* best-effort */ }
 };
 export const getPageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
-  fs: number, sparse: number, screenW: number,
+  sparse: number, screenW: number,
 ): Promise<number[] | null> => {
-  const key = memKey(pageNumber, textStyle, headerVisible, fs, sparse, screenW);
+  const key = memKey(pageNumber, textStyle, headerVisible, sparse, screenW);
   const mem = layoutCacheMem.get(key);
   if (mem !== undefined) return mem;
   try {
     const r = await getDB().executeSql(
-      `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=? AND sparse=? AND screenW=?`,
-      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW]);
+      `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
     const parsed = (r && r[0].rows.length > 0) ? JSON.parse(r[0].rows.item(0).lines) : null;
     memStore(key, parsed);
     return parsed;
@@ -517,13 +522,13 @@ export const getPageLayoutCache = async (
 };
 export const savePageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
-  fs: number, sparse: number, screenW: number, lines: number[],
+  sparse: number, screenW: number, lines: number[],
 ) => {
-  memStore(memKey(pageNumber, textStyle, headerVisible, fs, sparse, screenW), lines);
+  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), lines);
   try {
     await getDB().executeSql(
-      `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [pageNumber, textStyle, headerVisible ? 1 : 0, fs, sparse, screenW, JSON.stringify(lines)]);
+      `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, 0, ?, ?, ?)`,
+      [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW, JSON.stringify(lines)]);
   } catch { /* best-effort */ }
 };
 export const clearPageLayoutCacheRange = async (from: number, to: number): Promise<void> => {
