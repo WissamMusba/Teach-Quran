@@ -1,14 +1,17 @@
 /**
  * FILE: src/components/quran/SurahList.tsx
  * ROLE: Full-screen modal surah picker with fuzzy search (name/number/juz/page) used from the Quran screen header.
- * DEPENDS ON: getSurahs (database/quranData.ts:171 — SELECT * FROM surahs ORDER BY id); getStartJuzOfSurah + JUZ_MAP (utils/theme.ts)
- * USED BY: src/screens/QuranViewScreen.tsx:630 (modal over the whole screen; header "list" button at :509 sets showList)
+ * DEPENDS ON: SURAH_META (utils/surahMeta.ts — bundled static 114-surah metadata); getStartJuzOfSurah + JUZ_MAP (utils/theme.ts)
+ * USED BY: src/screens/QuranViewScreen.tsx (modal over the whole screen; header "list" button sets showList)
+ * FIX 7: The list renders/searches from the bundled SURAH_META constant SYNCHRONOUSLY — no
+ *        SQLite read, no redux hydration gate — so opening the modal shows the full list in the
+ *        same frame and typing "Kahf" matches Al-Kahf instantly. redux quran.surahNames is kept
+ *        only as an optional English-name OVERRIDE when present (network names win).
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
-import { getSurahs } from '../../database/quranData';
-import { getStartJuzOfSurah, JUZ_MAP } from '../../utils/theme';
+import { SURAH_META } from '../../utils/surahMeta';
 
 // Search-normalization: lowercase, strip diacritics, unify alif/hamza/teh-marbuta, keep only ASCII+Arabic, collapse spaces; memoized by input.
 // FLOW: NFD normalize → strip combining marks + Arabic tashkeel ranges → drop tatweel → fold أإآٱ→ا / ؤ→و / ئ→ي / ة→ه → filter chars → collapse whitespace → trim.
@@ -67,18 +70,7 @@ const scoreName = (name: string, q: string): number => {
   return 0;
 };
 
-// All juz numbers a surah spans, by scanning the 30 {j,s,v} JUZ_MAP boundaries; feeds "juz N" search matching and the list subtitle.
-const juzsOfSurah = (s: number): number[] => {
-  const out: number[] = [];
-  for (let i = 0; i < JUZ_MAP.length; i++) {
-    if (JUZ_MAP[i].s <= s && (i === JUZ_MAP.length - 1 || s <= JUZ_MAP[i + 1].s)) out.push(i + 1);
-  }
-  return out;
-};
 
-// Hardcoded 114-entry [startPage, endPage] pairs for the 610-page indopak pagination; feeds the "Pages a–b" subtitle and numeric page search.
-// A rebuild should generate this from the indopak pages table instead of hardcoding.
-const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106,127],[128,150],[151,176],[177,186],[187,207],[208,221],[221,235],[235,248],[249,255],[255,261],[261,267],[267,281],[282,292],[293,305],[305,312],[312,321],[322,331],[331,341],[342,349],[350,359],[359,366],[366,376],[376,385],[385,396],[396,404],[404,411],[411,414],[415,417],[418,427],[428,434],[434,440],[440,445],[445,452],[452,458],[458,467],[467,476],[477,482],[483,489],[489,495],[495,498],[498,501],[502,506],[506,510],[511,515],[515,517],[518,520],[520,523],[523,525],[526,528],[528,531],[531,534],[534,537],[537,541],[542,545],[545,548],[549,551],[551,553],[553,554],[554,555],[556,557],[558,559],[560,561],[562,564],[564,567],[567,569],[569,571],[571,573],[573,576],[576,577],[578,580],[580,581],[582,584],[584,585],[586,587],[587,589],[589,590],[590,591],[591,592],[592,594],[594,595],[595,596],[596,596],[597,597],[597,598],[598,599],[600,600],[600,601],[601,602],[602,602],[602,602],[603,603],[603,604],[604,604],[604,605],[605,605],[605,606],[606,606],[606,606],[607,607],[607,607],[607,607],[608,608],[608,608],[608,608],[608,609],[609,609],[609,609],[609,609],[610,610],[610,610]];
 
 /**
  * SurahList — full-screen modal surah picker with fuzzy search.
@@ -103,11 +95,21 @@ const SURAH_PAGE_RANGE: [number, number][] = [[1,1],[2,49],[50,76],[77,106],[106
  */
 export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: any) {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const surahNames = useSelector((s: any) => s.quran?.surahNames);
   const isDark = !!nightMode;
-  const [surahs, setSurahs] = useState<any[]>([]);
   const [query, setQuery] = useState('');
-  useEffect(() => { if (visible) { setQuery(''); getSurahs().then(s => setSurahs(s as any)); } }, [visible]);
-  const data = useMemo(() => surahs.map((s: any) => ({ ...s, startJuz: getStartJuzOfSurah(s.id), juzs: juzsOfSurah(s.id), pageRange: SURAH_PAGE_RANGE[s.id - 1] })), [surahs]);
+  useEffect(() => { if (visible) setQuery(''); }, [visible]);
+  // FIX 7 — data comes from the bundled static constant (synchronous, hydration-independent).
+  // redux surahNames only OVERRIDES the English display name when present (network names win).
+  const data = useMemo(() => SURAH_META.map((m: any) => ({
+    id: m.id,
+    englishName: surahNames?.[m.id] || m.en,
+    name: m.ar,
+    verses: m.verses,
+    startJuz: m.startJuz,
+    juzs: m.juzs,
+    pageRange: m.pages,
+  })), [surahNames]);
   const results = useMemo(() => {
     const q = norm(query);
     if (!q) return data;

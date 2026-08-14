@@ -10,15 +10,15 @@
  * USED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem
  */
 
-import React, { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable } from 'react-native';
+import React, { memo, useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
 import { textInsetFor } from '../../utils/mushafLayout';
-import { getPageLayoutCache, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
+import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -70,6 +70,11 @@ const hasArabicLetters = (t: string) => /[\u0621-\u064A\u0671-\u06D3\u06D5\u06FA
 // at the line level — typically short surah-opening pages that would otherwise look lost.
 const SPARSE_WORD_THRESHOLD = 50;
 const SPARSE_FONT_BOOST = 1.3;
+
+// Session-wide font-settle gate (FIX 2): only the FIRST MushafPageView mount of a session waits
+// the 150ms font-settle timer; every later page renders immediately because the loaded font's
+// metrics are already stable (RN loads a font family once per process).
+let fontLoadedOnce = false;
 
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
@@ -279,7 +284,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const cacheWrittenRef = useRef(false);
   const frozenRef = useRef(false);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
-  const [fontReady, setFontReady] = useState(false);
+  const [fontReady, setFontReady] = useState(fontLoadedOnce);
   const [innerH, setInnerH] = useState(0);
   // Vertical box height measurement. CRITICAL: this must fire on the VERY FIRST layout of the
   // mounted view — which happens while the 'loading' GATE is rendered (cache-hit pages swap the
@@ -327,8 +332,9 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   useEffect(() => {
     let mounted = true;
+    if (fontLoadedOnce) { setFontReady(true); return; }
     setFontReady(false);
-    const t = setTimeout(() => { if (mounted) setFontReady(true); }, 150);
+    const t = setTimeout(() => { if (mounted) { fontLoadedOnce = true; setFontReady(true); } }, 150);
     return () => { mounted = false; clearTimeout(t); };
   }, [fontFamily, fixNonce]);
 
@@ -360,7 +366,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // the pipeline back to 'loading' so the next pass starts clean. NOTE: headerVisible is absent
   // from the deps — and must stay absent: one font-size-independent layout row serves both
   // header states, so a toggle is a same-key cache hit, not a re-measure.
-  useEffect(() => {
+  // useLayoutEffect + declared BEFORE the cache-load effect: both run pre-paint in declaration
+  // order, so a warm mount resets first and the cache-load hit lands before the frame paints
+  // (a plain useEffect here would run AFTER the layout effect's hit and clobber it back to
+  // 'loading' — a stuck skeleton).
+  useLayoutEffect(() => {
     scaleRef.current = {};
     widthsRef.current = {};
     lineExtraRef.current = {};
@@ -373,78 +383,51 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
 
-  // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read
-  // does not need the font (only the measure pass does), so a cache-hit page renders the moment
-  // it mounts instead of after the 150ms font gate. Fire-and-forget preload warms 3 behind /
-  // 7+ ahead pages in ONE SQLite query via preloadPageLayoutCacheRange (they land in
-  // layoutCacheMem synchronously, so swiping to them later costs zero DB traffic). Rows are
-  // font-size-independent (normalized sums), so the SAME row serves both header states and any
-  // font size. 'hit' → layoutContentRef set and scaleForLine switches to the arithmetic
-  // single-pass path; 'miss' → measurement path (which still waits for fontReady inside
+  // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read does
+  // not need the font (only the measure pass does), so a cache-hit page renders the moment it
+  // mounts instead of after the 150ms font gate. Runs in useLayoutEffect (before paint) so a warm
+  // layoutCacheMem hit resolves synchronously and the page never even flashes the loading
+  // skeleton. Rows are font-size-independent (normalized sums), so the SAME row serves both
+  // header states and any font size. 'hit' → layoutContentRef set + frozenRef=true and scaleForLine
+  // switches to the arithmetic single-pass path — ZERO measurement work (no verification pass, no
+  // re-measure, no pulsing); 'miss' → measurement path (which still waits for fontReady inside
   // handleWordMeasured). Cancellation flag guards the unmount race.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!pageData?.lines?.length) return;
     let cancelled = false;
     const keySparse = sparse ? 1 : 0;
     const keyW = Math.round(pageWidth);
-    const first = Math.max(1, pageNum - 3);
-    const last = pageNum + 7;
-    preloadPageLayoutCacheRange(first, last, textStyle, false, keySparse, keyW);
-    getPageLayoutCache(pageNum, textStyle, false, keySparse, keyW)
-      .then((cached) => {
-        if (cancelled) return;
-        if (cached) {
-          layoutContentRef.current = cached;
-          cacheWrittenRef.current = false;
-          setCacheState('hit');
-          scheduleVerify();
-          // Layout row already persisted (cache hit) — the page needs nothing more;
-          // the traversed-range backfill uses this to unmount the hidden instance.
-          if (onMeasured) onMeasured(pageNum);
-        } else {
-          setCacheState('miss');
-        }
-      });
+    const applyHit = (cached: number[] | null) => {
+      if (cancelled) return;
+      if (cached) {
+        layoutContentRef.current = cached;
+        frozenRef.current = true;
+        setCacheState('hit');
+        // Layout row already persisted (cache hit) — the page needs nothing more; the
+        // traversed-range backfill uses this to unmount the hidden instance.
+        if (onMeasured) onMeasured(pageNum);
+      } else {
+        setCacheState('miss');
+      }
+    };
+    // (a) Mem-first: the exact key is already in layoutCacheMem → resolve synchronously and
+    // SKIP the SQLite read entirely.
+    const memHit = getLayoutCacheSync(pageNum, textStyle, false, keySparse, keyW);
+    if (memHit !== undefined) {
+      applyHit(memHit);
+    } else {
+      getPageLayoutCache(pageNum, textStyle, false, keySparse, keyW).then(applyHit);
+    }
+    // (b/c) Deferred ±2 preload: warms the neighbour rows into layoutCacheMem in ONE query,
+    // pushed to runAfterInteractions so it can never block the render. Keys already present in
+    // layoutCacheMem are re-stored with identical values (no-op) — only genuinely-missing keys
+    // ever touch SQLite.
+    InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      preloadPageLayoutCacheRange(Math.max(1, pageNum - 2), pageNum + 2, textStyle, false, keySparse, keyW);
+    });
     return () => { cancelled = true; };
   }, [pageNum, textStyle, pageWidth, fixNonce, headerVisible]);
-
-  const scheduleVerify = useCallback(() => {
-    setTimeout(() => commitVerify(), 350);
-  }, []);
-
-  const commitVerify = useCallback(() => {
-    // Post-settle: the completion handler already compared/froze — never re-correct after that
-    // (at most ONE correction per page, then stable forever, no pulsing).
-    if (frozenRef.current) return;
-    const fresh = widthsRef.current;
-    const keys = Object.keys(fresh).map(Number);
-    if (keys.length === 0) return;
-    const totalLines = (pageData?.lines || []).reduce(
-      (a: number, l: any) => a + (l.words && l.words.some((w: any) => hasArabicLetters(stripPua(w.word))) ? 1 : 0), 0);
-    // Only a FULLY-measured pass may rewrite the row — partial live sums must never clobber
-    // the persisted (possibly fuller) sums, that is how under-counts got written before.
-    if (completedLinesRef.current.size < totalLines) return;
-    const lineW = pageWidth - 2 * padSide;
-    const sums: number[] = [];
-    for (let k = 0; k <= Math.max(...keys); k++) {
-      const arr = fresh[k];
-      sums[k] = arr ? arr.reduce((a: number, b: number) => a + (b || 0), 0) : 0;
-    }
-    const saved = layoutContentRef.current || [];
-    // Widths (and the saved row) are normalized by normFontSize — compare in normalized units.
-    const differs = sums.length !== saved.length ||
-      sums.some((s, i) => Math.abs(s - (saved[i] || 0)) > normPx(1.5));
-    if (differs) {
-      layoutContentRef.current = sums;
-      setLineScale({});
-      const keySparse = sparse ? 1 : 0;
-      const sumsW = Math.round(pageWidth);
-      // The sums are NORMALIZED (font-size-independent) widths — one row serves every header
-      // state and any font size, so a page is measured once per device, then replayed forever.
-      savePageLayoutCache(pageNum, textStyle, false, keySparse, sumsW, sums);
-      if (onMeasured) onMeasured(pageNum);
-    }
-  }, [pageNum, textStyle, pageWidth, sparse, headerVisible, pageData, normFontSize]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -521,22 +504,15 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           const arr = widthsRef.current[k];
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
-        // Cache-HIT verify: compare the fully-measured live sums (normalized units) against the
-        // cached row. If any live sum exceeds its cached sum by more than 2px (in normalized
-        // units) the row under-counts (stale/partial write from an older version) — correct the
-        // render (single re-render via setLineScale) and rewrite the row with the fresh sums. If
-        // they match, keep the cached row untouched. Either way the page FREEZES here: no
-        // further re-scaling ever.
-        const saved = layoutContentRef.current;
-        const needsRewrite = !saved || sums.length !== saved.length ||
-          sums.some((s, i) => s - (saved[i] || 0) > normPx(2));
-        if (needsRewrite) {
-          layoutContentRef.current = sums;
-          setLineScale({});
-          savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
-        }
-        // Measure pass concluded (fresh write or verified-match) — the page's layout row is
-        // now persisted; the traversed-range backfill unmounts the hidden instance here.
+        // Measure pass concluded (cache-MISS path only — a cache-hit mount never reaches here:
+        // frozenRef is set immediately on hit). Persist the freshly measured sums ONCE, then
+        // freeze: no verification pass, no re-measure, no pulsing — a page is measured once per
+        // device and replayed forever from SQLite.
+        layoutContentRef.current = sums;
+        setLineScale({});
+        savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
+        // The page's layout row is now persisted; the traversed-range backfill unmounts the
+        // hidden instance here.
         if (onMeasured) onMeasured(pageNum);
         cacheWrittenRef.current = true;
         frozenRef.current = true;
@@ -631,7 +607,20 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // granularity), no layout-cache interaction. The font uses the sparse boost too; each row is a
   // Pressable → onDeadTap, the inner text zone → onWordPress(verseNum, 0) / onVerseLongPress,
   // plus the bookmark badge and note icon.
+  // FIX 4 — page JSON missing AND no verse fallback: render the frame + a centered spinner in
+  // the same container (onLayout still captures the true box height), never a black/empty void.
   if (!pageData || !pageData.lines || pageData.lines.length === 0) {
+    if (!versesForPage || versesForPage.length === 0) {
+      return (
+        <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
+          <View style={styles(nightMode).skeletonWrap}>
+            <ActivityIndicator size="large" color={nightMode ? '#7BA7DB' : '#1C3D72'} />
+          </View>
+          {overlayLayer}
+          {actionPills}
+        </View>
+      );
+    }
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).fallbackBody}>
@@ -675,8 +664,18 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // words laid out before the real font loads fire onLayout once and would never re-measure,
   // so measurement must not start on the fallback font. fontReady persists across page swipes
   // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
+  // FIX 4 — while the cache verdict / font-settle is pending, render the frame + spinner (same
+  // container size so onBoxLayout still captures the true height), never a black void.
   if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
-    return <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout} />;
+    return (
+      <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
+        <View style={styles(nightMode).skeletonWrap}>
+          <ActivityIndicator size="large" color={nightMode ? '#7BA7DB' : '#1C3D72'} />
+        </View>
+        {overlayLayer}
+        {actionPills}
+      </View>
+    );
   }
 
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
@@ -818,6 +817,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   headerLine: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, width: '100%', borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   text: { textAlign: 'center', flexShrink: 1 },
   fallbackBody: { flex: 1, justifyContent: 'flex-start' },
+  skeletonWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   fallbackRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', width: '100%', marginBottom: 8 },
   fallbackTextZone: { flexShrink: 1 },
   fallbackText: { flexWrap: 'wrap', flexShrink: 1, textAlign: 'right' },

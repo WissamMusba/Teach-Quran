@@ -503,6 +503,17 @@ export const preloadPageLayoutCacheRange = async (
     }
   } catch { /* best-effort */ }
 };
+/**
+ * getLayoutCacheSync — SYNCHRONOUS layoutCacheMem lookup (no SQLite, no promise). Returns the
+ * cached row for the exact key, or undefined when the key is not in memory (caller must fall
+ * back to the async getPageLayoutCache DB read). Used by MushafPageView's cache-load effect so
+ * a warm cache-hit mount resolves BEFORE paint (zero DB traffic, zero skeleton flash).
+ */
+export const getLayoutCacheSync = (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  sparse: number, screenW: number,
+): number[] | null | undefined => layoutCacheMem.get(memKey(pageNumber, textStyle, headerVisible, sparse, screenW));
+
 export const getPageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   sparse: number, screenW: number,

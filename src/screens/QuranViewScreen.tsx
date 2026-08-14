@@ -394,8 +394,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const tier2TimerRef = useRef<any>(0);
   const layoutTimerRef = useRef<any>(0);
   const layoutQueueRef = useRef<number[]>([]);
+  // Swipe-settle debounce (FIX 8): onMomentumScrollEnd updates currentPageNum immediately so
+  // rendering keeps up with the flick, but the HEAVY per-page effects (prefetch window, canvas
+  // drawing refresh, lastRead flush) only act once the page survives 120ms without another
+  // momentum settle — a fast fling past N pages runs them ONCE for the final page, not N times.
+  const [settledPage, setSettledPage] = useState(1);
+  const settleTimerRef = useRef<any>(null);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
+    // FIX 8 — ignore intermediate momentum pages: only warm the window for the page that
+    // survives 120ms after the last swipe settle.
+    if (settledPage !== currentPageNum) return;
     const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
     const loadPage = (p: number) => {
       ensurePageLoaded(p);
@@ -460,7 +469,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       clearTimeout(prefetchTimerRef.current);
       prefetchTimerRef.current = 0;
     };
-  }, [currentPageNum, readingMode, pageNumbers.length, pageW]);
+  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage]);
 
   /**
    * Hidden pre-render harness — mounts invisible MushafPageView instances for the near
@@ -563,10 +572,21 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (pg < 1 || pg > pageNumbers.length) return;
     programmaticScrollRef.current = Date.now();
     lastLandedPageRef.current = pg; // so the next MANUAL scroll's backfill range is correct
-    const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 450))]);
+    // FIX 8 — a programmatic landing settles immediately (no 120ms swipe debounce).
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    setSettledPage(pg);
+    // FIX 6c — prefetch the neighbours so the pages either side of the target are ready the
+    // moment the user swipes after landing.
+    if (pg > 1) ensurePageLoaded(pg - 1);
+    if (pg < pageNumbers.length) ensurePageLoaded(pg + 1);
+    if (splitOn) prefetchPartner(pg);
+    // FIX 6b — wait up to 3s for the target page data (the FIX 4 skeleton shows meanwhile); on
+    // timeout scroll anyway — whatever is available renders, never a black void.
+    const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 3000))]);
     if (data && data.lines?.length && Math.round(pageW) > 0) {
       try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
     }
+    // FIX 6d — scroll AFTER the page data resolves (animated:false), never a blind setTimeout.
     flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
   }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
@@ -581,9 +601,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
     if (pageMode === 'single') { ensurePageLoaded(page + 1); ensurePageLoaded(page - 1); ensurePageLoaded(page + 2); ensurePageLoaded(page - 2); return; }
+    // FIX 5 — spread mode loads only the visible pair + ONE neighbour pair; never preloads or
+    // verifies off-screen halves (the FlatList window renders those anyway when needed).
     const data = pagePairsFor(pageNumbers.length);
-    const lo = Math.max(0, pairIndexForPage(page) - 2);
-    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
+    const lo = Math.max(0, pairIndexForPage(page) - 1);
+    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 1);
     for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
   };
 
@@ -734,11 +756,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   useEffect(() => {
     if (readingMode !== 'page' || !currentStudent?.id) return;
+    // FIX 8 — only the settled page counts as "last page viewed": intermediate pages of a fast
+    // fling must never overwrite the real landing page.
+    if (settledPage !== currentPageNum) return;
     const pg = pageVersesCache[currentPageNum];
     const last = pg && pg.length ? pg[pg.length - 1] : null;
     if (!last || !Number(last.surahId) || !Number(last.verseNumber)) return;
     saveLastPageSeenLocal(currentStudent.id, { surah: Number(last.surahId), verse: Number(last.verseNumber), at: new Date().toISOString() });
-  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum]]);
+  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum], settledPage]);
 
   /**
    * WHAT: 20-verse page loader for ayah/continuous modes; appends or replaces
@@ -868,6 +893,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (!currentStudent) return;
+    // FIX 8 — ignore intermediate momentum pages: only refresh the canvas for the page that
+    // survives 120ms after the last swipe settle.
+    if (settledPage !== currentPageNum) return;
     const sid = currentStudent.id;
     let cancelled = false;
     const mergeChunks = async (keys: (string | null)[]) => {
@@ -916,7 +944,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     };
     load();
     return () => { cancelled = true; };
-  }, [currentPageNum, currentSurahId, splitOn, currentStudent, readingMode]);
+  }, [currentPageNum, currentSurahId, splitOn, currentStudent, readingMode, settledPage]);
 
   /**
    * WHAT: Re-hydrates the UI after a sync run finishes (app open, foreground,
@@ -1124,13 +1152,27 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: After splitOn/winW changes, re-snaps the page FlatList to the current
    *   page (target = pair index in split mode, else page-1; offset = target*winW).
-   * NOTES: Duplicate safety net for handleSelectPage / deep-link scrolls.
+   * NOTES: NEVER runs on its mount frame — the initial scroll position belongs to the
+   *   deep-link / lastRead-restore / surah-change landing paths (all of which scroll via
+   *   landOnPage). A mount-time snap used to race those landings: on a fast warm-cache
+   *   device the deep link landed at e.g. page 298 within a few ms, then this effect's
+   *   +120ms timer scrolled the FlatList back to page 1 — which is exactly why RESUME and
+   *   DAILY RECITATION "went to Al-Fatiha" even though the header/hub showed page 298.
    */
+  const snapMountedRef = useRef(false);
   useEffect(() => {
+    if (!snapMountedRef.current) { snapMountedRef.current = true; return; }
+    if (paramsHandledRef.current) return; // a deep link is still landing — it owns the scroll
     const target = splitOn ? pairIndexForPage(currentPageNum) : currentPageNum - 1;
     const t = setTimeout(() => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }); }, 120);
     return () => clearTimeout(t);
   }, [splitOn, winW]);
+
+  // FIX 8 — clear the swipe-settle debounce timer on unmount (never inside per-page effect
+  // cleanups: those re-run on every page change and would cancel the final page's settle).
+  useEffect(() => () => {
+    if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+  }, []);
 
   // ================= EDIT PIPELINE — the feature heart =================
   // Every student-data mutation funnels through updateData:
@@ -1842,11 +1884,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
-                removeClippedSubviews scrollEventThrottle={16}
+                removeClippedSubviews={true} scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                initialNumToRender={5} maxToRenderPerBatch={6} windowSize={5}
-                updateCellsBatchingPeriod={25}
+                initialNumToRender={3} maxToRenderPerBatch={6} windowSize={13}
+                updateCellsBatchingPeriod={100}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
                   if (Date.now() - programmaticScrollRef.current < 400) return;
@@ -1854,6 +1896,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
                   if (p !== currentPageNum) {
                     setCurrentPageNum(p); setHeaderPage(p);
+                    // FIX 8 — debounce the heavy per-page effects to the page that survives
+                    // 120ms after the last momentum settle.
+                    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+                    settleTimerRef.current = setTimeout(() => setSettledPage(p), 120);
                     // Traversed-range backfill: queue every page the user swiped PAST so the
                     // backfill worker re-mounts them hidden and persists their layout rows
                     // (fast flings can otherwise leave intermediate pages unmeasured).
