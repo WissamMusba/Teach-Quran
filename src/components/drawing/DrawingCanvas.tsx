@@ -218,6 +218,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       if (s.activeTool === 'laser') {
         lastPenPointRef.current = null;
         const newPath = {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           points: [`${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`],
           color: s.activeColor,
           width: s.penSize,
@@ -232,6 +233,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
       lastPenPointRef.current = isEraser ? null : newPoint;
       const newPath = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         points: [newPoint],
         color: isEraser ? '#121212' : s.activeColor,
         width: isEraser ? s.penSize * 3 : s.penSize,
@@ -241,9 +243,17 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       setCurrentPath(newPath);
       currentPathRef.current = newPath;
     },
-    // MOVE — laser is frozen (return); eraser/pen append each point; underline collapses to [first, current] so it stays a straight line.
+    // MOVE — laser rewrites its single point to the current finger position (pointer tracking); eraser/pen append each point; underline collapses to [first, current] so it stays a straight line.
     onPanResponderMove: (e) => {
-      if (stateRef.current.activeTool === 'laser') return;
+      if (stateRef.current.activeTool === 'laser') {
+        if (currentPathRef.current) {
+          const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
+          const updatedPath = { ...currentPathRef.current, points: [newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+        }
+        return;
+      }
       if (currentPathRef.current) {
         const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
         if (stateRef.current.activeTool === 'eraser') {

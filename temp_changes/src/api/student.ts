@@ -41,12 +41,6 @@ export const createStudent = async (name: string) => {
   if (!userId) return { success: false, error: 'No user' };
   const ref = await firestore().collection('users').doc(userId).collection('students').add({ name, createdAt: firestore.FieldValue.serverTimestamp() });
   await ref.collection('data').doc('studentData').set({ bookmarks: {}, highlights: {}, drawings: {}, notes: {}, history: { actions: [], currentIndex: -1 } });
-  try {
-    const list = (await getCachedStudentList()) || [];
-    if (!list.some((s: any) => s?.id === ref.id)) {
-      await cacheStudentList([...list, { id: ref.id, name, createdAt: new Date().toISOString() }]);
-    }
-  } catch {}
   return { success: true, studentId: ref.id };
 };
 /**
@@ -135,11 +129,6 @@ export const updateStudent = async (id: string, name: string) => {
   const userId = getUserId();
   if (!userId) return { success: false, error: 'No user' };
   await firestore().collection('users').doc(userId).collection('students').doc(id).update({ name });
-  try {
-    const list = (await getCachedStudentList()) || [];
-    const next = list.map((s: any) => (s?.id === id ? { ...s, name } : s));
-    await cacheStudentList(next);
-  } catch {}
   return { success: true };
 };
 

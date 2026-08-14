@@ -1,0 +1,53 @@
+# Release Workflow (TeachQuran APK)
+
+## TEMPORARY (Aug 6, 2026): DO NOT use the Grep tool today — grepping causes problems. Use Read/Glob/codebase-memory tools instead. Remove this note tomorrow (Aug 7).
+
+When the user says "release" / "build APK" / "make a release" (or similar), execute the release pipeline below. Do NOT run it unprompted — only when the user tells you to.
+
+## Version numbering
+
+Each release increments the version number by 1. Check the latest git tag (or existing `TeachQuran-v*.apk` files) to determine the next number, e.g. latest tag `v55` -> build `v56`; after that, `v57`, `v58`, etc. Use the next number consistently in:
+- `TeachQuran-v<N>.apk` (APK filename)
+- Commit message: `Release v<N>: Package Release v<N> APK`
+- Git tag: `v<N>`
+
+Current state as of last check: latest tag `v55` (release `v55` exists) -> next release is **v56**.
+
+## Commands
+
+```powershell
+# 1. Clear stale Metro bundler cache (prevents React Native build cache bugs)
+Remove-Item -Recurse -Force $env:TEMP\metro-* -ErrorAction SilentlyContinue ;
+
+# 2. Set JDK 17 environment path & build the Android Release APK
+#    SPEED RULE: do NOT run `clean` — it wipes all compiled output (dex, native
+#    libs, JS bundle, resources) and turns every release into a from-scratch
+#    rebuild. Gradle's up-to-date checks + local build cache (org.gradle.caching=true)
+#    skip unchanged work, so repeat releases take minutes. Only run `clean` when a
+#    build misbehaves with stale-output errors.
+$env:JAVA_HOME="C:\Users\wissa\Downloads\jdk17\jdk-17.0.19+10" ;
+cd android ;
+.\gradlew assembleRelease ;
+cd .. ;
+
+# Optional speed flags (NOT part of the default pipeline):
+#   --offline                       -> skip dependency checks, fastest repeat builds (only after a full online build succeeded)
+#   -PreactNativeArchitectures=arm64-v8a  -> phone-only release (fastest); emulator: =x86_64
+#   .\gradlew clean assembleRelease       -> ONLY when a stale-output build error demands it
+
+# 3. Copy the compiled APK binary to the root directory as TeachQuran-v<N>.apk
+Copy-Item "android\app\build\outputs\apk\release\app-release.apk" -Destination "TeachQuran-v<N>.apk" -Force ;
+
+# 4. Stage all source code changes AND force-add the APK file (bypassing .gitignore)
+git add . ;
+git add -f TeachQuran-v<N>.apk ;
+
+# 5. Commit with release message and create/update the git tag 'v<N>'
+git commit -m "Release v<N>: Package Release v<N> APK" ;
+git tag -f v<N> ;
+
+# 6. Push all new commits and tags directly to GitHub (origin/main)
+git push origin main --tags
+```
+
+Replace `<N>` with the next version number. Verify the build succeeded before copying/committing (abort on gradle failure).
