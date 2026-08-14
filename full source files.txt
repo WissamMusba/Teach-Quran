@@ -8660,6 +8660,7 @@ PATH: C:\Users\wissa\Downloads\QuranMasterApp\src\screens\QuranViewScreen.tsx
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
@@ -8742,7 +8743,7 @@ const pageLastVerseFromPageData = (pd: any) => {
  * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
  *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
  */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
@@ -8767,7 +8768,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)} />
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+                onMeasured={onMeasured} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
@@ -8778,7 +8780,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)} />
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+              onMeasured={onMeasured} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
@@ -9034,6 +9037,108 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // momentum settle — a fast fling past N pages runs them ONCE for the final page, not N times.
   const [settledPage, setSettledPage] = useState(1);
   const settleTimerRef = useRef<any>(null);
+
+  // ---- v76 background hidden pre-measure worker ----
+  // ONE hidden MushafPageView (off-screen, hideFrame — never touches the shared frame cache)
+  // measures un-warmed pages nearest-first from the current page, so every page's layout row is
+  // in SQLite BEFORE the user swipes to it (instant cache-hit render on arrival, exactly the v62
+  // feel once warm). Strictly ONE page at a time with a 150ms breather, paused while scrolling /
+  // drawing / capturing / app backgrounded / screen blurred — the v74 flood (~25 concurrent
+  // hidden pages) is gone, so buttons and navigation stay instant.
+  // warmedPagesRef keys: `${textStyle}|${keyW}|${pageNum}` — a page counts as warmed per font +
+  // layout width (the cache-key dimensions), so a font or split-width change re-measures cleanly.
+  const [hiddenWarmPage, setHiddenWarmPage] = useState<number | null>(null);
+  const hiddenBusyRef = useRef(false);
+  const warmedPagesRef = useRef<Set<string>>(new Set());
+  const hiddenScrollingRef = useRef(false);
+  const hiddenPauseTimerRef = useRef<any>(null);
+  const hiddenSafetyTimerRef = useRef<any>(null);
+  const appStateRef = useRef(AppState.currentState);
+  const hiddenFocus = useIsFocused();
+  const hiddenTickRef = useRef<() => void>(() => {});
+  const hiddenTick = useCallback(() => {
+    if (hiddenBusyRef.current || hiddenPauseTimerRef.current) return;
+    if (!hiddenFocus || appStateRef.current !== 'active') return;
+    if (isDrawing || isCapturing || drawingGestureActive || hiddenScrollingRef.current) return;
+    if (readingMode !== 'page' || settledPage !== currentPageNum) return;
+    // Nearest-first, ahead-biased (ahead 12 / behind 10 — inside the prefetch data window, so
+    // page JSON is already in pageCache and the hidden slot renders the moment it mounts).
+    const c = currentPageNum;
+    const total = pageNumbers.length;
+    const keyW = Math.round(splitOn ? pageW : winW);
+    const cands: number[] = [];
+    for (let d = 1; d <= 12; d++) {
+      if (c + d <= total) cands.push(c + d);
+      if (d <= 10 && c - d >= 1) cands.push(c - d);
+    }
+    const next = cands.find(p =>
+      !warmedPagesRef.current.has(`${textStyle}|${keyW}|${p}`) &&
+      pageCache[p]?.lines?.length > 0
+    );
+    if (!next) return;
+    hiddenBusyRef.current = true;
+    setHiddenWarmPage(next);
+    if (hiddenSafetyTimerRef.current) clearTimeout(hiddenSafetyTimerRef.current);
+    hiddenSafetyTimerRef.current = setTimeout(() => {
+      // Stall guard: if the hidden page never reports measured (page changed / data lost),
+      // release the slot and move on instead of deadlocking the worker.
+      if (hiddenBusyRef.current) {
+        hiddenBusyRef.current = false;
+        setHiddenWarmPage(null);
+        warmedPagesRef.current.add(`${textStyle}|${keyW}|${next}`);
+        hiddenPauseTimerRef.current = setTimeout(() => {
+          hiddenPauseTimerRef.current = null;
+          hiddenTickRef.current();
+        }, 200);
+      }
+    }, 8000);
+  }, [hiddenFocus, isDrawing, isCapturing, drawingGestureActive, readingMode, settledPage, currentPageNum, pageNumbers.length, splitOn, pageW, winW, textStyle, pageCache]);
+  hiddenTickRef.current = hiddenTick;
+
+  const handleHiddenMeasured = useCallback((pg: number) => {
+    const keyW = Math.round(splitOn ? pageW : winW);
+    warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
+    if (hiddenSafetyTimerRef.current) { clearTimeout(hiddenSafetyTimerRef.current); hiddenSafetyTimerRef.current = null; }
+    if (pg === hiddenWarmPage) {
+      hiddenBusyRef.current = false;
+      setHiddenWarmPage(null);
+    }
+    // Breather between hidden pages — keeps the JS thread free for taps/buttons.
+    hiddenPauseTimerRef.current = setTimeout(() => {
+      hiddenPauseTimerRef.current = null;
+      hiddenTickRef.current();
+    }, 150);
+  }, [hiddenWarmPage, splitOn, pageW, textStyle]);
+
+  // Visible-page counterpart: pages measured on-screen (single or spread) also count as warmed,
+  // so the hidden worker never re-measures what the user has already seen.
+  const handleVisibleMeasured = useCallback((pg: number) => {
+    const keyW = Math.round(splitOn ? pageW : winW);
+    warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
+  }, [splitOn, pageW, textStyle]);
+
+  // Re-evaluate the worker whenever the reading state settles or a page's data arrives.
+  useEffect(() => {
+    const t = setTimeout(() => hiddenTickRef.current(), 250);
+    return () => clearTimeout(t);
+  }, [currentPageNum, settledPage, pageCache, hiddenWarmPage, isDrawing, isCapturing, drawingGestureActive, hiddenFocus, readingMode]);
+
+  // Live app-state ref (separate from the []-deps flush listener below) — the worker must pause
+  // while the app is backgrounded so it never burns CPU behind the lock screen, and must resume
+  // the moment the app returns to the foreground (otherwise it could stall after backgrounding).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s: any) => {
+      appStateRef.current = s;
+      if (s === 'active') hiddenTickRef.current();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Cleanup on unmount: cancel pending timers.
+  useEffect(() => () => {
+    if (hiddenPauseTimerRef.current) clearTimeout(hiddenPauseTimerRef.current);
+    if (hiddenSafetyTimerRef.current) clearTimeout(hiddenSafetyTimerRef.current);
+  }, []);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
     // FIX 8 — ignore intermediate momentum pages: only warm the window for the page that
@@ -9620,6 +9725,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     setPageVersesCache({});
     pageCacheOrderRef.current = [];
     pageVersesOrderRef.current = [];
+    // v76 — the layout cache keys changed (different mushaf); everything must re-measure.
+    warmedPagesRef.current.clear();
+    if (hiddenBusyRef.current) { hiddenBusyRef.current = false; setHiddenWarmPage(null); }
   }, [textStyle]);
 
   /**
@@ -10421,7 +10529,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
+                onScrollBeginDrag={() => { hiddenScrollingRef.current = true; }}
                 onMomentumScrollEnd={(e) => {
+                  // v76 — the swipe is over; the hidden pre-measure worker may resume (the
+                  // settledPage debounce below still pauses it for the 120ms settle window).
+                  hiddenScrollingRef.current = false;
                   if (Date.now() - programmaticScrollRef.current < 400) return;
                   const idx = Math.round(e.nativeEvent.contentOffset.x / winW);
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
@@ -10450,7 +10562,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} />
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured} />
                 ) : ({ item }: any) => {
                   ensurePageLoaded(item);
                   ensurePageVersesLoaded(item);
@@ -10464,12 +10576,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
                           onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
                           flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                           onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!pageLastVerseFor(item)} readingMarkActive={readingMarkActiveFor(pageLastVerseFor(item))} onReadingMarkToggle={() => handleReadingMarkToggle(pageLastVerseFor(item))} />
+                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!pageLastVerseFor(item)} readingMarkActive={readingMarkActiveFor(pageLastVerseFor(item))} onReadingMarkToggle={() => handleReadingMarkToggle(pageLastVerseFor(item))}
+                          onMeasured={handleVisibleMeasured} />
                       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
                       </View>
                     </View>
                   );
                 }} />
+            )}
+
+            {/* v76 — background hidden pre-measure slot: ONE off-screen page measuring at a time
+                 (hideFrame — never touches the shared frame cache; same margins as the visible
+                 page box so the measured geometry is identical). Its layout row lands in SQLite
+                 before the user swipes there, so arrival renders instantly as a cache hit. */}
+            {readingMode === 'page' && hiddenWarmPage && pageCache[hiddenWarmPage] && (
+              <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0, bottom: 0, width: splitOn ? pageW : winW, overflow: 'hidden', opacity: 0.999 }}>
+                <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
+                  <MushafPageView hideFrame pageNum={hiddenWarmPage} pageWidth={splitOn ? pageW : winW} headerVisible={isHeaderVisible} surahNames={surahNames}
+                    versesForPage={pageVersesCache[hiddenWarmPage] || []} pageData={pageCache[hiddenWarmPage]} highlights={captureHighlights}
+                    onWordPress={() => {}} onBookmarkToggle={() => {}} onVerseLongPress={() => {}} onBadgePress={() => {}}
+                    bookmarks={captureBookmarks} notes={canvasData.notes} onMeasured={handleHiddenMeasured} />
+                </View>
+              </View>
             )}
 
             {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}
