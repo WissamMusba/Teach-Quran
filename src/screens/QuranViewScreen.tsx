@@ -1673,10 +1673,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // synchronously from the page's own mushaf JSON (pageCache) — fallback to the async
   // pageVersesCache row only when pageData is missing — so the button appears in the same
   // commit as the page, single + spread, including pre-rendered pages while swiping.
-  const pageLastVerseFor = useCallback((p: number) =>
-    pageLastVerseFromPageData(pageCache[p]) ||
-    (pageVersesCache[p] || [])[pageVersesCache[p].length - 1] || null,
-    [pageCache, pageVersesCache]);
+  const pageLastVerseFor = useCallback((p: number) => {
+    const fromData = pageLastVerseFromPageData(pageCache[p]);
+    if (fromData) return fromData;
+    const vs = pageVersesCache[p] || [];
+    return vs.length ? vs[vs.length - 1] : null;
+  }, [pageCache, pageVersesCache]);
   /**
    * WHAT: Whether the given page-last verse carries the READ BOOKMARK (studentData.lastRead) —
    *   per-page active state for the reading-mark ribbon. Same match logic StudentHub's DAILY
