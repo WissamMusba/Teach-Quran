@@ -5,7 +5,7 @@
  * USED BY: DashboardScreen.tsx:12,115 (student actions); LoginScreen.tsx:6,40 (auth errors); RegisterScreen.tsx:4,34 (registration errors).
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 
 // Alert button descriptor: 'cancel' -> dark, 'destructive' -> red, 'default' (plain) -> blue when last.
 interface AlertButton {
@@ -46,8 +46,9 @@ const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = tru
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles(nightMode).overlay}>
-        <View style={[styles(nightMode).box, { backgroundColor: bg, borderColor: border }]}>
+      <Pressable style={styles(nightMode).overlay} onPress={() => onClose?.()}>
+        <Pressable onPress={() => {}}>
+          <View style={[styles(nightMode).box, { backgroundColor: bg, borderColor: border }]}>
           <Text style={[styles(nightMode).title, { color: text }]}>{title}</Text>
           <Text style={[styles(nightMode).message, { color: muted }]}>{message}</Text>
           <View style={styles(nightMode).row}>
@@ -78,8 +79,9 @@ const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = tru
               );
             })}
           </View>
-        </View>
-      </View>
+          </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };

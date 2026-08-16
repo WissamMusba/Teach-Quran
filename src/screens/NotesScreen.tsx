@@ -18,7 +18,7 @@
  *       re-render only the small card subtree instead of reparsing every note entry.
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem, Modal, TextInput } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem, Modal, TextInput, Pressable } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
@@ -400,15 +400,17 @@ export default function NotesScreen() {
       />
 
       <Modal visible={editVerseKey !== null} transparent animationType="fade" onRequestClose={() => setEditVerseKey(null)}>
-        <View style={styles(nightMode).noteOverlay}>
-          <View style={styles(nightMode).noteContainer}>
-            <TextInput style={styles(nightMode).noteInput} value={editText} onChangeText={setEditText} multiline placeholder="Note..." placeholderTextColor="#666" />
-            <View style={styles(nightMode).noteActions}>
-              <TouchableOpacity onPress={() => setEditVerseKey(null)} style={styles(nightMode).noteCancelBtn}><Text style={{ color: '#fff' }}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={saveEditedNote} style={styles(nightMode).noteSaveBtn}><Text style={{ color: '#121212' }}>Save</Text></TouchableOpacity>
+        <Pressable style={styles(nightMode).noteOverlay} onPress={() => setEditVerseKey(null)}>
+          <Pressable onPress={() => {}}>
+            <View style={styles(nightMode).noteContainer}>
+              <TextInput style={styles(nightMode).noteInput} value={editText} onChangeText={setEditText} multiline placeholder="Note..." placeholderTextColor="#666" />
+              <View style={styles(nightMode).noteActions}>
+                <TouchableOpacity onPress={() => setEditVerseKey(null)} style={styles(nightMode).noteCancelBtn}><Text style={{ color: '#fff' }}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={saveEditedNote} style={styles(nightMode).noteSaveBtn}><Text style={{ color: '#121212' }}>Save</Text></TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

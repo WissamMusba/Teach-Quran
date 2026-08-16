@@ -48,6 +48,8 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
   // Word split: plain whitespace + cleanQuranWord — no pageData/location wordPos in this mode.
   const words = displayText.trim().split(' ').map(cleanQuranWord);
+  const isBasmala = verse.verseNumber === 1 && verse.surahId !== 1 && verse.surahId !== 9;
+  const verseWords = isBasmala && words.length >= 4 ? words.slice(4) : words;
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
   const isFlashing = flashingVerse === verse.verseNumber;
   const fontFamily = getArabicFont(textStyle);
@@ -57,16 +59,14 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
   const yAdj: Record<string, number> = {};
-  const size = baseSize + (sizeBoost[textStyle] || 0);
+  const size = baseSize + (sizeBoost[textStyle] || 0) + (fontSize === 'small' ? 4 : 0);
   return (
     <View style={[styles(nightMode).container, { backgroundColor: isFlashing ? 'rgba(255,215,0,0.15)' : 'transparent', borderBottomColor: nightMode ? '#1e1e1e' : '#e0e0e0' }]}>
+      {isBasmala && (
+        <Text style={[styles(nightMode).basmala, { fontSize: size, color: textColor, fontFamily, lineHeight: size * 2.6 }]} maxFontSizeMultiplier={1}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
+      )}
       <Pressable style={styles(nightMode).arabicRow} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
-        {verse.verseNumber > 1 && (
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-          </View>
-        )}
-        {words.map((word: string, index: number) => {
+        {verseWords.map((word: string, index: number) => {
           // Per-word highlight lookup by bare word index (wordIndex === index); tap fires only
           // for non-empty words (empty tokens come from ayah-marker stripping).
           const h = highlights?.find((hl: any) => hl.wordIndex === index);
@@ -76,6 +76,9 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
             </WordHitArea>
           );
 })}
+        <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+        </View>
       </Pressable>
       {showTranslation && <Text style={styles(nightMode).translation}>{verse.textTranslation}</Text>}
     </View>
@@ -88,6 +91,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   container: { marginBottom: 28, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1 },
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
+  basmala: { textAlign: 'center', marginBottom: 6 },
   verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 3 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },

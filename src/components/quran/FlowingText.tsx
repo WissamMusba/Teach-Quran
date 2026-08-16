@@ -55,7 +55,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
   // size * 1.9 — a tight continuous column (the old 2.6 made each verse an airy block).
   const baseSize = scaleFont(FONT_SIZES[fontSize]);
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
-  const size = baseSize + (sizeBoost[textStyle] || 0);
+  const size = baseSize + (sizeBoost[textStyle] || 0) + (fontSize === 'small' ? 4 : 0);
   const lineH = size * 1.9;
   const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
 
@@ -63,6 +63,8 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
   verses.forEach((verse: any) => {
     const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
     const words = displayText.trim().split(' ').map(cleanQuranWord);
+    const isBasmala = verse.verseNumber === 1 && verse.surahId !== 1 && verse.surahId !== 9;
+    const verseWords = isBasmala && words.length >= 4 ? words.slice(4) : words;
     const vKey = `${verse.surahId}_${verse.verseNumber}`;
     const verseHighs = highlights?.[vKey]?.highlights || [];
     const isBookmarked = !!bookmarks?.[vKey];
@@ -70,7 +72,9 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
     const isFlashing = flashingVerse === verse.verseNumber;
     const isReadingMark = readingMarkVerse === verse.verseNumber;
 
-    words.forEach((word: string, wIdx: number) => {
+    if (isBasmala) flow.push(<Text key={`${vKey}_bsm`} style={[styles(nightMode).basmala, { fontSize: size, color: textColor, fontFamily, lineHeight: lineH }]} maxFontSizeMultiplier={1}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>);
+
+    verseWords.forEach((word: string, wIdx: number) => {
       const h = verseHighs.find((hl: any) => hl.wordIndex === wIdx);
       flow.push(
         <WordHitArea key={`${vKey}_w${wIdx}`} tapFraction={WORD_TAP_FRACTION}
@@ -81,18 +85,14 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
       );
     });
 
-    // Inline verse badge — the ayah marker at the end of each verse. Verse 1 (the Bismillah)
-    // intentionally gets no badge/number.
-    if (verse.verseNumber > 1) {
-      flow.push(
-        <View key={`${vKey}_bdg`} style={styles(nightMode).badgeWrap}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-          </View>
-          {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
+    flow.push(
+      <View key={`${vKey}_bdg`} style={styles(nightMode).badgeWrap}>
+        <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
         </View>
-      );
-    }
+        {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
+      </View>
+    );
 
     if (showTranslation) flow.push(<Text key={`${vKey}_tr`} style={styles(nightMode).translation}>{verse.textTranslation}</Text>);
   });
@@ -104,8 +104,9 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
   );
 };
 const styles = (nightMode: boolean) => StyleSheet.create({
-  container: { width: '100%', padding: 12, backgroundColor: 'transparent', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
+  container: { width: '100%', paddingVertical: 12, paddingHorizontal: 4, backgroundColor: 'transparent', flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
   arabicText: {},
+  basmala: { width: '100%', textAlign: 'center', marginTop: 8, marginBottom: 2 },
   badgeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, minWidth: 18 },
   verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 1 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },

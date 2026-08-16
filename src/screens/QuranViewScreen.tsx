@@ -434,6 +434,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const layoutTimerRef = useRef<any>(0);
   const layoutQueueRef = useRef<number[]>([]);
+  // P0-B / touch-pause — while the user is touching the screen the warm drain queue yields: the
+  // JS thread must stay free for the press/navigation event, otherwise toolbar buttons queue
+  // behind the 3-per-80ms drain ticks for ~1-2s after a page turn. Set/cleared by onTouchStart/
+  // onTouchEnd/onTouchCancel on the root container below.
+  const drainPausedRef = useRef(false);
   // P0-B — cross-settle dedupe for the layout-warm pass: a fast settle re-fire
   // (2-5-2 swipe patterns) must never re-query layout rows it already warmed.
   const layoutWarmByPageRef = useRef<Set<string>>(new Set());
@@ -485,9 +490,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const c = currentPageNum;
     const SWEEP_RADIUS = 25;
     const keyW = Math.round(splitOn ? pageW : winW);
-    // Warmed-key mirrors the DB layout key's variable parts (textStyle, headerVisible, width):
-    // a header toggle or font-style change re-measures cleanly instead of being treated warm.
-    const warmKey = (p: number) => `${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${p}`;
+    // Warmed-key mirrors the DB layout key's variable parts (textStyle, width) — the layout row
+    // is header-independent (MushafPageView normalizes it), so a header toggle must NOT
+    // invalidate the warm radius and re-measure already-measured pages (was the toggle-jank).
+    const warmKey = (p: number) => `${textStyle}|${keyW}|${p}`;
     let next: number | undefined;
     for (let d = 1; d <= SWEEP_RADIUS && next === undefined; d++) {
       const ahead = c + d;
@@ -514,7 +520,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (hiddenBusyRef.current) {
         hiddenBusyRef.current = false;
         setHiddenWarmPage(null);
-        warmedPagesRef.current.add(`${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${next}`);
+        warmedPagesRef.current.add(`${textStyle}|${keyW}|${next}`);
         hiddenPauseTimerRef.current = setTimeout(() => {
           hiddenPauseTimerRef.current = null;
           hiddenTickRef.current();
@@ -534,7 +540,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const handleHiddenMeasured = useCallback((pg: number) => {
     const keyW = Math.round(splitOn ? pageW : winW);
-    warmedPagesRef.current.add(`${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${pg}`);
+    warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
     if (hiddenSafetyTimerRef.current) { clearTimeout(hiddenSafetyTimerRef.current); hiddenSafetyTimerRef.current = null; }
     if (pg === hiddenWarmPage) {
       hiddenBusyRef.current = false;
@@ -551,7 +557,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // so the hidden worker never re-measures what the user has already seen.
   const handleVisibleMeasured = useCallback((pg: number) => {
     const keyW = Math.round(splitOn ? pageW : winW);
-    warmedPagesRef.current.add(`${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${pg}`);
+    warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
   }, [splitOn, pageW, textStyle, isHeaderVisible]);
 
   // Re-evaluate the worker whenever the reading state settles or a page's data arrives.
@@ -589,7 +595,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const keyW = Math.round(splitOn ? pageW : winW);
     // Same key scheme as the hidden worker's warmedPagesRef (textStyle|header|width|page),
     // so pages it already measured are skipped here — their layout row is already in SQLite.
-    const warmKey = (p: number) => `${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${p}`;
+    const warmKey = (p: number) => `${textStyle}|${keyW}|${p}`;
     const warmLayoutByPage = new Set<number>();
     const warmLayout = (p: number) => {
       if (warmLayoutByPage.has(p) || layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) return;
@@ -605,15 +611,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // drips 3 pages per tick — 10 ahead / 5 behind are cached within ~1.5s, no wall.
     const layoutStep = () => {
       clearTimeout(layoutTimerRef.current);
+      // Touch-pause: a finger is down — skip this tick and re-arm; the tap's own JS event
+      // (press-in, navigation) runs instead of queuing behind drain work.
+      if (drainPausedRef.current) {
+        if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+        return;
+      }
       const batch = layoutQueueRef.current.splice(0, 3);
       for (const p of batch) { loadPage(p); warmLayout(p); }
       if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
     };
-    // TIER 0 — the visible page + its immediate neighbours, this tick only.
-    loadPage(clampP(currentPageNum));
-    for (let p = currentPageNum - 1; p <= currentPageNum + 1; p++) { const q = clampP(p); loadPage(q); warmLayout(q); }
     // TIER 1 — nearest-first drain: 5-behind arm, 7-ahead arm, far-behind, far-ahead.
     const queue: number[] = [];
+    // TIER 0 — the visible page + its immediate neighbours, this tick only. While a touch is
+    // down they are deferred into the drain queue (their position in the queue is kept by
+    // unshifting so they still go first once the finger lifts).
+    const tier0Pages = [clampP(currentPageNum - 1), clampP(currentPageNum), clampP(currentPageNum + 1)];
+    if (drainPausedRef.current) {
+      for (let i = tier0Pages.length - 1; i >= 0; i--) queue.unshift(tier0Pages[i]);
+    } else {
+      loadPage(clampP(currentPageNum));
+      for (const q of tier0Pages) { loadPage(q); warmLayout(q); }
+    }
     for (let p = currentPageNum - 5; p <= currentPageNum - 2; p++) queue.push(clampP(p));
     for (let p = currentPageNum + 2; p <= currentPageNum + 7; p++) queue.push(clampP(p));
     for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) queue.push(clampP(p));
@@ -1942,7 +1961,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [menuY]);
 
   return (
-    <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}
+      onTouchStart={() => { drainPausedRef.current = true; }}
+      onTouchEnd={() => { drainPausedRef.current = false; }}
+      onTouchCancel={() => { drainPausedRef.current = false; }}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
@@ -1971,7 +1993,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
             {/* ================= continuous mode: ScrollView + FlowingText ================= */}
             {readingMode === 'continuous' && (
-              <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: IS_TABLET ? 40 : 20 }}
+              <ScrollView ref={scrollViewRef} contentContainerStyle={{ paddingHorizontal: IS_TABLET ? 24 : 12, paddingVertical: 20 }}
                 onScroll={({ nativeEvent }: any) => {
                   const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
                   if (contentOffset.y >= contentSize.height - layoutMeasurement.height - 100) {
@@ -2135,10 +2157,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
              both states; the pill NEVER lands on the bar's controls (play/prev/next live inside the
              bar, below its top edge) nor on the frame's bottom band (the 28px margin band is below
              the frame entirely). One-frame edge case: when the header becomes visible playerBarH
-             may still be 0 → bottom:2, on the row, above where the bar is mounting ---- */}
+             may still be 0 → bottom:2, on the row, above where the bar is mounting. ---- */}
+      {/* v78 — PAGE MODE + header SHOWING: the button stretches to fill the 28px margin band —
+             top touching the frame's bottom edge, bottom touching the footer pill row — by pinning
+             the wrap's height to 26 (= 28 band − 2px footer clearance) and letting the button fill
+             it. Other modes/header-hidden keep the compact pill size. */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap, { bottom: (isHeaderVisible ? playerBarH : 0) + 2 }]} pointerEvents="box-none">
-          <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <View style={[styles(nightMode).headerToggleWrap,
+          readingMode === 'page' && isHeaderVisible ? { bottom: playerBarH + 2, height: 26 } : { bottom: (isHeaderVisible ? playerBarH : 0) + 2 }]}
+          pointerEvents="box-none">
+          <TouchableOpacity style={[styles(nightMode).headerToggleBtn, readingMode === 'page' && isHeaderVisible && { flex: 1 }]} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
         </View>
@@ -2253,8 +2281,8 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
   headerToggleWrap: { position: 'absolute', left: 6, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
-  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

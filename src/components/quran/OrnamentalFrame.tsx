@@ -68,6 +68,14 @@ const CORNER_BG_NIGHT = '#232A38';
 const frameBandFor = (W: number) => Math.max(4, W * 0.027);
 
 /**
+ * WHAT: VERTICAL band width — the frame's top/bottom decorative bands are TALLER than the side
+ *       bands (side bands stay W×0.027 so the text area keeps its full width; the taller top/bottom
+ *       bands give the frame the taller classic proportion and the text more visual headroom).
+ * CALLS: none. AFFECTS: pure.
+ */
+const frameBandVFor = (W: number) => Math.max(5, W * 0.036);
+
+/**
  * WHAT: Exposes the frame's inner text-box inset for a given page width — the distance from
  *       the page edge to the innermost (text continuation) bounding box. MushafPageView uses
  *       this to pad its text container so no glyph ever crosses the frame's inner border.
@@ -79,6 +87,20 @@ export const frameInsetFor = (W: number) => {
   const band = frameBandFor(W);
   const gi = Math.max(1.5, W * 0.002);
   return po + go + band + gi;
+};
+
+/**
+ * WHAT: VERTICAL inset — the distance from the page edge to the frame's inner text-box (top and
+ *       bottom). Uses the TALLER vertical band (frameBandVFor) so MushafPageView's top/bottom
+ *       padding floor stays in sync with the painted inner rule.
+ * CALLS: none. AFFECTS: pure.
+ */
+export const frameInsetVFor = (W: number) => {
+  const po = Math.max(2, W * 0.010);
+  const go = Math.max(1, W * 0.006);
+  const bandV = frameBandVFor(W);
+  const gi = Math.max(1.5, W * 0.002);
+  return po + go + bandV + gi;
 };
 
 const SETTLE_MS = 150;
@@ -130,9 +152,11 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
   const band = frameBandFor(W);             // layer 4: decorative band width (shared with frameInsetFor)
+  const bandV = frameBandVFor(W);           // vertical bands — taller than the side bands
   const sw = Math.max(0.75, W * 0.0015);    // hairline stroke — pattern tiles, corner knots, inner rules
   const outSw = Math.max(1.5, W * 0.0035);  // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
+  const vScale = bandV / band;              // corner-node vertical stretch so nodes cover the taller top/bottom bands
 
   const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
   const x1 = band;                          // main frame inner edge (band inner edge)
@@ -194,24 +218,26 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
           fill="none" stroke={blue} strokeWidth={outSw} />
 
         {/* Layer 5: main frame inner border (closes the pattern band) */}
-        <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
+        <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)}
           fill="none" stroke={blue} strokeWidth={sw} />
 
         {/* Layer 4: the four pattern bands (separate rects so corners stay clean) */}
-        <Rect x={x0} y={x0} width={mainW} height={band} fill="url(#framePattern)" />
-        <Rect x={x0} y={H - x0 - band} width={mainW} height={band} fill="url(#framePattern)" />
-        <Rect x={x0} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
-        <Rect x={W - x0 - band} y={x1} width={band} height={Math.max(0, H - 2 * x1)} fill="url(#framePattern)" />
+        <Rect x={x0} y={x0} width={mainW} height={bandV} fill="url(#framePattern)" />
+        <Rect x={x0} y={H - x0 - bandV} width={mainW} height={bandV} fill="url(#framePattern)" />
+        <Rect x={x0} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
+        <Rect x={W - x0 - band} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
 
         {/* Layer 7: inner text area bounding box — the mushaf text lives strictly inside */}
-        <Rect x={x1} y={x1} width={innerW} height={H - 2 * x1}
+        <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)}
           fill="none" stroke={blue} strokeWidth={sw} />
 
-        {/* The four corner nodes — placed exactly over the band intersections */}
-        <Use href="#cornerNode" x={x0} y={x0} />
-        <Use href="#cornerNode" x={W - x0 - band} y={x0} />
-        <Use href="#cornerNode" x={x0} y={H - x0 - band} />
-        <Use href="#cornerNode" x={W - x0 - band} y={H - x0 - band} />
+        {/* The four corner nodes — placed exactly over the band intersections. The wrapping G
+            translate/scale (vertical stretch bandV/band) makes the nodes cover the taller
+            top/bottom bands; the Use carries x/y 0 so nothing double-offsets. */}
+        <G transform={`translate(${x0} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+        <G transform={`translate(${W - x0 - band} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+        <G transform={`translate(${x0} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+        <G transform={`translate(${W - x0 - band} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
       </Svg>
       )}
     </View>

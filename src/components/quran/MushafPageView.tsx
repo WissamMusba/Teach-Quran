@@ -15,7 +15,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable, Activi
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
 import WordHitArea from '../common/WordHitArea';
-import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
+import OrnamentalFrame, { frameInsetFor, frameInsetVFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
 import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, savePageLayoutCacheMemOnly, preloadPageLayoutCacheRange } from '../../database/localDB';
@@ -245,11 +245,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const wordLiftY = adj.y + (headerVisible ? 2 : 0);
   const compact = pageWidth < 600;
 
-  // User-specified padding (percent-based): top/bottom = 2.5% of the SCREEN HEIGHT, left/right =
-  // 6.7% of the PAGE WIDTH (textInsetFor, shared with stroke.ts for drawing registration). Each
-  // is floored at frameInsetFor(pageWidth) so the text always stays strictly inside the frame's
-  // inner text box (never under the pattern band or its rules).
-  const padTop = Math.max(0.025 * SCREEN_HEIGHT, frameInsetFor(pageWidth));
+  // User-specified padding (percent-based): top/bottom = 1.0% of the SCREEN HEIGHT (was 2.5% —
+  // the dead gap between the frame's inner rule and the first/last line is slimmed so the text
+  // gains room; the taller vertical frame bands give the frame its presence), left/right = 6.7%
+  // of the PAGE WIDTH (textInsetFor, shared with stroke.ts for drawing registration). Each is
+  // floored at the frame inset so the text always stays strictly inside the frame's inner text
+  // box (never under the pattern band or its rules).
+  const padTop = Math.max(0.010 * SCREEN_HEIGHT, frameInsetVFor(pageWidth));
   const padBottom = padTop;
   const padSide = textInsetFor(pageWidth);
 
@@ -298,13 +300,25 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // gate for the full mushaf at the SAME size, so the full container's own onLayout would never
   // fire and innerH would stay 0 → pitchScale/fontScale 1 → full-size text in the shorter
   // header-visible box → bottom clipped until a header toggle resizes the box). All three
-  // containers (fallback,
-  // gate, full) therefore share this handler: whichever renders first captures the true height;
-  // later resizes (header toggle, player bar mount, rotation) re-fire it because the size changes.
+  // containers (fallback, gate, full) therefore share this handler: whichever renders first
+  // captures the true height. rAF-batched: the header show/hide height animation fires this
+  // every frame; stacking the pending height and applying once per frame keeps the per-frame
+  // word re-fit (page mode) from thrashing layout as hard as before.
+  const innerHRafRef = useRef<number | null>(null);
+  const pendingInnerHRef = useRef(0);
   const onBoxLayout = useCallback((e: any) => {
     const h = Math.round(e.nativeEvent.layout.height);
-    if (h > 0 && h !== innerH) setInnerH(h);
-  }, [innerH]);
+    if (h <= 0) return;
+    pendingInnerHRef.current = h;
+    if (innerHRafRef.current !== null) return;
+    innerHRafRef.current = requestAnimationFrame(() => {
+      innerHRafRef.current = null;
+      setInnerH((prev) => (pendingInnerHRef.current !== prev ? pendingInnerHRef.current : prev));
+    });
+  }, []);
+  useEffect(() => () => {
+    if (innerHRafRef.current !== null) cancelAnimationFrame(innerHRafRef.current);
+  }, []);
 
   // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar
   // (~60) in flow the page box is screenH - 124 - 24 - 28 = screenH - 176 tall. A tall 15-line
@@ -320,6 +334,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const fitPadTop = padTop;
   const fitPadBottom = padBottom;
   const fitLineH = mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1);
+  // Bismillah sizing: derived from the fitted line slot (was a hardcoded 24px that wrapped to
+  // 2-3 lines, overflowed its flex:1 slot and slid under the frame band). Capped small + explicit
+  // lineHeight so the bismillah can never tower above its slot or get covered by the frame.
+  const basmalaFontSize = Math.min(19, Math.max(13, fitLineH * 0.6));
+  const basmalaLineH = Math.max(19, fitLineH * 0.9);
   // Two-factor vertical fit: pitchScale squeezes LINE PITCH only; fontScale
   // keeps the font at full size until the pitch would fall below PITCH_FLOOR_RATIO
   // (glyph-collision prevention) — then both shrink gracefully, so fonts stay big
@@ -629,7 +648,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                 <View style={styles(nightMode).verseBadgeContainer}>
                   <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
                     <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, fBookmarked && styles(nightMode).bookmarkedBadge, fReadingMark && styles(nightMode).readingMarkBadge]}>
-                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber === 1 && v.surahId === 1 ? '' : v.verseNumber}</Text>
+                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber}</Text>
                     </View>
                   </TouchableOpacity>
                   {fHasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
@@ -645,15 +664,15 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   }
 
   // Render gate — hold at an empty container until the cache verdict ('hit'/'miss') arrives so
-  // no measurement starts before it.
-  // Render gate — cache-hit pages render IMMEDIATELY (scales come from persisted sums +
-  // live lineExtra; no measurement, no font wait). Only the miss path holds until fontReady:
-  // words laid out before the real font loads fire onLayout once and would never re-measure,
-  // so measurement must not start on the fallback font. fontReady persists across page swipes
-  // (only resets on font/fixNonce change), so this costs ~150ms once per font, not per page.
-  // FIX 4 — while the cache verdict / font-settle is pending, render the frame + spinner (same
-  // container size so onBoxLayout still captures the true height), never a black void.
-  if (cacheState === 'loading' || (cacheState === 'miss' && !fontReady)) {
+  // no measurement starts before it. Cache-hit pages ALSO wait for the box height (innerH) and
+  // the real font before painting: onLayout fires a frame AFTER first layout, so without this
+  // hold the first visible frame would paint with pitchScale/fontScale = 1 and the whole stack
+  // would Y-shift when innerH lands (the "text moves after the page renders" artifact). Font:
+  // both hit and miss paths wait for fontReady — glyph metrics of the fallback font differ from
+  // the real one, so painting before the font swap makes every line's baseline jump once
+  // (~150ms once per session). FIX 4 — while pending, render the frame + spinner (same container
+  // size so onBoxLayout still captures the true height), never a black void.
+  if (cacheState === 'loading' || !fontReady || innerH === 0) {
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).skeletonWrap}>
@@ -668,7 +687,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // Main mushaf layout — one row-reverse Pressable per line (RTL word order), with a
   // verse-boundary badge after the word that ends each verse. 'surah-header' lines are skipped
   // entirely; 'basmala' lines get their own centered header style (hardcoded Arabic text,
-  // fontSize 24 * sparse boost). Sparse pages justify lines space-around.
+  // fitted to the line slot so it never spills under the frame). Sparse pages justify
+  // lines space-around.
   return (
     <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
       {pageData.lines.map((line: any, lineIdx: number) => {
@@ -685,7 +705,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: 24 * (sparse ? SPARSE_FONT_BOOST : 1) }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
+          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: basmalaFontSize, lineHeight: basmalaLineH }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
           <React.Fragment key={lineIdx}>
@@ -747,7 +767,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                       <View style={styles(nightMode).verseBadgeContainer}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
+                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                           </View>
                         </TouchableOpacity>
                         {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
@@ -771,7 +791,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
                     <View style={styles(nightMode).verseBadgeContainer}>
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum === 1 && surahId === '1' ? '' : verseNum}</Text>
+                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
