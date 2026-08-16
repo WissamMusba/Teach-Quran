@@ -64,6 +64,18 @@ const freshnessSnapshot = async (studentId: string): Promise<string | null> => {
   } catch { return null; }
 };
 
+// P2-I — shared freshness gate for the OTHER getStudentData callers that run for a FIXED
+// current student (QuranViewScreen's sync watcher + canvas-open path, App.tsx post-pull
+// refresh). The same snapshot/map the hook uses, so SQLite-provable-unchanged reads are
+// skipped before the heavy getStudentData chunk read runs — and every participant updates
+// the shared map, so a reload by one never triggers a redundant reload by another.
+export const getFreshnessSnapshot = freshnessSnapshot;
+export const studentDataIsCurrent = (studentId: string, snapshot: string | null) =>
+  snapshot !== null && loadedSnapshotPerStudent.get(studentId) === snapshot;
+export const markStudentDataLoaded = (studentId: string, snapshot: string | null) => {
+  loadedSnapshotPerStudent.set(studentId, snapshot === null ? 'loaded' : snapshot);
+};
+
 export const useStudentDataRefresh = () => {
   const dispatch = useDispatch();
   const currentStudentId = useSelector((s: any) => s.student.currentStudent?.id);

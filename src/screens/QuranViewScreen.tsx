@@ -19,7 +19,7 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
@@ -46,6 +46,7 @@ import storage from '@react-native-firebase/storage';
 import { pushDrawings, pullDrawings, pullAudioRange } from '../api/sync';
 import { hPadFor } from '../utils/stroke';
 import { getJuzInfoFromPage, getStartJuzOfSurah, JUZ_MAP } from '../utils/theme';
+import { getFreshnessSnapshot, studentDataIsCurrent, markStudentDataLoaded } from '../hooks/useStudentDataRefresh';
 import { MISTAKE_COLOR } from '../utils/constants';
 import { v4 as uuidv4 } from 'uuid';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
@@ -150,6 +151,45 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
 });
 
 /**
+ * P1-D — single-page cell: the memoized counterpart of SpreadItem (which renders
+ *   MushafPageView twice for split mode). Page loads run from a MOUNT effect, never
+ *   the render body — the previous inline renderItem fired ensurePageLoaded /
+ *   ensurePageVersesLoaded on every parent re-render (every cache fill and audio
+ *   tick re-rendered the visible cells and re-issued guarded-but-redundant loads).
+ *   All callbacks arrive already stable (useCallback in the parent), so idle
+ *   re-renders of the screen skip the cell's render tree entirely; item-specific
+ *   closures live INSIDE the cell so their identity never leaks into the memo
+ *   comparison. MushafPageView is itself memoized (export default memo) — a cache
+ *   fill of a NEIGHBOUR page re-renders this wrapper only, not the mushaf tree.
+ * CALLS: ensurePageLoaded / ensurePageVersesLoaded (mount effect), MushafPageView.
+ * CALLED BY: page-mode FlatList renderItem (splitOn=false).
+ */
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode }: any) => {
+  useEffect(() => {
+    // Guarded loads: a cache-fill re-render re-runs this effect but not the loads.
+    if (!pageCache[item]) ensurePageLoaded(item);
+    if (!pageVersesCache[item]) ensurePageVersesLoaded(item);
+  }, [item, pageCache, pageVersesCache, ensurePageLoaded, ensurePageVersesLoaded]);
+  const pData = pageCache[item];
+  const last = pageLastVerseFor?.(item);
+  return (
+    <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
+      {/* bottom band 28px, bottom pills offset -26 (fully below the frame band, ~2px above the audio bar/screen edge), no dead space */}
+      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
+      {pData ? (
+        <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
+          onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+          flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
+          onSpread={onSpread} spread={spread}
+          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          onMeasured={onMeasured} />
+      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
+      </View>
+    </View>
+  );
+});
+
+/**
  * WHAT: The Quran reading/editing hub screen. Renders one of three reading modes,
  *   hosts the full student-data edit pipeline, audio playback, share capture and
  *   the surah picker.
@@ -200,6 +240,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // pill anchors to the margin band above the bar, so it must never land on the bar's controls.
   const [playerBarH, setPlayerBarH] = useState(0);
   const flatListRef = useRef<any>(null);
+  // P0-A — the page-mode FlatList gets its own ref so landOnPage can scroll the MOMENT it is
+  // invoked without ambiguity about which list is mounted (the ayah list shares flatListRef).
+  const pageFlatListRef = useRef<any>(null);
   const scrollViewRef = useRef<any>(null);
   
   const [canvasData, setCanvasData] = useState<any>({ highlights: {}, notes: {}, drawings: {} });
@@ -247,6 +290,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
   const prevSyncStatusRef = useRef(syncStatus);
+  // P2-H — runAfterInteractions handle for the post-sync refresh below (cancelled in the
+  // effect's cleanup so a re-run/mode-switch never fires the previous refresh's work).
+  let syncRefreshHandle: { cancel: () => void } | null = null;
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
   const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
@@ -369,28 +415,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageVersesCache]);
 
   /**
-   * WHAT: PRIORITIZED sliding-window warm-ahead for FAST swiping — ~16 pages
-   *   max in flight (window 5 back / 12 ahead), spread across four tiers so no
-   *   single tick saturates the JS thread: TIER 0 loads data+verses for
-   *   [c-2, c+3] in this synchronous effect run; TIER 1 (60ms) [c-5, c-3] and
-   *   [c+4, c+7]; TIER 2 (150ms) [c+8, c+12]. LAYOUT WARM fires immediately
-   *   (memoized getMushafPageData -> warmPageLayoutFor, DB-only) for [c-2, c+9]
-   *   and one 80ms-staggered batch for [c+10, c+12]. A 350ms CREEP keeps
-   *   extending the frontier to the end of the mushaf in 6-page batches (mushaf
-   *   JSON + verses only — data + verse memos, no state caches, no network
-   *   self-heal) so sustained fast swipes always find ready pages.
+   * WHAT: PRIORITIZED sliding-window warm-ahead for FAST swiping — the window
+   *   is 10 back / 12 ahead, drained by ONE 3-per-80ms queue so no settle ever
+   *   queues a synchronous wall of background DB work behind the frame: TIER 0
+   *   loads data+verses for [c-1, c+1] (only) in this synchronous effect run;
+   *   TIER 1 (drain queue, 3 pages per 80ms tick) covers [c-5, c-2] first, then
+   *   [c+2, c+7], then [c-10, c-6], then [c+8, c+12]. LAYOUT WARM rides the same
+   *   queue (memoized getMushafPageData -> warmPageLayoutFor, DB-only) and skips
+   *   pages the hidden worker already measured (warmedPagesRef key scheme).
    * CALLS: ensurePageLoaded/ensurePageVersesLoaded, getMushafPageData /
    *   getVersesByPage (memoized — far pages never trigger ensureMushafPageData),
    *   warmPageLayoutFor. All loads single-flight via the promise guards inside
-   *   the ensure* functions; warmLayoutByPage dedupes per page.
+   *   the ensure* functions; warmLayoutByPage + layoutWarmByPageRef dedupe per
+   *   page (the ref across settles, so 2-5-2 patterns never re-query warmed rows).
    * AFFECTS: pageCache/pageVersesCache (state, window only); quranData memos +
    *   layoutCacheMem (window).
    * NOTES: Every timer created here is cleared on re-run/unmount.
    */
-  const tier1TimerRef = useRef<any>(0);
-  const tier2TimerRef = useRef<any>(0);
   const layoutTimerRef = useRef<any>(0);
   const layoutQueueRef = useRef<number[]>([]);
+  // P0-B — cross-settle dedupe for the layout-warm pass: a fast settle re-fire
+  // (2-5-2 swipe patterns) must never re-query layout rows it already warmed.
+  const layoutWarmByPageRef = useRef<Set<string>>(new Set());
   // Swipe-settle debounce (FIX 8): onMomentumScrollEnd updates currentPageNum immediately so
   // rendering keeps up with the flick, but the HEAVY per-page effects (prefetch window, canvas
   // drawing refresh, lastRead flush) only act once the page survives 120ms without another
@@ -426,28 +472,32 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (hiddenBusyRef.current || hiddenPauseTimerRef.current) return;
     if (!hiddenFocus || appStateRef.current !== 'active') return;
     if (isDrawing || isCapturing || drawingGestureActive || hiddenScrollingRef.current) return;
+    // P0-C — the worker is invisible work: it must never share a frame with an open modal,
+    // an interaction still settling, or the reader's own swipe path.
+    if (showList || menuVerse !== null || showNoteModal || showShareMenu) return;
+    if (Date.now() < hiddenGraceUntilRef.current) return;
     if (readingMode !== 'page' || settledPage !== currentPageNum) return;
-    // Nearest-first, ahead-biased, over the WHOLE mushaf: the near window (±12/±10) comes
+    // Nearest-first, ahead-biased, over a ±25 PAGE RADIUS of the current page (P0-C — mirrors
+    // the pageCache/pageVersesCache LRU eviction radius): the near window (±12/±10) comes
     // first — those pages already have their JSON via the prefetch window, so the hidden slot
-    // renders the moment it mounts — then the worker keeps crawling through every remaining
-    // un-measured page (still ONE at a time, 150ms breather), so after a few idle minutes the
-    // ENTIRE mushaf is a layout-cache hit and every jump/fling anywhere is instant.
+    // renders the moment it mounts — then the worker crawls the rest of the radius (still ONE
+    // at a time, 150ms breather) so every page the reader can actually reach is a layout hit.
     const c = currentPageNum;
-    const total = pageNumbers.length;
+    const SWEEP_RADIUS = 25;
     const keyW = Math.round(splitOn ? pageW : winW);
     // Warmed-key mirrors the DB layout key's variable parts (textStyle, headerVisible, width):
     // a header toggle or font-style change re-measures cleanly instead of being treated warm.
     const warmKey = (p: number) => `${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${p}`;
     let next: number | undefined;
-    for (let d = 1; d <= total && next === undefined; d++) {
+    for (let d = 1; d <= SWEEP_RADIUS && next === undefined; d++) {
       const ahead = c + d;
-      if (ahead <= total && !warmedPagesRef.current.has(warmKey(ahead))) next = ahead;
+      if (ahead <= pageNumbers.length && !warmedPagesRef.current.has(warmKey(ahead))) next = ahead;
       if (next === undefined) {
         const behind = c - d;
         if (behind >= 1 && !warmedPagesRef.current.has(warmKey(behind))) next = behind;
       }
     }
-    if (next === undefined) return; // the whole mushaf is measured — worker done
+    if (next === undefined) return; // every page in the ±25 radius is measured — worker idles
     // Far pages beyond the prefetch window have no JSON yet: pull the data now (bundle-backed,
     // a few ms — it can't contend with the visible page). When it lands, pageCache changes and
     // the re-evaluate effect re-runs this tick to mount the hidden slot.
@@ -471,8 +521,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
         }, 200);
       }
     }, 8000);
-  }, [hiddenFocus, isDrawing, isCapturing, drawingGestureActive, readingMode, settledPage, currentPageNum, pageNumbers.length, splitOn, pageW, winW, textStyle, isHeaderVisible, pageCache, ensurePageLoaded]);
+  }, [hiddenFocus, isDrawing, isCapturing, drawingGestureActive, readingMode, settledPage, currentPageNum, pageNumbers.length, splitOn, pageW, winW, textStyle, isHeaderVisible, pageCache, ensurePageLoaded, showList, menuVerse, showNoteModal, showShareMenu]);
   hiddenTickRef.current = hiddenTick;
+
+  // P0-C — 1.5s interaction grace: after every settle / modal open / surface change the worker
+  // stands down so the reader's own frame work (scroll snap, layout warm tiers, canvas refresh)
+  // always wins the JS thread; the worker only crawls during genuine idle.
+  const hiddenGraceUntilRef = useRef<number>(0);
+  useEffect(() => {
+    hiddenGraceUntilRef.current = Date.now() + 1500;
+  }, [settledPage, currentPageNum, showList, menuVerse, showNoteModal, showShareMenu]);
 
   const handleHiddenMeasured = useCallback((pg: number) => {
     const keyW = Math.round(splitOn ? pageW : winW);
@@ -528,59 +586,64 @@ export default function QuranViewScreen({ navigation, route }: any) {
       ensurePageLoaded(p);
       ensurePageVersesLoaded(p);
     };
+    const keyW = Math.round(splitOn ? pageW : winW);
+    // Same key scheme as the hidden worker's warmedPagesRef (textStyle|header|width|page),
+    // so pages it already measured are skipped here — their layout row is already in SQLite.
+    const warmKey = (p: number) => `${textStyle}|${isHeaderVisible ? 1 : 0}|${keyW}|${p}`;
     const warmLayoutByPage = new Set<number>();
     const warmLayout = (p: number) => {
-      if (warmLayoutByPage.has(p)) return;
+      if (warmLayoutByPage.has(p) || layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) return;
       warmLayoutByPage.add(p);
+      layoutWarmByPageRef.current.add(warmKey(p));
       getMushafPageData(p, textStyleRef.current).then(pd => {
         if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
       }).catch(() => {});
     };
-    // TIER 0 — everything the currently visible pages can need, this tick only.
-    for (let p = currentPageNum - 2; p <= currentPageNum + 3; p++) loadPage(clampP(p));
-    // TIER 1 — the outer window either side, one 60ms tick later (extended behind to -10 so
-    // scrolling BACK up to 10 pages never hits a cold page either).
-    tier1TimerRef.current = setTimeout(() => {
-      for (let p = currentPageNum - 5; p <= currentPageNum - 3; p++) loadPage(clampP(p));
-      for (let p = currentPageNum + 4; p <= currentPageNum + 7; p++) loadPage(clampP(p));
-      for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) loadPage(clampP(p));
-    }, 60);
-    // TIER 2 — the far-ahead band, 150ms later.
-    tier2TimerRef.current = setTimeout(() => {
-      for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) loadPage(clampP(p));
-    }, 150);
-    // LAYOUT WARM — the [c-10, c+10] window immediately (10 behind / 10 ahead), the far
-    // [c+10, c+12] band in one 80ms-staggered batch (memoized data fetch — repeats are cheap).
-    for (let p = currentPageNum - 10; p <= currentPageNum + 10; p++) warmLayout(clampP(p));
-    layoutQueueRef.current = [];
-    for (let p = currentPageNum + 10; p <= currentPageNum + 12; p++) layoutQueueRef.current.push(clampP(p));
+    // P0-B — ONE 3-per-80ms drain queue for every off-screen page. A settle used to queue
+    // 27 synchronous loads + 21 layout queries in three bursts on the JS thread; now only
+    // the visible page + its immediate neighbours (TIER 0) run this tick, everything else
+    // drips 3 pages per tick — 10 ahead / 5 behind are cached within ~1.5s, no wall.
     const layoutStep = () => {
       clearTimeout(layoutTimerRef.current);
       const batch = layoutQueueRef.current.splice(0, 3);
-      for (const p of batch) warmLayout(p);
+      for (const p of batch) { loadPage(p); warmLayout(p); }
       if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
     };
+    // TIER 0 — the visible page + its immediate neighbours, this tick only.
+    loadPage(clampP(currentPageNum));
+    for (let p = currentPageNum - 1; p <= currentPageNum + 1; p++) { const q = clampP(p); loadPage(q); warmLayout(q); }
+    // TIER 1 — nearest-first drain: 5-behind arm, 7-ahead arm, far-behind, far-ahead.
+    const queue: number[] = [];
+    for (let p = currentPageNum - 5; p <= currentPageNum - 2; p++) queue.push(clampP(p));
+    for (let p = currentPageNum + 2; p <= currentPageNum + 7; p++) queue.push(clampP(p));
+    for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) queue.push(clampP(p));
+    for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) queue.push(clampP(p));
+    layoutQueueRef.current = queue;
     if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
     return () => {
-      clearTimeout(tier1TimerRef.current);
-      clearTimeout(tier2TimerRef.current);
       clearTimeout(layoutTimerRef.current);
+      layoutQueueRef.current = [];
     };
-  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage]);
+  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle]);
 
   /**
-   * WHAT: Landing-path scroll — waits for the page data (deduped by the in-flight
-   *   ensurePageLoaded promise, 3s cap), warms the layout rows for the target
-   *   page so pages land fully rendered, then scrolls the FlatList to it (pair
-   *   index in split mode). Stamps programmaticScrollRef so the momentum settle
-   *   from this jump is ignored by onMomentumScrollEnd.
-   * FLOW: stamp -> race ensurePageLoaded(pg) against a 3s null timer -> if
-   *   data arrived warmPageLayoutFor (guarded, no-op on failure) -> scrollToIndex.
-   * CALLS: ensurePageLoaded, warmPageLayoutFor, flatListRef.scrollToIndex.
+   * WHAT: Landing-path scroll — scrolls the page FlatList to the target page
+   *   IMMEDIATELY (getItemLayout makes scrollToIndex synchronous; pair index in
+   *   split mode), then loads the page data behind the render: the FIX 4 skeleton
+   *   shows for the moment until data lands, never a wait. Stamps
+   *   programmaticScrollRef so the momentum settle from this jump is ignored by
+   *   onMomentumScrollEnd.
+   * FLOW: stamp -> settle -> prefetch neighbours -> scrollToIndex (P0-A: no
+   *   Promise.race gate; the page list may be unmounted on a mode-switch arrival,
+   *   so re-scroll once it is live) -> ensurePageLoaded -> if the reader is still
+   *   on pg, warmPageLayoutFor for an instant layout-cache hit on render.
+   * CALLS: ensurePageLoaded, warmPageLayoutFor, pageFlatListRef.scrollToIndex.
    * CALLED BY: handleSelectPage, deep-link effect, surah-change effect.
    * AFFECTS: FlatList scroll offset; layoutCacheMem (via warmPageLayoutFor);
    *   programmaticScrollRef stamp.
    * NOTES: Must live AFTER ensurePageLoaded (its deps array references the const).
+   *   The currentPageNumRef stale-guard keeps a fast swipe/surah change mid-flight
+   *   from yanking the reader back to pg.
    */
   const landOnPage = useCallback(async (pg: number) => {
     if (pg < 1 || pg > pageNumbers.length) return;
@@ -593,14 +656,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (pg > 1) ensurePageLoaded(pg - 1);
     if (pg < pageNumbers.length) ensurePageLoaded(pg + 1);
     if (splitOn) prefetchPartner(pg);
-    // FIX 6b — wait up to 3s for the target page data (the FIX 4 skeleton shows meanwhile); on
-    // timeout scroll anyway — whatever is available renders, never a black void.
-    const data = await Promise.race([ensurePageLoaded(pg), new Promise(r => setTimeout(() => r(null), 3000))]);
-    if (data && data.lines?.length && Math.round(pageW) > 0) {
-      try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
+    // P0-A — scroll FIRST, wait NEVER: getItemLayout makes scrollToIndex synchronous, so the
+    // target slides into view on this frame while its data loads behind the FIX 4 skeleton.
+    // Only the PAGE list scrolls here; in ayah/continuous modes it is unmounted, so a
+    // mode-switch arrival re-scrolls below once the list is live.
+    let scrolled = false;
+    if (pageFlatListRef.current) {
+      pageFlatListRef.current.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
+      scrolled = true;
     }
-    // FIX 6d — scroll AFTER the page data resolves (animated:false), never a blind setTimeout.
-    flatListRef.current?.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
+    const data = await ensurePageLoaded(pg);
+    // Mode-switch landing (deep link / SurahList from ayah|continuous): the page list mounts
+    // after the readingMode dispatch — scroll the moment it's live, same target.
+    if (!scrolled && pageFlatListRef.current) {
+      pageFlatListRef.current.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
+    }
+    // P0-A — stale-guard: if the reader moved on (fast swipe / surah change) while the page
+    // data was loading, warm nothing here — the settle-warm effect covers their actual page.
+    if (currentPageNumRef.current !== pg || !data || !data.lines?.length || Math.round(pageW) <= 0) return;
+    try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
   }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
@@ -642,8 +716,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   headerPage 3) derive the surah from the first word location of the cached
    *   page and dispatch setSurah if different (pageScrollSurahChangeRef guard
    *   stops the surah-change effect from re-scrolling to verse 1) 4) ensure
-   *   loads + prefetchPartner (split) 5) landOnPage — waits for the page data
-   *   (deduped by its in-flight promise, 450ms cap) then scrolls + warms layout.
+   *   loads + prefetchPartner (split) 5) landOnPage — scrolls immediately
+   *   (scroll-first; the page data loads behind it) then warms the layout.
    * CALLS: setReadingMode, setSurah, ensurePageLoaded, ensurePageVersesLoaded,
    *   prefetchPartner, landOnPage.
    * CALLED BY: SurahList onSelectPage.
@@ -692,7 +766,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   mode at that exact page; header surah resolved from the page's first verse.
    * FLOW (surahId, page mode): getVersePage(surahId, verse, textStyle) -> set current
    *   page/header state, ensurePageLoaded, prefetchPartner, landOnPage (waits for
-   *   page data, 450ms cap, then scrolls + warms layout).
+   *   page data, then scrolls + warms layout — scroll-first, no wait).
    * FLOW (surahId, ayah/continuous): targetPage = ceil(scrollToVerse/20) ->
    *   getVersesBySurahPaginated(surahId, 1, targetPage*20) -> deepLinkLoadedRef
    *   = true (suppresses the surah-change effect's loadSurah) -> setSurah +
@@ -808,7 +882,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW: setHeaderSurahId; page mode -> unless pageScrollSurahChangeRef is set
    *   (surah came from a page scroll), resolve getVersePage(currentSurahId, 1)
    *   -> stale-guard against a surah switch mid-flight -> set the page state +
-   *   prefetchPartner + landOnPage (waits for page data, 450ms cap, then scrolls);
+   *   prefetchPartner + landOnPage (scroll-first, page data loads behind it);
    *   ayah/continuous -> headerPage=0 and loadSurah unless the deep link already
    *   loaded (deepLinkLoadedRef).
    * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner, landOnPage.
@@ -979,28 +1053,42 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (prev !== 'syncing' || syncStatus === 'syncing') return;
     if (pendingSaveRef.current || saveTimerRef.current) return;
     if (!currentStudent) return;
+    // P2-H — the post-pull refresh must never contend with the frame that just settled:
+    // deferred behind InteractionManager so taps/scrolls/spinners all win the JS thread.
     const sid = currentStudent.id;
-    getStudentData(sid).then(d => { if (d) dispatch(setStudentData(d)); });
-    if (isDrawing) return;
-    // A sync run may have just delivered cloud drawings for the current range —
-    // re-pull + re-merge fire-and-forget (never awaited, so this watcher's
-    // studentData/bookmarks re-hydration above is never blocked).
-    refreshCloudDrawings().catch(() => {});
-    const mergeChunks = async (keys: (string | null)[]) => {
-      let newH: any = {}, newN: any = {}, newD: any = {};
-      for (const k of keys) {
-        if (!k) continue;
-        const c = await getChunk(sid, k);
-        if (c?.data) {
-          if (c.data.highlights) newH = { ...newH, ...c.data.highlights };
-          if (c.data.notes) newN = { ...newN, ...c.data.notes };
-          if (c.data.strokes) newD[k] = { paths: c.data.strokes };
+    syncRefreshHandle = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        // P2-I — freshness gate BEFORE the heavy read: when SQLite is provably unchanged
+        // since the last successful hydration of this student, skip getStudentData entirely
+        // (the canvas re-merge below still runs — strokes live in chunks, not in studentData).
+        const snapshot = await getFreshnessSnapshot(sid);
+        if (snapshot !== null && !studentDataIsCurrent(sid, snapshot)) {
+          const d = await getStudentData(sid);
+          if (d) { markStudentDataLoaded(sid, snapshot); dispatch(setStudentData(d)); }
         }
-      }
-      return { highlights: newH, notes: newN, drawings: newD };
-    };
-    const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
-    mergeChunks(keys).then(data => setCanvasData(data));
+        if (isDrawing) return;
+        // A sync run may have just delivered cloud drawings for the current range —
+        // re-pull + re-merge fire-and-forget (never awaited, so this watcher's
+        // studentData/bookmarks re-hydration above is never blocked).
+        refreshCloudDrawings().catch(() => {});
+        const mergeChunks = async (keys: (string | null)[]) => {
+          let newH: any = {}, newN: any = {}, newD: any = {};
+          for (const k of keys) {
+            if (!k) continue;
+            const c = await getChunk(sid, k);
+            if (c?.data) {
+              if (c.data.highlights) newH = { ...newH, ...c.data.highlights };
+              if (c.data.notes) newN = { ...newN, ...c.data.notes };
+              if (c.data.strokes) newD[k] = { paths: c.data.strokes };
+            }
+          }
+          return { highlights: newH, notes: newN, drawings: newD };
+        };
+        const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
+        mergeChunks(keys).then(data => setCanvasData(data));
+      })().catch(() => {});
+    });
+    return () => { if (syncRefreshHandle) syncRefreshHandle.cancel(); };
   }, [syncStatus, currentStudent, isDrawing, splitOn, spreadOddKey, spreadEvenKey, drawingKey, dispatch, refreshCloudDrawings]);
 
   /**
@@ -1060,8 +1148,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
       pullDrawings(currentStudent.id, groupKey, pageKeys, geo)
         .then(async () => {
           expandedDrawPullAttempted.add(stampKey);
-          const fresh = await getStudentData(currentStudent.id);
-          if (fresh) dispatch(setStudentData(fresh));
+          // P2-I — the pull may have merged strokes (chunk v bumped -> snapshot differs);
+          // an empty pull leaves SQLite unchanged and skips the heavy re-read entirely.
+          const snapshot = await getFreshnessSnapshot(currentStudent.id);
+          if (snapshot !== null && !studentDataIsCurrent(currentStudent.id, snapshot)) {
+            const fresh = await getStudentData(currentStudent.id);
+            if (fresh) { markStudentDataLoaded(currentStudent.id, snapshot); dispatch(setStudentData(fresh)); }
+          }
         })
         .catch(() => {});
     }, 200);
@@ -1179,7 +1272,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (!snapMountedRef.current) { snapMountedRef.current = true; return; }
     if (paramsHandledRef.current) return; // a deep link is still landing — it owns the scroll
     const target = splitOn ? pairIndexForPage(currentPageNum) : currentPageNum - 1;
-    const t = setTimeout(() => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }); }, 120);
+    const t = setTimeout(() => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: target * winW, animated: false }); }, 120);
     return () => clearTimeout(t);
   }, [splitOn, winW]);
 
@@ -1895,7 +1988,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
             {/* ================= page mode: horizontal inverted paging FlatList of mushaf pages ================= */}
             {readingMode === 'page' && (
-              <FlatList ref={flatListRef} data={splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers}
+              <FlatList ref={pageFlatListRef} data={splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers}
                 keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
@@ -1908,7 +2001,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
                 onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
-                onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); flatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
+                onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onScrollBeginDrag={() => { hiddenScrollingRef.current = true; }}
                 onMomentumScrollEnd={(e) => {
                   // v76 — the swipe is over; the hidden pre-measure worker may resume (the
@@ -1954,36 +2047,29 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured} />
-                ) : ({ item }: any) => {
-                  ensurePageLoaded(item);
-                  ensurePageVersesLoaded(item);
-                  const pData = pageCache[item];
-                  return (
-                    <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-                      {/* bottom band 28px, bottom pills offset -26 (fully below the frame band, ~2px above the audio bar/screen edge), no dead space */}
-                      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
-                      {pData ? (
-                        <MushafPageView headerVisible={isHeaderVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={captureHighlights} onWordPress={handleWordFlow}
-                          onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress} bookmarks={captureBookmarks}
-                          flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null} notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-                          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!pageLastVerseFor(item)} readingMarkActive={readingMarkActiveFor(pageLastVerseFor(item))} onReadingMarkToggle={() => handleReadingMarkToggle(pageLastVerseFor(item))}
-                          onMeasured={handleVisibleMeasured} />
-                      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
-                      </View>
-                    </View>
-                  );
-                }} />
+                ) : ({ item }: any) => (
+                  <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
+                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+                    notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
+                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+                    nightMode={nightMode} />
+                )} />
             )}
 
             {/* v76 — background hidden pre-measure slot: ONE off-screen page measuring at a time
                  (hideFrame — never touches the shared frame cache; same margins as the visible
-                 page box so the measured geometry is identical). Its layout row lands in SQLite
-                 before the user swipes there, so arrival renders instantly as a cache hit. */}
+                 page box so the measured geometry is identical). Its layout row lands in
+                 layoutCacheMem only (persistLayout={false} — P0-C: background writes never queue
+                 behind the reader's own connection), so arrival renders instantly as an
+                 in-memory cache hit. */}
             {readingMode === 'page' && hiddenWarmPage && pageCache[hiddenWarmPage] && (
               <View pointerEvents="none" style={{ position: 'absolute', left: -10000, top: 0, bottom: 0, width: splitOn ? pageW : winW, overflow: 'hidden', opacity: 0.999 }}>
                 <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
-                  <MushafPageView hideFrame pageNum={hiddenWarmPage} pageWidth={splitOn ? pageW : winW} headerVisible={isHeaderVisible} surahNames={surahNames}
+                  <MushafPageView hideFrame persistLayout={false} pageNum={hiddenWarmPage} pageWidth={splitOn ? pageW : winW} headerVisible={isHeaderVisible} surahNames={surahNames}
                     versesForPage={pageVersesCache[hiddenWarmPage] || []} pageData={pageCache[hiddenWarmPage]} highlights={captureHighlights}
                     onWordPress={() => {}} onBookmarkToggle={() => {}} onVerseLongPress={() => {}} onBadgePress={() => {}}
                     bookmarks={captureBookmarks} notes={canvasData.notes} onMeasured={handleHiddenMeasured} />

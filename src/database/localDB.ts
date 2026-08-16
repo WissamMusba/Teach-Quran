@@ -92,7 +92,19 @@ export const getChunk = async (studentId: string, canvasKey: string) => {
   return null;
 };
 
+// Module-level, session-lived "this device wrote drawing strokes" flag — strokes are saved with
+// queue=false (never in sync_queue), so the sync layer can't tell whether the device has strokes
+// to flush without scanning the whole student_data_cache table + JSON.parsing every row. The flag
+// is set on ANY chunk save carrying a non-empty strokes array (local draws and pull-side writes)
+// and cleared after a clean full push, so pushAllDrawings' expensive sweep only runs when there
+// is something to flush.
+let strokesDirtySession = false;
+export const markStrokesDirtySession = () => { strokesDirtySession = true; };
+export const clearStrokesDirtySession = () => { strokesDirtySession = false; };
+export const hasStrokesDirtySession = () => strokesDirtySession;
+
 export const saveChunk = async (studentId: string, canvasKey: string, data: any, v: number, queue = true) => {
+  if (data?.strokes?.length) markStrokesDirtySession();
   await getDB().transaction((tx: any) => {
     tx.executeSql(`INSERT OR REPLACE INTO student_data_cache (studentId, canvasKey, data, v) VALUES (?, ?, ?, ?)`,
       [studentId, canvasKey, JSON.stringify(data), v]);
@@ -541,6 +553,19 @@ export const savePageLayoutCache = async (
       `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, 0, ?, ?, ?)`,
       [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW, JSON.stringify(lines)]);
   } catch { /* best-effort */ }
+};
+/**
+ * savePageLayoutCacheMemOnly — layoutCacheMem write WITHOUT the SQLite INSERT. Used by the
+ * hidden pre-measure slot (P0-C): a background-measured row must resolve synchronously for
+ * every VISIBLE mount this session, but must never queue a write behind the reader's own
+ * connection traffic. The row lands in SQLite the next time a visible page measures it
+ * (handleWordMeasured -> savePageLayoutCache) or is re-warmed after an app restart.
+ */
+export const savePageLayoutCacheMemOnly = (
+  pageNumber: number, textStyle: string, headerVisible: boolean,
+  sparse: number, screenW: number, lines: number[],
+) => {
+  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), lines);
 };
 export const clearPageLayoutCacheRange = async (from: number, to: number): Promise<void> => {
   for (const k of Array.from(layoutCacheMem.keys())) {

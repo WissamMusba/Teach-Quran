@@ -11,11 +11,17 @@
  *          App.tsx:101); the only entry screen of the app
  */
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView, InteractionManager } from 'react-native';
 import { downloadAndCacheQuran, getSurahs, warmIndopakIndexes } from '../database/quranData';
 import auth from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setSurahNames } from '../store/quranSlice';
+
+// P1-F — single-flight guard: warmIndopakIndexes starts at most ONCE per process, and only
+// after the app's own startup work has had the JS thread (InteractionManager + 2s grace — the
+// Dashboard mounts and renders before the bulk indopak index build ever runs; a retry download
+// must never double-start it).
+let indopakWarmStarted = false;
 
 export default function SplashScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +65,12 @@ export default function SplashScreen({ navigation }: any) {
     setIsLoading(true); setError(false);
     try {
       await downloadAndCacheQuran();
-      warmIndopakIndexes().catch(() => {});
+      if (!indopakWarmStarted) {
+        indopakWarmStarted = true;
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => { warmIndopakIndexes().catch(() => {}); }, 2000);
+        });
+      }
       const surahs = await getSurahs();
       const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
       dispatch(setSurahNames(map));

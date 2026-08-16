@@ -6,6 +6,7 @@ import {
   getAudioNotesRange, saveAudioNotesRange, migrateLegacyAudioNotes,
   getLastPushAt, setLastPushAt, cacheStudentList,
   getLastPullAt, savePullBatch,
+  hasStrokesDirtySession, clearStrokesDirtySession,
 } from '../database/localDB';
 import { compactStroke, denormalizeStroke } from '../utils/stroke';
 
@@ -75,6 +76,7 @@ export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync
  */
 const pushAllDirty = async (userId: string): Promise<number> => {
   let pushed = 0;
+  let pushPassSucceeded = false;
   try {
   const groups = await getDirtyCanvasesByStudent();
   for (const [sid, keys] of Object.entries(groups)) {
@@ -188,13 +190,21 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       } catch (e) { console.warn(`audio push failed ${sid}`, e); await bumpAttempt(sid, q); }
     }
   }
+    pushPassSucceeded = true;
   } finally {
     // ---- stray drawings: canvases with strokes are saved queue=false (never in
     // sync_queue), so they'd only reach Firestore via the active-save pushDrawings
-    // path — which swallows failures while offline. Flush ALL of them here on every
-    // full sync (the same path App.tsx's 30-min interval and background push use).
-    // Runs in `finally`: the sweep happens even when a queue push above threw. ----
-    await pushAllDrawings(userId);
+    // path — which swallows failures while offline. P2-H: the full-DB sweep is
+    // gated by the session strokes-dirty flag (set on ANY strokes write — local
+    // draw or pull merge) and only runs when the queue push above succeeded: an
+    // offline/failed pass skips the sweep entirely (it would fail the same way),
+    // and per-student batch failures inside a successful pass still flush. After
+    // a successful sweep the flag clears — the 30-min interval no longer rescans
+    // every canvas in the DB twice a day for zero new data. ----
+    if (pushPassSucceeded && hasStrokesDirtySession()) {
+      await pushAllDrawings(userId);
+      clearStrokesDirtySession();
+    }
   }
   return pushed;
 };

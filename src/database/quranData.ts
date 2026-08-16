@@ -262,13 +262,20 @@ export const ensureMushafPageData = async (pageNum: number, mushaf?: string): Pr
   const job = (async () => {
     const res = await getDB().executeSql(`SELECT data FROM mushaf_pages WHERE pageNumber=?`, [pageNum]);
     if (res && res.length > 0 && res[0].rows.length > 0) return null;
+    // P1-G — a stalled network fetch must never hold the page's in-flight promise open (an
+    // un-resolved ensurePageLoaded used to sit in pagePromiseRef until the process died):
+    // abort after 10s; the caller falls back to the skeleton and the background chunk retry
+    // below re-fills the hole on the next start.
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 10000);
     try {
-      const r = await fetch(`${MUSHAF_BASE}/page-${String(pageNum).padStart(3, '0')}.json`);
+      const r = await fetch(`${MUSHAF_BASE}/page-${String(pageNum).padStart(3, '0')}.json`, { signal: controller.signal });
       if (!r.ok) return null;
       const pageData = await r.json();
       await getDB().executeSql(`INSERT OR REPLACE INTO mushaf_pages (pageNumber, data) VALUES (?, ?)`, [pageData.page, JSON.stringify(pageData)]);
       return pageData;
     } catch (e) { console.warn('ensureMushafPageData', pageNum, e); return null; }
+    finally { clearTimeout(t); }
   })();
   ensuredPageQueues.set(`p_${pageNum}`, job);
   try { return await job; } finally { ensuredPageQueues.delete(`p_${pageNum}`); }
@@ -434,7 +441,12 @@ const fetchMushafPages = async () => {
   if (check && check.length > 0 && check[0].rows.item(0).c > 0) return;
 
   const chunkSize = 20;
-  for (let i = 1; i <= 604; i += chunkSize) {
+  // P1-G — one retry pass for chunks that threw on the first sweep. A failed chunk used to
+  // leave a PERMANENT { lines: [] } hole (an on-demand one-shot self-heal only fixed the one
+  // page the reader touched — neighbours stayed dead). Retrying the failed chunks once after
+  // the full sweep finishes (mid-sweep network hiccups / timeouts) closes most holes without
+  // a full re-download.
+  const fetchChunk = async (i: number) => {
     const promises = [];
     for (let j = i; j < Math.min(i + chunkSize, 605); j++) {
       const pageStr = String(j).padStart(3, '0');
@@ -449,8 +461,14 @@ const fetchMushafPages = async () => {
           }
         });
       });
-    } catch (e) { console.error(`Failed mushaf chunk starting at page ${i}`, e); }
+      return true;
+    } catch (e) { console.error(`Failed mushaf chunk starting at page ${i}`, e); return false; }
+  };
+  const failed: number[] = [];
+  for (let i = 1; i <= 604; i += chunkSize) {
+    if (!(await fetchChunk(i))) failed.push(i);
   }
+  for (const i of failed) await fetchChunk(i);
 };
 
 /**

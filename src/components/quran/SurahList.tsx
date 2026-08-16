@@ -158,7 +158,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     return scored.map(x => x.item);
   }, [data, query, mode]);
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
       <View style={[styles.container, isDark && dark.container]}>
         <View style={[styles.header, isDark && dark.header]}>
           <View style={styles.headerRow}>

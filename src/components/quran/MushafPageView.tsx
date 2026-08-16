@@ -18,7 +18,7 @@ import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame, { frameInsetFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
 import { textInsetFor } from '../../utils/mushafLayout';
-import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, preloadPageLayoutCacheRange } from '../../database/localDB';
+import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, savePageLayoutCacheMemOnly, preloadPageLayoutCacheRange } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -217,7 +217,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false, onMeasured = undefined }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false, persistLayout = true, onMeasured = undefined }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -283,6 +283,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const completedLinesRef = useRef<Set<number>>(new Set());
   const cacheWrittenRef = useRef(false);
   const frozenRef = useRef(false);
+  // P1-E — the normalization base is FROZEN for the lifetime of ONE measure pass: onBoxLayout
+  // (box height) can re-fire mid-pass (gate→full swap, player bar mount, header toggle, rotation)
+  // and re-derive fontScale → normFontSize. Without a fixed base, words measured before the
+  // resize would normalize against the OLD base and words after it against the NEW one — a
+  // single persisted row mixing two units that mis-scales on every later replay. Zeroed by the
+  // reset effect so each new page/pass starts clean.
+  const passNormFontSizeRef = useRef(0);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(fontLoadedOnce);
   const [innerH, setInnerH] = useState(0);
@@ -328,7 +335,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // multiplied back on replay, so cached rows survive any font-size change (settings, header
   // toggle, release updates) — each page is measured once per device, not once per font size.
   const normFontSize = (mushafFontSize + adj.size) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale;
-  const normPx = (px: number) => (normFontSize > 0 ? px / normFontSize : 0);
 
   useEffect(() => {
     let mounted = true;
@@ -379,6 +385,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     completedLinesRef.current = new Set();
     cacheWrittenRef.current = false;
     frozenRef.current = false;
+    passNormFontSizeRef.current = 0;
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
@@ -456,9 +463,12 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const handleWordMeasured = (lineKey: number, wordIdx: number, w: number, expected: number) => {
     if (frozenRef.current) return;
     if (!fontReady) return;
+    // P1-E — freeze the normalization base for this whole pass (see passNormFontSizeRef): a
+    // mid-pass box resize must not remix the units of an in-flight row.
+    const passBase = passNormFontSizeRef.current || (passNormFontSizeRef.current = normFontSize);
     // Normalize to the font-size-independent unit — the persisted sums are always in these
     // units, and the cache-hit replay multiplies them back by the current base size.
-    w = normPx(w);
+    w = passBase > 0 ? w / passBase : 0;
     if (!widthsRef.current[lineKey]) widthsRef.current[lineKey] = [];
     if (widthsRef.current[lineKey][wordIdx] === undefined) {
       filledCountRef.current[lineKey] = (filledCountRef.current[lineKey] || 0) + 1;
@@ -483,7 +493,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         // device and replayed forever from SQLite.
         layoutContentRef.current = sums;
         setLineScale({});
-        savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
+        // P0-C — the hidden pre-measure slot (persistLayout=false) keeps its row in
+        // layoutCacheMem ONLY: background writes must never queue behind the reader's own
+        // connection traffic; visible pages always persist (savePageLayoutCache → SQLite).
+        if (persistLayout) savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
+        else savePageLayoutCacheMemOnly(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
         // The page's layout row is now persisted; onMeasured lets an optional hidden-instance
         // owner know the row is settled.
         if (onMeasured) onMeasured(pageNum);

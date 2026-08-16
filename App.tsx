@@ -16,6 +16,7 @@ import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { requestSync } from './src/api/sync';
 import { getCachedStudentList, getStudentData } from './src/database/localDB';
+import { getFreshnessSnapshot, studentDataIsCurrent, markStudentDataLoaded } from './src/hooks/useStudentDataRefresh';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -105,8 +106,15 @@ const AppInner = () => {
     const sid = studentIdRef.current;
     if (!sid) return;
     try {
+      // P2-I — cheap freshness gate BEFORE the heavy read: the JSON-fingerprint below already
+      // avoided re-dispatching identical data, but the full chunk read + every chunk's
+      // JSON.parse still ran on EVERY post-pull refresh. When SQLite is provably unchanged
+      // since the last successful hydration of this student, skip the read entirely.
+      const snapshot = await getFreshnessSnapshot(sid);
+      if (snapshot === null || studentDataIsCurrent(sid, snapshot)) return;
       const d = await getStudentData(sid);
       if (!d) return;
+      markStudentDataLoaded(sid, snapshot);
       const json = JSON.stringify(d);
       if (json !== studentDataJsonRef.current) { studentDataJsonRef.current = json; dispatch(setStudentData(d)); }
     } catch {}
