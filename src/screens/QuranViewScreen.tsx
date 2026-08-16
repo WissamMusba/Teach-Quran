@@ -439,6 +439,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // behind the 3-per-80ms drain ticks for ~1-2s after a page turn. Set/cleared by onTouchStart/
   // onTouchEnd/onTouchCancel on the root container below.
   const drainPausedRef = useRef(false);
+  // v79 — the pause outlives the finger: releasing via a ~500ms cooldown timer keeps the warm
+  // drain + hidden worker quiet right after a tap, so the tap's follow-up JS (navigation mount,
+  // screen render, highlight re-render) never competes with background warm work.
+  const userBusyReleaseTimerRef = useRef<any>(null);
   // P0-B — cross-settle dedupe for the layout-warm pass: a fast settle re-fire
   // (2-5-2 swipe patterns) must never re-query layout rows it already warmed.
   const layoutWarmByPageRef = useRef<Set<string>>(new Set());
@@ -475,6 +479,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const hiddenTickRef = useRef<() => void>(() => {});
   const hiddenTick = useCallback(() => {
     if (hiddenBusyRef.current || hiddenPauseTimerRef.current) return;
+    if (drainPausedRef.current) return; // v79 — yield during taps + the post-tap cooldown
     if (!hiddenFocus || appStateRef.current !== 'active') return;
     if (isDrawing || isCapturing || drawingGestureActive || hiddenScrollingRef.current) return;
     // P0-C — the worker is invisible work: it must never share a frame with an open modal,
@@ -581,9 +586,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => () => {
     if (hiddenPauseTimerRef.current) clearTimeout(hiddenPauseTimerRef.current);
     if (hiddenSafetyTimerRef.current) clearTimeout(hiddenSafetyTimerRef.current);
+    if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
   }, []);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
+    // v79 — when the reader is NOT focused (user is on Mistakes/Notes/Bookmarks/Settings/etc. the
+    // reader stays mounted underneath the pushed screen) the warm drain must stop ENTIRELY: its
+    // state updates re-render the whole reader behind the pushed screen and starve it of frames.
+    if (!hiddenFocus) return;
     // FIX 8 — ignore intermediate momentum pages: only warm the window for the page that
     // survives 120ms after the last swipe settle.
     if (settledPage !== currentPageNum) return;
@@ -611,15 +621,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // drips 3 pages per tick — 10 ahead / 5 behind are cached within ~1.5s, no wall.
     const layoutStep = () => {
       clearTimeout(layoutTimerRef.current);
-      // Touch-pause: a finger is down — skip this tick and re-arm; the tap's own JS event
-      // (press-in, navigation) runs instead of queuing behind drain work.
+      // Touch-pause: a finger is down (or inside the post-tap cooldown) — skip this tick and
+      // re-arm; the tap's own JS event (press-in, navigation) runs instead of queuing behind
+      // drain work.
       if (drainPausedRef.current) {
-        if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+        if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
         return;
       }
-      const batch = layoutQueueRef.current.splice(0, 3);
+      const batch = layoutQueueRef.current.splice(0, 2);
       for (const p of batch) { loadPage(p); warmLayout(p); }
-      if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+      if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
     };
     // TIER 1 — nearest-first drain: 5-behind arm, 7-ahead arm, far-behind, far-ahead.
     const queue: number[] = [];
@@ -638,12 +649,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) queue.push(clampP(p));
     for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) queue.push(clampP(p));
     layoutQueueRef.current = queue;
-    if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 80);
+    if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
     return () => {
       clearTimeout(layoutTimerRef.current);
       layoutQueueRef.current = [];
     };
-  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle]);
+  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle, hiddenFocus]);
 
   /**
    * WHAT: Landing-path scroll — scrolls the page FlatList to the target page
@@ -1962,9 +1973,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}
-      onTouchStart={() => { drainPausedRef.current = true; }}
-      onTouchEnd={() => { drainPausedRef.current = false; }}
-      onTouchCancel={() => { drainPausedRef.current = false; }}>
+      onTouchStart={() => {
+        if (userBusyReleaseTimerRef.current) { clearTimeout(userBusyReleaseTimerRef.current); userBusyReleaseTimerRef.current = null; }
+        drainPausedRef.current = true;
+      }}
+      onTouchEnd={() => {
+        if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
+        userBusyReleaseTimerRef.current = setTimeout(() => { drainPausedRef.current = false; userBusyReleaseTimerRef.current = null; }, 500);
+      }}
+      onTouchCancel={() => {
+        if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
+        userBusyReleaseTimerRef.current = setTimeout(() => { drainPausedRef.current = false; userBusyReleaseTimerRef.current = null; }, 500);
+      }}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
         onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
         onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}

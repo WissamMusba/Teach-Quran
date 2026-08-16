@@ -301,23 +301,35 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // fire and innerH would stay 0 → pitchScale/fontScale 1 → full-size text in the shorter
   // header-visible box → bottom clipped until a header toggle resizes the box). All three
   // containers (fallback, gate, full) therefore share this handler: whichever renders first
-  // captures the true height. rAF-batched: the header show/hide height animation fires this
-  // every frame; stacking the pending height and applying once per frame keeps the per-frame
-  // word re-fit (page mode) from thrashing layout as hard as before.
-  const innerHRafRef = useRef<number | null>(null);
+  // captures the true height. FIRST measurement (innerHRef still 0) applies SYNCHRONOUSLY —
+  // the first-paint gate depends on innerH, so no rAF/timer may delay it. LATER resizes
+  // (header show/hide height animation firing every frame, rotation, player bar mount)
+  // coalesce behind a ~70ms settle timeout that clears/replaces the timer on each event and
+  // applies the LATEST pending height once — a per-frame setInnerH would re-derive
+  // pitchScale/fontScale and thrash the ~400 word re-fit on every one of the ~8 animation
+  // frames.
+  const innerHSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const innerHRef = useRef(0);
   const pendingInnerHRef = useRef(0);
   const onBoxLayout = useCallback((e: any) => {
     const h = Math.round(e.nativeEvent.layout.height);
     if (h <= 0) return;
     pendingInnerHRef.current = h;
-    if (innerHRafRef.current !== null) return;
-    innerHRafRef.current = requestAnimationFrame(() => {
-      innerHRafRef.current = null;
+    if (innerHRef.current === 0) {
+      // First measurement for this mounted page — apply immediately so the gate never waits.
+      innerHRef.current = h;
+      setInnerH(h);
+      return;
+    }
+    // Resize — coalesce: reset the settle window on each event (clear/replace), latest h wins.
+    if (innerHSettleRef.current !== null) clearTimeout(innerHSettleRef.current);
+    innerHSettleRef.current = setTimeout(() => {
+      innerHSettleRef.current = null;
       setInnerH((prev) => (pendingInnerHRef.current !== prev ? pendingInnerHRef.current : prev));
-    });
+    }, 70);
   }, []);
   useEffect(() => () => {
-    if (innerHRafRef.current !== null) cancelAnimationFrame(innerHRafRef.current);
+    if (innerHSettleRef.current !== null) clearTimeout(innerHSettleRef.current);
   }, []);
 
   // Vertical-fit audit (header-visible worst case): with AnimatedHeader (~64) + AudioPlayerBar

@@ -5,8 +5,11 @@
  *
  * PERFORMANCE (2026-08-08):
  *  - Show/hide is a SINGLE Animated.parallel over two values: `native` (opacity + translateY)
- *    and `layout` (container height collapse). Durations are now ~110ms show / ~90ms hide with
- *    a gentle easing.out — instant-feel while staying visible.
+ *    and `layout` (container height collapse). Durations are 70ms show / 60ms hide with a gentle
+ *    easing.out — instant-feel while staying visible. BOTH values stay JS-driven
+ *    (useNativeDriver: false): the same Animated.View carries the height interpolation, and RN's
+ *    native-driver validation rejects any component with a non-supported prop (height) when a
+ *    native-driven value is attached — "Style property height is not supported by native module".
  *  - The content height is measured ONCE per (content | window-width) pair via a cached ref
  *    (`measuredKey` + `measuredRef`). The onLayout handler ignores every per-frame re-measure:
  *    the collapse/expand animation emits shrinking/growing heights under the SAME cache key,
@@ -87,15 +90,16 @@ export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?:
  *          cache key (see `measuredKey` / `onContentLayout`); the collapse/expand animation's own frames
  *          never re-measure, so the height collapse interpolates against the single cached value.
  *       2) Two Animated.Values created once: `native` (drives opacity + translateY) and `layout` (drives the container height).
- *       3) On `visible` change both animate in parallel: ~110ms show / ~90ms hide, gentle Easing.out(cubic).
+ *       3) On `visible` change both animate in parallel: 70ms show / 60ms hide, gentle Easing.out(cubic).
  *       4) translateY interpolates -measured → 0, so the content slides up out of the (overflow:hidden) wrapper.
  *       5) heightStyle interpolates 0 → measured; before first successful measure it falls back to undefined (visible) or 0 (hidden).
  *       6) pointerEvents = 'auto'/'none' so a hidden header never intercepts taps.
  * CALLED BY: QuranViewScreen.tsx:508 → rendered with headerInfo + isHeaderVisible + nightMode.
  * AFFECTS: Layout/render only — the `layout` height change pushes/pulls the reader content (the mushaf font
  *          size is separately boosted when hidden, see responsive.ts).
- * NOTES: the value named `native` uses useNativeDriver: false — it is a JS-DRIVEN animation (translateY/height
- *        are non-native-oriented props); there is NO native-driver animation here.
+ * NOTES: BOTH values run with useNativeDriver: false (JS-driven). Only the duration was tightened
+ *        (70/60ms) — the height prop on this Animated.View forbids any native-driven sibling value
+ *        ("Style property height is not supported by native module").
  */
 const AnimatedHeader: React.FC<Props> = (p) => {
   const { width } = useWindowDimensions();
@@ -125,7 +129,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
     native.stopAnimation();
     layout.stopAnimation();
     const to = p.visible ? 1 : 0;
-    const duration = p.visible ? 110 : 90;
+    const duration = p.visible ? 70 : 60;
     Animated.parallel([
       Animated.timing(native, { toValue: to, duration, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
       Animated.timing(layout, { toValue: to, duration, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
