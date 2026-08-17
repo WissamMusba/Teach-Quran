@@ -154,9 +154,11 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const titleColor = p.nightMode ? '#fff' : '#1a1a1a';
   const subColor = p.nightMode ? '#8a8a8a' : '#777';
 
-  // Per-action button: icon above label, hitSlop padded; wired to the matching prop callback below.
+  // Per-action button: icon above label, padded hit area (48dp touch target — Android's
+  // recommended minimum) so presses register even slightly off-center; no border/outline
+  // anywhere — the icon + label ARE the button.
   const Btn = ({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) => (
-    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
       {icon}
       <Text style={[s.iconLab, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
     </TouchableOpacity>
@@ -213,12 +215,12 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingTop: 6, paddingBottom: 6 },
-  backBtn: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  backBtn: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
   titleBlock: { flex: 1, paddingVertical: 2 },
   surahName: { fontSize: 17, fontWeight: 'bold' },
   surahSub: { fontSize: 11, marginTop: 2 },
   iconsRow: { flex: 1.8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
-  iconBtn: { flex: 1, minWidth: 0, maxWidth: 60, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { flex: 1, minWidth: 44, maxWidth: 60, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   iconLab: { fontSize: 8.5, marginTop: 2, fontWeight: '600' },
   infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, paddingTop: 2 },
   infoLine: { fontSize: 11 },

@@ -23,6 +23,11 @@ import { setSurahNames } from '../store/quranSlice';
 // must never double-start it).
 let indopakWarmStarted = false;
 
+// P1-F — module-level handle to the currently-pending auth listener: subscribed at the top of
+// every load() run (cold start AND Retry) so a prior failed attempt can never leak a second
+// listener; unsubscribed on settle (auth fire / DB error) and on unmount cleanup.
+let currentUnsub: (() => void) | null = null;
+
 export default function SplashScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -30,55 +35,71 @@ export default function SplashScreen({ navigation }: any) {
   const dispatch = useDispatch();
 
   /**
-   * WHAT: Full startup sequence: download+verify the Quran DB, load surah names
-   *       into Redux, then wait for Firebase auth and navigate away.
-   * FLOW: 1) setIsLoading(true), setError(false) — line 15
-   *       2) await downloadAndCacheQuran() — seeds SQLite (verses/surahs/
-   *          mushaf_pages); idempotent verse-count check; does NOT throw on
-   *          partial completion (MIN_USABLE_VERSES path)
-   *       3) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
+   * WHAT: Full startup sequence: the Firebase auth restore and the SQLite
+   *       download/verify + surah-name seed run in PARALLEL, then navigate
+   *       away once BOTH the DB and the auth verdict are ready.
+   * FLOW: 1) setIsLoading(true), setError(false)
+   *       2) Subscribe auth().onAuthStateChanged FIRST — the restored-session
+   *          verdict resolves authPromise ({ user }) the moment it arrives and
+   *          the listener unsubscribes itself on fire, so the auth restore
+   *          (~100-500ms network wait) overlaps the DB work instead of running
+   *          after it
+   *       3) await Promise.all([downloadAndCacheQuran(), getSurahs().then(...),
+   *          authPromise]) — seeds SQLite (verses/surahs/mushaf_pages);
+   *          idempotent verse-count check; does NOT throw on partial
+   *          completion (MIN_USABLE_VERSES path); surah names dispatched to
+   *          Redux as map = {surah.id: surah.englishName} (setSurahNames)
+   *       4) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
    *          pre-warms the indopak page index/verse map + SQLite bulk import
    *          so the first indopak page press never pays those multi-MB costs
-   *       4) await getSurahs() — SELECT * FROM surahs ORDER BY id
-   *       5) Build map = {surah.id: surah.englishName}, dispatch setSurahNames(map)
-   *       6) Subscribe auth().onAuthStateChanged — fires once with the restored
-   *          session, then unsubscribes
-   *       7) navigation.replace(user ? 'Dashboard' : 'Login') — replace (not
-   *          navigate) so Splash is removed from the back stack
-   *       8) On thrown error: setError(true) + errorMessage, setIsLoading(false);
-   *          retry screen shown, auth listener never runs
+   *       5) navigation.replace(authResult.user ? 'Dashboard' : 'Login') —
+   *          replace (not navigate) so Splash is removed from the back stack
+   *       6) On thrown error: unsubscribe any still-pending auth listener,
+   *          setError(true) + errorMessage, setIsLoading(false); retry screen
+   *          shown
    * CALLS: downloadAndCacheQuran -> initDatabase, verse count, fetchMissing +
-   *        fetchMushafPages; warmIndopakIndexes (fire-and-forget); getSurahs;
-   *        dispatch(setSurahNames); auth().onAuthStateChanged
-   * CALLED BY: useEffect on mount (line 30) and "Retry Download" button onPress
-   *            (line 44)
+   *        fetchMushafPages; getSurahs; dispatch(setSurahNames);
+   *        auth().onAuthStateChanged; warmIndopakIndexes (fire-and-forget)
+   * CALLED BY: useEffect on mount and "Retry Download" button onPress
    * AFFECTS: SQLite (verses, surahs, mushaf_pages), quranSlice.surahNames,
    *          navigation stack (Splash -> Dashboard/Login)
-   * NOTES: Route decision happens ONLY inside the onAuthStateChanged callback —
-   *        if steps 2-5 throw, the listener is never subscribed and the app
-   *        stays on the retry screen. No dispatch(setUser) here: on cold start
-   *        redux auth is rehydrated from AsyncStorage (persistConfig whitelist),
-   *        but a stale/expired session is still caught by onAuthStateChanged —
-   *        the Firebase session is the source of truth, not the Redux flag.
+   * NOTES: Route decision reads the Firebase session (source of truth), never a
+   *        Redux flag — no dispatch(setUser) here: on cold start redux auth is
+   *        rehydrated from AsyncStorage (persistConfig whitelist), but a
+   *        stale/expired session is still caught by onAuthStateChanged.
+   *        currentUnsub (module-level) is unsubscribed at the top of every
+   *        load() run and on both settle paths, so a Retry never double-
+   *        subscribes and a failed attempt never leaks a listener.
    */
   const load = useCallback(async () => {
     setIsLoading(true); setError(false);
+    if (currentUnsub) { currentUnsub(); currentUnsub = null; }
+    const authPromise = new Promise<{ user: any }>(resolve => {
+      currentUnsub = auth().onAuthStateChanged(user => {
+        const unsub = currentUnsub;
+        currentUnsub = null;
+        if (unsub) unsub();
+        resolve({ user });
+      });
+    });
     try {
-      await downloadAndCacheQuran();
+      const [, , authResult] = await Promise.all([
+        downloadAndCacheQuran(),
+        getSurahs().then(surahs => {
+          const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
+          dispatch(setSurahNames(map));
+        }),
+        authPromise,
+      ]);
       if (!indopakWarmStarted) {
         indopakWarmStarted = true;
         InteractionManager.runAfterInteractions(() => {
           setTimeout(() => { warmIndopakIndexes().catch(() => {}); }, 2000);
         });
       }
-      const surahs = await getSurahs();
-      const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
-      dispatch(setSurahNames(map));
-      const unsub = auth().onAuthStateChanged(user => {
-        navigation.replace(user ? 'Dashboard' : 'Login');
-        unsub();
-      });
+      navigation.replace(authResult.user ? 'Dashboard' : 'Login');
     } catch (e: any) {
+      if (currentUnsub) { currentUnsub(); currentUnsub = null; }
       setError(true); setErrorMessage(e.message || JSON.stringify(e)); setIsLoading(false);
     }
   }, [navigation, dispatch]);
@@ -87,11 +108,16 @@ export default function SplashScreen({ navigation }: any) {
    * WHAT: Runs the full load sequence exactly once on mount.
    * FLOW: 1) Called after first render; load is recreated only when navigation
    *          or dispatch changes (useCallback deps), so the effect fires once.
+   *       2) Cleanup: if load is still in flight on unmount, unsubscribe the
+   *          pending auth listener so no callback fires after teardown.
    * CALLS: load
    * CALLED BY: React on component mount
    * AFFECTS: kicks off DB download + auth routing
    */
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { if (currentUnsub) { currentUnsub(); currentUnsub = null; } };
+  }, [load]);
 
   return (
     <View style={styles.container}>

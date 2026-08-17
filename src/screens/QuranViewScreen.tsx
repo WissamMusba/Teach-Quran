@@ -93,23 +93,23 @@ const pageLastVerseFromPageData = (pd: any) => {
   return null;
 };
 /**
- * WHAT: Memoized split-mode row — renders the two pages of a spread side by side,
- *   each as its own MushafPageView with an independent loading spinner.
- * FLOW: 1) render calls ensurePageLoaded + ensurePageVersesLoaded for both page
- *   numbers (side-effect-in-render, guarded by promise refs) 2) each half renders
- *   MushafPageView once its pageCache JSON arrives.
- * CALLS: ensurePageLoaded / ensurePageVersesLoaded (parent), MushafPageView.
- * CALLED BY: page-mode FlatList renderItem (splitOn=true).
- * AFFECTS: pageCache / pageVersesCache (via the side-effect-in-render loads).
- * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
- *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
- */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured }: any) => {
+* WHAT: Memoized split-mode row — renders the two pages of a spread side by side,
+   *   each as its own MushafPageView with an independent loading spinner.
+   * FLOW: 1) render calls ensurePageLoaded for both page numbers and queues their
+   *   verses via queueVerseLoad (side-effect-in-render, guarded by promise refs)
+   *   2) each half renders MushafPageView once its pageCache JSON arrives.
+   * CALLS: ensurePageLoaded / queueVerseLoad (parent), MushafPageView.
+   * CALLED BY: page-mode FlatList renderItem (splitOn=true).
+   * AFFECTS: pageCache / pageVersesCache (via the side-effect-in-render loads).
+   * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
+   *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
+   */
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, queueVerseLoad }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
-  if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
-  if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
+  if (even) { ensurePageLoaded(even); queueVerseLoad(even); }
+  if (odd) { ensurePageLoaded(odd); queueVerseLoad(odd); }
   // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
   // button renders in the same commit as its page (including pre-rendered pages while swiping).
   const oddLast = pageLastVerseFor?.(odd);
@@ -161,15 +161,17 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
  *   closures live INSIDE the cell so their identity never leaks into the memo
  *   comparison. MushafPageView is itself memoized (export default memo) — a cache
  *   fill of a NEIGHBOUR page re-renders this wrapper only, not the mushaf tree.
- * CALLS: ensurePageLoaded / ensurePageVersesLoaded (mount effect), MushafPageView.
- * CALLED BY: page-mode FlatList renderItem (splitOn=false).
- */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode }: any) => {
+* CALLS: ensurePageLoaded (mount effect), queueVerseLoad (mount effect), MushafPageView.
+   * CALLED BY: page-mode FlatList renderItem (splitOn=false).
+   */
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, queueVerseLoad }: any) => {
   useEffect(() => {
-    // Guarded loads: a cache-fill re-render re-runs this effect but not the loads.
+    // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses ride
+    // the paced background queue (queueVerseLoad) so per-cell enqueues never flood the single
+    // SQLite connection during fast flings.
     if (!pageCache[item]) ensurePageLoaded(item);
-    if (!pageVersesCache[item]) ensurePageVersesLoaded(item);
-  }, [item, pageCache, pageVersesCache, ensurePageLoaded, ensurePageVersesLoaded]);
+    if (!pageVersesCache[item]) queueVerseLoad(item);
+  }, [item, pageCache, pageVersesCache, ensurePageLoaded, queueVerseLoad]);
   const pData = pageCache[item];
   const last = pageLastVerseFor?.(item);
   return (
@@ -316,7 +318,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * WHAT: Loads a mushaf page JSON into pageCache once (from mushaf_pages or
-   *   mushaf_pages_indopak via getMushafPageData), with a ~64-page LRU. Resolves
+   *   mushaf_pages_indopak via getMushafPageData), with a ~96-page LRU. Resolves
    *   with the page data (or null when unloadable) so landing paths can await
    *   the SAME load they trigger and warm the layout before scrolling.
    * FLOW: 1) cached -> resolve immediately (Promise.resolve) 2) in-flight ->
@@ -324,10 +326,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   3) else kick the load, store its promise; isIndopak lazily seeds via
    *   importIndopakPages() first 4) getMushapPageData(pageNum,
    *   textStyleRef.current) 5) empty-lines miss -> ensureMushafPageData fetch
-   *   (resolve with it when found, null on failure) 6) setPageCache + LRU:
-   *   append to order ref, evict pages >24 away from currentPageNumRef while
-   *   len>64 7) delete the promise entry on settle (resolve or reject).
-   * CALLS: getMushafPageData, ensureMushafPageData, importIndopakPages (quranData.ts).
+   *   (resolve with it when found, null on failure) 6) stagePageData — setPageCache
+   *   + LRU (append to order ref, evict pages >48 away from currentPageNumRef
+   *   while len>96 — v80.2 widened from 64/>24 so a ±20 scroll-back never
+   *   re-loads pages it already visited), deferred into pendingPageCacheRef while a touch is down and
+   *   flushed as one batch after the touch cooldown 7) delete the promise entry
+   *   on settle (resolve or reject).
+   * CALLS: getMushafPageData, ensureMushafPageData, importIndopakPages (quranData.ts),
+   *   stagePageData.
    * CALLED BY: renderItem of the page FlatList (single) / SpreadItem (split) —
    *   fire-and-forget, the returned promise is ignored — prefetchAround,
    *   prefetchPartner, handleSelectPage, deep-link + surah-change + lastRead
@@ -335,7 +341,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: pageCache (local state).
    * NOTES: Uses the LIVE textStyleRef so a mid-flight font change doesn't cache
    *   the wrong mushaf under the new key — pages loaded under an old style stay
-   *   cached until the textStyle reset effect wipes both caches.
+   *   cached until the textStyle reset effect wipes both caches. v80 — while a
+   *   touch is active (drainPausedRef) the STATE landing is deferred (staged) so
+   *   a cache-fill re-render can never cancel a press in flight; the promise still
+   *   resolves with the DATA immediately, so awaiters (landOnPage) never wait on
+   *   the flush, and single-flight via pagePromiseRef is unchanged.
    */
   const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
     if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
@@ -349,30 +359,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (!data?.lines || data.lines.length === 0) {
         const missing = await ensureMushafPageData(pageNum, textStyleRef.current).catch(() => null);
         if (missing) {
-          setPageCache(prev => {
-            const next = { ...prev, [pageNum]: missing };
-            const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
-            order.push(pageNum);
-            pageCacheOrderRef.current = order;
-            return next;
-          });
+          stagePageData(pageNum, missing);
         }
         return missing;
       }
-      setPageCache(prev => {
-        const next = { ...prev, [pageNum]: data };
-        const order = pageCacheOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
-        order.push(pageNum);
-        const cp = currentPageNumRef.current;
-        while (order.length > 64) {
-          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 24);
-          if (idx === -1) break;
-          delete next[order[idx]];
-          order.splice(idx, 1);
-        }
-        pageCacheOrderRef.current = order;
-        return next;
-      });
+      stagePageData(pageNum, data);
       return data;
     })().finally(() => { delete pagePromiseRef.current[pageNum]; });
     pagePromiseRef.current[pageNum] = promise;
@@ -385,31 +376,22 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   handleCopyVerse, page bookmark button).
    * FLOW: same guard/promise/LRU pattern as ensurePageLoaded; SQL via
    *   getVersesByPage(pageNum, textStyleRef.current) which selects the Arabic
-   *   column matching the style.
-   * CALLS: getVersesByPage (quranData.ts).
+   *   column matching the style. Landing goes through stagePageVerses — deferred
+   *   into pendingPageVersesRef while a touch is down, flushed as one batch after.
+   * CALLS: getVersesByPage (quranData.ts), stagePageVerses.
    * CALLED BY: renderItem / SpreadItem, prefetchAround, prefetchPartner,
    *   handleSelectPage, deep-link + surah-change + lastRead effects.
    * AFFECTS: pageVersesCache (local state); verses table (read).
-   * NOTES: Its own order ref + 40-cap LRU — separate from pageCache.
+   * NOTES: Its own order ref + 96-cap LRU (evict >48 away) — separate from pageCache. v80 — the
+   *   state landing is deferred while a touch is active (drainPausedRef) so
+   *   re-renders never cancel a press; the promise ref clears on settle regardless
+   *   of when the flush lands.
    */
   const ensurePageVersesLoaded = useCallback((pageNum: number) => {
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
     pageVersesPromiseRef.current[pageNum] = true;
     getVersesByPage(pageNum, textStyleRef.current).then(verses => {
-      setPageVersesCache(prev => {
-        const next = { ...prev, [pageNum]: verses };
-        const order = pageVersesOrderRef.current.filter((k: number) => k !== pageNum && k in prev);
-        order.push(pageNum);
-        const cp = currentPageNumRef.current;
-        while (order.length > 64) {
-          const idx = order.findIndex((k: number) => Math.abs(k - cp) > 24);
-          if (idx === -1) break;
-          delete next[order[idx]];
-          order.splice(idx, 1);
-        }
-        pageVersesOrderRef.current = order;
-        return next;
-      });
+      stagePageVerses(pageNum, verses);
       delete pageVersesPromiseRef.current[pageNum];
     }).catch(() => { delete pageVersesPromiseRef.current[pageNum]; });
   }, [pageVersesCache]);
@@ -446,6 +428,184 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // P0-B — cross-settle dedupe for the layout-warm pass: a fast settle re-fire
   // (2-5-2 swipe patterns) must never re-query layout rows it already warmed.
   const layoutWarmByPageRef = useRef<Set<string>>(new Set());
+  // Shared layout-warm key scheme (textStyle|width|page) — used by the settle effect, the
+  // hidden pre-measure worker AND the explicit-navigation warm (warmNearPages) so all three
+  // dedupe against the SAME warmed/layout-warmed set.
+  const warmKey = (p: number) => `${textStyle}|${Math.round(splitOn ? pageW : winW)}|${p}`;
+  // v80 — paced warm timer for explicit navigation (warmNearPages): cleared on re-entry/unmount.
+  const warmNearTimerRef = useRef<any>(0);
+
+  // ---- v80 deferred page-data landings (touch-pause batching) ----
+  // While the user is touching (drainPausedRef), page data that resolves mid-press is parked in
+  // these maps instead of calling setPageCache/setPageVersesCache directly — a state-landing
+  // re-render DURING a press would cancel the press's responder (dead header buttons). Flushed
+  // as ONE batch per cache once the touch cooldown ends (flushPendingPageData).
+  const pendingPageCacheRef = useRef<Map<number, any> | null>(null);
+  const pendingPageVersesRef = useRef<Map<number, any[]> | null>(null);
+
+  /**
+   * WHAT: Applies batched page-data entries to pageCache in ONE setPageCache call —
+   *   the exact LRU of ensurePageLoaded (append to pageCacheOrderRef; evict while
+   *   order.length > 96 and a page sits >48 away from currentPageNumRef).
+   * FLOW: merge all entries in insertion order -> evict -> single state commit.
+   * CALLS: setPageCache (state setter only).
+   * CALLED BY: stagePageData, flushPendingPageData.
+   * AFFECTS: pageCache (one commit per batch), pageCacheOrderRef.
+   */
+  const applyPageCacheEntries = (entries: [number, any][]) => {
+    setPageCache(prev => {
+      const next = { ...prev };
+      const order = pageCacheOrderRef.current.slice();
+      for (const [k, v] of entries) {
+        next[k] = v;
+        const oi = order.indexOf(k);
+        if (oi !== -1) order.splice(oi, 1);
+        order.push(k);
+      }
+      const cp = currentPageNumRef.current;
+      while (order.length > 96) {
+        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
+        if (idx === -1) break;
+        delete next[order[idx]];
+        order.splice(idx, 1);
+      }
+      pageCacheOrderRef.current = order;
+      return next;
+    });
+  };
+
+  /**
+   * WHAT: Applies batched verse entries to pageVersesCache in ONE setPageVersesCache
+   *   call — the same LRU pattern as pageCache (96-cap, >48 from the current page).
+   * CALLS: setPageVersesCache (state setter only).
+   * CALLED BY: stagePageVerses, flushPendingPageData.
+   * AFFECTS: pageVersesCache (one commit per batch), pageVersesOrderRef.
+   */
+  const applyPageVersesEntries = (entries: [number, any[]][]) => {
+    setPageVersesCache(prev => {
+      const next = { ...prev };
+      const order = pageVersesOrderRef.current.slice();
+      for (const [k, v] of entries) {
+        next[k] = v;
+        const oi = order.indexOf(k);
+        if (oi !== -1) order.splice(oi, 1);
+        order.push(k);
+      }
+      const cp = currentPageNumRef.current;
+      while (order.length > 96) {
+        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
+        if (idx === -1) break;
+        delete next[order[idx]];
+        order.splice(idx, 1);
+      }
+      pageVersesOrderRef.current = order;
+      return next;
+    });
+  };
+
+  /**
+   * WHAT: Lands any page data stashed while a touch was down (pendingPageCacheRef /
+   *   pendingPageVersesRef) as ONE batch per cache, restoring normal direct landings.
+   * FLOW: 1) nothing pending -> return 2) pull both maps (refs -> null) 3) apply each
+   *   non-empty map through the shared apply functions (insertion order preserved).
+   * CALLS: applyPageCacheEntries, applyPageVersesEntries.
+   * CALLED BY: onTouchEnd cooldown callback, layoutStep, hiddenTick — only when
+   *   drainPausedRef is false, never mid-press.
+   * AFFECTS: pageCache / pageVersesCache (single batched commit each).
+   * NOTES: No-op is cheap; safe to call on every idle tick. Never runs while a touch
+   *   is active, so a re-render can never cancel a press's responder.
+   */
+  const flushPendingPageData = () => {
+    const pc = pendingPageCacheRef.current;
+    const pv = pendingPageVersesRef.current;
+    if ((!pc || pc.size === 0) && (!pv || pv.size === 0)) return;
+    pendingPageCacheRef.current = null;
+    pendingPageVersesRef.current = null;
+    if (pc && pc.size > 0) applyPageCacheEntries(Array.from(pc.entries()));
+    if (pv && pv.size > 0) applyPageVersesEntries(Array.from(pv.entries()));
+  };
+
+  /**
+   * WHAT: Single-entry page-data landing — applies immediately when no touch is
+   *   active, else parks the entry in pendingPageCacheRef for the next flush.
+   * FLOW: drainPausedRef? batch : flushPendingPageData() + applyPageCacheEntries.
+   * CALLS: flushPendingPageData, applyPageCacheEntries.
+   * CALLED BY: ensurePageLoaded (normal + missing paths).
+   * AFFECTS: pageCache (immediate or deferred).
+   */
+  const stagePageData = (pageNum: number, data: any) => {
+    if (drainPausedRef.current) {
+      if (!pendingPageCacheRef.current) pendingPageCacheRef.current = new Map();
+      pendingPageCacheRef.current.set(pageNum, data);
+      return;
+    }
+    flushPendingPageData();
+    applyPageCacheEntries([[pageNum, data]]);
+  };
+
+  /**
+   * WHAT: Single-entry verse landing — same defer/apply split as stagePageData.
+   * CALLS: flushPendingPageData, applyPageVersesEntries.
+   * CALLED BY: ensurePageVersesLoaded.
+   * AFFECTS: pageVersesCache (immediate or deferred).
+   */
+  const stagePageVerses = (pageNum: number, verses: any[]) => {
+    if (drainPausedRef.current) {
+      if (!pendingPageVersesRef.current) pendingPageVersesRef.current = new Map();
+      pendingPageVersesRef.current.set(pageNum, verses);
+      return;
+    }
+    flushPendingPageData();
+    applyPageVersesEntries([[pageNum, verses]]);
+  };
+
+  // ---- v80 paced background verse-load queue ----
+  // Fast flings used to fire direct ensurePageVersesLoaded calls from every mounted cell,
+  // flooding the single SQLite connection and delaying the visible page's layout-cache read.
+  // Background paths now enqueue here; ONE 2-per-100ms drain keeps the connection free.
+  const verseLoadQueueRef = useRef<number[]>([]);
+  const verseLoadTimerRef = useRef<any>(0);
+
+  /**
+   * WHAT: One tick of the paced verse-load queue — drains up to 2 queued pages per
+   *   100ms tick, yielding while a touch is down (re-arms and returns) so a press
+   *   never queues behind verse work.
+   * FLOW: clear timer -> paused? re-arm : splice 2 -> ensurePageVersesLoaded each ->
+   *   re-arm while the queue is non-empty.
+   * CALLS: ensurePageVersesLoaded.
+   * CALLED BY: queueVerseLoad (timer chain).
+   * AFFECTS: verseLoadQueueRef / verseLoadTimerRef; pageVersesCache via the loads.
+   */
+  const verseDrainStep = () => {
+    clearTimeout(verseLoadTimerRef.current);
+    verseLoadTimerRef.current = null;
+    if (drainPausedRef.current) { verseLoadTimerRef.current = setTimeout(verseDrainStep, 100); return; }
+    const batch = verseLoadQueueRef.current.splice(0, 2);
+    for (const p of batch) ensurePageVersesLoaded(p);
+    if (verseLoadQueueRef.current.length) verseLoadTimerRef.current = setTimeout(verseDrainStep, 100);
+  };
+
+  /**
+   * WHAT: Enqueues a page's verse fetch onto the paced background queue instead of
+   *   hitting SQLite directly. Mirrors ensurePageVersesLoaded's own guard: pages
+   *   already cached or in-flight are skipped.
+   * FLOW: 1) guard (pageVersesCache / pageVersesPromiseRef) 2) push the page
+   *   3) arm the drain timer if none is running.
+   * CALLS: verseDrainStep (via the timer).
+   * CALLED BY: PageCell mount effect, SpreadItem render body, prefetchAround,
+   *   prefetchPartner — BACKGROUND paths only.
+   * AFFECTS: verseLoadQueueRef; pageVersesCache via the drain.
+   * NOTES: Landing paths (handleSelectPage, deep-link effect, the settle drain's
+   *   loadPage) keep DIRECT ensurePageVersesLoaded calls — only background work
+   *   rides the queue. useCallback([pageVersesCache]) so its identity is stable
+   *   between cache updates and SpreadItem/PageCell memo bail-outs still work.
+   */
+  const queueVerseLoad = useCallback((p: number) => {
+    if (pageVersesCache[p] || pageVersesPromiseRef.current[p]) return;
+    verseLoadQueueRef.current.push(p);
+    if (!verseLoadTimerRef.current) verseLoadTimerRef.current = setTimeout(verseDrainStep, 100);
+  }, [pageVersesCache]);
+
   // Swipe-settle debounce (FIX 8): onMomentumScrollEnd updates currentPageNum immediately so
   // rendering keeps up with the flick, but the HEAVY per-page effects (prefetch window, canvas
   // drawing refresh, lastRead flush) only act once the page survives 120ms without another
@@ -462,12 +622,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // ONE hidden MushafPageView (off-screen, hideFrame — never touches the shared frame cache)
   // measures un-warmed pages nearest-first from the current page, so every page's layout row is
   // in SQLite BEFORE the user swipes to it (instant cache-hit render on arrival, exactly the v62
-  // feel once warm). Strictly ONE page at a time with a 150ms breather, paused while scrolling /
-  // drawing / capturing / app backgrounded / screen blurred — the v74 flood (~25 concurrent
-  // hidden pages) is gone, so buttons and navigation stay instant.
-  // warmedPagesRef keys: `${textStyle}|${headerVisible}|${keyW}|${pageNum}` — a page counts as
-  // warmed per the DB layout key's variable parts (font style, header visibility, width), so a
-  // font / header / split-width change re-measures cleanly instead of being treated warm.
+  // feel once warm). v80.1 — the sweep window is the ±25 radius again: the v80 whole-book crawl
+  // (maxDist to pageNumbers.length) re-rendered the reader ~2x per 150ms tick for the ENTIRE
+  // book and only stopped after ~90s of idle — those mid-activity re-renders cancelled the
+  // press responder and made the header buttons (Mistakes/Notes/Settings/back) swallow presses
+  // (tap 10x, nothing). Bounded to ±25, the worker warms the reachable window and then IDLES
+  // (next === undefined -> return), so taps/buttons get the JS thread back. Explicit navigation
+  // instant-warm is covered by warmNearPages; far-first-visit pages pay ONE measure on render.
+  // Still strictly ONE page at a time with a 150ms breather, paused while scrolling / drawing /
+  // capturing / app backgrounded / screen blurred — the v74 flood (~25 concurrent hidden pages)
+  // is gone, so buttons and navigation stay instant.
+  // warmedPagesRef keys: the shared warmKey `${textStyle}|${keyW}|${pageNum}` — a page counts as
+  // warmed per the DB layout key's variable parts (font style, width), so a font / split-width
+  // change re-measures cleanly instead of being treated warm.
   const [hiddenWarmPage, setHiddenWarmPage] = useState<number | null>(null);
   const hiddenBusyRef = useRef(false);
   const warmedPagesRef = useRef<Set<string>>(new Set());
@@ -480,6 +647,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const hiddenTick = useCallback(() => {
     if (hiddenBusyRef.current || hiddenPauseTimerRef.current) return;
     if (drainPausedRef.current) return; // v79 — yield during taps + the post-tap cooldown
+    // v80 — the touch pause ends here too: land any page data stashed mid-press as one batch
+    // per cache (never during the press — a mid-press re-render would cancel the responder).
+    flushPendingPageData();
     if (!hiddenFocus || appStateRef.current !== 'active') return;
     if (isDrawing || isCapturing || drawingGestureActive || hiddenScrollingRef.current) return;
     // P0-C — the worker is invisible work: it must never share a frame with an open modal,
@@ -487,18 +657,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (showList || menuVerse !== null || showNoteModal || showShareMenu) return;
     if (Date.now() < hiddenGraceUntilRef.current) return;
     if (readingMode !== 'page' || settledPage !== currentPageNum) return;
-    // Nearest-first, ahead-biased, over a ±25 PAGE RADIUS of the current page (P0-C — mirrors
-    // the pageCache/pageVersesCache LRU eviction radius): the near window (±12/±10) comes
+    // Nearest-first, ahead-biased, over a ±25 radius (v80.1 — restored; the v80 whole-book
+    // crawl's perpetual re-renders cancelled header-button presses). The near window comes
     // first — those pages already have their JSON via the prefetch window, so the hidden slot
-    // renders the moment it mounts — then the worker crawls the rest of the radius (still ONE
-    // at a time, 150ms breather) so every page the reader can actually reach is a layout hit.
-    const c = currentPageNum;
+    // renders the moment it mounts — then the worker crawls out to the radius edge (still ONE
+    // at a time, 150ms breather, so taps/buttons never queue behind it) and idles once the
+    // window is warm.
     const SWEEP_RADIUS = 25;
+    const c = currentPageNum;
     const keyW = Math.round(splitOn ? pageW : winW);
     // Warmed-key mirrors the DB layout key's variable parts (textStyle, width) — the layout row
     // is header-independent (MushafPageView normalizes it), so a header toggle must NOT
     // invalidate the warm radius and re-measure already-measured pages (was the toggle-jank).
-    const warmKey = (p: number) => `${textStyle}|${keyW}|${p}`;
+    // Shared component-level warmKey — same formula as the settle effect's.
     let next: number | undefined;
     for (let d = 1; d <= SWEEP_RADIUS && next === undefined; d++) {
       const ahead = c + d;
@@ -508,7 +679,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (behind >= 1 && !warmedPagesRef.current.has(warmKey(behind))) next = behind;
       }
     }
-    if (next === undefined) return; // every page in the ±25 radius is measured — worker idles
+    if (next === undefined) return; // the whole book is measured — worker idles
     // Far pages beyond the prefetch window have no JSON yet: pull the data now (bundle-backed,
     // a few ms — it can't contend with the visible page). When it lands, pageCache changes and
     // the re-evaluate effect re-runs this tick to mount the hidden slot.
@@ -524,7 +695,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
       // release the slot and move on instead of deadlocking the worker.
       if (hiddenBusyRef.current) {
         hiddenBusyRef.current = false;
-        setHiddenWarmPage(null);
+        // v80.2 — never clear the slot mid-press: that re-render would cancel the press's
+        // responder (dead header buttons). While a touch is active, leave the (invisible)
+        // slot mounted and let the next hiddenTick swap it to the next page once the touch
+        // cooldown ends.
+        if (!drainPausedRef.current) setHiddenWarmPage(null);
         warmedPagesRef.current.add(`${textStyle}|${keyW}|${next}`);
         hiddenPauseTimerRef.current = setTimeout(() => {
           hiddenPauseTimerRef.current = null;
@@ -549,7 +724,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (hiddenSafetyTimerRef.current) { clearTimeout(hiddenSafetyTimerRef.current); hiddenSafetyTimerRef.current = null; }
     if (pg === hiddenWarmPage) {
       hiddenBusyRef.current = false;
-      setHiddenWarmPage(null);
+      // v80.1 — while a touch is in flight (drainPausedRef), do NOT clear the hidden slot here:
+      // that state change re-renders mid-press and cancels the press's responder (dead header
+      // buttons). The invisible slot stays mounted (hideFrame, no visual) and the next
+      // hiddenTick — which early-returns during the press and resumes once the touch cooldown
+      // ends — swaps it to the next page directly. The breather re-arms hiddenTick regardless.
+      if (!drainPausedRef.current) setHiddenWarmPage(null);
     }
     // Breather between hidden pages — keeps the JS thread free for taps/buttons.
     hiddenPauseTimerRef.current = setTimeout(() => {
@@ -587,6 +767,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (hiddenPauseTimerRef.current) clearTimeout(hiddenPauseTimerRef.current);
     if (hiddenSafetyTimerRef.current) clearTimeout(hiddenSafetyTimerRef.current);
     if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
+    if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
+    if (verseLoadTimerRef.current) clearTimeout(verseLoadTimerRef.current);
   }, []);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
@@ -602,10 +784,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
       ensurePageLoaded(p);
       ensurePageVersesLoaded(p);
     };
-    const keyW = Math.round(splitOn ? pageW : winW);
-    // Same key scheme as the hidden worker's warmedPagesRef (textStyle|header|width|page),
-    // so pages it already measured are skipped here — their layout row is already in SQLite.
-    const warmKey = (p: number) => `${textStyle}|${keyW}|${p}`;
+    // Same key scheme as the hidden worker's warmedPagesRef (shared component-level warmKey —
+    // textStyle|width|page), so pages it already measured are skipped here — their layout row
+    // is already in SQLite.
     const warmLayoutByPage = new Set<number>();
     const warmLayout = (p: number) => {
       if (warmLayoutByPage.has(p) || layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) return;
@@ -618,7 +799,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // P0-B — ONE 3-per-80ms drain queue for every off-screen page. A settle used to queue
     // 27 synchronous loads + 21 layout queries in three bursts on the JS thread; now only
     // the visible page + its immediate neighbours (TIER 0) run this tick, everything else
-    // drips 3 pages per tick — 10 ahead / 5 behind are cached within ~1.5s, no wall.
+    // drips 3 pages per tick. v80.2 — the window is ±20 (40 pages) so the whole reachable
+    // band ahead AND behind is warm for instant scroll-back, cached within ~1.1s, no wall.
     const layoutStep = () => {
       clearTimeout(layoutTimerRef.current);
       // Touch-pause: a finger is down (or inside the post-tap cooldown) — skip this tick and
@@ -628,11 +810,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
         return;
       }
+      // v80 — not paused anymore: land any page data stashed mid-press as one batch per cache.
+      flushPendingPageData();
       const batch = layoutQueueRef.current.splice(0, 2);
       for (const p of batch) { loadPage(p); warmLayout(p); }
       if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
     };
-    // TIER 1 — nearest-first drain: 5-behind arm, 7-ahead arm, far-behind, far-ahead.
+    // TIER 1 — nearest-first drain: 20-behind arm, then 20-ahead arm (v80.2 ±20 window).
     const queue: number[] = [];
     // TIER 0 — the visible page + its immediate neighbours, this tick only. While a touch is
     // down they are deferred into the drain queue (their position in the queue is kept by
@@ -644,10 +828,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
       loadPage(clampP(currentPageNum));
       for (const q of tier0Pages) { loadPage(q); warmLayout(q); }
     }
-    for (let p = currentPageNum - 5; p <= currentPageNum - 2; p++) queue.push(clampP(p));
-    for (let p = currentPageNum + 2; p <= currentPageNum + 7; p++) queue.push(clampP(p));
-    for (let p = currentPageNum - 10; p <= currentPageNum - 6; p++) queue.push(clampP(p));
-    for (let p = currentPageNum + 8; p <= currentPageNum + 12; p++) queue.push(clampP(p));
+    for (let p = currentPageNum - 20; p <= currentPageNum - 2; p++) queue.push(clampP(p));
+    for (let p = currentPageNum + 2; p <= currentPageNum + 20; p++) queue.push(clampP(p));
     layoutQueueRef.current = queue;
     if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
     return () => {
@@ -655,6 +837,58 @@ export default function QuranViewScreen({ navigation, route }: any) {
       layoutQueueRef.current = [];
     };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle, hiddenFocus]);
+
+  /**
+   * WHAT: Targeted layout warm for EXPLICIT navigation (SurahList surah/page/juz
+   *   jumps) — warms the layout rows of the pages around the target so the arrival
+   *   render is a layoutCacheMem hit, on top of the settle-warm window and the
+   *   full-book hidden worker.
+   * FLOW: 1) clear any prior warm timer 2) build the window — ±6 pages (split
+   *   mode: whole pairs, offset 2 at a time up to 6 pages), clamped to the book
+   *   3) ONE 2-pages-per-150ms setTimeout chain, yielding while a touch is down
+   *   (drainPausedRef -> re-arm) 4) per page: skip when already warmed
+   *   (layoutWarmByPageRef / warmedPagesRef via the shared warmKey) else mark it
+   *   and query getMushafPageData -> warmPageLayoutFor.
+   * CALLS: getMushafPageData, warmPageLayoutFor.
+   * CALLED BY: the surah-change effect (explicit surah picks — the pageScroll
+   *   path returns before it), handleSelectPage, handleSelectJuz — explicit
+   *   navigation only; never page-scroll paths.
+   * AFFECTS: layoutCacheMem (via warmPageLayoutFor); layoutWarmByPageRef.
+   * NOTES: Fire-and-forget (no await, .catch swallowed). The warm skip guard is
+   *   identical to the settle effect's warmLayout, so no page is ever re-queried.
+   */
+  const warmNearPages = useCallback((pg: number) => {
+    if (warmNearTimerRef.current) { clearTimeout(warmNearTimerRef.current); warmNearTimerRef.current = null; }
+    const step = splitOn ? 2 : 1;
+    const queue: number[] = [];
+    for (let i = 1; i <= 6; i += step) {
+      const ahead = pg + i;
+      const behind = pg - i;
+      if (ahead <= pageNumbers.length) queue.push(ahead);
+      if (behind >= 1) queue.push(behind);
+      if (splitOn) {
+        // Split mode warms whole pairs: each touched page's spread partner too.
+        const mateA = ahead % 2 === 1 ? ahead + 1 : ahead - 1;
+        if (ahead <= pageNumbers.length && mateA >= 1 && mateA <= pageNumbers.length) queue.push(mateA);
+        const mateB = behind % 2 === 1 ? behind + 1 : behind - 1;
+        if (behind >= 1 && mateB >= 1 && mateB <= pageNumbers.length) queue.push(mateB);
+      }
+    }
+    const stepTick = () => {
+      if (drainPausedRef.current) { warmNearTimerRef.current = setTimeout(stepTick, 150); return; }
+      const batch = queue.splice(0, 2);
+      for (const p of batch) {
+        if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
+        layoutWarmByPageRef.current.add(warmKey(p));
+        getMushafPageData(p, textStyleRef.current).then(pd => {
+          if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+        }).catch(() => {});
+      }
+      if (queue.length) warmNearTimerRef.current = setTimeout(stepTick, 150);
+      else warmNearTimerRef.current = null;
+    };
+    warmNearTimerRef.current = setTimeout(stepTick, 150);
+  }, [splitOn, pageW, winW, pageNumbers.length, textStyle]);
 
   /**
    * WHAT: Landing-path scroll — scrolls the page FlatList to the target page
@@ -708,33 +942,35 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
-   * WHAT: Prefetches pages ±1, ±2 around the current page (single mode) or the
-   *   pair ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
-   * CALLS: ensurePageLoaded + ensurePageVersesLoaded.
+   * WHAT: Prefetches pages ±5 around the current page (single mode) or the pair
+   *   ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
+   *   v80.2 — widened from ±2/±1 so a fling into the ±20 warm band never renders
+   *   a skeleton while the settle drain catches up.
+   * CALLS: ensurePageLoaded + queueVerseLoad (verses ride the paced background queue).
    * CALLED BY: onMomentumScrollEnd, handleSelectPage, deep-link effect,
    *   surah-change effect, lastRead restore.
    * NOTES: 'single' mode skips page-verse prefetch — verses are only fetched by
    *   MushafPageView render (single) or SpreadItem (split).
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
-    if (pageMode === 'single') { ensurePageLoaded(page + 1); ensurePageLoaded(page - 1); ensurePageLoaded(page + 2); ensurePageLoaded(page - 2); return; }
-    // FIX 5 — spread mode loads only the visible pair + ONE neighbour pair; never preloads or
+    if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
+    // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
     // verifies off-screen halves (the FlatList window renders those anyway when needed).
     const data = pagePairsFor(pageNumbers.length);
-    const lo = Math.max(0, pairIndexForPage(page) - 1);
-    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 1);
-    for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+    const lo = Math.max(0, pairIndexForPage(page) - 2);
+    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
+    for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); queueVerseLoad(pn); } } }
   };
 
   /**
    * WHAT: Prefetches the facing page of a spread in split mode (pg±1 to make a
    *   pair). No-op in single mode or for page 1.
-   * CALLS: ensurePageLoaded + ensurePageVersesLoaded.
+   * CALLS: ensurePageLoaded + queueVerseLoad (verses ride the paced background queue).
    */
   const prefetchPartner = (pg: number) => {
     if (!splitOn || pg === 1) return;
     const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
-    if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
+    if (partner) { ensurePageLoaded(partner); queueVerseLoad(partner); }
   };
 
   // ---- spread toggle (split mode on/off) ----
@@ -747,9 +983,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   page and dispatch setSurah if different (pageScrollSurahChangeRef guard
    *   stops the surah-change effect from re-scrolling to verse 1) 4) ensure
    *   loads + prefetchPartner (split) 5) landOnPage — scrolls immediately
-   *   (scroll-first; the page data loads behind it) then warms the layout.
+   *   (scroll-first; the page data loads behind it) then warms the layout
+   *   6) warmNearPages (fire-and-forget paced layout warm around the target).
    * CALLS: setReadingMode, setSurah, ensurePageLoaded, ensurePageVersesLoaded,
-   *   prefetchPartner, landOnPage.
+   *   prefetchPartner, landOnPage, warmNearPages.
    * CALLED BY: SurahList onSelectPage.
    * AFFECTS: readingMode, currentPageNum/headerPage, s.quran.currentSurahId.
    */
@@ -768,14 +1005,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ensurePageLoaded(pg); ensurePageVersesLoaded(pg);
     if (splitOn) prefetchPartner(pg);
     landOnPage(pg);
+    warmNearPages(pg);
   };
 
   /**
    * WHAT: Jumps to the start of a juz (SurahList 'juz' mode jump row).
    * FLOW: JUZ_MAP[juz-1] -> {s, v} of the juz's first ayah; resolve that ayah to
-   *   its mushaf page (script-aware via textStyleRef) and reuse handleSelectPage;
-   *   fall back to loading the surah if the page lookup fails.
-   * CALLS: getVersePage, handleSelectPage, dispatch(setSurah).
+   *   its mushaf page (script-aware via textStyleRef) and reuse handleSelectPage
+   *   (+ warmNearPages around the target); fall back to loading the surah if the
+   *   page lookup fails.
+   * CALLS: getVersePage, handleSelectPage, warmNearPages, dispatch(setSurah).
    * CALLED BY: SurahList onSelectJuz.
    * AFFECTS: readingMode, currentPageNum/headerPage, s.quran.currentSurahId.
    */
@@ -784,7 +1023,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const e = JUZ_MAP[juz - 1];
     if (!e) return;
     getVersePage(e.s, e.v, textStyleRef.current).then((pg) => {
-      if (pg > 0) handleSelectPage(pg);
+      if (pg > 0) { handleSelectPage(pg); warmNearPages(pg); }
       else dispatch(setSurah({ surahId: e.s, verses: [] }));
     }).catch(() => dispatch(setSurah({ surahId: e.s, verses: [] })));
   };
@@ -912,10 +1151,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW: setHeaderSurahId; page mode -> unless pageScrollSurahChangeRef is set
    *   (surah came from a page scroll), resolve getVersePage(currentSurahId, 1)
    *   -> stale-guard against a surah switch mid-flight -> set the page state +
-   *   prefetchPartner + landOnPage (scroll-first, page data loads behind it);
-   *   ayah/continuous -> headerPage=0 and loadSurah unless the deep link already
-   *   loaded (deepLinkLoadedRef).
-   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner, landOnPage.
+   *   prefetchPartner + landOnPage (scroll-first, page data loads behind it) +
+   *   warmNearPages (paced layout warm around the LANDING page — surahs picked
+   *   from the list land on a cache-hit layout row); ayah/continuous -> headerPage
+   *   =0 and loadSurah unless the deep link already loaded (deepLinkLoadedRef).
+   * CALLS: getVersePage, loadSurah, ensurePageLoaded, prefetchPartner, landOnPage,
+   *   warmNearPages.
    * AFFECTS: headerSurahId/headerPage/currentPageNum; s.quran.verses.
    * NOTES: THE pageScrollSurahChangeRef guard is what stops a page-scroll surah
    *   change from yanking the user back to that surah's page 1. Triggered by
@@ -934,6 +1175,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (surahIdRef.current !== currentSurahId) return;
         setCurrentPageNum(pg); setHeaderPage(pg); prefetchPartner(pg);
         landOnPage(pg);
+        warmNearPages(pg);
       });
     } else {
       setHeaderPage(0);
@@ -1320,6 +1562,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Additional flush triggers: AppState background/inactive + unmount.
   const pendingSaveRef = useRef<any>(null);
   const saveTimerRef = useRef<any>(null);
+  // STALE-SNAPSHOT FIX — synchronous mirror of the newest dispatched studentData: written
+  // BEFORE each dispatch, so a second edit inside the same render tick (fast word double-tap,
+  // bookmark then highlight) merges onto the FIRST edit's snapshot instead of the stale Redux
+  // value captured by its closure — the old two-rapid-edits-lose-one bug.
+  const lastStudentDataRef = useRef<any>(null);
 
   /**
    * WHAT: Flushes the latest pending snapshot to SQLite and marks sync dirty.
@@ -1349,10 +1596,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   /**
    * WHAT: Optimistic Redux write + (mostly) 400ms-debounced SQLite/sync persistence —
-   *   THE single funnel for every student-data mutation.
-   * FLOW: 1) stamp updatedAt ISO 2) dispatch(setStudentData(dataToSave)) —
-   *   immediate UI update 3) pendingSaveRef.current = dataToSave (only the
-   *   LATEST snapshot kept) 4) reset timer -> flushPendingSave in 400ms.
+   *   THE single funnel for every student-data mutation. Callers pass a PARTIAL PATCH
+   *   ({ highlights?, bookmarks?, notes?, drawings?, lastRead? }) — only the fields they
+   *   changed — and updateData merges it onto the FRESHEST known snapshot.
+   * FLOW: 1) base = pendingSaveRef (unflushed edit) || lastStudentDataRef (latest dispatch)
+   *   || studentData (current render) — NEVER the caller's stale spread 2) stamp updatedAt
+   *   ISO, write lastStudentDataRef synchronously 3) dispatch(setStudentData(dataToSave)) —
+   *   immediate UI update 4) pendingSaveRef.current = dataToSave (only the LATEST snapshot
+   *   kept) 5) reset timer -> flushPendingSave in 400ms.
    * MANIFEST EDITS (lastRead / bookmarks) skip the debounce and flush RIGHT
    *   AWAY: they're tiny manifest writes, and any delayed write lets a racing
    *   reload (StudentHub focus / syncing->synced watcher) read STALE SQLite and
@@ -1360,24 +1611,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   DAILY RECITATION would show "No reading mark yet" even though the mark
    *   was just set. Everything else (highlights/notes/drawings) keeps batching.
    * CALLS: setStudentData (studentSlice), flushPendingSave.
-   * CALLED BY: handleWordFlow, handleBookmarkFlow, saveNote,
-   *   handleVoiceNoteSaved, DrawingCanvas onSave, menu "Set Reading Mark".
+   * CALLED BY: handleBookmarkFlow, saveNote, handleVoiceNoteSaved,
+   *   DrawingCanvas onSave, menu "Set Reading Mark", handleReadingMarkToggle.
    * AFFECTS: s.student.studentData (immediate); SQLite + sync queue (debounced
    *   except lastRead/bookmarks).
-   * NOTES: STALE-SNAPSHOT LOSS — handlers capture `studentData` at call time;
-   *   two edits inside 400ms (e.g. two word taps) dispatch from the same stale
-   *   snapshot and the second setStudentData overwrites, silently DROPPING the
-   *   first change in Redux AND in pendingSaveRef (latest-only slot). Fast
-   *   double-taps on words lose highlights.
+   * NOTES: STALE-SNAPSHOT FIXED — handlers used to spread `studentData` at call time;
+   *   two edits inside 400ms (e.g. two word taps) dispatched from the same stale
+   *   snapshot and the second setStudentData overwrote, silently DROPPING the
+   *   first change in Redux AND in pendingSaveRef (latest-only slot). Merging the
+   *   caller's patch onto lastStudentDataRef/pendingSaveRef closes that window —
+   *   fast double-taps keep every highlight.
    */
-  const updateData = (newData: any) => {
-    const dataToSave = { ...newData, updatedAt: new Date().toISOString() };
+  const updateData = (patch: any) => {
+    const base = pendingSaveRef.current || lastStudentDataRef.current || studentData || {};
+    const dataToSave = { ...base, ...patch, updatedAt: new Date().toISOString() };
+    lastStudentDataRef.current = dataToSave;
     dispatch(setStudentData(dataToSave));
-    const prev = pendingSaveRef.current;
-    const prevManifest = prev || studentData || {};
     const manifestTouched =
-      JSON.stringify(dataToSave.lastRead) !== JSON.stringify(prevManifest.lastRead) ||
-      JSON.stringify(dataToSave.bookmarks) !== JSON.stringify(prevManifest.bookmarks);
+      JSON.stringify(dataToSave.lastRead) !== JSON.stringify(base.lastRead) ||
+      JSON.stringify(dataToSave.bookmarks) !== JSON.stringify(base.bookmarks);
     pendingSaveRef.current = dataToSave;
     if (manifestTouched) { flushPendingSave(); return; }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -1431,7 +1683,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: Toggles a MISTAKE_COLOR word-highlight for `{surah}_{verse}`.
    * FLOW: exists? filter it out : append {id: uuidv4(), wordIndex, color:
-   *   MISTAKE_COLOR, createdAt}; then updateData({...studentData, highlights});
+   *   MISTAKE_COLOR, createdAt}; then dispatch (merged onto lastStudentDataRef,
+   *   stale-snapshot-safe) + saveCanvasEdit to the page/surah chunk.
    *   'impactLight' haptic.
    * CALLS: updateData, ReactNativeHapticFeedback.
    * CALLED BY: onWordPress -> VerseDisplay / FlowingText / MushafPageView /
@@ -1446,7 +1699,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
     const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
     setCanvasData((prev: any) => ({ ...prev, highlights: { ...prev.highlights, [vKey]: { highlights: newHighs } } }));
-    dispatch(setStudentData({ ...(studentData || {}), highlights: { ...(studentData?.highlights || {}), [vKey]: { highlights: newHighs } } }));
+    const base = lastStudentDataRef.current || studentData || {};
+    lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
+    dispatch(setStudentData(lastStudentDataRef.current));
     ReactNativeHapticFeedback.trigger('impactLight');
     getVersePage(currentSurahId, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
@@ -1471,7 +1726,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const cMarks = studentData?.bookmarks || {};
     const newMarks = { ...cMarks };
     if (newMarks[vKey]) delete newMarks[vKey]; else newMarks[vKey] = { surah: sId, verse: verseNum, createdAt: new Date().toISOString() };
-    updateData({ ...studentData, bookmarks: newMarks });
+    updateData({ bookmarks: newMarks });
     ReactNativeHapticFeedback.trigger('impactMedium');
     getManifest(currentStudent.id).then(m => {
       m.data.bookmarks = newMarks; m.data.v++;
@@ -1534,7 +1789,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (!currentStudent || noteVerseKey === null) return;
     const vKey = `${currentSurahId}_${noteVerseKey}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [vKey]: noteText } }));
-    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: noteText } }));
+    const base = lastStudentDataRef.current || studentData || {};
+    lastStudentDataRef.current = { ...base, notes: { ...(base.notes || {}), [vKey]: noteText } };
+    dispatch(setStudentData(lastStudentDataRef.current));
     setShowNoteModal(false); setNoteVerseKey(null); setMenuVerse(null); setMenuY(null);
     getVersePage(currentSurahId, noteVerseKey, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
@@ -1561,7 +1818,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const existing = canvasData.notes?.[recordingVerseKey] || '';
     const newText = existing + (existing ? '\n' : '') + `audio:${path}`;
     setCanvasData((prev: any) => ({ ...prev, notes: { ...(prev.notes || {}), [recordingVerseKey]: newText } }));
-    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [recordingVerseKey]: newText } }));
+    const base = lastStudentDataRef.current || studentData || {};
+    lastStudentDataRef.current = { ...base, notes: { ...(base.notes || {}), [recordingVerseKey]: newText } };
+    dispatch(setStudentData(lastStudentDataRef.current));
     const [s, v] = recordingVerseKey.split('_').map(Number);
     const page = await getVersePage(s, v, textStyleRef.current).catch(() => 0);
     const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(s);
@@ -1734,7 +1993,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const lr = studentData?.lastRead;
     const isMarked = lr && Number(lr.surah) === Number(lv.surahId) && Number(lr.verse) === Number(lv.verseNumber);
     updateData({
-      ...studentData,
       lastRead: isMarked ? null : { surah: Number(lv.surahId), verse: Number(lv.verseNumber), updatedAt: new Date().toISOString() },
     });
     ReactNativeHapticFeedback.trigger('impactLight');
@@ -1974,12 +2232,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}
       onTouchStart={() => {
+        // v80 — a press is starting: future page-data landings are parked (pendingPageCacheRef /
+        // pendingPageVersesRef) so a mid-press re-render can never cancel this press's responder;
+        // the flush happens after the touch cooldown ends (onTouchEnd), never during the press.
         if (userBusyReleaseTimerRef.current) { clearTimeout(userBusyReleaseTimerRef.current); userBusyReleaseTimerRef.current = null; }
         drainPausedRef.current = true;
       }}
       onTouchEnd={() => {
         if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
-        userBusyReleaseTimerRef.current = setTimeout(() => { drainPausedRef.current = false; userBusyReleaseTimerRef.current = null; }, 500);
+        // v80 — cooldown end: unpause AND land any page data stashed mid-press as one batch per
+        // cache (a single re-render, after the press completed).
+        userBusyReleaseTimerRef.current = setTimeout(() => { drainPausedRef.current = false; userBusyReleaseTimerRef.current = null; flushPendingPageData(); }, 500);
       }}
       onTouchCancel={() => {
         if (userBusyReleaseTimerRef.current) clearTimeout(userBusyReleaseTimerRef.current);
@@ -2088,6 +2351,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+                    queueVerseLoad={queueVerseLoad}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured} />
@@ -2097,6 +2361,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+                    queueVerseLoad={queueVerseLoad}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
@@ -2135,13 +2400,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
             if (!studentData) return;
             const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
             if (!splitOn) {
-              updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } });
+              updateData({ drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } });
               pushDrawings(currentStudent.id, drawingKey.startsWith('page_') ? rangeKeyForPage(currentPageNum) : drawingKey, [drawingKey], geo);
               return;
             }
             const even: any[] = []; const odd: any[] = [];
             for (const p of paths) { if (midXOf(p) >= splitMidX) even.push(p); else odd.push(p); }
-            updateData({ ...studentData, drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
+            updateData({ drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
             pushDrawings(currentStudent.id, rangeKeyForPage(currentPageNum), [spreadOddKey!, spreadEvenKey!], geo);
           }}
           onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
@@ -2207,7 +2472,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <View style={styles(nightMode).bubble}>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Play</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Bookmark</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ ...studentData, lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Note</Text></TouchableOpacity>
               {/* Record: NOTE — pauses via RAW audioPlayer.pausePlayer(), NOT pauseSurah, so the
                   audioPlayback module's playing/playToken state goes stale (ghost isSurahPlaying) */}

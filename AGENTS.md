@@ -1,17 +1,15 @@
 # Release Workflow (TeachQuran APK)
 
-## TEMPORARY (Aug 6, 2026): DO NOT use the Grep tool today — grepping causes problems. Use Read/Glob/codebase-memory tools instead. Remove this note tomorrow (Aug 7).
-
 When the user says "release" / "build APK" / "make a release" (or similar), execute the release pipeline below. Do NOT run it unprompted — only when the user tells you to.
 
 ## Version numbering
 
-Each release increments the version number by 1. Check the latest git tag (or existing `TeachQuran-v*.apk` files) to determine the next number, e.g. latest tag `v55` -> build `v56`; after that, `v57`, `v58`, etc. Use the next number consistently in:
+Each release increments the version number by 1. Check the latest git tag (or existing `TeachQuran-v*.apk` files) to determine the next number, e.g. latest tag `v79` -> build `v80`; after that, `v81`, `v82`, etc. Use the next number consistently in:
 - `TeachQuran-v<N>.apk` (APK filename)
 - Commit message: `Release v<N>: Package Release v<N> APK`
 - Git tag: `v<N>`
 
-Current state as of last check: latest tag `v55` (release `v55` exists) -> next release is **v56**.
+Current state as of last check: latest tag `v79` (release `v79` exists) -> next release is **v80**.
 
 ## Commands
 
