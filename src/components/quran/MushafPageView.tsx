@@ -23,33 +23,6 @@ import type { PageLayoutCacheRow, PageLayoutCacheFit } from '../../database/loca
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-// Box-height seed map + deterministic fallback (cold-page spinner killer): the mushaf page box
-// height is DETERMINISTIC across pages and across modes — single (PageCell) and split
-// (SpreadItem) share the SAME wrapper margins (marginTop 24 / marginBottom 28) and the same
-// page FlatList viewport in QuranViewScreen.tsx, and nothing else in the screen's in-flow chain
-// varies per page — so the most recently MEASURED height for a (headerVisible) signature seeds
-// the next mount's innerH. The key is the header bit only: headerVisible is the sole thing
-// that changes the in-flow heights (AnimatedHeader + AudioPlayerBar both collapse/unmount when
-// it is false); pageWidth changes width only, never this box height.
-const lastMeasuredBoxH: Record<string, number> = {};
-// First-mount-of-a-session fallback (no prior measure exists yet), derived from the REAL layout
-// chain in QuranViewScreen.tsx: root container flex:1 → in-flow AnimatedHeader ~84 (topRow
-// padding 6+6 + backBtn/iconBtn minHeight 48 + info row padding 2+8 + line ~13 + border 1) and
-// AudioPlayerBar ~94 (qari row ~35 + ctrl row playCircle 48 + container padding 5+5 + border 1)
-// — BOTH only in flow while the header is visible — → page FlatList contentContainer
-// paddingBottom (10 phone / 20 tablet, IS_TABLET = width >= 600) → page wrapper margins
-// 24 top + 28 bottom → the mushaf container (flex:1) is the measured box:
-//   boxH = winH - listPad - 24 - 28 - (headerVisible ? 84 + 94 : 0)
-// ≈ winH - 240 (header visible, phone) / winH - 250 (tablet); winH - 62 / - 72 without header.
-// Non-positive → 0 so the gate behaves EXACTLY as today for pathological windows. The seed is
-// only a first-paint guess: onBoxLayout's SYNCHRONOUS first-measure (innerHRef === 0 branch)
-// still corrects it on the very first layout, so this removes the empty-frame spinner wait, not
-// the correctness of the box.
-const boxHFallback = (headerVisible: boolean) => {
-  const listPad = SCREEN_WIDTH >= 600 ? 20 : 10;
-  const h = SCREEN_HEIGHT - listPad - 24 - 28 - (headerVisible ? 84 + 94 : 0);
-  return h > 0 ? h : 0;
-};
 // The layout cache stores NORMALIZED line-width sums: every measured word width is divided by
 // the page's rendered base size (normFontSize = (mushafFontSize + adj.size) x sparse boost x
 // fontScale), and every cache-hit replay multiplies the sums back by the current base size.
@@ -335,14 +308,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const passNormFontSizeRef = useRef(0);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(fontLoadedOnce);
-  // Seed the box height from the last MEASURED height of a page with the same (headerVisible)
-  // signature (module-level map — the box height is deterministic across pages/modes), else the
-  // deterministic screen-height fallback. This opens the render gate on the FIRST render (the
-  // gate needs innerH !== 0) instead of waiting for the first onBoxLayout round-trip. The lazy
-  // initializer runs once per mount with first-render props; innerHRef stays 0, so the first
-  // real measure still hits the synchronous branch below and corrects a mismatched seed
-  // immediately (one refit — acceptable).
-  const [innerH, setInnerH] = useState(() => lastMeasuredBoxH[headerVisible ? '1' : '0'] ?? boxHFallback(headerVisible));
+  const [innerH, setInnerH] = useState(0);
   // Vertical box height measurement. CRITICAL: this must fire on the VERY FIRST layout of the
   // mounted view — which happens while the 'loading' GATE is rendered (cache-hit pages swap the
   // gate for the full mushaf at the SAME size, so the full container's own onLayout would never
@@ -359,11 +325,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const innerHSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const innerHRef = useRef(0);
   const pendingInnerHRef = useRef(0);
-  // Latest header-visible state for the seed map writes below: onBoxLayout is a []-deps callback
-  // (shared by all three containers), so it reads the CURRENT header state through this ref —
-  // a header toggle inside the 70ms settle window records under the new key, never the old one.
-  const headerVisibleRef = useRef(headerVisible);
-  headerVisibleRef.current = headerVisible;
   const onBoxLayout = useCallback((e: any) => {
     const h = Math.round(e.nativeEvent.layout.height);
     if (h <= 0) return;
@@ -371,9 +332,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (innerHRef.current === 0) {
       // First measurement for this mounted page — apply immediately so the gate never waits.
       innerHRef.current = h;
-      // Record it so the NEXT mount with the same header state can seed innerH and open the
-      // gate on its first render instead of waiting for this measure round-trip.
-      lastMeasuredBoxH[headerVisibleRef.current ? '1' : '0'] = h;
       setInnerH(h);
       return;
     }
@@ -381,8 +339,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (innerHSettleRef.current !== null) clearTimeout(innerHSettleRef.current);
     innerHSettleRef.current = setTimeout(() => {
       innerHSettleRef.current = null;
-      // Record the SETTLED height (latest event in the window) for the next mount's seed.
-      lastMeasuredBoxH[headerVisibleRef.current ? '1' : '0'] = pendingInnerHRef.current;
       setInnerH((prev) => (pendingInnerHRef.current !== prev ? pendingInnerHRef.current : prev));
     }, 70);
   }, []);

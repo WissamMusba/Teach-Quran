@@ -148,7 +148,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
   const resumeSubtitle = useMemo(() => {
     if (!resumeInfo) return '';
-    const parts = [`Reading page ${resumeInfo.page}`, `Para ${resumeInfo.juz}`];
+    const parts = [`Reading page ${resumeInfo.page + 1}`, `Para ${resumeInfo.juz}`];
     const t = lastSeenAt || (lastRead?.updatedAt ? String(lastRead.updatedAt) : '');
     const ago = timeAgo(t);
     if (ago) parts.push(ago);
@@ -158,8 +158,17 @@ export default function StudentHubScreen({ navigation }: any) {
   // DAILY RECITATION target: the reading mark (lastRead) — set via the
   // "Set Reading Mark" menu in the reader. Enabled only when it exists.
   const dailyTarget = lrSurah > 0 && lrVerse > 0 ? { surah: lrSurah, verse: lrVerse } : null;
+  const [dailyPage, setDailyPage] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    if (!dailyTarget) { setDailyPage(0); return; }
+    getVersePage(lrSurah, lrVerse, textStyle).then(pg => {
+      if (!cancelled) setDailyPage(pg);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [dailyTarget, lrSurah, lrVerse, textStyle]);
   const dailySubtitle = dailyTarget
-    ? `${surahNames?.[lrSurah] || `Surah ${lrSurah}`} · Verse ${lrVerse}`
+    ? `${surahNames?.[lrSurah] || `Surah ${lrSurah}`} · Verse ${lrVerse}${dailyPage > 0 ? ` · Page ${dailyPage + 1}` : ''}${(lastRead?.updatedAt ? ` · ${timeAgo(String(lastRead.updatedAt))}` : '')}`
     : 'No reading mark yet';
 
   const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
