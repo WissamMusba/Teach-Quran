@@ -19,6 +19,7 @@ import OrnamentalFrame, { frameInsetFor, frameInsetVFor } from './OrnamentalFram
 import Svg, { Path } from 'react-native-svg';
 import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, savePageLayoutCacheMemOnly, preloadPageLayoutCacheRange } from '../../database/localDB';
+import type { PageLayoutCacheRow, PageLayoutCacheFit } from '../../database/localDB';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -210,10 +211,13 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
   *   - headerVisible is absent from BOTH effect dep arrays: the layout cache row is
   *     font-size-independent (normalized sums), so both header states and every font size share
   *     ONE row per (page, textStyle, sparse, width) — measured once per device, replayed forever.
-  *   - The vertical fit (pitchScale/fontScale) is render-time only AND folded into the
-  *     normalization base: measured widths are divided by (base size x fontScale) before
-  *     persisting and multiplied back on replay, so the fit itself cannot invalidate cached
-  *     rows — it just changes the multiplier.
+  *   - The vertical fit (pitchScale/fontScale) is folded into the normalization base: measured
+  *     widths are divided by (base size x fontScale) before persisting and multiplied back on
+  *     replay, so the fit itself cannot invalidate cached rows — it just changes the
+  *     multiplier. Since layoutVer 4 the fit is PERSISTED with the row (fitAtPassRef frozen at
+  *     the same render as the base) and a cache-hit mount replays it synchronously when the
+  *     current box+header match the stored ones — the fit runs live only on cache miss or on
+  *     box/header drift.
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
@@ -285,6 +289,16 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const completedLinesRef = useRef<Set<number>>(new Set());
   const cacheWrittenRef = useRef(false);
   const frozenRef = useRef(false);
+  // One-shot vertical-fit storage (P1 teardown: v62 measured once per key and replayed forever;
+  // v81 re-fit on every mount). layoutFitRef holds the fit payload ({ boxH, headerVisible,
+  // pitchScale, fontScale }) of the cached row for the CURRENT key — replayed synchronously by
+  // replayFit below when it matches the current box+header. fitAtPassRef freezes the fit at the
+  // SAME render moment passNormFontSizeRef freezes the normalization base (first measured word),
+  // so a persisted row's sums and fit are SELF-consistent: sums normalize by base size x frozen
+  // fontScale, and the replay multiplies them back by base size x the SAME replayed fontScale —
+  // pixel-identical to the first visit, by construction.
+  const layoutFitRef = useRef<PageLayoutCacheFit | null>(null);
+  const fitAtPassRef = useRef<PageLayoutCacheFit | null>(null);
   // P1-E — the normalization base is FROZEN for the lifetime of ONE measure pass: onBoxLayout
   // (box height) can re-fire mid-pass (gate→full swap, player bar mount, header toggle, rotation)
   // and re-derive fontScale → normFontSize. Without a fixed base, words measured before the
@@ -359,8 +373,28 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const PITCH_FLOOR_RATIO = 1.2;
   const needH = wordLineCount * fitLineH;
   const availH = innerH - fitPadTop - fitPadBottom;
-  const pitchScale = needH > 0 && availH > 0 ? Math.min(1, Math.max(0.5, availH / needH)) : 1;
-  const fontScale = Math.min(1, Math.max(0.5, (pitchScale * naturalRatio) / PITCH_FLOOR_RATIO));
+  // One-shot vertical fit (P1 teardown): the fit is a pure function of its inputs — innerH,
+  // headerVisible (line height + box height), textStyle/sparse (in the cache key) and this
+  // page's wordLineCount — so the row's stored fit, when it matches the CURRENT box+header,
+  // IS what the live math would produce. (innerH === 0 covers the first paint of a fresh mount,
+  // before onBoxLayout's synchronous first-measure lands; the comparison validates on the very
+  // next render.) A matching cache-hit replays pitchScale/fontScale directly: no innerH wait,
+  // no font gate, no ActivityIndicator, no re-measure — the v62 one-shot property restored for
+  // the vertical fit. Any mismatch (hidden pre-measure slot box, header toggle, player-bar
+  // mount, rotation) falls back to the live math below — byte-for-byte v81 behavior for those
+  // mounts. The bismillah sizing (basmalaFontSize/basmalaLineH) stays render-time: it derives
+  // from fitLineH only and is untouched in every case.
+  const replayFit = cacheState === 'hit' && layoutFitRef.current !== null &&
+    layoutFitRef.current.headerVisible === headerVisible &&
+    (innerH === 0 || layoutFitRef.current.boxH === innerH)
+    ? layoutFitRef.current
+    : null;
+  const pitchScale = replayFit
+    ? replayFit.pitchScale
+    : (needH > 0 && availH > 0 ? Math.min(1, Math.max(0.5, availH / needH)) : 1);
+  const fontScale = replayFit
+    ? replayFit.fontScale
+    : Math.min(1, Math.max(0.5, (pitchScale * naturalRatio) / PITCH_FLOOR_RATIO));
   // Normalization base for the layout cache: the rendered size every word is drawn at (before
   // the per-line scaleForLine). Measured widths are divided by this BEFORE persisting and
   // multiplied back on replay, so cached rows survive any font-size change (settings, header
@@ -417,6 +451,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     cacheWrittenRef.current = false;
     frozenRef.current = false;
     passNormFontSizeRef.current = 0;
+    layoutFitRef.current = null;
+    fitAtPassRef.current = null;
     setLineScale({});
     setCacheState('loading');
   }, [pageNum, textStyle, pageWidth, fixNonce]);
@@ -435,10 +471,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     let cancelled = false;
     const keySparse = sparse ? 1 : 0;
     const keyW = Math.round(pageWidth);
-    const applyHit = (cached: number[] | null) => {
+    const applyHit = (cached: PageLayoutCacheRow | null) => {
       if (cancelled) return;
       if (cached) {
-        layoutContentRef.current = cached;
+        layoutContentRef.current = cached.lines;
+        // The row's fit payload (may be null on defensive legacy rows) feeds the one-shot
+        // vertical-fit replay below; null → live fit math, exactly like v81.
+        layoutFitRef.current = cached.fit;
         frozenRef.current = true;
         setCacheState('hit');
         // Layout row already persisted (cache hit) — the page needs nothing more; onMeasured
@@ -495,8 +534,16 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (frozenRef.current) return;
     if (!fontReady) return;
     // P1-E — freeze the normalization base for this whole pass (see passNormFontSizeRef): a
-    // mid-pass box resize must not remix the units of an in-flight row.
-    const passBase = passNormFontSizeRef.current || (passNormFontSizeRef.current = normFontSize);
+    // mid-pass box resize must not remix the units of an in-flight row. The vertical fit is
+    // frozen at the SAME moment (fitAtPassRef): the persisted sums are in units of base size x
+    // the frozen fontScale, so the row's fit MUST be the one in effect at this render — a later
+    // cache-hit replay then pairs the sums with exactly the base they were normalized by.
+    let passBase = passNormFontSizeRef.current;
+    if (!passBase) {
+      passBase = normFontSize;
+      passNormFontSizeRef.current = passBase;
+      fitAtPassRef.current = { boxH: innerH, headerVisible, pitchScale, fontScale };
+    }
     // Normalize to the font-size-independent unit — the persisted sums are always in these
     // units, and the cache-hit replay multiplies them back by the current base size.
     w = passBase > 0 ? w / passBase : 0;
@@ -519,16 +566,19 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           sums[k] = arr ? arr.reduce((a, b) => a + (b || 0), 0) : 0;
         }
         // Measure pass concluded (cache-MISS path only — a cache-hit mount never reaches here:
-        // frozenRef is set immediately on hit). Persist the freshly measured sums ONCE, then
-        // freeze: no verification pass, no re-measure, no pulsing — a page is measured once per
-        // device and replayed forever from SQLite.
+        // frozenRef is set immediately on hit). Persist the freshly measured sums ONCE, paired
+        // with the fit frozen at the pass start (fitAtPassRef — set before the first width was
+        // recorded, so every completion that reaches this point carries it), then freeze: no
+        // verification pass, no re-measure, no pulsing — a page is measured once per device and
+        // replayed forever from SQLite.
         layoutContentRef.current = sums;
         setLineScale({});
         // P0-C — the hidden pre-measure slot (persistLayout=false) keeps its row in
         // layoutCacheMem ONLY: background writes must never queue behind the reader's own
         // connection traffic; visible pages always persist (savePageLayoutCache → SQLite).
-        if (persistLayout) savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
-        else savePageLayoutCacheMemOnly(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), sums);
+        const fitRow: PageLayoutCacheRow = { lines: sums, fit: fitAtPassRef.current };
+        if (persistLayout) savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), fitRow);
+        else savePageLayoutCacheMemOnly(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), fitRow);
         // The page's layout row is now persisted; onMeasured lets an optional hidden-instance
         // owner know the row is settled.
         if (onMeasured) onMeasured(pageNum);
@@ -676,15 +726,16 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   }
 
   // Render gate — hold at an empty container until the cache verdict ('hit'/'miss') arrives so
-  // no measurement starts before it. Cache-hit pages ALSO wait for the box height (innerH) and
-  // the real font before painting: onLayout fires a frame AFTER first layout, so without this
-  // hold the first visible frame would paint with pitchScale/fontScale = 1 and the whole stack
-  // would Y-shift when innerH lands (the "text moves after the page renders" artifact). Font:
-  // both hit and miss paths wait for fontReady — glyph metrics of the fallback font differ from
-  // the real one, so painting before the font swap makes every line's baseline jump once
-  // (~150ms once per session). FIX 4 — while pending, render the frame + spinner (same container
-  // size so onBoxLayout still captures the true height), never a black void.
-  if (cacheState === 'loading' || !fontReady || innerH === 0) {
+  // no measurement starts before it. CACHE-HIT mounts with a replayable one-shot fit paint
+  // IMMEDIATELY: the replayed pitchScale/fontScale need neither the box height nor the font
+  // gate, so the first painted frame is the full mushaf — no ActivityIndicator, no innerH
+  // round-trip, no re-measure (v62's synchronous width replay, restored for the vertical fit).
+  // ALL other states wait for fontReady + innerH: a miss must measure with the real font on the
+  // settled box, and a hit whose stored fit does NOT match the current box/header (validated by
+  // onBoxLayout's synchronous first-measure on the frame after mount) falls back to the live fit
+  // math — v81 behavior, unchanged. FIX 4 — while pending, render the frame + spinner (same
+  // container size so onBoxLayout still captures the true height), never a black void.
+  if (cacheState === 'loading' || (!replayFit && (!fontReady || innerH === 0))) {
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).skeletonWrap}>

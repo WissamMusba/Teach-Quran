@@ -32,9 +32,12 @@ export const initDatabase = async () => {
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
   const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
   const ver = r && r[0] && r[0].rows && r[0].rows.length ? parseInt(r[0].rows.item(0).value, 10) : 0;
-  if (ver < 3) {
+  // layoutVer 4: v4 rows bundle the one-shot vertical-fit payload ({ lines, fit }) in the
+  // lines TEXT column. v3 rows (plain number[]) lack the fit, so they are wiped ONCE here —
+  // a hit mount must never replay a row without its paired fit (see MushafPageView replayFit).
+  if (ver < 4) {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
-    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','3')`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','4')`);
   }
 
   await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
@@ -480,12 +483,30 @@ async function migrateV1IfNeeded(db: any) {
 // they are FONT-SIZE-INDEPENDENT: the DB key carries fs=0 always, and any app font-size change
 // (settings, header toggle, release updates) reuses the same row — each page is measured ONCE
 // per device and replayed forever. layoutVer in meta is bumped to wipe rows when the stored
-// FORMAT changes (e.g. v2: fs-keyed raw widths -> v3: normalized units).
+// FORMAT changes (e.g. v2: fs-keyed raw widths -> v3: normalized units -> v4: { lines, fit }).
+// V4 FORMAT: the lines TEXT column now stores JSON { lines: number[], fit: {boxH,
+// headerVisible, pitchScale, fontScale} | null } — the width sums PLUS the one-shot vertical-fit
+// scale pair they pair with (the fit frozen at the same render that froze the normalization
+// base). A cache-hit mount replays BOTH synchronously: the sums multiply back by the base size
+// x the SAME replayed fontScale, so the page is pixel-identical to its first measurement and
+// needs no innerH measurement, no font gate and no ActivityIndicator.
 const MAX_MEM_ENTRIES = 900;
-const layoutCacheMem = new Map<string, number[] | null>();
+export type PageLayoutCacheFit = { boxH: number; headerVisible: boolean; pitchScale: number; fontScale: number };
+export type PageLayoutCacheRow = { lines: number[]; fit: PageLayoutCacheFit | null };
+/**
+ * parseLayoutRow — JSON.parse of the lines TEXT column into a PageLayoutCacheRow. Defensive
+ * Array.isArray fallback: a legacy plain-number[] row (impossible after the layoutVer 4 wipe,
+ * but harmless) normalizes to { lines, fit: null } — MushafPageView then falls back to the live
+ * fit math instead of crashing. Never throws to callers (cache is best-effort).
+ */
+const parseLayoutRow = (raw: string): PageLayoutCacheRow => {
+  const p = JSON.parse(raw);
+  return Array.isArray(p) ? { lines: p, fit: null } : p;
+};
+const layoutCacheMem = new Map<string, PageLayoutCacheRow | null>();
 const memKey = (pageNumber: number, textStyle: string, headerVisible: boolean, sparse: number, screenW: number) =>
   `${pageNumber}|${textStyle}|${headerVisible ? 1 : 0}|${sparse}|${screenW}`;
-const memStore = (key: string, value: number[] | null) => {
+const memStore = (key: string, value: PageLayoutCacheRow | null) => {
   layoutCacheMem.set(key, value);
   if (layoutCacheMem.size > MAX_MEM_ENTRIES) {
     const oldest = layoutCacheMem.keys().next().value;
@@ -511,25 +532,26 @@ export const preloadPageLayoutCacheRange = async (
       [first, last, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
     for (let i = 0; i < r[0].rows.length; i++) {
       const row = r[0].rows.item(i);
-      memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.sparse, row.screenW), JSON.parse(row.lines));
+      memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.sparse, row.screenW), parseLayoutRow(row.lines));
     }
   } catch { /* best-effort */ }
 };
 /**
  * getLayoutCacheSync — SYNCHRONOUS layoutCacheMem lookup (no SQLite, no promise). Returns the
- * cached row for the exact key, or undefined when the key is not in memory (caller must fall
- * back to the async getPageLayoutCache DB read). Used by MushafPageView's cache-load effect so
- * a warm cache-hit mount resolves BEFORE paint (zero DB traffic, zero skeleton flash).
+ * cached row ({ lines, fit }) for the exact key, or undefined when the key is not in memory
+ * (caller must fall back to the async getPageLayoutCache DB read). Used by MushafPageView's
+ * cache-load effect so a warm cache-hit mount resolves BEFORE paint (zero DB traffic, zero
+ * skeleton flash) and replays its one-shot vertical fit synchronously.
  */
 export const getLayoutCacheSync = (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   sparse: number, screenW: number,
-): number[] | null | undefined => layoutCacheMem.get(memKey(pageNumber, textStyle, headerVisible, sparse, screenW));
+): PageLayoutCacheRow | null | undefined => layoutCacheMem.get(memKey(pageNumber, textStyle, headerVisible, sparse, screenW));
 
 export const getPageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   sparse: number, screenW: number,
-): Promise<number[] | null> => {
+): Promise<PageLayoutCacheRow | null> => {
   const key = memKey(pageNumber, textStyle, headerVisible, sparse, screenW);
   const mem = layoutCacheMem.get(key);
   if (mem !== undefined) return mem;
@@ -537,35 +559,42 @@ export const getPageLayoutCache = async (
     const r = await getDB().executeSql(
       `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
       [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
-    const parsed = (r && r[0].rows.length > 0) ? JSON.parse(r[0].rows.item(0).lines) : null;
+    const parsed = (r && r[0].rows.length > 0) ? parseLayoutRow(r[0].rows.item(0).lines) : null;
     memStore(key, parsed);
     return parsed;
   } catch { /* cache is best-effort */ }
   return null;
 };
+/**
+ * savePageLayoutCache — persists a full page_layout_cache ROW ({ lines, fit }) both to the
+ * in-memory fast path and to SQLite (lines TEXT column, fs column always 0 for normalized
+ * sums). MushafPageView's measure pass hands over the sums AND the vertical-fit scale pair the
+ * sums were normalized with, so the next mount replays both instead of re-measuring.
+ */
 export const savePageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
-  sparse: number, screenW: number, lines: number[],
+  sparse: number, screenW: number, row: PageLayoutCacheRow,
 ) => {
-  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), lines);
+  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), row);
   try {
     await getDB().executeSql(
       `INSERT OR REPLACE INTO page_layout_cache (pageNumber, textStyle, headerVisible, fs, sparse, screenW, lines) VALUES (?, ?, ?, 0, ?, ?, ?)`,
-      [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW, JSON.stringify(lines)]);
+      [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW, JSON.stringify(row)]);
   } catch { /* best-effort */ }
 };
 /**
- * savePageLayoutCacheMemOnly — layoutCacheMem write WITHOUT the SQLite INSERT. Used by the
- * hidden pre-measure slot (P0-C): a background-measured row must resolve synchronously for
- * every VISIBLE mount this session, but must never queue a write behind the reader's own
- * connection traffic. The row lands in SQLite the next time a visible page measures it
- * (handleWordMeasured -> savePageLayoutCache) or is re-warmed after an app restart.
+ * savePageLayoutCacheMemOnly — layoutCacheMem write WITHOUT the SQLite INSERT (row payload
+ * identical to savePageLayoutCache). Used by the hidden pre-measure slot (P0-C): a
+ * background-measured row must resolve synchronously for every VISIBLE mount this session, but
+ * must never queue a write behind the reader's own connection traffic. The row lands in SQLite
+ * the next time a visible page measures it (handleWordMeasured -> savePageLayoutCache) or is
+ * re-warmed after an app restart.
  */
 export const savePageLayoutCacheMemOnly = (
   pageNumber: number, textStyle: string, headerVisible: boolean,
-  sparse: number, screenW: number, lines: number[],
+  sparse: number, screenW: number, row: PageLayoutCacheRow,
 ) => {
-  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), lines);
+  memStore(memKey(pageNumber, textStyle, headerVisible, sparse, screenW), row);
 };
 export const clearPageLayoutCacheRange = async (from: number, to: number): Promise<void> => {
   for (const k of Array.from(layoutCacheMem.keys())) {

@@ -8,7 +8,6 @@
  */
 import React, { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import mobileAds from 'react-native-google-mobile-ads';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useDispatch, useSelector } from 'react-redux';
@@ -16,7 +15,6 @@ import { store, persistor, RootState } from './src/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { requestSync } from './src/api/sync';
 import { getCachedStudentList, getStudentData } from './src/database/localDB';
-import { getFreshnessSnapshot, studentDataIsCurrent, markStudentDataLoaded } from './src/hooks/useStudentDataRefresh';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -44,13 +42,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // two independent sync loops can overlap.
 const SYNC_INTERVAL = 30 * 60 * 1000 // 30-minute sync cadence (per user requirement)
 
-// Auto-full-pull cooldown: skip the start/foreground pull when one ran < 30 min ago.
-// Cold start ALWAYS pulls — lastAutoPullAt is module-level, so it resets to 0 on a
-// fresh process and the guard never blocks it. Warm foreground re-opens inside the
-// window pull nothing (and the foreground trigger never pushes — only background/
-// interval/manual do), keeping the Firestore read budget small.
-const PULL_COOLDOWN_MS = 30 * 60 * 1000; // 30-minute pull cooldown (per user requirement)
-// const PULL_COOLDOWN_MS = 0; // testing: EVERY start/foreground pulls
+// Feature 2: auto-full-pull cooldown. 0 = EVERY start/foreground pulls (testing);
+// later set to 30 min so the free-tier Firestore read budget stays small.
+const PULL_COOLDOWN_MS = 0;
+// const PULL_COOLDOWN_MS = 30 * 60 * 1000; // skip auto-pull if last pull < 30 min ago
 let lastAutoPullAt = 0;
 
 const Stack = createNativeStackNavigator();
@@ -106,15 +101,8 @@ const AppInner = () => {
     const sid = studentIdRef.current;
     if (!sid) return;
     try {
-      // P2-I — cheap freshness gate BEFORE the heavy read: the JSON-fingerprint below already
-      // avoided re-dispatching identical data, but the full chunk read + every chunk's
-      // JSON.parse still ran on EVERY post-pull refresh. When SQLite is provably unchanged
-      // since the last successful hydration of this student, skip the read entirely.
-      const snapshot = await getFreshnessSnapshot(sid);
-      if (snapshot === null || studentDataIsCurrent(sid, snapshot)) return;
       const d = await getStudentData(sid);
       if (!d) return;
-      markStudentDataLoaded(sid, snapshot);
       const json = JSON.stringify(d);
       if (json !== studentDataJsonRef.current) { studentDataJsonRef.current = json; dispatch(setStudentData(d)); }
     } catch {}
@@ -228,9 +216,6 @@ const AppInner = () => {
  *        would blank the app with no timeout/fallback.
  */
 const App = () => {
-  // Initialize the Google Mobile Ads SDK once at launch (silent best-effort; banner
-  // components tolerate a late init — they just request after it settles).
-  useEffect(() => { mobileAds().initialize().catch(() => {}); }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
