@@ -68,8 +68,8 @@ const juzForVerse = (surahId: number, verseNum: number): number => {
  *       rendered as a dot (duplicates possible). Highlights with no createdAt sort last (toMillis=0) and render
  *       without Date/Time chips. Page lookup is best-effort: missing/0 -> '…'.
  */
-export default function MistakesScreen() {
-  const navigation = useNavigation<any>();
+export default function MistakesScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
+  const navigation = navProp || useNavigation<any>();
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
@@ -203,7 +203,7 @@ export default function MistakesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
-      <ScreenHeader title="Mistakes" subtitle={`${sortedVerses.length} highlighted verse${sortedVerses.length === 1 ? '' : 's'} · newest first`} />
+      <ScreenHeader title="Mistakes" subtitle={`${sortedVerses.length} highlighted verse${sortedVerses.length === 1 ? '' : 's'} · newest first`} onBack={onClose} />
       {sortedVerses.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>✏️</Text>

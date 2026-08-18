@@ -131,9 +131,9 @@ const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode
  * AFFECTS: Navigation + audio session.
  * NOTES: keyExtractor = row.verseKey — unique per note. Empty-string notes (created then cleared) are filtered out at render, but the key remains in studentData.notes and will still be synced/persisted.
  */
-export default function NotesScreen() {
+export default function NotesScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   const dispatch = useDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = navProp || useNavigation<any>();
   const currentStudentId = useSelector((s: any) => s.student.currentStudent?.id);
   const syncStatus = useSelector((s: any) => s.sync.status);
   const studentData = useSelector((s: any) => s.student.studentData);
@@ -369,7 +369,7 @@ export default function NotesScreen() {
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f5f5f5' }]}>
-      <ScreenHeader title="Notes" subtitle={`${notes.length} notes`} />
+      <ScreenHeader title="Notes" subtitle={`${notes.length} notes`} onBack={onClose} />
       {notes.length === 0 ? (
         <View style={styles(nightMode).emptyState}>
           <Text style={styles(nightMode).emptyIcon}>📝</Text>

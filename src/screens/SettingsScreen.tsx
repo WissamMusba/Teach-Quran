@@ -37,7 +37,7 @@ const scriptLabel = (key: string) => SCRIPT_OPTIONS.find((o) => o.key === key)?.
  * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, mushafSplit, playBasmala) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.
  * NOTES: QARI IS NOT A SETTING HERE â€” no qari control exists on this screen. Qari lives in audioSlice.currentQari ('Mishary Al-Afasy' default, audioSlice.ts:5), set via QariSelector modal from AudioPlayerBar in QuranView; audio slice IS persisted. translationTextSize exists in settingsSlice (settingsSlice.ts:7,19) but has NO UI here and NO dispatcher/reader anywhere (dead state). quranSlice settings reset on every app restart (not whitelisted): showTranslation/fontSize/readingMode/textStyle default back to false/'medium'/'page'/'lateef'. The brightness sliders were removed from this UI â€” textBrightness/bgBrightness stay in settingsSlice untouched and persist at their last values (default 255), they just have no control here anymore. Whole screen adapts to nightMode via inline card/row/switch colors; the Quran Script preview keeps a fixed dark-navy backdrop with gold/cream text in both modes.
  */
-const SettingsScreen = () => {
+const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const dispatch = useDispatch();
   const { width } = useWindowDimensions();
   const [scriptModal, setScriptModal] = useState(false);
@@ -54,7 +54,7 @@ const SettingsScreen = () => {
 
   return (
     <View style={[styles(nightMode).wrapper, { backgroundColor: bg }]}>
-      <ScreenHeader title="Settings" subtitle="Reading & appearance" />
+      <ScreenHeader title="Settings" subtitle="Reading & appearance" onBack={onClose} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode).content}>
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode).sectionTitle}>Reading Settings</Text>

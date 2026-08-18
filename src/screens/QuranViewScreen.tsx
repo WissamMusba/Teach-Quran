@@ -35,6 +35,10 @@ import DrawingCanvas, { DrawingCanvasHandle } from '../components/drawing/Drawin
 import AnnotationToolbar from '../components/drawing/AnnotationToolbar';
 import StaticDrawingOverlay from '../components/drawing/StaticDrawingOverlay';
 import SurahList from '../components/quran/SurahList';
+import MistakesScreen from './MistakesScreen';
+import NotesScreen from './NotesScreen';
+import BookmarksScreen from './BookmarksScreen';
+import SettingsScreen from './SettingsScreen';
 import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
@@ -217,6 +221,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [showList, setShowList] = useState(false);
   const [searchMode, setSearchMode] = useState<'surah' | 'page' | 'juz'>('surah');
   const [showQariModal, setShowQariModal] = useState(false);
+  // Header-button overlay screens (Mistakes/Notes/Bookmarks/Settings): rendered as in-screen
+  // Modals so re-opens are instant visible flips. mountedModals lazily mounts each once.
+  const [openModal, setOpenModal] = useState<'mistakes' | 'notes' | 'bookmarks' | 'settings' | null>(null);
+  const [mountedModals, setMountedModals] = useState<Record<'mistakes' | 'notes' | 'bookmarks' | 'settings', boolean>>({ mistakes: false, notes: false, bookmarks: false, settings: false });
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -508,6 +516,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Cleanup on unmount: cancel pending warm timers.
   useEffect(() => () => {
     if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
+    if (flingWarmTimerRef.current) clearTimeout(flingWarmTimerRef.current);
   }, []);
   useEffect(() => {
     if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
@@ -611,6 +620,46 @@ export default function QuranViewScreen({ navigation, route }: any) {
     warmNearTimerRef.current = setTimeout(stepTick, 150);
   }, [splitOn, pageW, winW, pageNumbers.length, textStyle]);
 
+  // v80 — fling layout-warm: paced 2-per-120ms drain (same pacing as the settle drain) that
+  // warms LAYOUT rows — not page JSON — for pages scrolled into view during/after a fast
+  // fling, where the 120ms settle guard (settledPage) blocks the settle-warm until the fling
+  // stops. Cooperative with the settle drain: both dedupe against the SAME shared
+  // layoutWarmByPageRef/warmedPagesRef key sets, so no key is ever warmed twice.
+  const flingWarmQueueRef = useRef<number[]>([]);
+  const flingWarmTimerRef = useRef<any>(0);
+  // Live mode/focus mirrors (written every render, same pattern as currentStudentIdRef) so
+  // the stable stepFlingWarm drains only while the page reader is focused and in page mode.
+  const readingModeRef = useRef(readingMode);
+  readingModeRef.current = readingMode;
+  const hiddenFocusRef = useRef(hiddenFocus);
+  hiddenFocusRef.current = hiddenFocus;
+  const stepFlingWarm = useCallback(() => {
+    if (!hiddenFocusRef.current || readingModeRef.current !== 'page') { flingWarmQueueRef.current = []; return; }
+    const batch = flingWarmQueueRef.current.splice(0, 2);
+    for (const p of batch) {
+      if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
+      layoutWarmByPageRef.current.add(warmKey(p));
+      getMushafPageData(p, textStyleRef.current).then(pd => {
+        if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+      }).catch(() => {});
+    }
+    if (flingWarmQueueRef.current.length) flingWarmTimerRef.current = setTimeout(stepFlingWarm, 120);
+    else flingWarmTimerRef.current = null;
+  }, []);
+  // v80 — enqueue one page for fling layout-warm: clamped to the book, deduped against the
+  // shared warm sets (same warmKey scheme as the settle drain / warmNearPages).
+  const enqueueFlingWarm = (p: number) => {
+    if (p < 1 || p > pageNumbers.length) return;
+    if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) return;
+    flingWarmQueueRef.current.push(p);
+  };
+  // v80 — clear-and-replace timer start so exactly ONE fling-warm drain runs at a time;
+  // no-op when the queue is empty.
+  const kickFlingWarm = () => {
+    if (flingWarmTimerRef.current) { clearTimeout(flingWarmTimerRef.current); flingWarmTimerRef.current = null; }
+    if (flingWarmQueueRef.current.length) flingWarmTimerRef.current = setTimeout(stepFlingWarm, 120);
+  };
+
   /**
    * WHAT: Landing-path scroll — scrolls the page FlatList to the target page
    *   IMMEDIATELY (getItemLayout makes scrollToIndex synchronous; pair index in
@@ -674,13 +723,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   MushafPageView render (single) or SpreadItem (split).
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
-    if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
+    if (pageMode === 'single') {
+      for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); }
+      // v80 — fling-warm enqueue: layout rows for the same ±5 band, drained by the paced
+      // stepFlingWarm (2 pages/120ms) while the settle guard blocks the settle-warm drain.
+      for (let d = 1; d <= 5; d++) { enqueueFlingWarm(page + d); enqueueFlingWarm(page - d); }
+      kickFlingWarm();
+      return;
+    }
     // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
     // verifies off-screen halves (the FlatList window renders those anyway when needed).
     const data = pagePairsFor(pageNumbers.length);
     const lo = Math.max(0, pairIndexForPage(page) - 2);
     const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
     for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+    // v80 — fling-warm enqueue: the current pair + one pair on each side.
+    const flingLo = Math.max(0, pairIndexForPage(page) - 1);
+    const flingHi = Math.min(data.length - 1, pairIndexForPage(page) + 1);
+    for (let i = flingLo; i <= flingHi; i++) { for (const pn of data[i]) { if (pn) enqueueFlingWarm(pn); } }
+    kickFlingWarm();
   };
 
   /**
@@ -1925,11 +1986,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
     return { top, left: (windowW - MENU_BUBBLE_W) / 2, width: MENU_BUBBLE_W, arrowUp: upperHalf, arrowDown: !upperHalf };
   }, [menuY]);
 
+  // ---- header-button overlay screens: stable handlers (AnimatedHeader is React.memo'd) that
+  // ---- lazily mount each Modal once, then only flip `visible` on re-opens (no re-query). ----
+  const closeModal = useCallback(() => setOpenModal(null), []);
+  const openMistakes = useCallback(() => { setMountedModals((m) => ({ ...m, mistakes: true })); setOpenModal('mistakes'); }, []);
+  const openNotes = useCallback(() => { setMountedModals((m) => ({ ...m, notes: true })); setOpenModal('notes'); }, []);
+  const openBookmarks = useCallback(() => { setMountedModals((m) => ({ ...m, bookmarks: true })); setOpenModal('bookmarks'); }, []);
+  const openSettings = useCallback(() => { setMountedModals((m) => ({ ...m, settings: true })); setOpenModal('settings'); }, []);
+  // Navigation shim for the overlay screens: closes the Modal and forwards QuranView
+  // deep-links to the real stack (the screens fall back to useNavigation() when unset).
+  const modalNav = useMemo(() => ({
+    goBack: closeModal,
+    navigate: (name: string, params?: any) => { closeModal(); if (name === 'QuranView') navigation.navigate('QuranView', params); },
+  }), [navigation, closeModal]);
+
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
-        onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={() => navigation.navigate('Mistakes')}
-        onShare={handleSharePage} onNotes={() => navigation.navigate('Notes')} onBookmarks={() => navigation.navigate('Bookmarks')} onSettings={() => navigation.navigate('Settings')}
+        onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={openMistakes}
+        onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings}
         onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
       <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
@@ -2116,6 +2191,36 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}
       <SurahList visible={showList} mode={searchMode} onClose={() => setShowList(false)} onSelect={(id: number) => { dispatch(setSurah({ surahId: id, verses: [] })); setShowList(false); }} onSelectPage={handleSelectPage} onSelectJuz={handleSelectJuz} />
       <QariSelector visible={showQariModal} onClose={() => setShowQariModal(false)} />
+
+      {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
+      {mountedModals.mistakes && (
+        <Modal visible={openModal === 'mistakes'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
+            <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
+          </View>
+        </Modal>
+      )}
+      {mountedModals.notes && (
+        <Modal visible={openModal === 'notes'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
+            <NotesScreen onClose={closeModal} navigation={modalNav as any} />
+          </View>
+        </Modal>
+      )}
+      {mountedModals.bookmarks && (
+        <Modal visible={openModal === 'bookmarks'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
+            <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
+          </View>
+        </Modal>
+      )}
+      {mountedModals.settings && (
+        <Modal visible={openModal === 'settings'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
+            <SettingsScreen onClose={closeModal} />
+          </View>
+        </Modal>
+      )}
 
 
 

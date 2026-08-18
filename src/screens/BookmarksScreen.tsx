@@ -64,9 +64,9 @@ const sessionPageCache: Record<string, number> = {};
  *        the only SQLite work — the batched mushaf-page lookup — is deferred to a background
  *        effect that fills the "…" placeholders when the query resolves.
  */
-export default function BookmarksScreen() {
+export default function BookmarksScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   useStudentDataRefresh();
-  const navigation = useNavigation<any>();
+  const navigation = navProp || useNavigation<any>();
   // Granular selectors: only re-render when bookmarks/lastRead actually change (never on
   // unrelated Redux churn), and never re-read the whole studentData blob on a pageMap flip.
   const bookmarks = useSelector((s: any) => s.student.studentData?.bookmarks);
@@ -225,7 +225,7 @@ export default function BookmarksScreen() {
 
   return (
     <View style={[styles(nightMode).container, nightMode ? styles(nightMode).containerDark : styles(nightMode).containerLight]}>
-      <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} />
+      <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} onBack={onClose} />
       {listData.length === 0 ? (
         <View style={styles(nightMode).emptyState}>
           <Text style={styles(nightMode).emptyIcon}>📌</Text>
