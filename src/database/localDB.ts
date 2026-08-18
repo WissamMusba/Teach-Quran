@@ -15,6 +15,7 @@ export const initDatabase = async () => {
   
   await dbInstance.executeSql(`PRAGMA journal_mode=WAL;`);
   await dbInstance.executeSql(`PRAGMA synchronous=NORMAL;`);
+  await dbInstance.executeSql(`PRAGMA busy_timeout=3000;`);   // parallel pull/push transactions wait up to 3s instead of failing with SQLITE_BUSY
   
   // Existing tables
   await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS surahs (id INTEGER PRIMARY KEY, name TEXT, englishName TEXT, verses INTEGER)`);
@@ -105,6 +106,24 @@ let strokesDirtySession = false;
 export const markStrokesDirtySession = () => { strokesDirtySession = true; };
 export const clearStrokesDirtySession = () => { strokesDirtySession = false; };
 export const hasStrokesDirtySession = () => strokesDirtySession;
+
+// Module-level, session-lived snapshot of each student's drawings map as of the last
+// SUCCESSFUL saveStudentData flush, stored as a canonical JSON string. The next flush
+// diffs against it and rewrites ONLY changed drawing chunks — untouched chunks keep
+// their exact stored v (no phony version inflation, far fewer SQLite writes).
+let lastPersistedDrawings: Record<string, string> = {};
+/**
+ * canonicalize — order-independent JSON serialization: plain-object keys are sorted
+ * recursively (arrays keep their order; undefined members are dropped, matching JSON's
+ * treatment of missing keys). Two structurally equal objects always compare equal.
+ */
+const canonicalize = (obj: any): string => {
+  if (obj === undefined) return 'null';
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return `[${obj.map(canonicalize).join(',')}]`;
+  const keys = Object.keys(obj).filter((k) => obj[k] !== undefined).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`).join(',')}}`;
+};
 
 export const saveChunk = async (studentId: string, canvasKey: string, data: any, v: number, queue = true) => {
   if (data?.strokes?.length) markStrokesDirtySession();
@@ -353,12 +372,31 @@ export const getStudentData = async (studentId: string) => {
   return blob;
 };
 export const saveStudentData = async (studentId: string, data: any) => {
-  for (const [k, v] of Object.entries(data.drawings || {}) as Array<[string, any]>) {
-    if (v && v.paths) {
-      const cur = await getChunk(studentId, k);
-      // merge so strokes never wipe co-located highlights/notes; drawings are
-      // LAZY-SYNCED per 10-page range: keep the local cache write, never queue
-      await saveChunk(studentId, k, { ...(cur?.data || { strokes: [], highlights: {}, notes: {} }), strokes: v.paths }, (cur?.v || 0) + 1, false);
+  const drawings = data.drawings || {};
+  const baseline = lastPersistedDrawings[studentId];
+  const canonical = canonicalize(drawings);
+  if (baseline === undefined) {
+    // First saveStudentData call for this student this session: rewrite every drawing
+    // chunk (session bootstrap) — parity with the historical full rewrite, one time only.
+    for (const [k, v] of Object.entries(drawings) as Array<[string, any]>) {
+      if (v && v.paths) {
+        const cur = await getChunk(studentId, k);
+        // merge so strokes never wipe co-located highlights/notes; drawings are
+        // LAZY-SYNCED per 10-page range: keep the local cache write, never queue
+        await saveChunk(studentId, k, { ...(cur?.data || { strokes: [], highlights: {}, notes: {} }), strokes: v.paths }, (cur?.v || 0) + 1, false);
+      }
+    }
+  } else if (canonical !== baseline) {
+    // Snapshot diff: rewrite only chunks whose content changed since the last persisted
+    // flush; unchanged keys get no read, no write, no v bump.
+    const lastDrawings = JSON.parse(baseline);
+    for (const [k, v] of Object.entries(drawings) as Array<[string, any]>) {
+      if (v && v.paths && canonicalize(v) !== canonicalize(lastDrawings[k])) {
+        const cur = await getChunk(studentId, k);
+        // merge so strokes never wipe co-located highlights/notes; drawings are
+        // LAZY-SYNCED per 10-page range: keep the local cache write, never queue
+        await saveChunk(studentId, k, { ...(cur?.data || { strokes: [], highlights: {}, notes: {} }), strokes: v.paths }, (cur?.v || 0) + 1, false);
+      }
     }
   }
   const m = await getManifest(studentId);
@@ -375,6 +413,9 @@ export const saveStudentData = async (studentId: string, data: any) => {
     m.data.v = (m.data.v || 0) + 1;
     await saveManifestLocal(studentId, m.data);
   }
+  // Persist the snapshot only after every write above succeeded: a mid-flush throw
+  // leaves the baseline stale so the next flush retries every diff key.
+  lastPersistedDrawings[studentId] = canonical;
   return changed;   // true only when bookmarks/lastRead queued a manifest row — lets flushPendingSave count the badge exactly
 };
 export const addToSyncQueue = async (studentId: string, canvasKey: string) => {

@@ -43,7 +43,7 @@ import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMusha
 import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
-import { pushDrawings, pullDrawings, pullAudioRange } from '../api/sync';
+import { pushDrawings, pullDrawings } from '../api/sync';
 import { hPadFor } from '../utils/stroke';
 import { getJuzInfoFromPage, getStartJuzOfSurah, JUZ_MAP } from '../utils/theme';
 import { getFreshnessSnapshot, studentDataIsCurrent, markStudentDataLoaded } from '../hooks/useStudentDataRefresh';
@@ -914,10 +914,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const spreadEvenKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1}` : null;
 
   /**
-   * WHAT: Re-runs the SAME lazy cloud restore as the page-load effect for the
-   *   currently visible range — pullDrawings only (pullAudioRange stays owned
-   *   by the load effect; duplicating it could double-register the audio
-   *   registry) — then re-merges the pulled chunks into canvasData. Fires only
+   * WHAT: Re-runs the lazy cloud restore for the currently visible range —
+   *   then re-merges the pulled chunks into canvasData. Fires only
    *   from triggers that happen while the screen is already open: a global sync
    *   finishing, or the drawing canvas opening. Without these, drawings a sync
    *   or another device just delivered stay invisible until the page-load
@@ -934,9 +932,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: canvasData (local state).
    * NOTES: FIRE-AND-FORGET — callers must never await this; a cold Firestore
    *   pull must never block the sync watcher or the canvas-open transition.
+   *   `force` is accepted only for signature compatibility at the syncing->synced
+   *   watcher call site — pulls are unconditional (canvas-open dedupes per open
+   *   via canvasRestoreRef, the toolbar via expandedDrawPullAttempted).
    */
-  const refreshCloudDrawings = useCallback(async () => {
+  const refreshCloudDrawings = useCallback(async (force?: boolean) => {
     if (!currentStudent) return;
+    void force;
     const sid = currentStudent.id;
     const mergeChunks = async (keys: (string | null)[]) => {
       let newH: any = {}, newN: any = {}, newD: any = {};
@@ -994,33 +996,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const load = async () => {
       const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
       if (!cancelled) setCanvasData(await mergeChunks(keys));
-      // Lazy cloud restore (drawings + audio registry for this page's range)
-      // runs in the BACKGROUND — never awaited, so the page and its SQLite
-      // highlights/notes render immediately. Drawings/audio re-merge when the
-      // restore lands. (Previously two SEQUENTIAL awaited Firestore reads
-      // blocked the canvas merge for seconds on a cold connection — the "5s
-      // page load" on a fresh device.)
-      if (!cancelled && currentStudent) {
-        const geoKeys = splitOn ? [spreadOddKey, spreadEvenKey].filter(Boolean) : [drawingKey];
-        const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
-        const refresh = async () => {
-          if (!cancelled) setCanvasData(await mergeChunks(geoKeys));
-        };
-        if (readingMode === 'page') {
-          const byRange: Record<string, string[]> = {};
-          for (const k of geoKeys) {
-            const pg = Number(k.split('_')[1]);
-            const rk = rangeKeyForPage(pg);
-            (byRange[rk] = byRange[rk] || []).push(k);
-          }
-          for (const [rk, rKeys] of Object.entries(byRange)) {
-            Promise.all([pullAudioRange(sid, rk), pullDrawings(sid, rk, rKeys, geo)])
-              .then(refresh).catch(refresh);
-          }
-        } else {
-          pullDrawings(sid, drawingKey, geoKeys, geo).then(refresh).catch(refresh);
-        }
-      }
     };
     load();
     return () => { cancelled = true; };
@@ -1062,8 +1037,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (isDrawing) return;
         // A sync run may have just delivered cloud drawings for the current range —
         // re-pull + re-merge fire-and-forget (never awaited, so this watcher's
-        // studentData/bookmarks re-hydration above is never blocked).
-        refreshCloudDrawings().catch(() => {});
+        // studentData/bookmarks re-hydration above is never blocked). Fires only on
+        // real sync completion — a pull the owner approves of.
+        refreshCloudDrawings(true).catch(() => {});
         const mergeChunks = async (keys: (string | null)[]) => {
           let newH: any = {}, newN: any = {}, newD: any = {};
           for (const k of keys) {

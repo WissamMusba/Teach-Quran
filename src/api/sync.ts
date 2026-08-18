@@ -1,4 +1,5 @@
 import { firestore, getUserId } from './firebase';
+import { Dimensions } from 'react-native';
 import {
   getDirtyCanvasesByStudent, getAllCanvasesWithStrokesByStudent, rangeKeyForPage,
   getChunk, markSynced, bumpAttempt,
@@ -8,9 +9,9 @@ import {
   getLastPullAt, savePullBatch,
   hasStrokesDirtySession, clearStrokesDirtySession,
 } from '../database/localDB';
-import { compactStroke, denormalizeStroke } from '../utils/stroke';
+import { compactStroke, denormalizeStroke, hPadFor } from '../utils/stroke';
 
-const MAX_BATCH_OPS = 450;             // Firestore batch limit is 500
+const CHUNK_TX_SLICE = 100;            // transactional chunk push: 100 reads + ~102 writes stays under Firestore's 500-op transaction ceiling
 
 const manifestRef = (userId: string) => firestore().collection('users').doc(userId).collection('meta').doc('sync_manifest');
 /** Per-student subtree for the user-level sync_manifest doc (merged with {merge:true} so only this student changes). */
@@ -62,16 +63,19 @@ export const requestSync = async (opts?: { pull?: boolean }): Promise<any> => {
 export const processSyncQueue = async (opts?: { pull?: boolean }) => requestSync(opts);
 
 /**
- * Push pass — deterministic LWW versions (NO FieldValue.increment): every doc
- * carries an explicit v, and after a commit the LOCAL manifest mirror is bumped
- * to the pushed value, so the next pull sees cloud.v === local.v and skips.
+ * Push pass — transactional max(local, cloud)+1 versions (NO FieldValue.increment):
+ * every chunk slice runs inside a single Firestore transaction that reads the cloud
+ * draws docs + overview, writes each doc with v = max(cloud, local) + 1, and skips
+ * docs whose cloud v is strictly newer (a stale device can never regress a version).
+ * After a commit the LOCAL manifest mirror is bumped to the pushed values, so the
+ * next pull sees cloud.v === local.v and skips.
  * Queue row types:
  *   - chunk keys (page_N / surah_N)  -> students/{sid}/draws/{k}  (highlights+notes ONLY; strokes stripped)
  *   - '_manifest'                    -> students/{sid}/meta/overview (bookmarks + lastRead;
  *                                      lastRead now syncs LWW, newest updatedAt wins)
  *   - '_audio_r_..'                  -> students/{sid}/audioNotes/{range} (10-page audio-note registry)
  * Every push also merges the student's chunk into the user-level sync_manifest
- * ({users/{uid}/meta/sync_manifest}) inside the SAME batch — zero extra
+ * ({users/{uid}/meta/sync_manifest}) inside the SAME transaction — zero extra
  * round-trips — so pulls can diff per-student versions with a single manifest read.
  */
 const pushAllDirty = async (userId: string): Promise<number> => {
@@ -90,39 +94,79 @@ const pushAllDirty = async (userId: string): Promise<number> => {
     const canvasKeys = keys.filter((k: string) => k !== '_manifest' && !k.startsWith('_audio_'));
 
     // ---- annotations chunks (drawings excluded: lazy per-range via pushDrawings) ----
+    // TRANSACTIONAL slice push (mirrors the bookmark transaction below): the cloud
+    // overview + every draws doc in the slice are read INSIDE the transaction, and
+    // each written v = max(cloud, local) + 1 — a stale device can never regress a
+    // version, and two devices pushing the same student concurrently stay monotonic
+    // (directional pulls never skip newer data). A chunk whose cloud v is strictly
+    // newer is SKIPPED (cloud wins); its queue row is cleared only after the local
+    // manifest mirror records the cloud v, so the next pull diff converges. Slice
+    // size CHUNK_TX_SLICE keeps the tx ≤ ~204 ops (Firestore ceiling is 500).
     let offset = 0;
     while (offset < canvasKeys.length) {
-      const slice = canvasKeys.slice(offset, offset + MAX_BATCH_OPS);
+      const slice = canvasKeys.slice(offset, offset + CHUNK_TX_SLICE);
       offset += slice.length;
-      const batch = firestore().batch();
-      const newPages: Record<string, any> = {};
-      const pageVs: Record<string, number> = {};
-      const chunks = await Promise.all(slice.map(k => getChunk(sid, k).then(local => ({ k, local }))));
-      for (const { k, local } of chunks) {
-        if (!local) { console.warn('pushAllDirty: missing local chunk, dropping', sid, k); await markSynced(sid, k); continue; }
-        const { strokes, ...annotations } = local.data;
-        batch.set(studRef.collection('draws').doc(k), {
-          ...annotations,
-          v: local.v,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        });
-        newPages[k] = { v: local.v };
-        pageVs[k] = local.v;
-        pushed++;
-      }
-      if (Object.keys(newPages).length === 0) { for (const k of slice) await markSynced(sid, k); continue; }
       const m = await getManifest(sid);
-      const overviewV = (m.data.v || 0) + 1;
-      const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
-      for (const [k, meta] of Object.entries(newPages)) patch[`pages.${k}.v`] = meta.v;
-      if (m.data.lastRead) patch.lastRead = m.data.lastRead;   // reading mark now syncs (LWW on pull)
-      batch.set(studRef.collection('meta').doc('overview'), patch, { merge: true });
-      batch.set(manifestRef(userId), manifestSubtree(sid, { v: overviewV, pages: pageVs }), { merge: true });
+      const overviewRef = studRef.collection('meta').doc('overview');
+      let overviewV = 0;
+      let mirrorPages: Record<string, any> = {};
+      let writtenKeys: string[] = [];
+      let missingKeys: string[] = [];
+      let staleVs: Record<string, number> = {};
       try {
-        await batch.commit();
-        await setLastPushAt(sid, Date.now());
-        for (const k of slice) await markSynced(sid, k);
-        await saveManifestLocal(sid, { ...m.data, pages: { ...(m.data.pages || {}), ...newPages }, v: overviewV }, Date.now(), false);
+        const committed = await firestore().runTransaction(async (tx: any) => {
+          const ovSnap: any = await tx.get(overviewRef);
+          const cloudOV: number = ovSnap.exists ? ((ovSnap.data() as any)?.v || 0) : 0;
+          const writes: Array<{ doc: any; data: any }> = [];
+          mirrorPages = {};
+          missingKeys = [];
+          staleVs = {};
+          writtenKeys = [];
+          for (const k of slice) {
+            const local = await getChunk(sid, k);
+            if (!local) { missingKeys.push(k); console.warn('pushAllDirty: missing local chunk, dropping', sid, k); continue; }
+            const snap: any = await tx.get(studRef.collection('draws').doc(k));
+            const cloudV: number = snap.exists ? ((snap.data() as any)?.v || 0) : 0;
+            // cloud strictly newer -> local stale; skip so the write never regresses the cloud doc.
+            if (cloudV > local.v) { staleVs[k] = cloudV; continue; }
+            const v = Math.max(cloudV, local.v) + 1;
+            const { strokes, ...annotations } = local.data;
+            writes.push({ doc: studRef.collection('draws').doc(k), data: { ...annotations, v, updatedAt: firestore.FieldValue.serverTimestamp() } });
+            mirrorPages[k] = { v };
+            writtenKeys.push(k);
+          }
+          if (writes.length === 0) return false;   // nothing written this slice — no overview bump
+          overviewV = Math.max(m.data.v || 0, cloudOV) + 1;
+          const patch: Record<string, any> = { v: overviewV, updatedAt: firestore.FieldValue.serverTimestamp() };
+          for (const [k, meta] of Object.entries(mirrorPages)) patch[`pages.${k}.v`] = meta.v;
+          if (m.data.lastRead) patch.lastRead = m.data.lastRead;   // reading mark now syncs (LWW on pull)
+          tx.set(overviewRef, patch, { merge: true });
+          const pageVs: Record<string, number> = {};
+          for (const [k, meta] of Object.entries(mirrorPages)) pageVs[k] = meta.v;
+          tx.set(manifestRef(userId), manifestSubtree(sid, { v: overviewV, pages: pageVs }), { merge: true });
+          for (const w of writes) tx.set(w.doc, w.data);
+          return true;
+        });
+        if (committed && writtenKeys.length) {
+          await setLastPushAt(sid, Date.now());
+          for (const k of writtenKeys) await markSynced(sid, k);
+          // Stale keys are effectively synced-away (content safely newer in the cloud)
+          // and dropped rows never had a chunk at all: clear their rows too, but first
+          // mirror the CLOUD v the stale keys were skipped at, so the local manifest
+          // matches the cloud and the next pull diff converges.
+          const skipKeys = [...Object.keys(staleVs), ...missingKeys];
+          for (const k of skipKeys) await markSynced(sid, k);
+          await saveManifestLocal(sid, { ...m.data, pages: { ...(m.data.pages || {}), ...mirrorPages, ...staleVs }, v: overviewV }, Date.now(), false);
+          pushed += writtenKeys.length;
+        } else {
+          // nothing written this slice — every key was missing or stale. Stale-only
+          // slices still mirror the cloud v so the pull diff converges; all-missing
+          // slices keep the pre-transactional drop behavior (clear the rows).
+          if (Object.keys(staleVs).length) {
+            await saveManifestLocal(sid, { ...m.data, pages: { ...(m.data.pages || {}), ...staleVs }, v: m.data.v }, Date.now(), false);
+          }
+          for (const k of slice) await markSynced(sid, k);
+        }
       } catch (e) {
         console.warn(`push failed ${sid}`, e);
         for (const k of slice) await bumpAttempt(sid, k);
@@ -257,6 +301,126 @@ const pullChangedChunks = async (sid: string, studRef: any, pageInfo: Record<str
   return pulled;
 };
 
+/**
+ * Pull pass — watermark-driven change detection. Reads the user-level
+ * sync_manifest ONCE, then per student: ONE range query on draws
+ * (updatedAt > last pull watermark; fresh device = everything), the overview
+ * doc (only when its version is newer), and audio range diffs. Everything for
+ * a student is committed to SQLite in ONE atomic transaction (savePullBatch),
+ * so the syncing->synced Redux reload always observes a complete student.
+ */
+const pullStudent = async (
+  userId: string,
+  s: any,
+  cloudInfo: any,
+  studentsArr: { id: string }[],
+): Promise<{ pulled: number; manifestChanged: boolean }> => {
+  const sid = s.id;
+  studentsArr.push({ id: sid, ...s.data() });
+  const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
+  const cloudOV = cloudInfo?.v;
+  const localM = await getManifest(sid);
+  const localOV = localM.data.v || 0;
+  const mustPullOverview = cloudInfo == null || cloudOV === undefined || cloudOV > localOV || (!localM.serverTs && (cloudOV || 0) >= localOV);
+
+  // ---- ONE range query per student: every draws doc newer than the last pull
+  // watermark (server timestamp; 0 on a fresh device = everything). This replaces
+  // the old per-10-doc `in` loops — a fresh full-Quran pull went from ~60
+  // sequential round trips to 1. Docs WITHOUT updatedAt (legacy) never match the
+  // range filter and are recovered by the manifest-diff fallback below. ----
+  const lastPullAt = await getLastPullAt(sid);
+  const rangeSnap = await studRef.collection('draws')
+    .where('updatedAt', '>', new Date(lastPullAt)).get();
+  const chunks: { canvasKey: string; data: any; v: number }[] = [];
+  const fetchedKeys = new Set<string>();
+  let watermark = lastPullAt;
+  await Promise.all(rangeSnap.docs.map(async (doc: any) => {
+    const canvasKey = doc.id;
+    const cloud = doc.data() as any;
+    fetchedKeys.add(canvasKey);
+    const t = cloud.updatedAt?.toMillis ? cloud.updatedAt.toMillis() : 0;
+    if (t > watermark) watermark = t;
+    // Clobber guard: never overwrite a fresher local edit made mid-pull.
+    const local = await getChunk(sid, canvasKey);
+    if (local && local.v >= (cloud.v || 0)) return;
+    // cloud has NO strokes (stripped on push) — preserve local drawings
+    chunks.push({ canvasKey, data: { ...cloud, strokes: local?.data?.strokes || [] }, v: cloud.v || 0 });
+  }));
+  // -1s margin: two docs committed in the same server instant must both be re-fetchable
+  watermark = Math.max(lastPullAt, watermark - 1000);
+
+  // ---- cloud manifest (bookmarks / pages / lastRead) — only when newer.
+  // lastRead now syncs: keep whichever device wrote it last (LWW by updatedAt)
+  // BEFORE savePullBatch REPLACES the whole manifest, so a pulled mark is
+  // never wiped by a same-device cloud merge nor vice versa. ----
+  let cloudMeta: any = null;
+  if (mustPullOverview) {
+    const mSnap = await studRef.collection('meta').doc('overview').get();
+    if (mSnap.exists) cloudMeta = mSnap.data() as any;
+  }
+  let manifestChanged = false;
+  if (cloudMeta) {
+    cloudMeta = { ...cloudMeta };
+    // Reading mark now syncs: keep whichever device wrote it last (LWW by updatedAt).
+    const lr = newerLastRead(localM.data.lastRead, cloudMeta.lastRead);
+    if (lr) cloudMeta.lastRead = lr; else delete cloudMeta.lastRead;
+    manifestChanged = true;
+  }
+
+  // ---- legacy fallback: manifest pages whose doc has no updatedAt never matched
+  // the range query — diff them through the (now concurrent) in-query path. ----
+  const pagesInfo: Record<string, any> = cloudMeta ? (cloudMeta.pages || {}) : (cloudInfo?.pages || {});
+  const missing = Object.keys(pagesInfo || {}).filter((k: string) => !fetchedKeys.has(k));
+  let pulled = 0;
+  if (missing.length) {
+    const sub: Record<string, any> = {};
+    for (const k of missing) sub[k] = pagesInfo[k];
+    pulled += await pullChangedChunks(sid, studRef, sub);
+  }
+
+  // ---- audio ranges: same diff as before, but deferred into the batch write ----
+  const audioWrites: { rangeKey: string; entries: any; v: number }[] = [];
+  if (cloudInfo) {
+    // audio: diff via the manifest — read a range doc only when it is newer
+    for (const [range, info] of Object.entries(cloudInfo.audio || {}) as Array<[string, any]>) {
+      const localA = await getAudioNotesRange(sid, range);
+      if ((info.v || 0) > (localA.v || 0)) {
+        const snap = await studRef.collection('audioNotes').doc(range).get();
+        if (snap.exists) {
+          const cloud = snap.data() as any;
+          audioWrites.push({ rangeKey: range, entries: cloud.entries || {}, v: cloud.v || 0 });
+          pulled += Object.keys(cloud.entries || {}).length;
+        }
+      }
+    }
+  } else {
+    // no manifest entry yet (pre-upgrade cloud / first-ever pull): full scan, self-healing
+    const audSnap = await studRef.collection('audioNotes').get();
+    for (const d of audSnap.docs) {
+      const cloud = d.data() as any;
+      const local = await getAudioNotesRange(sid, d.id);
+      if ((cloud.v || 0) > (local.v || 0) || !Object.keys(local.entries || {}).length) {
+        audioWrites.push({ rangeKey: d.id, entries: cloud.entries || {}, v: cloud.v || 0 });
+        pulled += Object.keys(cloud.entries || {}).length;
+      }
+    }
+  }
+
+  // ---- ONE atomic SQLite commit per student: chunks + manifest + audio + watermark.
+  // Nothing above touches the DB until here, so a Redux reload can never observe a
+  // half-pulled student — bookmarks, reading marks, notes and highlights all land
+  // together the moment the syncing->synced reload fires. ----
+  await savePullBatch(
+    sid,
+    chunks,
+    cloudMeta ? { data: cloudMeta, serverTs: watermark > 0 ? watermark : Date.now() } : null,
+    audioWrites,
+    watermark > 0 || chunks.length > 0 || audioWrites.length > 0 ? (watermark > 0 ? watermark : Date.now()) : undefined,
+  );
+  if (chunks.length) pulled += chunks.length;
+  return { pulled, manifestChanged };
+};
+
 const pullRemote = async (userId: string): Promise<{ pulled: number; manifestChanged: boolean }> => {
   const studentsSnap = await firestore().collection('users').doc(userId).collection('students').get();
   const maniSnap = await manifestRef(userId).get();
@@ -264,109 +428,22 @@ const pullRemote = async (userId: string): Promise<{ pulled: number; manifestCha
   let pulled = 0;
   let manifestChanged = false;
   const studentsArr: any[] = [];
-  for (const s of studentsSnap.docs) {
-    const sid = s.id;
-    studentsArr.push({ id: sid, ...s.data() });
-    const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
-    const cloudInfo = maniStudents[sid];
-    const cloudOV = cloudInfo?.v;
-    const localM = await getManifest(sid);
-    const localOV = localM.data.v || 0;
-    const mustPullOverview = cloudInfo == null || cloudOV === undefined || cloudOV > localOV || (!localM.serverTs && (cloudOV || 0) >= localOV);
-
-    // ---- ONE range query per student: every draws doc newer than the last pull
-    // watermark (server timestamp; 0 on a fresh device = everything). This replaces
-    // the old per-10-doc `in` loops — a fresh full-Quran pull went from ~60
-    // sequential round trips to 1. Docs WITHOUT updatedAt (legacy) never match the
-    // range filter and are recovered by the manifest-diff fallback below. ----
-    const lastPullAt = await getLastPullAt(sid);
-    const rangeSnap = await studRef.collection('draws')
-      .where('updatedAt', '>', new Date(lastPullAt)).get();
-    const chunks: { canvasKey: string; data: any; v: number }[] = [];
-    const fetchedKeys = new Set<string>();
-    let watermark = lastPullAt;
-    await Promise.all(rangeSnap.docs.map(async (doc: any) => {
-      const canvasKey = doc.id;
-      const cloud = doc.data() as any;
-      fetchedKeys.add(canvasKey);
-      const t = cloud.updatedAt?.toMillis ? cloud.updatedAt.toMillis() : 0;
-      if (t > watermark) watermark = t;
-      // Clobber guard: never overwrite a fresher local edit made mid-pull.
-      const local = await getChunk(sid, canvasKey);
-      if (local && local.v >= (cloud.v || 0)) return;
-      // cloud has NO strokes (stripped on push) — preserve local drawings
-      chunks.push({ canvasKey, data: { ...cloud, strokes: local?.data?.strokes || [] }, v: cloud.v || 0 });
-    }));
-    // -1s margin: two docs committed in the same server instant must both be re-fetchable
-    watermark = Math.max(lastPullAt, watermark - 1000);
-
-    // ---- cloud manifest (bookmarks / pages / lastRead) — only when newer.
-    // lastRead now syncs: keep whichever device wrote it last (LWW by updatedAt)
-    // BEFORE savePullBatch REPLACES the whole manifest, so a pulled mark is
-    // never wiped by a same-device cloud merge nor vice versa. ----
-    let cloudMeta: any = null;
-    if (mustPullOverview) {
-      const mSnap = await studRef.collection('meta').doc('overview').get();
-      if (mSnap.exists) cloudMeta = mSnap.data() as any;
+  // Bounded pool of 3 concurrent slots: every await INSIDE pullStudent stays
+  // sequential (ONE atomic savePullBatch per student — a student is never
+  // half-pulled), but students' Firestore reads run in parallel. Only the SQLite
+  // commit path serializes on the single connection; the PRAGMA busy_timeout=3000
+  // in initDatabase covers racing transactions with "database is locked".
+  const CONCURRENT_STUDENTS = 3;
+  for (let i = 0; i < studentsSnap.docs.length; i += CONCURRENT_STUDENTS) {
+    const group = studentsSnap.docs.slice(i, i + CONCURRENT_STUDENTS);
+    const results = await Promise.all(group.map((s: any) =>
+      pullStudent(userId, s, maniStudents[s.id], studentsArr)
+        .catch((e: any) => { console.warn('pullStudent failed', s.id, e); return { pulled: 0, manifestChanged: false }; })
+    ));
+    for (const r of results) {
+      pulled += r.pulled;
+      manifestChanged = manifestChanged || r.manifestChanged;
     }
-    if (cloudMeta) {
-      cloudMeta = { ...cloudMeta };
-      // Reading mark now syncs: keep whichever device wrote it last (LWW by updatedAt).
-      const lr = newerLastRead(localM.data.lastRead, cloudMeta.lastRead);
-      if (lr) cloudMeta.lastRead = lr; else delete cloudMeta.lastRead;
-      manifestChanged = true;
-    }
-
-    // ---- legacy fallback: manifest pages whose doc has no updatedAt never matched
-    // the range query — diff them through the (now concurrent) in-query path. ----
-    const pagesInfo: Record<string, any> = cloudMeta ? (cloudMeta.pages || {}) : (cloudInfo?.pages || {});
-    const missing = Object.keys(pagesInfo || {}).filter((k: string) => !fetchedKeys.has(k));
-    if (missing.length) {
-      const sub: Record<string, any> = {};
-      for (const k of missing) sub[k] = pagesInfo[k];
-      pulled += await pullChangedChunks(sid, studRef, sub);
-    }
-
-    // ---- audio ranges: same diff as before, but deferred into the batch write ----
-    const audioWrites: { rangeKey: string; entries: any; v: number }[] = [];
-    if (cloudInfo) {
-      // audio: diff via the manifest — read a range doc only when it is newer
-      for (const [range, info] of Object.entries(cloudInfo.audio || {}) as Array<[string, any]>) {
-        const localA = await getAudioNotesRange(sid, range);
-        if ((info.v || 0) > (localA.v || 0)) {
-          const snap = await studRef.collection('audioNotes').doc(range).get();
-          if (snap.exists) {
-            const cloud = snap.data() as any;
-            audioWrites.push({ rangeKey: range, entries: cloud.entries || {}, v: cloud.v || 0 });
-            pulled += Object.keys(cloud.entries || {}).length;
-          }
-        }
-      }
-    } else {
-      // no manifest entry yet (pre-upgrade cloud / first-ever pull): full scan, self-healing
-      const audSnap = await studRef.collection('audioNotes').get();
-      for (const d of audSnap.docs) {
-        const cloud = d.data() as any;
-        const local = await getAudioNotesRange(sid, d.id);
-        if ((cloud.v || 0) > (local.v || 0) || !Object.keys(local.entries || {}).length) {
-          audioWrites.push({ rangeKey: d.id, entries: cloud.entries || {}, v: cloud.v || 0 });
-          pulled += Object.keys(cloud.entries || {}).length;
-        }
-      }
-    }
-
-    // ---- ONE atomic SQLite commit per student: chunks + manifest + audio + watermark.
-    // Nothing above touches the DB until here, so a Redux reload can never observe a
-    // half-pulled student — bookmarks, reading marks, notes and highlights all land
-    // together the moment the syncing->synced reload fires. ----
-    await savePullBatch(
-      sid,
-      chunks,
-      cloudMeta ? { data: cloudMeta, serverTs: watermark > 0 ? watermark : Date.now() } : null,
-      audioWrites,
-      watermark > 0 || chunks.length > 0 || audioWrites.length > 0 ? (watermark > 0 ? watermark : Date.now()) : undefined,
-    );
-    if (chunks.length) pulled += chunks.length;
   }
   if (studentsArr.length) await cacheStudentList(studentsArr);
   return { pulled, manifestChanged };
@@ -374,6 +451,12 @@ const pullRemote = async (userId: string): Promise<{ pulled: number; manifestCha
 
 // ---------------- lazy drawings: 10-page (or surah) chunks, only when asked ----------------
 export interface DrawingGeometry { canvasW: number; canvasH: number; padX: number; }
+
+// Last geometry used by the active-save pushDrawings path. pushAllDrawings runs
+// OUTSIDE any screen (App.tsx 30-min/background syncs, Dashboard manual sync) and
+// needs a geometry to compact strokes — the most recent active-save one is the
+// closest match to the canvas the strokes were drawn on (see pushAllDrawings).
+let lastDrawingGeo: DrawingGeometry | null = null;
 
 /**
  * Compacts + content-box-normalizes the page's strokes and writes ONE cloud doc
@@ -383,6 +466,7 @@ export interface DrawingGeometry { canvasW: number; canvasH: number; padX: numbe
  */
 export const pushDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
   try {
+    lastDrawingGeo = geo;
     const chunks = await Promise.all(pageKeys.map(k => getChunk(studentId, k).then(local => ({ k, local }))));
     const strokesByPage: Record<string, any[]> = {};
     let hasAny = false;
@@ -408,15 +492,34 @@ export const pushDrawings = async (studentId: string, groupKey: string, pageKeys
  * WHY: local strokes are saved with queue=false (they never enter sync_queue), so the
  *   only previous push was the active-save pushDrawings(), which swallows failures —
  *   a drawing made while offline stayed local forever. This scans ALL canvases with
- *   strokes and writes them to Firestore RAW (no compaction/normalization — pullDrawings
- *   passes non-`norm` strokes through untouched, so cross-device recovery still works):
+ *   strokes and writes them to Firestore, COMPACTING each appended stroke exactly
+ *   like pushDrawings does ({ ...p, norm: 1, points: compactStroke(...) }): the norm
+ *   flag is forced in the same expression as the compacted points, so a stroke can
+ *   never be scaled twice; cloud-owned strokes are copied through untouched. Geometry
+ *   comes from the last active-save pushDrawings call, or the window size as fallback
+ *   (pullDrawings denormalizes for the receiving device, so strokes still land at the
+ *   correct word).
  *   - page_N canvases   -> students/{sid}/drawings/{r_<lo>_<lo+9>}  (10-page range, rangeKeyForPage)
  *   - surah_N canvases  -> students/{sid}/drawings/{surah_<n>}     (groupKey = the canvasKey itself)
  * Replace-on-write: one doc per range group, only when the group has strokes. Never
- * throws — per-student try/catch so one bad student can't abort the sync.
+ * throws — per-student try/catch so one bad student can't abort the sync. Size guard:
+ * a serialized group over ~800 KB is skipped with a warn (NO re-thin: writePages
+ * points are already content-box fractions, so an aggressive pixel-space thinning
+ * pass would collapse them to dots — skip, don't corrupt). Local data stays intact
+ * and the cloud doc is never corrupted by a half-write. NOTE: such a group stays
+ * skipped on every sweep until it is drawn over / shrinks below the guard (do NOT
+ * split a group into multiple docs — pullDrawings reads exactly one doc per group).
  */
 export const pushAllDrawings = async (userId: string): Promise<void> => {
   try {
+    // Geometry for compaction: this pass runs OUTSIDE any screen, so reuse the most
+    // recent active-save (pushDrawings) geometry; fall back to the window size if no
+    // active save ever ran this session.
+    const geo: DrawingGeometry = lastDrawingGeo ?? {
+      canvasW: Dimensions.get('window').width,
+      canvasH: Dimensions.get('window').height,
+      padX: hPadFor(Dimensions.get('window').width),
+    };
     const byStudent = await getAllCanvasesWithStrokesByStudent();
     for (const [sid, canvases] of Object.entries(byStudent)) {
       if (!canvases.length) continue;   // students with zero strokes are never listed anyway
@@ -426,11 +529,11 @@ export const pushAllDrawings = async (userId: string): Promise<void> => {
           let groupKey = canvasKey;   // surah_N canvases use themselves as the group key
           const pageNum = canvasKey.startsWith('page_') ? parseInt(canvasKey.slice(5), 10) : 0;
           if (pageNum > 0) groupKey = rangeKeyForPage(pageNum);
-          // Strip any `norm` marker: local strokes are always raw absolute
-          // points, so a norm:1 tag here would make pullDrawings denormalize
-          // them a second time and blow strokes off-canvas.
-          const clean = strokes.map((p: any) => { const { norm, ...rest } = p; return rest; });
-          (groups[groupKey] = groups[groupKey] || {})[canvasKey] = clean;
+          // Raw local strokes (absolute points) are kept as-is here; compaction +
+          // the forced norm:1 tag happen at write time below — the norm key is set
+          // in the SAME expression as the compacted points, so pullDrawings can
+          // never denormalize a raw stroke twice.
+          (groups[groupKey] = groups[groupKey] || {})[canvasKey] = strokes;
         }
         if (!Object.keys(groups).length) continue;
         const studRef = firestore().collection('users').doc(userId).collection('students').doc(sid);
@@ -442,6 +545,7 @@ export const pushAllDrawings = async (userId: string): Promise<void> => {
           // empty in the cloud). No early hasNorm/content-length skip — new local
           // strokes always get written, and normalize-padded cloud docs keep their
           // normalized strokes untouched.
+          const compactLocal = (p: any) => ({ ...p, norm: 1, points: compactStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) });
           let writePages: Record<string, any[]> | null = null;
           try {
             const snap = await drawingsRef.doc(groupKey).get();
@@ -453,16 +557,42 @@ export const pushAllDrawings = async (userId: string): Promise<void> => {
                 return (strokes as any[]).some((p: any) => (p?.id ? !ids.has(p.id) : !(cloudPages[k] || []).length));
               });
               if (!missingAnywhere) return;   // cloud already has everything local has
-              writePages = { ...cloudPages };
+              writePages = { ...cloudPages };   // cloud-owned strokes pass through UNTOUCHED (already norm:1 or legacy raw)
               for (const [k, strokes] of Object.entries(strokesByPage)) {
                 const ids = cloudIds(writePages[k]);
                 const add = (strokes as any[]).filter((p: any) => (p?.id ? !ids.has(p.id) : !(writePages[k] || []).length));
-                if (add.length) writePages[k] = [...(writePages[k] || []), ...add];
+                if (add.length) {
+                  const comp = add.map(compactLocal);
+                  writePages[k] = [...(writePages[k] || []), ...comp];
+                }
               }
             }
           } catch { /* cloud read failed — write anyway */ }
+          if (!writePages) {
+            // No cloud doc yet: every local stroke is appended, all compacted.
+            writePages = {};
+            for (const [k, strokes] of Object.entries(strokesByPage)) {
+              const comp = (strokes as any[]).map(compactLocal);
+              writePages[k] = comp;
+            }
+          }
+          // ---- size guard: UTF-16 worst-case estimate (coordinates are ASCII, so
+          // this overestimates — conservative) against Firestore's 1 MB doc limit.
+          // The points in writePages are already content-box FRACTIONS (compacted
+          // above); any further thinning would need pixel-space tolerances that
+          // cannot be applied to fractions (they would drop every interior point
+          // and collapse strokes to dots). So: write or skip — never re-thin.
+          const estBytes = JSON.stringify(writePages).length * 2;
+          if (estBytes > 800_000) {
+            // Fail-safe: skip the group entirely. Local strokes stay intact in
+            // SQLite, the cloud doc is never corrupted by a half-write (or by a
+            // dots-collapsed re-thin), and the group stays eligible on later
+            // sweeps once it shrinks below the guard.
+            console.warn('pushAllDrawings: group exceeds size guard, skipped', sid, groupKey, estBytes);
+            return;
+          }
           await drawingsRef.doc(groupKey).set({
-            strokesByPage: writePages || strokesByPage,
+            strokesByPage: writePages,
             updatedAt: firestore.FieldValue.serverTimestamp(),
           });
         }));
