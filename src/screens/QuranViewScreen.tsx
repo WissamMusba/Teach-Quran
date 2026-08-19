@@ -2343,10 +2343,12 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  bottomChromeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingVertical: 3 },
+  bottomChromeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
   // Pills mirror MushafPageView's upper pills (badgePill/badgeText): subtle translucent chip,
   // thin frame-coloured border, grey text (v90 — previously blue-on-white, floating on the frame).
-  bottomChromePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)', elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+  // No elevation/shadow: the chip sits flush against the frame's bottom edge (v91) and a shadow
+  // would cast a fake gap above it.
+  bottomChromePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)' },
   bottomChromeText: { fontSize: 9.5, fontWeight: '600', color: (nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)') },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
