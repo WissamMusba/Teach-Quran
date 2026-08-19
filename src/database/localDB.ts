@@ -12,25 +12,105 @@ export const canvasKeyForSurah = (surahId: number) => `surah_${surahId}`;
 export const initDatabase = async () => {
   if (dbInstance) return;
   dbInstance = await SQLite.openDatabase({ name: 'quran.db', location: 'default' });
-  
+
+  // WAL pragmas stay OUTSIDE the batch transaction below — SQLite refuses a journal_mode
+  // change from within a transaction ("cannot change into wal mode from within a transaction").
   await dbInstance.executeSql(`PRAGMA journal_mode=WAL;`);
   await dbInstance.executeSql(`PRAGMA synchronous=NORMAL;`);
   await dbInstance.executeSql(`PRAGMA busy_timeout=3000;`);   // parallel pull/push transactions wait up to 3s instead of failing with SQLITE_BUSY
-  
-  // Existing tables
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS surahs (id INTEGER PRIMARY KEY, name TEXT, englishName TEXT, verses INTEGER)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS verses (id INTEGER PRIMARY KEY AUTOINCREMENT, surahId INTEGER, verseNumber INTEGER, textArabic TEXT, textIndopak TEXT, textTranslation TEXT, page INTEGER)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages_indopak (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS page_layout_cache (
-    pageNumber INTEGER NOT NULL, textStyle TEXT NOT NULL, headerVisible INTEGER NOT NULL,
-    fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
-    lines TEXT NOT NULL,
-    PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS frame_cache (key TEXT PRIMARY KEY, w INTEGER NOT NULL, h INTEGER NOT NULL)`);
 
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+  // ============================================================
+  // [PERF-CHANGE-6] — REVERTIBLE OPTIMIZATION (safe batched startup).
+  // ALL unconditional CREATE TABLE / CREATE INDEX statements run in ONE
+  // transaction instead of ~15 separate awaited round-trips (faster splash
+  // on slow storage). Semantics are identical: statement order is preserved
+  // and every statement is idempotent (IF NOT EXISTS).
+  // REVERSE: delete this try/catch block and restore the original sequential
+  // statements, available verbatim in git: `git diff` or the v87 release
+  // (commit bed0baf) of this file, lines 21-46.
+  // ============================================================
+  try {
+    await dbInstance.transaction((tx: any) => {
+      // Existing tables
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS surahs (id INTEGER PRIMARY KEY, name TEXT, englishName TEXT, verses INTEGER)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS verses (id INTEGER PRIMARY KEY AUTOINCREMENT, surahId INTEGER, verseNumber INTEGER, textArabic TEXT, textIndopak TEXT, textTranslation TEXT, page INTEGER)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages_indopak (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS page_layout_cache (
+        pageNumber INTEGER NOT NULL, textStyle TEXT NOT NULL, headerVisible INTEGER NOT NULL,
+        fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
+        lines TEXT NOT NULL,
+        PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS frame_cache (key TEXT PRIMARY KEY, w INTEGER NOT NULL, h INTEGER NOT NULL)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+      tx.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
+      tx.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_page ON verses(page)`);
+      tx.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah_verse ON verses(surahId, verseNumber)`);
+      // New V4 Tables
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS student_data_cache (
+          studentId TEXT NOT NULL, canvasKey TEXT NOT NULL, data TEXT NOT NULL,
+          v INTEGER DEFAULT 0, serverTs INTEGER DEFAULT 0,
+          PRIMARY KEY (studentId, canvasKey))`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS student_manifest_cache (
+          studentId TEXT PRIMARY KEY, manifest TEXT NOT NULL, serverTs INTEGER DEFAULT 0)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS sync_queue (
+          studentId TEXT NOT NULL, canvasKey TEXT NOT NULL,
+          synced INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0,
+          PRIMARY KEY (studentId, canvasKey))`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_push (
+          studentId TEXT PRIMARY KEY, pushedAt INTEGER NOT NULL)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_pull (
+          studentId TEXT PRIMARY KEY, pulledAt INTEGER NOT NULL)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS audio_notes_cache (
+          studentId TEXT NOT NULL, rangeKey TEXT NOT NULL, entries TEXT NOT NULL,
+          v INTEGER DEFAULT 0,
+          PRIMARY KEY (studentId, rangeKey))`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
+          sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
+    });
+  } catch (e) {
+    // Safety net: if the batched transaction ever fails wholesale (e.g. disk
+    // full mid-batch), fall back to the original one-statement-at-a-time path
+    // so a partial failure is still repaired statement by statement.
+    console.warn('initDatabase: batched setup failed, retrying sequentially', e);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS surahs (id INTEGER PRIMARY KEY, name TEXT, englishName TEXT, verses INTEGER)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS verses (id INTEGER PRIMARY KEY AUTOINCREMENT, surahId INTEGER, verseNumber INTEGER, textArabic TEXT, textIndopak TEXT, textTranslation TEXT, page INTEGER)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS mushaf_pages_indopak (pageNumber INTEGER PRIMARY KEY, data TEXT)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_list_cache (uid TEXT PRIMARY KEY, students TEXT NOT NULL, updatedAt TEXT NOT NULL)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS page_layout_cache (
+      pageNumber INTEGER NOT NULL, textStyle TEXT NOT NULL, headerVisible INTEGER NOT NULL,
+      fs INTEGER NOT NULL, sparse INTEGER NOT NULL, screenW INTEGER NOT NULL,
+      lines TEXT NOT NULL,
+      PRIMARY KEY (pageNumber, textStyle, headerVisible, fs, sparse, screenW))`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS frame_cache (key TEXT PRIMARY KEY, w INTEGER NOT NULL, h INTEGER NOT NULL)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+    await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
+    await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_page ON verses(page)`);
+    await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah_verse ON verses(surahId, verseNumber)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_data_cache (
+        studentId TEXT NOT NULL, canvasKey TEXT NOT NULL, data TEXT NOT NULL,
+        v INTEGER DEFAULT 0, serverTs INTEGER DEFAULT 0,
+        PRIMARY KEY (studentId, canvasKey))`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_manifest_cache (
+        studentId TEXT PRIMARY KEY, manifest TEXT NOT NULL, serverTs INTEGER DEFAULT 0)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_queue (
+        studentId TEXT NOT NULL, canvasKey TEXT NOT NULL,
+        synced INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0,
+        PRIMARY KEY (studentId, canvasKey))`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_push (
+        studentId TEXT PRIMARY KEY, pushedAt INTEGER NOT NULL)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_pull (
+        studentId TEXT PRIMARY KEY, pulledAt INTEGER NOT NULL)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS audio_notes_cache (
+        studentId TEXT NOT NULL, rangeKey TEXT NOT NULL, entries TEXT NOT NULL,
+        v INTEGER DEFAULT 0,
+        PRIMARY KEY (studentId, rangeKey))`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
+        sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
+  }
+
   const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
   const ver = r && r[0] && r[0].rows && r[0].rows.length ? parseInt(r[0].rows.item(0).value, 10) : 0;
   // layoutVer 4: v4 rows bundle the one-shot vertical-fit payload ({ lines, fit }) in the
@@ -41,34 +121,8 @@ export const initDatabase = async () => {
     await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','4')`);
   }
 
-  await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses(surahId)`);
-  await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_page ON verses(page)`);
-  await dbInstance.executeSql(`CREATE INDEX IF NOT EXISTS idx_verses_surah_verse ON verses(surahId, verseNumber)`);
-
   // Migrate V1 to V2 schema if needed
   await migrateV1IfNeeded(dbInstance);
-
-  // New V4 Tables
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_data_cache (
-      studentId TEXT NOT NULL, canvasKey TEXT NOT NULL, data TEXT NOT NULL,
-      v INTEGER DEFAULT 0, serverTs INTEGER DEFAULT 0,
-      PRIMARY KEY (studentId, canvasKey))`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_manifest_cache (
-      studentId TEXT PRIMARY KEY, manifest TEXT NOT NULL, serverTs INTEGER DEFAULT 0)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_queue (
-      studentId TEXT NOT NULL, canvasKey TEXT NOT NULL,
-      synced INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0,
-      PRIMARY KEY (studentId, canvasKey))`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_push (
-      studentId TEXT PRIMARY KEY, pushedAt INTEGER NOT NULL)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS sync_last_pull (
-      studentId TEXT PRIMARY KEY, pulledAt INTEGER NOT NULL)`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS audio_notes_cache (
-      studentId TEXT NOT NULL, rangeKey TEXT NOT NULL, entries TEXT NOT NULL,
-      v INTEGER DEFAULT 0,
-      PRIMARY KEY (studentId, rangeKey))`);
-  await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
-      sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
 };
 
 export const getDB = () => dbInstance;
@@ -88,6 +142,123 @@ export const saveFrameBox = async (key: string, w: number, h: number) => {
     await getDB().executeSql(`INSERT OR REPLACE INTO frame_cache (key, w, h) VALUES (?,?,?)`, [key, w, h]);
   } catch {}
 };
+
+// ============================================================
+// [PERF-CHANGE-1] — REVERTIBLE OPTIMIZATION (bundled indopak mushaf moved
+// from a 4.5 MB JSON require() into a shipped SQLite asset).
+//
+// The shipped asset lives at android/app/src/main/assets/www/indopak_pages.db
+// — the www/ subfolder is REQUIRED: createFromLocation: 1 makes the plugin
+// look it up at "www/" + dbName inside the APK assets
+// (platforms/android/.../SQLitePlugin.java, openDatabase() — the
+// assetFilePath == "1" branch). On FIRST open the plugin copies
+// www/indopak_pages.db from the APK assets into the app's databases/ dir
+// and opens it; later opens hit the stored copy directly. Reads are served
+// from that connection via getIndopakPageDataFromAsset().
+// disableIndopakAssetDB() shuts the connection mid-process if a fallback
+// SQLite path wins the race on devices where the asset copy failed.
+//
+// KNOWN LIMITATION OF THE FALLBACK: the legacy mushaf_pages_indopak table is
+// never written since v75 (importIndopakPages was removed), so if the asset
+// copy fails the indopak reader only gets empty pages — the self-check probe
+// below surfaces that as a loud 'indopak asset empty/setup failed' log line
+// instead of silently spinning forever.
+//
+// REVERSE (full revert checklist, all in one go):
+//   1. Delete this block + the exported functions below it.
+//   2. src/database/quranData.ts: restore the old body of getIndopakPageIndex
+//      (`Promise.resolve().then(() => require('../assets/data/indopak_pages.json') ...fold...)`)
+//      and plain `index[pageNum] || null` in getIndopakPageFromBundle —
+//      both hunks are marked [PERF-CHANGE-1] and visible in
+//      `git diff HEAD` (compare against release v87, commit bed0baf).
+//   3. Restore src/assets/data/indopak_pages.json (git checkout of that path
+//      from commit bed0baf) and delete android/app/src/main/assets/www/
+//      indopak_pages.db + scripts/build_indopak_db.mjs.
+// ============================================================
+// indopakAssetDb: lazily opened asset-backed connection, null until first open.
+// indopakAssetPromise: single-flight open (concurrent first reads share it).
+// indopakAssetDisabled: set true forever for this process when the asset path
+//   fails (copy failed / corrupt asset) — asset reads then fast-return null
+//   and getMushafPageData rides its legacy chain (mushaf_pages_indopak table).
+//   Runtime flag only — nothing persisted.
+let indopakAssetDb: any = null;
+let indopakAssetPromise: Promise<any> | null = null;
+let indopakAssetDisabled = false;
+
+const ensureIndopakAsset = async (): Promise<any> => {
+  if (indopakAssetDb) return indopakAssetDb;
+  if (indopakAssetDisabled) return null;
+  if (!indopakAssetPromise) {
+    indopakAssetPromise = (async () => {
+      try {
+        // createFromLocation: 1 → the plugin resolves "www/" + name inside
+        // the APK assets (this is why the file ships under assets/www/) and
+        // copies it into the app databases dir on first open, then opens it.
+        // readOnly is passed for intent; the plugin's import branch opens
+        // the copied file READWRITE, which is fine (we never write to it).
+        indopakAssetDb = await SQLite.openDatabase(
+          { name: 'indopak_pages.db', readOnly: true, createFromLocation: 1 },
+          () => {},
+          (openErr: any) => { console.warn('indopak asset open failed', openErr); },
+        );
+        // Self-check: force any hidden problem (corrupt copy, wrong schema) to
+        // surface NOW with a cheap row-count probe instead of silently
+        // returning empty pages later.
+        const r = await indopakAssetDb.executeSql(`SELECT COUNT(*) AS c FROM indopak_pages`);
+        const c = r && r[0] && r[0].rows && r[0].rows.length ? r[0].rows.item(0).c : 0;
+        if (!c) { console.warn('indopak asset empty — disabling asset path'); try { await indopakAssetDb.close(); } catch {} indopakAssetDb = null; }
+        return indopakAssetDb;
+      } catch (e) {
+        console.warn('indopak asset setup failed', e);
+        return null;
+      }
+    })();
+  }
+  return indopakAssetPromise;
+};
+
+/**
+ * Read one indopak mushaf page from the shipped read-only asset DB.
+ * Returns the parsed page object, or null when the asset path is
+ * unavailable/failed/not-found (caller falls through to its legacy chain).
+ * Failure mode: a broken asset disables this path for the PROCESS via
+ * indopakAssetDisabled after the first null — all later callers take the
+ * fast-null shortcut instead of re-probing.
+ */
+export const getIndopakPageDataFromAsset = async (pageNum: number): Promise<any | null> => {
+  if (indopakAssetDisabled) return null;
+  try {
+    const db = await ensureIndopakAsset();
+    if (!db) { indopakAssetDisabled = true; return null; }
+    const r = await db.executeSql(`SELECT data FROM indopak_pages WHERE pageNumber=?`, [pageNum]);
+    if (r && r[0] && r[0].rows && r[0].rows.length) {
+      const data = r[0].rows.item(0).data;
+      if (data) return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn('getIndopakPageDataFromAsset', pageNum, e);
+    indopakAssetDisabled = true;
+  }
+  return null;
+};
+
+/**
+ * Called by quranData's FALLBACK import after it back-fills
+ * mushaf_pages_indopak in SQLite: shuts the read-only asset connection and
+ * disables the asset path for the process, so every subsequent indopak read
+ * is served from the same SQLite indopak path the pre-change app used.
+ * Null-safe (no-op if the asset DB was never opened / already disabled).
+ */
+export const disableIndopakAssetDB = () => {
+  indopakAssetDisabled = true;
+  if (indopakAssetDb) {
+    try { indopakAssetDb.close(); } catch {}
+    indopakAssetDb = null;
+  }
+};
+// ============================================================
+// END [PERF-CHANGE-1]
+// ============================================================
 
 // ---------------- canvas CRUD (SQLite is the single source of truth) --------
 export const getChunk = async (studentId: string, canvasKey: string) => {

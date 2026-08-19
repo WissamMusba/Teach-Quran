@@ -7,7 +7,7 @@
  * USED BY: index.js (import App) — AppInner is internal, exported nowhere.
  */
 import React, { useEffect, useRef, useCallback } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, InteractionManager, View, Text } from 'react-native';
 import mobileAds from 'react-native-google-mobile-ads';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -227,16 +227,59 @@ const AppInner = () => {
  * NOTES: loading={null} renders nothing while rehydrating; a corrupt/oversized persisted state
  *        would blank the app with no timeout/fallback.
  */
+// ============================================================
+// [PERF-CHANGE-4] — REVERTIBLE OPTIMIZATION: defer the Google Mobile Ads
+// SDK init off the critical launch path. Previously it fired in a plain
+// App() mount useEffect — the ads SDK spins up threads + a network probe
+// during first-screen render. Now it waits for
+// InteractionManager.runAfterInteractions (so the first screen has painted
+// and the user's first gestures have landed) plus a small extra settle delay.
+// Banner components tolerate this — they fire their first ad request once
+// the SDK settles (~1-2 s later). Ad revenue timing shifts fractionally,
+// not functionally.
+// REVERSE: restore the single-line useEffect that initialized the SDK
+// eagerly, available in git (`git diff HEAD` or release v87, commit
+// bed0baf): `useEffect(() => { mobileAds().initialize().catch(() => {}); }, []);`
+// ============================================================
+const initializeAdsDeferred = () => {
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => { mobileAds().initialize().catch(() => {}); }, 500);
+  });
+};
+// ============================================================
+// END [PERF-CHANGE-4]
+// ============================================================
+
+// ============================================================
+// [PERF-CHANGE-5] — REVERTIBLE OPTIMIZATION: static placeholder shown
+// while redux-persist rehydrates from AsyncStorage. Previously
+// PersistGate's loading={null} rendered a fully BLANK screen during the
+// 100-800 ms rehydrate on slow storage. This renders a lightweight,
+// Redux-independent native-style placeholder so the first pixel is never
+// blank. The real Splash screen takes over the moment rehydrate completes.
+// REVERSE: set loading={null} on the PersistGate below, as it was in
+// release v87 (commit bed0baf).
+// ============================================================
+const PersistLoadingPlaceholder = () => (
+  <View style={{ flex: 1, backgroundColor: '#0d1b2a', justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ color: '#8ab4d8', fontSize: 20, fontWeight: '600' }}>Teach Quran</Text>
+    <Text style={{ color: '#5a7a99', fontSize: 13, marginTop: 8 }}>Loading…</Text>
+  </View>
+);
+// ============================================================
+// END [PERF-CHANGE-5]
+// ============================================================
+
 const App = () => {
-  // Initialize the Google Mobile Ads SDK once at launch (silent best-effort; banner
-  // components tolerate a late init — they just request after it settles).
-  useEffect(() => { mobileAds().initialize().catch(() => {}); }, []);
+  // Initialize the Google Mobile Ads SDK once, but DEFERRED off the
+  // critical launch path so the first screen paints first (PERF-CHANGE-4).
+  useEffect(() => { initializeAdsDeferred(); }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <SafeAreaProvider>
           <Provider store={store}>
-            <PersistGate loading={null} persistor={persistor}>
+            <PersistGate loading={<PersistLoadingPlaceholder />} persistor={persistor}>
               <AppInner />
             </PersistGate>
           </Provider>

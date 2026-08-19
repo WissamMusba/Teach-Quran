@@ -54,7 +54,18 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+// ============================================================
+// [PERF-CHANGE-2] — REVERTIBLE OPTIMIZATION: enable R8/Proguard on release
+// builds to shrink the APK (smaller download, faster native class loading,
+// lower startup memory on low-end devices). RN's own gradle plugin ships
+// consumer Proguard rules for the `com.facebook.react` libraries, and
+// `react-native-sqlite-storage` ships its own rules too. React-native-gradle-
+// plugin (RN 0.72) wires minification + packageRelease correctly when this is
+// true.
+// REVERSE: set `enableProguardInReleaseBuilds = false` again, as it was in
+// release v87 (commit bed0baf).
+// ============================================================
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)

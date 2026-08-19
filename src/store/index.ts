@@ -40,13 +40,30 @@ const rootReducer = combineReducers({
 
 // persistReducer wraps every slice; REHYDRATE re-pops whitelisted state at startup.
 const persistedReducer = persistReducer(persistConfig, rootReducer);
-// Store keeps the default middleware chain but relaxes serializableCheck for the two
-// persist action types (firestore/date objects in slices would otherwise warn).
-// NOTES: thunk implicitly enabled; no other middleware config.
+// ============================================================
+// [PERF-CHANGE-3] — REVERTIBLE OPTIMIZATION:
+// RTK's serializableCheck + immutableCheck deep-scan the whole state tree on
+// EVERY dispatch (studentData is large) — measurable overhead on low-end
+// devices. Both checks are DEV-tooling only (they warn; they never fix data),
+// so they are disabled in release builds (__DEV__ === false) and kept ON in
+// dev.
+// REVERSE: replace the `middleware` option below with the previous line,
+//   available in git (`git diff HEAD` or release v87, commit bed0baf):
+//     middleware: (g) => g({ serializableCheck: { ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'] } })
+// or simply delete the `process.env.NODE_ENV !== 'production'` branch so
+// both checks stay enabled everywhere.
+// ============================================================
+const perfCheckToggle = (() => { try { return !!((globalThis as any).__DEV__); } catch { return true; } })();
 export const store = configureStore({ 
   reducer: persistedReducer, 
-  middleware: (g) => g({ serializableCheck: { ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'] } }) 
+  middleware: (g) => g({
+    serializableCheck: perfCheckToggle ? { ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'] } : false,
+    immutableCheck: perfCheckToggle ? true : false,
+  })
 });
+// ============================================================
+// END [PERF-CHANGE-3]
+// ============================================================
 // Starts AsyncStorage write-back of the whitelist; consumed by PersistGate in App.tsx.
 export const persistor = persistStore(store);
 // Typed root state — used by App.tsx and SettingsScreen.tsx only; no `useAppSelector`

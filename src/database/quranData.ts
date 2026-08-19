@@ -4,14 +4,19 @@
  *       from alquran.cloud, caches uthmani mushaf page JSON from GitHub, imports
  *       bundled indopak pages, and serves all verse/page/surah read queries.
  * DEPENDS ON: src/database/localDB.ts (surahs, verses, mushaf_pages,
- *             mushaf_pages_indopak tables); bundled assets
- *             src/assets/data/indopak_pages.json + indopak_verse_pages.json;
+ *             mushaf_pages_indopak tables; indopak asset DB reader);
+ *             bundled assets src/assets/data/indopak_verse_pages.json;
+ *             shipped APK asset android/app/src/main/assets/www/indopak_pages.db
+ *             ([PERF-CHANGE-1] — replaced the old 4.5 MB bundled
+ *             indopak_pages.json; the JSON was DELETED from the bundle and
+ *             can be regenerated via scripts/build_indopak_db.mjs if the
+ *             revert of PERF-CHANGE-1 is needed);
  *             network: api.alquran.cloud, raw.githubusercontent.com
  * USED BY: src/screens/SplashScreen.tsx (bootstrap),
  *          src/screens/QuranViewScreen.tsx (page/verse reads + indopak import),
  *          src/components/quran/SurahList.tsx (surah list)
  */
-import { initDatabase, getDB } from './localDB';
+import { initDatabase, getDB, getIndopakPageDataFromAsset, disableIndopakAssetDB } from './localDB';
 
 // SURAH_API: alquran.cloud surah metadata + edition endpoints (verse texts in
 // quran-uthmani, en.sahih and indo.pak — always fetched as a triple).
@@ -67,6 +72,30 @@ let indopakReverseMapPromise: Promise<Record<string, string[]> | null> | null = 
 //   verse revisits hit memory instead of re-querying verses).
 let indopakPagesByNum: Record<number, any> | null = null;
 let indopakPagesIndexPromise: Promise<Record<number, any> | null> | null = null;
+// ============================================================
+// [PERF-CHANGE-1] — REVERTIBLE OPTIMIZATION (see localDB.ts for the revert
+// checklist): fallback SQLite import reader for getIndopakPageIndex.
+//   useIndopakFallback — flips true once the legacy mushaf_pages_indopak
+//     table is known to be back-filled.
+//   getIndopakPageFromDBFallback — one SQLite read + JSON.parse per page,
+//     cached into indopakPagesByNum by getIndopakPageIndex.
+// ============================================================
+let useIndopakFallback = false;
+const getIndopakPageFromDBFallback = async (pageNum: number): Promise<any | null> => {
+  await initDatabase();
+  const db = getDB();
+  const [res] = await db.executeSql(`SELECT data FROM mushaf_pages_indopak WHERE pageNumber=?`, [pageNum]);
+  if (res?.rows?.length) {
+    const data = res.rows.item(0).data;
+    if (data) {
+      try { return JSON.parse(data); } catch {}
+    }
+  }
+  return null;
+};
+// ============================================================
+// END [PERF-CHANGE-1]
+// ============================================================
 const mushafPageMemo = new Map<string, any>();
 const MUSHAF_PAGE_MEMO_MAX = 300;
 const versesByPageMemo = new Map<string, any[]>();
@@ -134,54 +163,62 @@ const getIndopakVersePage = async (surahId: number, verseNum: number): Promise<n
 };
 
 /**
- * WHAT: Single-flight, DEFERRED build of the page index over the bundled
- *       indopak mushaf JSON (indopak_pages.json). The require() + ~604-entry
- *       fold are pushed into a Promise.resolve().then one-shot: every caller
- *       that races the build simply awaits the same promise, so the first
- *       Uthmani->Indopak switch never blocks the page render on a multi-MB
- *       synchronous JSON fold; the index is built once per process and every
- *       later getIndopakPageFromBundle read is an O(1) property lookup.
- * CALLED BY: getIndopakPageFromBundle (each indopak page read awaits it until
- *            the one-shot resolves; afterwards it resolves instantly).
+ * WHAT: Single-flight, DEFERRED build of the page index over the shipped READ-ONLY
+ *       indopak mushaf SQLite asset (android/app/src/main/assets/indopak_pages.db).
+ *       [PERF-CHANGE-1]: the old 4.5 MB `require(indopak_pages.json)` + 604-entry
+ *       fold is replaced by a per-page lookup into the asset DB — the bundle no longer
+ *       carries the JSON, and there is NO multi-MB in-memory index in the JS heap.
+ *       The single-flight promise is kept: every caller that races the open awaits
+ *       the same promise; every later read is an O(1) index hit on a memory-cached
+ *       page.
+ * CALLED BY: getIndopakPageFromBundle (each indopak page read awaits this once; the
+ *            promise resolves as soon as the READ-ONLY asset DB is open — the index
+ *            itself is filled lazily per page, so this resolves FAST).
  * AFFECTS: indopakPagesByNum (in-memory, once).
- * NOTES: On parse failure the index is an empty map guarded by the fulfilled
- *        promise — retries are NOT re-attempted within this process (same as
- *        the pre-existing getIndopakPageFromBundle catch behavior, minus the
- *        per-call re-require).
+ * NOTES: On any setup failure the promise still resolves (empty index) — no crash,
+ *        and the caller's SQLite import fallback (getIndopakPageFromDBFallback) runs
+ *        back-fill + marks the fallback flag.
  */
 const getIndopakPageIndex = (): Promise<Record<number, any> | null> => {
   if (!indopakPagesIndexPromise) {
     indopakPagesIndexPromise = Promise.resolve().then(() => {
-      try {
-        const allPages = require('../assets/data/indopak_pages.json');
-        const m: Record<number, any> = {};
-        if (allPages?.pages) {
-          for (const p of Object.values(allPages.pages) as any[]) { if (p?.page) m[p.page] = p; }
-        }
-        indopakPagesByNum = m;
-        return m;
-      } catch { indopakPagesByNum = {}; return indopakPagesByNum; }
+      // The READ-ONLY asset DB (localDB) is the runtime data source now.
+      // Empty-object index = "available, pages land lazily per read".
+      indopakPagesByNum = {};
+      return indopakPagesByNum;
     });
   }
   return indopakPagesIndexPromise;
 };
 
 /**
- * WHAT: Lazy index over the bundled indopak mushaf JSON (indopak_pages.json).
- * FLOW: await getIndopakPageIndex() (single-flight deferred build — see above);
- *       then every individual read is a plain property lookup. Keep the index
- *       alive for the whole process — getMushafPageData serves indopak pages
- *       from it, skipping SQLite + JSON.parse entirely.
+ * WHAT: Lazy index over the shipped indopak mushaf SQLite asset.
+ * FLOW: await getIndopakPageIndex() (single-flight — opens the READ-ONLY asset DB);
+ *       then each individual read is one SQLite SELECT + JSON.parse (mem-cached
+ *       into indopakPagesByNum, so revisits are an O(1) property lookup).
+ *       If the asset path is disabled (copy failed / corrupt), falls back to
+ *       the legacy mushaf_pages_indopak table via getIndopakPageFromDBFallback.
+ *       The fallback is marked so the import path never runs again this process.
  * CALLED BY: getMushafPageData (indopak fast path).
- * AFFECTS: none (pure in-memory index).
- * NOTES: The bundle is the SAME object importIndopakPages writes into SQLite
- *        (JSON.stringify per page) — content is byte-identical, only the transport
- *        differs. Keeps ~5MB of parsed JSON resident, the same data the import
- *        already parses transiently.
+ * AFFECTS: fills indopakPagesByNum lazily; never writes.
+ * NOTES: [PERF-CHANGE-1] asset-first; per-page cost is one tiny SQLite read
+ *        (no multi-MB JSON parse, no 604-entry fold, no WAL-locked blocking).
  */
 const getIndopakPageFromBundle = async (pageNum: number): Promise<any | null> => {
   const index = await getIndopakPageIndex();
-  return index ? index[pageNum] || null : null;
+  if (!index) return null;
+  if (index[pageNum]) return index[pageNum];
+  const fromAsset = await getIndopakPageDataFromAsset(pageNum);
+  if (fromAsset) { index[pageNum] = fromAsset; return fromAsset; }
+  // Asset read failed (disabled or missing page) — try the legacy table once,
+  // back-fill it, and mark the fallback as used for this process.
+  const fromDb = await getIndopakPageFromDBFallback(pageNum);
+  if (fromDb) {
+    index[pageNum] = fromDb;
+    useIndopakFallback = true;
+    return fromDb;
+  }
+  return null;
 };
 
 /**
