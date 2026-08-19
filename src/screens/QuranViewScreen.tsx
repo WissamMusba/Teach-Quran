@@ -70,11 +70,14 @@ const expandedDrawPullAttempted = new Set<string>();
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
 const MENU_BTN_H = 36;
-const MENU_BUBBLE_W = 6 * MENU_BTN_W + 12;
-// REAL rendered bubble height: 6 buttons × MENU_BTN_H + 2×4 bubble padding + 2×1 border.
-// menuPos uses it so the "above the press point" placement clears the finger (arrow pointing
-// down at it) and the bottom clamp keeps the WHOLE bubble (incl. the Copy button) on-screen.
-const MENU_BUBBLE_H = 6 * MENU_BTN_H + 12;
+// REAL bubble geometry: the 6 buttons render as a compact 2×3 WRAP GRID —
+//   3 buttons per row × MENU_BTN_W, 2 rows × MENU_BTN_H,
+//   + 2×4 bubble padding + 2×1 border = 3×62+10 = 196 wide × 2×36+10 = 82 tall.
+// The _H/_W constants below match that (+2px slack) so menuPos clamps/placement
+// can never overshoot the rendered bubble (the old column-style 6×H formula
+// placed the bubble ~180px above the finger on bottom-half presses).
+const MENU_BUBBLE_W = 3 * MENU_BTN_W + 12;
+const MENU_BUBBLE_H = 2 * MENU_BTN_H + 12;
 const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
@@ -1984,6 +1987,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   when menuY is null.
    * FLOW: upperHalf = menuY < windowH/2; top = menuY+12 (below) or
    *   menuY-12-MENU_BUBBLE_H (above); clamp top to [60, windowH-20-MENU_BUBBLE_H].
+   *   Bubble is a 2×3 wrap grid (~198×84) so both placements fit next to the finger.
    * AFFECTS: menu modal bubble position.
    */
   const menuPos = useMemo(() => {
@@ -2248,7 +2252,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Play</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Bookmark</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={[styles(nightMode).bubbleLabel, { textAlign: 'center' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{studentData?.notes?.[`${currentSurahId}_${menuVerse}`] ? 'View/Edit note' : 'Note'}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={[styles(nightMode).bubbleLabel, styles(nightMode).bubbleLabelWide, { textAlign: 'center' }]} numberOfLines={1}>{studentData?.notes?.[`${currentSurahId}_${menuVerse}`] ? 'View/Edit note' : 'Note'}</Text></TouchableOpacity>
               {/* Record: NOTE — pauses via RAW audioPlayer.pausePlayer(), NOT pauseSurah, so the
                   audioPlayback module's playing/playToken state goes stale (ghost isSurahPlaying) */}
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { dispatch(setPlaying(false)); try { audioPlayer.current.pausePlayer(); } catch {} } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); } setMenuVerse(null); setMenuY(null); }}><IconMic c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Record</Text></TouchableOpacity>
@@ -2330,9 +2334,12 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },
   bubbleWrap: { position: 'absolute', alignItems: 'center' },
-  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  bubble: { flexDirection: 'row', flexWrap: 'wrap', width: 3 * MENU_BTN_W + 10, alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
   bubbleBtn: { width: MENU_BTN_W, height: MENU_BTN_H, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bubbleLabel: { fontSize: 8, color: MENU_LABEL_C, marginTop: 2, fontWeight: '600' },
+  // long label ("View/Edit note") must fit its 62dp button on Android too
+  // (adjustsFontSizeToFit is iOS-only), so give it a fixed smaller font.
+  bubbleLabelWide: { fontSize: 7 },
   bubbleArrow: { position: 'absolute', width: 12, height: 12, borderRadius: 2, transform: [{ rotate: '45deg' }] },
   noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
   noteContainer: { width: '80%', backgroundColor: '#1e1e1e', borderRadius: 10, padding: 20 },
