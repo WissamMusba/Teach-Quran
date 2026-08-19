@@ -44,17 +44,24 @@ export default function SplashScreen({ navigation }: any) {
    *          the listener unsubscribes itself on fire, so the auth restore
    *          (~100-500ms network wait) overlaps the DB work instead of running
    *          after it
-   *       3) await Promise.all([downloadAndCacheQuran(), getSurahs().then(...),
-   *          authPromise]) — seeds SQLite (verses/surahs/mushaf_pages);
-   *          idempotent verse-count check; does NOT throw on partial
-   *          completion (MIN_USABLE_VERSES path); surah names dispatched to
-   *          Redux as map = {surah.id: surah.englishName} (setSurahNames)
-   *       4) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
+   *       3) dbPromise (IIFE): await downloadAndCacheQuran() — seeds SQLite
+   *          (verses/surahs/mushaf_pages); idempotent verse-count check; does
+   *          NOT throw on partial completion (MIN_USABLE_VERSES path) — THEN
+   *          await getSurahs() and dispatch the surah-name map = {surah.id:
+   *          surah.englishName} to Redux (setSurahNames). getSurahs awaits
+   *          initDatabase() itself, so it can never run before the DB is open
+   *          (fix for the cold-start race where getSurahs threw TypeError on
+   *          a null DB handle before initDatabase resolved, spuriously showing
+   *          the retry screen)
+   *       4) await Promise.all([dbPromise, authPromise]) — the sequenced DB
+   *          seed from step 3 runs in PARALLEL with the auth restore from
+   *          step 2
+   *       5) warmIndopakIndexes() fire-and-forget (.catch, NOT awaited) —
    *          pre-warms the indopak page index/verse map + SQLite bulk import
    *          so the first indopak page press never pays those multi-MB costs
-   *       5) navigation.replace(authResult.user ? 'Dashboard' : 'Login') —
+   *       6) navigation.replace(authResult.user ? 'Dashboard' : 'Login') —
    *          replace (not navigate) so Splash is removed from the back stack
-   *       6) On thrown error: unsubscribe any still-pending auth listener,
+   *       7) On thrown error: unsubscribe any still-pending auth listener,
    *          setError(true) + errorMessage, setIsLoading(false); retry screen
    *          shown
    * CALLS: downloadAndCacheQuran -> initDatabase, verse count, fetchMissing +
@@ -83,14 +90,13 @@ export default function SplashScreen({ navigation }: any) {
       });
     });
     try {
-      const [, , authResult] = await Promise.all([
-        downloadAndCacheQuran(),
-        getSurahs().then(surahs => {
-          const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
-          dispatch(setSurahNames(map));
-        }),
-        authPromise,
-      ]);
+      const dbPromise = (async () => {
+        await downloadAndCacheQuran();
+        const surahs = await getSurahs();
+        const map = {}; surahs.forEach((s: any) => map[s.id] = s.englishName);
+        dispatch(setSurahNames(map));
+      })();
+      const [, authResult] = await Promise.all([dbPromise, authPromise]);
       if (!indopakWarmStarted) {
         indopakWarmStarted = true;
         InteractionManager.runAfterInteractions(() => {
@@ -146,7 +152,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#888' },
   errorText: { fontSize: 18, color: '#ff4444', textAlign: 'center', marginBottom: 10, fontWeight: 'bold' },
   errorBox: { maxHeight: 200, width: '100%', backgroundColor: '#1A1A1A', borderRadius: 8, padding: 10, marginBottom: 20 },
-  errorDetail: { fontSize: 12, color: '#1A1A1A' },
+  errorDetail: { fontSize: 12, color: '#E8E8E8' },
   retryBtn: { backgroundColor: '#1C3D72', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8 },
   retryText: { color: '#F8F9FA', fontSize: 16, fontWeight: '700' }
 });

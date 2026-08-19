@@ -613,14 +613,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // the button (a child) receives its own presses. The decorative badge pills and the frame are
   // explicitly pointerEvents="none" (the frame already is, inside OrnamentalFrame) so taps over
   // them fall through to the page rows exactly like the pre-button "none" root did. Holds:
-  //   the OrnamentalFrame page border + up to four corner/bottom badges: Juz pill (top-left),
-  //   pages-left (bottom-right), surah name (top-right), page number (bottom-mid), plus the
-  //   optional reading-mark bookmark button (top-right, left of the surah pill). Badges ALWAYS
-  //   render (header visibility does not gate them) and sit in the page's margin bands OUTSIDE
-  //   the frame: top pills at top: -22 lift them above the top band edge (wrapper marginTop is
-  //   24); bottom pills at bottom: -12 sit snug above the screen edge (wrapper marginBottom is
-  //   14 — pill bottom lands ~2px above the screen edge, pill top rests just inside the frame's
-  //   bottom band — over the frame, never over text). compact (<600px) shrinks the pill styles.
+  //   the OrnamentalFrame page border + the corner badges: Juz pill (top-left) and surah-name
+  //   pill (top-right), plus the optional reading-mark bookmark button (top-right, left of the
+  //   surah pill). Badges ALWAYS render (header visibility does not gate them) and sit in the
+  //   top margin band OUTSIDE the frame: top pills at top: -22 lift them above the top band
+  //   edge (wrapper marginTop is 24). The bottom band (Page N / N pages left pills — removed
+  //   here in v86) is now rendered at screen level by QuranViewScreen's bottom chrome strip.
+  //   compact (<600px) shrinks the pill styles.
   // hideFrame (hidden pre-render harness only): skips the OrnamentalFrame entirely — hidden
   //   off-screen pages must NOT touch the shared frame_cache/SESSION_BOX (a different-height
   //   hidden box would leak into every visible page's frame and squash it). Word measurement
@@ -633,11 +632,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
-      {pageNum > 0 && (
-        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
-        </View>
-      )}
       {firstSurahId > 0 && (
         <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
           <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
@@ -647,11 +641,6 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
-      )}
-      {pageNum > 0 && (
-        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).bottomMid, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
-        </View>
       )}
     </View>
   );
@@ -907,8 +896,6 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   topLeft: { position: 'absolute', top: -22, left: 6 },
   topRight: { position: 'absolute', top: -22, right: 19 },
   readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
-  bottomMid: { position: 'absolute', bottom: -26, alignSelf: 'center' },
-  bottomRight: { position: 'absolute', bottom: -26, right: 6 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   actionPillGap: { marginRight: 6 }
 });

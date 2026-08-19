@@ -144,14 +144,14 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
       return out;
     }
     if (mode === 'page' && qNum >= 1 && qNum <= 610) {
-      out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
+      out.push({ type: 'page', id: qNum, page: Math.max(1, qNum - 1), englishName: `Page ${qNum}`, name: '' });
       scored.forEach(x => out.push(x.item));
       return out;
     }
     if (qNum > 0) {
       const exactIdx = scored.findIndex(x => x.item.id === qNum);
       if (exactIdx >= 0) out.push(scored[exactIdx].item);
-      if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: qNum, englishName: `Page ${qNum}`, name: '' });
+      if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: Math.max(1, qNum - 1), englishName: `Page ${qNum}`, name: '' });
       scored.forEach((x, i) => { if (i !== exactIdx) out.push(x.item); });
       return out;
     }
@@ -174,13 +174,13 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
             renderItem={({ item }: any) => (
               <TouchableOpacity style={[styles.item, isDark && dark.item]} onPress={() => { if (item.type === 'page') { onSelectPage?.(item.page); } else if (item.type === 'juz') { onSelectJuz?.(item.juz); } else { onSelect(item.id); } onClose(); }}>
                 <View style={styles.itemLeft}>
-                  <Text style={[styles.itemNum, isDark && dark.itemNum]}>{item.type === 'page' ? item.page : item.type === 'juz' ? item.juz : item.id}</Text>
+                  <Text style={[styles.itemNum, isDark && dark.itemNum]}>{item.type === 'page' ? item.page + 1 : item.type === 'juz' ? item.juz : item.id}</Text>
                   <View>
                     <Text style={[styles.itemText, isDark && dark.itemText]}>{item.englishName}</Text>
                     {item.type === 'page' ? (
                       <>
                         <Text style={[styles.pageTag, isDark && dark.pageTag]}>PAGE</Text>
-                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to page {item.page}</Text>
+                        <Text style={[styles.itemJuz, isDark && dark.itemJuz]}>Go to page {item.page + 1}</Text>
                       </>
                     ) : item.type === 'juz' ? (
                       <>

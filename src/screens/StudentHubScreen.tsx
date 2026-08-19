@@ -179,7 +179,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
   const handlePageSubmit = () => {
     if (!pageValid) return;
-    navigation.navigate('QuranView' as any, { page: pageNum } as any);
+    navigation.navigate('QuranView' as any, { page: Math.max(1, pageNum - 1) } as any);
     setPageInput('');
     Keyboard.dismiss();
   };
@@ -247,7 +247,7 @@ export default function StudentHubScreen({ navigation }: any) {
             <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>SURAH INDEX</Text>
           </TouchableOpacity>
 
-          {/* 6 — GO TO PAGE # (valid integer 1..610 -> QuranView { page }) */}
+          {/* 6 — GO TO PAGE # (typed display page 1..610 -> QuranView { page: typed-1 } internal) */}
           <View style={[styles(nightMode).row, { borderBottomWidth: 0 }]}>
             <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>GO TO PAGE #</Text>
             <View style={styles(nightMode).pageRowRight}>

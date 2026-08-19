@@ -69,8 +69,12 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const expandedDrawPullAttempted = new Set<string>();
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
+const MENU_BTN_H = 54;
 const MENU_BUBBLE_W = 6 * MENU_BTN_W + 12;
-const MENU_BUBBLE_H = 90;
+// REAL rendered bubble height: 6 buttons × MENU_BTN_H + 2×5 bubble padding + 2×1 border.
+// menuPos uses it so the "above the press point" placement clears the finger (arrow pointing
+// down at it) and the bottom clamp keeps the WHOLE bubble (incl. the Copy button) on-screen.
+const MENU_BUBBLE_H = 6 * MENU_BTN_H + 12;
 const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
@@ -122,8 +126,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
-  // top 24 / bottom band 28px (bottom pills offset -26 — fully below the frame band, ~2px above
-  // the audio bar/screen edge) — no dead space.
+  // top 24 / bottom band 28px (book-safe breathing room under the frame; the page pills that once
+  // hung in this band now live in the screen-level bottom chrome strip) — no dead space.
   const spreadMargin = { marginTop: 24, marginBottom: 28 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
@@ -181,7 +185,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* bottom band 28px, bottom pills offset -26 (fully below the frame band, ~2px above the audio bar/screen edge), no dead space */}
+      {/* bottom band 28px (book-safe breathing room; page pills moved to the screen-level chrome strip) */}
       <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
@@ -422,6 +426,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const layoutTimerRef = useRef<any>(0);
   const layoutQueueRef = useRef<number[]>([]);
+  // v80.3 — IDLE prefetch queue/timer (mirror of the settle-warm drain): armed only after the
+  // reader has sat on a page for 60s, drips the TEXT for the next 30 / previous 5 pages at
+  // 2-per-150ms so long-reading fast scrolls never hit a spinner (see the idle effect below).
+  const idleTimerRef = useRef<any>(0);
+  const idleQueueRef = useRef<number[]>([]);
   // P0-B — cross-settle dedupe for the layout-warm pass: a fast settle re-fire
   // (2-5-2 swipe patterns) must never re-query layout rows it already warmed.
   const layoutWarmByPageRef = useRef<Set<string>>(new Set());
@@ -570,6 +579,55 @@ export default function QuranViewScreen({ navigation, route }: any) {
       layoutQueueRef.current = [];
     };
   }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle, hiddenFocus]);
+
+  /**
+   * WHAT: IDLE 60s background TEXT prefetch — page JSON + verses for the next 30 and
+   *   previous 5 pages, drained 2 pages per 150ms so fast scrolling after a long reading
+   *   session never shows a spinner. WHY: the settle-warm window (±20) finishes within a
+   *   minute of each settle, so pages beyond it still cold-load on first scroll of a
+   *   marathon; this prefetch quietly extends the warm band while the reader is idle.
+   * FLOW: after 60s on the SAME settled page (still focused), build the queue
+   *   [settled+1..settled+30] then [settled-5..settled-1] (clamped to the book, settled
+   *   page skipped) and drain via ONE 2-per-150ms setTimeout chain — ensurePageLoaded /
+   *   ensurePageVersesLoaded dedupe internally (caches + promise refs). If the reader
+   *   loses focus mid-drain, the tick aborts and clears the queue.
+   * CALLS: ensurePageLoaded, ensurePageVersesLoaded.
+   * AFFECTS: pageCache / pageVersesCache (LRU, window-only fills).
+   * NOTES: Gentle pacing on purpose — 2/150ms never contends with header-button presses
+   *   or swipes; runs ONLY while hiddenFocus and fully idle (guard before the timer arms,
+   *   plus a live hiddenFocus re-check on every tick).
+   */
+  useEffect(() => {
+    if (readingMode !== 'page' || settledPage < 1 || !pageNumbers.length || !hiddenFocus) return;
+    const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
+    const buildQueue = () => {
+      const q: number[] = [];
+      for (let p = settledPage + 1; p <= settledPage + 30; p++) {
+        if (p > pageNumbers.length) break;
+        q.push(clampP(p));
+      }
+      for (let p = settledPage - 5; p <= settledPage - 1; p++) {
+        if (p < 1) break;
+        q.push(clampP(p));
+      }
+      return q.filter((p: number) => p !== settledPage);
+    };
+    const tick = () => {
+      clearTimeout(idleTimerRef.current);
+      if (!hiddenFocus) { idleQueueRef.current = []; return; }
+      const batch = idleQueueRef.current.splice(0, 2);
+      for (const p of batch) { ensurePageLoaded(p); ensurePageVersesLoaded(p); }
+      if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
+    };
+    idleTimerRef.current = setTimeout(() => {
+      idleQueueRef.current = buildQueue();
+      if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
+    }, 60000);
+    return () => {
+      clearTimeout(idleTimerRef.current);
+      idleQueueRef.current = [];
+    };
+  }, [settledPage, readingMode, pageNumbers.length, hiddenFocus]);
 
   /**
    * WHAT: Targeted layout warm for EXPLICIT navigation (SurahList surah/page/juz
@@ -1006,8 +1064,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
       if (!cancelled) setCanvasData(await mergeChunks(keys));
     };
-    load();
-    return () => { cancelled = true; };
+    // v80.3 — defer the heavy SQLite+JSON.parse chunk merge behind InteractionManager so
+    // header-button presses right after the page settle are processed FIRST (the sync
+    // merge was starving the JS thread and made immediate taps not register).
+    const handle = InteractionManager.runAfterInteractions(() => { void load(); });
+    return () => { cancelled = true; handle.cancel(); };
   }, [currentPageNum, currentSurahId, splitOn, currentStudent, readingMode, settledPage]);
 
   /**
@@ -1591,7 +1652,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW: no capture happens here — just showShareMenu=true; runShare does the work.
    * CALLED BY: AnimatedHeader onShare (toolbar Share button).
    */
-  const handleSharePage = async () => { setShowShareMenu(true); };
+  const handleSharePage = useCallback(async () => { setShowShareMenu(true); }, []);
 
   /**
    * WHAT: Captures the reading area (viewShotRef wrapper, collapsable={false}) as a
@@ -1948,12 +2009,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
     navigate: (name: string, params?: any) => { closeModal(); if (name === 'QuranView') navigation.navigate('QuranView', params); },
   }), [navigation, closeModal]);
 
+  // Stable AnimatedHeader handlers (AnimatedHeader is React.memo'd): recreated once so the
+  // header only re-renders when its real inputs change, never on every parent commit.
+  const onBack = useCallback(() => navigation.goBack(), [navigation]);
+  const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
+  const onOpenJuz = useCallback(() => { setSearchMode('juz'); setShowList(true); }, []);
+  const onOpenPage = useCallback(() => { setSearchMode('page'); setShowList(true); }, []);
+
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
-        onBack={() => navigation.goBack()} onOpenList={() => { setSearchMode('surah'); setShowList(true); }} onMistakes={openMistakes}
+        onBack={onBack} onOpenList={onOpenList} onMistakes={openMistakes}
         onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings}
-        onOpenJuz={() => { setSearchMode('juz'); setShowList(true); }} onOpenPage={() => { setSearchMode('page'); setShowList(true); }} />
+        onOpenJuz={onOpenJuz} onOpenPage={onOpenPage} />
       <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
@@ -2112,27 +2180,27 @@ export default function QuranViewScreen({ navigation, route }: any) {
         </View>
       )}
 
-      {/* ---- Show/Hide Header oval button — ALWAYS on-screen (both header states); aligned to the
-             SAME visual row as the bottom pills (Page N / N pages left): those pills hang at
-             bottom:-26 inside the page wrapper (wrapper marginBottom 28), so their bottom edge sits
-             ~2px above the screen bottom (header hidden) or ~2px above the audio bar's top edge
-             (header visible — the page's bottom edge then sits directly above the in-flow bar).
-             The toggle is screen-level, so bottom = playerBarH + 2 reproduces that exact row in
-             both states; the pill NEVER lands on the bar's controls (play/prev/next live inside the
-             bar, below its top edge) nor on the frame's bottom band (the 28px margin band is below
-             the frame entirely). One-frame edge case: when the header becomes visible playerBarH
-             may still be 0 → bottom:2, on the row, above where the bar is mounting. ---- */}
-      {/* v78 — PAGE MODE + header SHOWING: the button stretches to fill the 28px margin band —
-             top touching the frame's bottom edge, bottom touching the footer pill row — by pinning
-             the wrap's height to 26 (= 28 band − 2px footer clearance) and letting the button fill
-             it. Other modes/header-hidden keep the compact pill size. */}
+      {/* ---- bottom chrome strip — ONE row flush with the screen/footer bottom edge (header
+             showing → sits on the audio bar's top edge via bottom:playerBarH; hidden → flush at
+             bottom:0, no extra offset). Left→right: hide/show-header button, "Page N" pill,
+             "N pages left in Juz" pill, spread across the width via space-between. The page pills
+             used to live inside MushafPageView; they now render here at screen level (that
+             component is being removed). Only rendered when not drawing/capturing/recording. ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).headerToggleWrap,
-          readingMode === 'page' && isHeaderVisible ? { bottom: playerBarH + 2, height: 26 } : { bottom: (isHeaderVisible ? playerBarH : 0) + 2 }]}
-          pointerEvents="box-none">
-          <TouchableOpacity style={[styles(nightMode).headerToggleBtn, readingMode === 'page' && isHeaderVisible && { flex: 1 }]} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <View style={[styles(nightMode).bottomChromeRow, { bottom: (isHeaderVisible ? playerBarH : 0) }]} pointerEvents="box-none">
+          <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
+          {readingMode === 'page' && headerPage > 0 && (
+            <>
+              <View style={styles(nightMode).bottomChromePill} pointerEvents="none">
+                <Text style={styles(nightMode).bottomChromeText}>Page {headerPage + 1}</Text>
+              </View>
+              <View style={styles(nightMode).bottomChromePill} pointerEvents="none">
+                <Text style={styles(nightMode).bottomChromeText}>{getJuzInfoFromPage(headerPage).pagesLeft} pages left in Juz</Text>
+              </View>
+            </>
+          )}
         </View>
       )}
 
@@ -2182,7 +2250,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Play</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Bookmark</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Note</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={[styles(nightMode).bubbleLabel, { textAlign: 'center' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{studentData?.notes?.[`${currentSurahId}_${menuVerse}`] ? 'View/Edit note' : 'Note'}</Text></TouchableOpacity>
               {/* Record: NOTE — pauses via RAW audioPlayer.pausePlayer(), NOT pauseSurah, so the
                   audioPlayback module's playing/playToken state goes stale (ghost isSurahPlaying) */}
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={async () => { if (menuVerse) { if (isPlaying) { dispatch(setPlaying(false)); try { audioPlayer.current.pausePlayer(); } catch {} } setRecordingVerseKey(`${currentSurahId}_${menuVerse}`); } setMenuVerse(null); setMenuY(null); }}><IconMic c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Record</Text></TouchableOpacity>
@@ -2264,9 +2332,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },
   bubbleWrap: { position: 'absolute', alignItems: 'center' },
-  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 16, padding: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-  bubbleBtn: { width: MENU_BTN_W, height: 66, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  bubbleLabel: { fontSize: 9, color: MENU_LABEL_C, marginTop: 4, fontWeight: '600' },
+  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  bubbleBtn: { width: MENU_BTN_W, height: MENU_BTN_H, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  bubbleLabel: { fontSize: 8.5, color: MENU_LABEL_C, marginTop: 3, fontWeight: '600' },
   bubbleArrow: { position: 'absolute', width: 12, height: 12, borderRadius: 2, transform: [{ rotate: '45deg' }] },
   noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
   noteContainer: { width: '80%', backgroundColor: '#1e1e1e', borderRadius: 10, padding: 20 },
@@ -2274,7 +2342,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  headerToggleWrap: { position: 'absolute', left: 6, alignItems: 'flex-start', zIndex: 9998, elevation: 9998 },
+  bottomChromeRow: { position: 'absolute', left: 6, right: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 9998, elevation: 9998 },
+  bottomChromePill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', elevation: 4 },
+  bottomChromeText: { fontSize: 10, fontWeight: '600', color: (nightMode ? '#7BA7DB' : '#1C3D72') },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },

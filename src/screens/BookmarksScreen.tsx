@@ -216,7 +216,7 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
           <View style={styles(nightMode).metaSeparator} />
           <View style={styles(nightMode).metaItem}>
             <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page : '…'}</Text>
+            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page + 1 : '…'}</Text>
           </View>
         </View>
       </TouchableOpacity>

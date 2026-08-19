@@ -111,7 +111,7 @@ const NoteCard = React.memo((props: { row: NoteRow; surahName: string; nightMode
       {row.parts.map((part, pi) => {
         const audioKey = `${row.verseKey}_${pi}`;
         return part.type === 'text' ? (
-          <Text key={pi} style={[styles(nightMode).noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
+          <Text key={pi} numberOfLines={4} style={[styles(nightMode).noteText, { color: nightMode ? '#e8e8e8' : '#333' }]}>{part.content}</Text>
         ) : (
           <TouchableOpacity key={pi} style={[styles(nightMode).audioRow, { backgroundColor: nightMode ? 'rgba(255,255,255,0.05)' : 'rgba(28,61,114,0.08)' }]} onPress={() => onToggleAudio(part.content, audioKey)}>
             <Text style={styles(nightMode).playBtn}>{playingKey === audioKey ? '⏸' : '▶'}</Text>
@@ -418,16 +418,16 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
 
 const styles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16, paddingBottom: 20 },
-  card: { padding: 16, borderRadius: 14, marginBottom: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  list: { padding: 12, paddingBottom: 12 },
+  card: { padding: 10, borderRadius: 10, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   cardDark: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
   cardLight: { backgroundColor: '#ffffff', borderColor: '#e2e5f0' },
-  cardHeader: { marginBottom: 6 },
-  surahLabel: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginBottom: 4 },
-  surahName: { fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
-  accentLine: { height: 2, width: 34, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 1, marginTop: 8, marginBottom: 10 },
-  noteText: { fontFamily: 'sans-serif', fontSize: 15, lineHeight: 22, marginBottom: 2 },
-  audioRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, marginTop: 8 },
+  cardHeader: { marginBottom: 4 },
+  surahLabel: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 2 },
+  surahName: { fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  accentLine: { height: 2, width: 34, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 1, marginTop: 5, marginBottom: 6 },
+  noteText: { fontFamily: 'sans-serif', fontSize: 14, lineHeight: 19, marginBottom: 1 },
+  audioRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, marginTop: 6 },
   playBtn: { fontSize: 14, marginRight: 8, color: (nightMode ? '#7BA7DB' : '#1C3D72') },
   audioLabel: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 13, fontWeight: '700' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },

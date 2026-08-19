@@ -186,7 +186,7 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
         <View style={styles.metaRow}>
           <MetaChip label="Surah #" value={String(s)} nightMode={nightMode} />
           <MetaChip label="Juz" value={String(juz)} nightMode={nightMode} />
-          <MetaChip label="Page" value={page > 0 ? String(page) : '…'} nightMode={nightMode} />
+          <MetaChip label="Page" value={page > 0 ? String(page + 1) : '…'} nightMode={nightMode} />
           <MetaChip label="Ayat" value={String(v)} nightMode={nightMode} />
         </View>
         {dots.length > 0 || extra > 0 ? (

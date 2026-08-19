@@ -482,6 +482,7 @@ const fetchMushafPages = async () => {
  *        NOTES).
  */
 export const getSurahs = async () => {
+  await initDatabase();
   const res = await getDB().executeSql(`SELECT * FROM surahs ORDER BY id`);
   const s = []; if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) s.push(res[0].rows.item(i)); return s; 
 };
