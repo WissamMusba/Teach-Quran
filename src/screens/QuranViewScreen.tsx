@@ -69,9 +69,9 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const expandedDrawPullAttempted = new Set<string>();
 const IS_TABLET = SCREEN_WIDTH >= 600;
 const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
-const MENU_BTN_H = 54;
+const MENU_BTN_H = 36;
 const MENU_BUBBLE_W = 6 * MENU_BTN_W + 12;
-// REAL rendered bubble height: 6 buttons × MENU_BTN_H + 2×5 bubble padding + 2×1 border.
+// REAL rendered bubble height: 6 buttons × MENU_BTN_H + 2×4 bubble padding + 2×1 border.
 // menuPos uses it so the "above the press point" placement clears the finger (arrow pointing
 // down at it) and the bottom clamp keeps the WHOLE bubble (incl. the Copy button) on-screen.
 const MENU_BUBBLE_H = 6 * MENU_BTN_H + 12;
@@ -126,9 +126,9 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
-  // top 24 / bottom band 28px (book-safe breathing room under the frame; the page pills that once
-  // hung in this band now live in the screen-level bottom chrome strip) — no dead space.
-  const spreadMargin = { marginTop: 24, marginBottom: 28 };
+  // top 24. The bottom band was removed (v87): the frame now extends to the viewport bottom and
+  // the bottom chrome strip floats over the frame's bottom ornament band, touching frame + footer.
+  const spreadMargin = { marginTop: 24 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
@@ -185,8 +185,9 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* bottom band 28px (book-safe breathing room; page pills moved to the screen-level chrome strip) */}
-      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24, marginBottom: 28 }}>
+      {/* bottom band removed (v87): the frame runs to the viewport bottom; the bottom chrome
+          strip hangs over the frame's ornament band, touching frame and footer */}
+      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -581,7 +582,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle, hiddenFocus]);
 
   /**
-   * WHAT: IDLE 60s background TEXT prefetch — page JSON + verses for the next 30 and
+   * WHAT: IDLE 30s background TEXT prefetch — page JSON + verses for the next 30 and
    *   previous 5 pages, drained 2 pages per 150ms so fast scrolling after a long reading
    *   session never shows a spinner. WHY: the settle-warm window (±20) finishes within a
    *   minute of each settle, so pages beyond it still cold-load on first scroll of a
@@ -622,7 +623,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     idleTimerRef.current = setTimeout(() => {
       idleQueueRef.current = buildQueue();
       if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
-    }, 60000);
+    }, 30000);
     return () => {
       clearTimeout(idleTimerRef.current);
       idleQueueRef.current = [];
@@ -2013,15 +2014,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // header only re-renders when its real inputs change, never on every parent commit.
   const onBack = useCallback(() => navigation.goBack(), [navigation]);
   const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
-  const onOpenJuz = useCallback(() => { setSearchMode('juz'); setShowList(true); }, []);
-  const onOpenPage = useCallback(() => { setSearchMode('page'); setShowList(true); }, []);
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
-      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} juz={headerInfo.juz} page={headerInfo.page} pagesLeftInJuz={headerInfo.pagesLeftInJuz} nightMode={nightMode} showInfo={true}
+      <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} nightMode={nightMode}
         onBack={onBack} onOpenList={onOpenList} onMistakes={openMistakes}
-        onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings}
-        onOpenJuz={onOpenJuz} onOpenPage={onOpenPage} />
+        onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings} />
       <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
@@ -2332,9 +2330,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },
   bubbleWrap: { position: 'absolute', alignItems: 'center' },
-  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-  bubbleBtn: { width: MENU_BTN_W, height: MENU_BTN_H, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  bubbleLabel: { fontSize: 8.5, color: MENU_LABEL_C, marginTop: 3, fontWeight: '600' },
+  bubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  bubbleBtn: { width: MENU_BTN_W, height: MENU_BTN_H, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  bubbleLabel: { fontSize: 8, color: MENU_LABEL_C, marginTop: 2, fontWeight: '600' },
   bubbleArrow: { position: 'absolute', width: 12, height: 12, borderRadius: 2, transform: [{ rotate: '45deg' }] },
   noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },
   noteContainer: { width: '80%', backgroundColor: '#1e1e1e', borderRadius: 10, padding: 20 },

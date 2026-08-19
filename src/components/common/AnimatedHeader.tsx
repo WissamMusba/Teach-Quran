@@ -1,6 +1,6 @@
 /**
  * FILE: src/components/common/AnimatedHeader.tsx
- * ROLE: The Quran reader's top bar — surah name/info line, 5 labeled action buttons (MISTAKES/SHARE/NOTES/BOOKMARKS/SETTINGS), and an animated hide/show (slide-up + height collapse). The bottom info line ("Juz N · Page N · X left in Juz") can be suppressed via showInfo (the "Show page info" settings toggle).
+ * ROLE: The Quran reader's top bar — surah name + 5 labeled action buttons (MISTAKES/SHARE/NOTES/BOOKMARKS/SETTINGS), and an animated hide/show (slide-up + height collapse). The former "Juz N · Page N · X left in Juz" info line was removed (v87) to slim the header; page/juz info now lives in the bottom chrome strip.
  * DEPENDS ON: nothing external — pure presentational; all data and callbacks arrive via props. react-native Animated/Easing + useWindowDimensions; react-native-svg for inline vector icons (no icon lib); LayoutChangeEvent measures own content height for the collapse animation.
  *
  * PERFORMANCE (2026-08-08):
@@ -33,14 +33,10 @@ const C_BOOKMARKS = '#FFD700';
 const C_SETTINGS = '#8A8A8A';
 
 /**
- * PROPS — all data/callbacks supplied by QuranViewScreen.tsx:508:
+ * PROPS — all data/callbacks supplied by QuranViewScreen.tsx:
  *   visible: 1 = show / 0 = hide — drives the parallel slide-up + height-collapse animation.
  *   surahName: current surah display name (header title).
- *   surahId / juz / page / pagesLeftInJuz: info-line values; the "· Page N · X left in Juz" suffix is hidden when page <= 0 (ayah/continuous mode passes page=0).
- *   showInfo: optional (default true) — when false the whole bottom info line is NOT rendered (wired to the "Show page info" settings toggle); the top row always renders.
- *   onOpenJuz / onOpenPage: optional — when provided the "Juz N" / "Page X" info-line texts become tappable
- *   to open the SurahList picker in juz/page priority mode (QuranViewScreen wires them to
- *   setSearchMode('juz'|'page') + setShowList(true)).
+ *   surahId: used for the "Surah N ☰" subtitle under the title.
  *   nightMode: theme switch — background (#1a1a2e / #f5f5f5), title and subtitle colors.
  *   onBack → navigate('Dashboard'); onOpenList → setShowList(true) (in-screen surah list);
  *   onMistakes → 'Mistakes'; onShare → handleSharePage (screenshot via viewShot + Share.open); onNotes → 'Notes';
@@ -48,10 +44,9 @@ const C_SETTINGS = '#8A8A8A';
  *   NOTE: the SPREAD toggle is NOT in the header anymore — it lives in MushafPageView's bottom-left actionPills (tablet only).
  */
 interface Props {
-  visible: boolean; surahName: string; surahId: number; juz: number; page: number; pagesLeftInJuz: number; nightMode: boolean; showInfo?: boolean;
+  visible: boolean; surahName: string; surahId: number; nightMode: boolean;
   onBack: () => void; onOpenList: () => void; onMistakes: () => void;
   onShare: () => void; onNotes: () => void; onBookmarks: () => void; onSettings: () => void;
-  onOpenJuz?: () => void; onOpenPage?: () => void;
 }
 
 // Inline SVG icons (no icon lib) — shared stroke config `st`; back arrow is 28px, the rest 20px.
@@ -109,9 +104,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const native = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
   const layout = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
 
-  // Cache identity of the content (info line presence + title) — when this OR the window width changes,
+  // Cache identity of the content (title) — when this OR the window width changes,
   // the next layout event triggers ONE re-measure; otherwise every layout event is ignored.
-  const contentKey = useMemo(() => `${p.showInfo === false ? 'noinfo' : 'info'}|${p.surahName}`, [p.showInfo, p.surahName]);
+  const contentKey = useMemo(() => `${p.surahName}`, [p.surahName]);
 
   const onContentLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -157,10 +152,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   // Per-action button: icon above label, padded hit area (48dp touch target — Android's
   // recommended minimum) so presses register even slightly off-center; no border/outline
   // anywhere — the icon + label ARE the button.
-  const Btn = ({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) => (
+  const Btn = ({ icon, label, onPress, labelStyle }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any }) => (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
       {icon}
-      <Text style={[s.iconLab, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+      <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
     </TouchableOpacity>
   );
 
@@ -188,25 +183,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} />
             <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
-            <Btn label="SETTINGS" icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
+            <Btn label="SETTINGS" labelStyle={s.iconLabTight} icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
           </View>
         </View>
-        {p.showInfo !== false && (
-          <View style={s.infoRow}>
-            <TouchableOpacity onPress={p.onOpenJuz} disabled={!p.onOpenJuz} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-              <Text style={[s.infoLine, { color: subColor }]}>Juz {p.juz}</Text>
-            </TouchableOpacity>
-            {p.page > 0 && (
-              <>
-                <Text style={[s.infoLine, { color: subColor }]}> · </Text>
-                <TouchableOpacity onPress={p.onOpenPage} disabled={!p.onOpenPage} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Text style={[s.infoLine, { color: subColor }]}>Page {p.page}</Text>
-                </TouchableOpacity>
-                <Text style={[s.infoLine, { color: subColor }]}> · {p.pagesLeftInJuz} left in Juz</Text>
-              </>
-            )}
-          </View>
-        )}
       </Animated.View>
     </Animated.View>
   );
@@ -214,16 +193,17 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
-  topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingTop: 6, paddingBottom: 6 },
-  backBtn: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
-  titleBlock: { flex: 1, paddingVertical: 2 },
-  surahName: { fontSize: 17, fontWeight: 'bold' },
-  surahSub: { fontSize: 11, marginTop: 2 },
+  topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingTop: 4, paddingBottom: 4 },
+  backBtn: { minHeight: 42, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  titleBlock: { flex: 1, paddingVertical: 1 },
+  surahName: { fontSize: 16, fontWeight: 'bold' },
+  surahSub: { fontSize: 10, marginTop: 1 },
   iconsRow: { flex: 1.8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
-  iconBtn: { flex: 1, minWidth: 44, maxWidth: 60, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  iconLab: { fontSize: 8.5, marginTop: 2, fontWeight: '600' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, paddingTop: 2 },
-  infoLine: { fontSize: 11 },
+  iconBtn: { flex: 1, minWidth: 44, maxWidth: 60, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  iconLab: { fontSize: 8, marginTop: 1 },
+  // SETTINGS sits next to BOOKMARKS; slightly smaller + side margins so the full word always
+  // shows and the two labels never touch on narrow screens.
+  iconLabTight: { fontSize: 7.5, marginHorizontal: 2 },
 });
 
 export default React.memo(AnimatedHeader);
