@@ -9,7 +9,7 @@
  * DEPENDS ON: props onOpenQari/onOpenLoopSettings/onResume/onPlaySurahStart/onPlayPageStart/onPlayNewSurah/
  *             canPlayNewSurah/onPrevVerse/onNextVerse/canStep/isPlaying/canResume/nightMode/surahId;
  *             Redux audioSlice.currentQari (read-only); react-native-svg for the inline control icons.
- * USED BY: src/screens/QuranViewScreen.tsx — `{isHeaderVisible && <AudioPlayerBar ... />}`.
+ * USED BY: src/screens/QuranViewScreen.tsx — `{!recordingVerseKey && isHeaderVisible && <AudioPlayerBar ... />}`.
  */
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -73,19 +73,19 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageSt
         </TouchableOpacity>
       </View>
       <View style={styles.ctrlRow}>
-        <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <IconPrevTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85}>
-          {isPlaying ? <IconPause c="#121212" s={22} /> : <IconPlay c="#121212" s={22} />}
+        <TouchableOpacity style={[styles.playCircle, theme.resumeBtn]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          {isPlaying ? <IconPause c="#121212" s={18} /> : <IconPlay c="#121212" s={18} />}
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.circle, theme.ctrl, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <IconNextTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.action, loopEnabled ? theme.ctrl : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.action, loopEnabled ? theme.ctrl : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8 }}>
           <Text style={[styles.actionText, theme.ctrlText, !loopEnabled && { color: disC }]}>{loopEnabled && isPlaying ? 'LOOP END' : 'LOOP START'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.action, canPlayNewSurah ? theme.ctrl : styles.disabled]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.action, canPlayNewSurah ? theme.ctrl : styles.disabled]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8 }}>
           <Text style={[styles.actionText, theme.ctrlText, !canPlayNewSurah && { color: disC }]}>SURAH START</Text>
         </TouchableOpacity>
       </View>
@@ -94,18 +94,18 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageSt
 };
 
 const styles = StyleSheet.create({
-  container: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 5 },
-  qariRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  container: { borderTopWidth: 1, paddingHorizontal: 10, paddingVertical: 3 },
+  qariRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   qariInfo: { flex: 1 },
-  qariName: { fontSize: 14, fontWeight: 'bold' },
-  surahName: { fontSize: 11, marginTop: 1 },
-  changeBtn: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
-  changeText: { fontSize: 10, fontWeight: '700' },
-  ctrlRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  circle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  playCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  action: { flex: 1, minHeight: 34, borderRadius: 10, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
-  actionText: { fontSize: 10, fontWeight: '700' },
+  qariName: { fontSize: 12, fontWeight: 'bold' },
+  surahName: { fontSize: 10 },
+  changeBtn: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
+  changeText: { fontSize: 9, fontWeight: '700' },
+  ctrlRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  circle: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  playCircle: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  action: { flex: 1, minHeight: 22, borderRadius: 10, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
+  actionText: { fontSize: 9, fontWeight: '700' },
   disabled: { opacity: 0.45 },
 });
 

@@ -129,8 +129,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
   // Spread margins: consistent with the single-page wrapper — horizontal 10 (tablet) / 6 (phone),
-  // top 24. The bottom band was removed (v87): the frame now extends to the viewport bottom and
-  // the bottom chrome strip floats over the frame's bottom ornament band, touching frame + footer.
+  // top 24. v90: the frame fills the space above the in-flow bottom strip + audio bar; the page
+  // pills live in that strip, never on the frame.
   const spreadMargin = { marginTop: 24 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
@@ -188,8 +188,8 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* bottom band removed (v87): the frame runs to the viewport bottom; the bottom chrome
-          strip hangs over the frame's ornament band, touching frame and footer */}
+      {/* v90: the frame fills the space above the in-flow bottom strip + audio bar; the page
+          pills live in that strip below the frame, never overlapping its ornament band */}
       <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 10 : 6, marginTop: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
@@ -255,9 +255,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [shareBookmarks, setShareBookmarks] = useState(true);
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const [flashingSurah, setFlashingSurah] = useState(0);
-  // Measured rendered height of the in-flow AudioPlayerBar (0 while absent) — the header-toggle
-  // pill anchors to the margin band above the bar, so it must never land on the bar's controls.
-  const [playerBarH, setPlayerBarH] = useState(0);
   const flatListRef = useRef<any>(null);
   // P0-A — the page-mode FlatList gets its own ref so landOnPage can scroll the MOMENT it is
   // invoked without ambiguity about which list is mounted (the ayah list shares flatListRef).
@@ -2173,37 +2170,36 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share spinner overlay */}
       {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
-      {/* bottom playback bar — visible only while the header is visible and no note is being recorded
-          (hides together with the header, incl. via the edge/dead taps). Layout-only wrapper measured
-          via onLayout (playerBarH) so the header-toggle pill can anchor above the bar, never on it. */}
-      {!recordingVerseKey && isHeaderVisible && (
-        <View onLayout={(e: any) => { const h = e.nativeEvent.layout.height; if (h > 0 && h !== playerBarH) setPlayerBarH(h); }}>
-          <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />
-        </View>
-      )}
-
-      {/* ---- bottom chrome strip — ONE row flush with the screen/footer bottom edge (header
-             showing → sits on the audio bar's top edge via bottom:playerBarH; hidden → flush at
-             bottom:0, no extra offset). Left→right: hide/show-header button, "Page N" pill,
-             "N pages left in Juz" pill, spread across the width via space-between. The page pills
-             used to live inside MushafPageView; they now render here at screen level (that
-             component is being removed). Only rendered when not drawing/capturing/recording. ---- */}
+      {/* ---- bottom chrome strip — IN-FLOW row between the frame area and the audio bar (v90).
+           Was an absolute overlay (v87) that floated on top of the frame's bottom ornament band;
+           now it occupies its own row, so the pills NEVER overlap the frame. When the header is
+           hidden the audio bar disappears and this strip is the last in-flow element (flush with
+           the screen bottom). Left→right: hide/show-header button (keeps its own look), "Page N"
+           pill, "N pages left in Juz" pill — the pills are styled like the mushaf's upper pills
+           (subtle translucent chip + grey text), matching MushafPageView's badgePill/badgeText. ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={[styles(nightMode).bottomChromeRow, { bottom: (isHeaderVisible ? playerBarH : 0) }]} pointerEvents="box-none">
+        <View style={styles(nightMode).bottomChromeRow} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
           {readingMode === 'page' && headerPage > 0 && (
             <>
-              <View style={styles(nightMode).bottomChromePill} pointerEvents="none">
+              <View style={[styles(nightMode).bottomChromePill, { borderColor: (nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)') }]} pointerEvents="none">
                 <Text style={styles(nightMode).bottomChromeText}>Page {headerPage + 1}</Text>
               </View>
-              <View style={styles(nightMode).bottomChromePill} pointerEvents="none">
+              <View style={[styles(nightMode).bottomChromePill, { borderColor: (nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)') }]} pointerEvents="none">
                 <Text style={styles(nightMode).bottomChromeText}>{getJuzInfoFromPage(headerPage).pagesLeft} pages left in Juz</Text>
               </View>
             </>
           )}
         </View>
+      )}
+
+      {/* bottom playback bar — visible only while the header is visible and no note is being recorded
+          (hides together with the header, incl. via the edge/dead taps). In-flow: the frame (flex:1)
+          and the chrome strip above it reflow automatically around the bar's (compact, v90) height. */}
+      {!recordingVerseKey && isHeaderVisible && (
+        <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />
       )}
 
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}
@@ -2347,9 +2343,11 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  bottomChromeRow: { position: 'absolute', left: 6, right: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 9998, elevation: 9998 },
-  bottomChromePill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', elevation: 4 },
-  bottomChromeText: { fontSize: 10, fontWeight: '600', color: (nightMode ? '#7BA7DB' : '#1C3D72') },
+  bottomChromeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingVertical: 3 },
+  // Pills mirror MushafPageView's upper pills (badgePill/badgeText): subtle translucent chip,
+  // thin frame-coloured border, grey text (v90 — previously blue-on-white, floating on the frame).
+  bottomChromePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)', elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+  bottomChromeText: { fontSize: 9.5, fontWeight: '600', color: (nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)') },
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
