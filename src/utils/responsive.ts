@@ -28,15 +28,14 @@ export const getMushafFontSize = (headerVisible?: boolean): number => {
     if (SCREEN_WIDTH < 900) return 38; 
     return 48; // For very large screens (was 32)
   })();
-  // NOTE: headerVisible must NOT change the size here. The page layout cache persists ONE set
-  // of measured line widths shared by both header states, and the cache-hit scale math assumes
-  // they were measured at the current render size — a hidden-header size bump (+1/+3) made
-  // hidden-header pages under-scale and spill past the padding into the frame. Both states
-  // render at the same size now, so the fit is identical (and correct). Vertical room is NOT
-  // handled here either: MushafPageView's pitchScale squeezes line pitch when the shorter
-  // header-visible box demands it, while fontScale keeps the font full-size down to a pitch
-  // floor — so this shared size stays the same in both header states by design.
-  return base;
+  // NOTE: the layout cache persists NORMALIZED (font-size-independent) line-width sums shared by
+  // both header states, and the vertical fit is folded into that normalization base (layoutVer
+  // 4+), so the two states MAY render at different sizes — the replay math scales the sums to
+  // the current size and the fit re-runs live whenever headerVisible (or box height) drifts
+  // from the stored fit. Hence the hidden-header bump: with the header hidden the page box is
+  // ~124px taller, so the text gets +2 for free with no spill risk (the live fit's
+  // pitchScale/fontScale keep the line stack inside the box).
+  return headerVisible ? base : base + 2;
 };
 
 export const getMushafLineHeight = (headerVisible?: boolean): number => {
