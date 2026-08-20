@@ -69,7 +69,8 @@ const hasArabicLetters = (t: string) => /[\u0621-\u064A\u0671-\u06D3\u06D5\u06FA
 // Sparse-page heuristic: pages with fewer than SPARSE_WORD_THRESHOLD (50) words get
 // SPARSE_FONT_BOOST (1.3x) applied to fontSize AND lineHeight, plus space-around justification
 // at the line level — typically short surah-opening pages that would otherwise look lost.
-const SPARSE_WORD_THRESHOLD = 50;
+// Exported so the startup prefetcher (src/utils/startupPrefetch.ts) reuses the exact same rule.
+export const SPARSE_WORD_THRESHOLD = 50;
 const SPARSE_FONT_BOOST = 1.3;
 
 // Session-wide font-settle gate (FIX 2): only the FIRST MushafPageView mount of a session waits
@@ -495,13 +496,13 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     } else {
       getPageLayoutCache(pageNum, textStyle, false, keySparse, keyW).then(applyHit);
     }
-    // (b/c) Deferred ±2 preload: warms the neighbour rows into layoutCacheMem in ONE query,
+    // (b/c) Deferred ±4 preload: warms the neighbour rows into layoutCacheMem in ONE query,
     // pushed to runAfterInteractions so it can never block the render. Keys already present in
     // layoutCacheMem are re-stored with identical values (no-op) — only genuinely-missing keys
     // ever touch SQLite.
     InteractionManager.runAfterInteractions(() => {
       if (cancelled) return;
-      preloadPageLayoutCacheRange(Math.max(1, pageNum - 2), pageNum + 2, textStyle, false, keySparse, keyW);
+      preloadPageLayoutCacheRange(Math.max(1, pageNum - 4), pageNum + 4, textStyle, false, keySparse, keyW);
     });
     return () => { cancelled = true; };
   }, [pageNum, textStyle, pageWidth, fixNonce, headerVisible]);

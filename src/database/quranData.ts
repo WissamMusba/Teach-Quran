@@ -664,7 +664,46 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
   const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
   const out: any[] = [];
   if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));
+  // Memoize under the script-prefixed key so getMemoizedVersesByPage (Tier 3-A reader seed and
+  // the startup prefetcher) can peek uthmani pages synchronously — mirror of the indopak branch.
+  // FIFO eviction under VERSES_BY_PAGE_MEMO_MAX (same pattern as memoizeMushafPage).
+  if (versesByPageMemo.size >= VERSES_BY_PAGE_MEMO_MAX) versesByPageMemo.delete(versesByPageMemo.keys().next().value);
+  versesByPageMemo.set(`uthmani:${pageNum}`, out);
   return out;
+};
+
+/**
+ * WHAT: SYNCHRONOUS read-only peek into mushafPageMemo (the module-level
+ *       `${script}:${page}` page-JSON memo) — NEVER fetches, NEVER seeds: the
+ *       Tier 3-A mount-seed path for the reader, which hydrates its pageCache
+ *       from pages this process already loaded. Returns undefined when the
+ *       page was never memoized (caller keeps the empty-cache behavior).
+ * FLOW: build the exact same memo key getMushafPageData uses
+ *       (`${isIndopakStyle(mushaf) ? 'indopak' : 'uthmani'}:${pageNum}`) and
+ *       Map.get it.
+ * CALLED BY: QuranViewScreen.tsx (Tier 3-A mount seed — pageCache).
+ * AFFECTS: none (read-only memo hit; empty pages are never memoized, so a
+ *          return here is always renderable data).
+ */
+export const getMemoizedPageData = (pageNum: number, mushaf?: string): any | undefined => {
+  const indopak = isIndopakStyle(mushaf);
+  const memoKey = `${indopak ? 'indopak' : 'uthmani'}:${pageNum}`;
+  return mushafPageMemo.get(memoKey);
+};
+
+/**
+ * WHAT: SYNCHRONOUS read-only peek into the page -> verses memos (indopak:
+ *       indopakPageVerseCache page-keyed record; uthmani: versesByPageMemo
+ *       `${script}:${page}` map) — NEVER fetches, NEVER seeds. The Tier 3-A
+ *       mount-seed path for the reader's pageVersesCache.
+ * FLOW: indopak -> indopakPageVerseCache[pageNum]; uthmani -> the same
+ *       script-prefixed key getVersesByPage's uthmani path memoizes under.
+ * CALLED BY: QuranViewScreen.tsx (Tier 3-A mount seed — pageVersesCache).
+ * AFFECTS: none (read-only memo hits).
+ */
+export const getMemoizedVersesByPage = (pageNum: number, mushaf?: string): any[] | undefined => {
+  if (isIndopakStyle(mushaf)) return indopakPageVerseCache[pageNum];
+  return versesByPageMemo.get(`uthmani:${pageNum}`);
 };
 
 /**

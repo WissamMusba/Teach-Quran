@@ -20,6 +20,15 @@ export const SPLIT_MIN_WIDTH = 768;
 // CALLED BY: MushafPageView.tsx (padSide — container paddingHorizontal + lineW), stroke.ts (hPadFor).
 export const textInsetFor = (w: number) => Math.max(0.067 * w, frameInsetFor(w));
 
+// WHAT: Effective single-page width for layout-cache keys — the width a MushafPageView renders
+//       at: the whole window in single mode, or half the window minus the gutter in split mode.
+//       Mirrors QuranViewScreen EXACTLY: its pageW = Math.round((winW - GUTTER) / 2) (line 329)
+//       and its layout-cache key width keyW = Math.round(splitOn ? pageW : winW) (line 532) — so
+//       callers pass Math.round(pageWFor(winW, splitOn)) and preloads hit the SAME
+//       page_layout_cache rows the reader reads/writes.
+// CALLED BY: startupPrefetch.ts (per-page layout-cache preload width).
+export const pageWFor = (winW: number, splitOn: boolean): number => splitOn ? (winW - GUTTER) / 2 : winW;
+
 // WHAT: Maps a real page number to its FlatList index: p <= 1 -> 0 (page 1 is a lone right page), else floor(p/2).
 // CALLED BY: QuranViewScreen scroll math — onMomentumScrollEnd, handleSelectPage, deep-link, scroll-sync.
 // AFFECTS: Which FlatList item (spread pair) is scrolled to.

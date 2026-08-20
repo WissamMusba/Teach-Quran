@@ -159,11 +159,14 @@ export default function StudentHubScreen({ navigation }: any) {
   // "Set Reading Mark" menu in the reader. Enabled only when it exists.
   const dailyTarget = lrSurah > 0 && lrVerse > 0 ? { surah: lrSurah, verse: lrVerse } : null;
   const [dailyPage, setDailyPage] = useState(0);
+  // dailyPageFor pins the (surah:verse) key a resolved dailyPage belongs to — if the reading
+  // mark changes between resolve and press, the page is stale and we fall back to openVerse.
+  const [dailyPageFor, setDailyPageFor] = useState('');
   useEffect(() => {
     let cancelled = false;
-    if (!dailyTarget) { setDailyPage(0); return; }
+    if (!dailyTarget) { setDailyPage(0); setDailyPageFor(''); return; }
     getVersePage(lrSurah, lrVerse, textStyle).then(pg => {
-      if (!cancelled) setDailyPage(pg);
+      if (!cancelled) { setDailyPage(pg); setDailyPageFor(`${lrSurah}:${lrVerse}`); }
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [dailyTarget, lrSurah, lrVerse, textStyle]);
@@ -212,7 +215,7 @@ export default function StudentHubScreen({ navigation }: any) {
         <View style={[styles(nightMode).card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
           {/* 1 — RESUME: local last page VIEWED (falls back to lastRead, else page 1). */}
           <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }]}
-            onPress={() => resumeInfo && openVerse(resumeInfo.surah, resumeInfo.verse)} activeOpacity={0.7}>
+            onPress={() => resumeInfo && navigation.navigate('QuranView' as any, { page: resumeInfo.page } as any)} activeOpacity={0.7}>
             <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>RESUME</Text>
             <Text style={[styles(nightMode).rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>
@@ -232,7 +235,9 @@ export default function StudentHubScreen({ navigation }: any) {
 
           {/* 3 — DAILY RECITATION (the lastRead reading mark; enabled only when it exists) */}
           <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }, !dailyTarget && styles(nightMode).rowDisabled]}
-            onPress={() => dailyTarget && openVerse(dailyTarget.surah, dailyTarget.verse)} disabled={!dailyTarget} activeOpacity={0.7}>
+            onPress={() => dailyTarget && (dailyPage > 0 && dailyPageFor === `${dailyTarget.surah}:${dailyTarget.verse}`
+              ? navigation.navigate('QuranView' as any, { page: dailyPage } as any)
+              : openVerse(dailyTarget.surah, dailyTarget.verse))} disabled={!dailyTarget} activeOpacity={0.7}>
             <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>DAILY RECITATION</Text>
             <Text style={[styles(nightMode).rowSub, { color: subC }]} numberOfLines={1}>{dailySubtitle}</Text>
           </TouchableOpacity>

@@ -43,7 +43,8 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage } from '../database/quranData';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage } from '../database/quranData';
+import { cancelStartupPrefetch } from '../utils/startupPrefetch';
 import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
@@ -61,7 +62,7 @@ import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
 import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, cancelLoop, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
-import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor } from '../utils/mushafLayout';
+import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor, pageWFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Feature 1: session-wide "already pulled on toolbar-expand" set (${sid}/${range|key}).
 // Skips the SQLite probe + Firestore read on repeat toolbar expands; cleared on app foreground
@@ -116,6 +117,11 @@ const pageLastVerseFromPageData = (pd: any) => {
    * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
    *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
    */
+// Indopak font family list — mirrors quranData.ts isIndopakStyle (NOT exported there) and
+// startupPrefetch.ts. Keep in sync if a font is ever added/removed. Module scope so the mount
+// frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
+const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
+
 const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
@@ -233,6 +239,38 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
  */
 export default function QuranViewScreen({ navigation, route }: any) {
   const dispatch = useDispatch();
+  // ---- mount-at-resume-page (Tier 3-A): the {page} route param (StudentHub RESUME / DAILY
+  // RECITATION / GO TO PAGE) becomes the SYNCHRONOUS landing page — currentPageNum, settledPage,
+  // headerPage, the cache seed window and the FlatList initialScrollIndex all derive from it on
+  // the mount frame. 1 = no param: normal mounts keep today's async lastRead landing untouched.
+  // Clamped to the style-aware book length (610 indopak / 604 uthmani) so a GO-TO-PAGE input
+  // beyond the uthmani total can never emit an out-of-range initialScrollIndex.
+  const seedTextStyle = useSelector((s: any) => s.quran?.textStyle);
+  const seedTotalPages = indopakFonts.includes(seedTextStyle) ? 610 : 604;
+  const initialLandPage = Math.max(1, Math.min(seedTotalPages, Number(route?.params?.page) || 1));
+  // Tier 3-A seed: hydrate pageCache / pageVersesCache (and their LRU order refs) from the
+  // quranData module memos on the mount frame — the memos hold every page this process already
+  // read, so a resume mount renders the target page instantly instead of refetching. One-shot
+  // (empty deps): captures the mount-frame script + page; empty memos yield {} exactly like the
+  // old initializers, and the textStyle-wipe effect still owns later cache resets.
+  const initialSeed = useMemo(() => {
+    const cache: Record<number, any> = {};
+    const vcache: Record<number, any[]> = {};
+    for (let pg = Math.max(1, initialLandPage - 3); pg <= Math.min(initialLandPage + 3, seedTotalPages); pg++) {
+      const pd = getMemoizedPageData(pg, seedTextStyle); if (pd) cache[pg] = pd;
+      const vs = getMemoizedVersesByPage(pg, seedTextStyle); if (vs) vcache[pg] = vs;
+    }
+    return { cache, vcache, keys: Object.keys(cache).map(Number), vkeys: Object.keys(vcache).map(Number) };
+  }, []);
+  // Cancel the startup prefetch queue the moment the reader opens — its background downloads
+  // must not compete with the reader's own warming (settle-warm + idle prefetch own the same
+  // SQLite/JS budget). The programmaticScrollRef stamp (initialLandPage > 1) shields the
+  // mount-time initialScrollIndex position from a spurious onMomentumScrollEnd (which could
+  // otherwise yank an odd split-page landing to its pair's left page).
+  useEffect(() => {
+    cancelStartupPrefetch();
+    if (initialLandPage > 1) programmaticScrollRef.current = Date.now();
+  }, []);
   // ---- local state: drawing canvas, modals, header, pagination, page caches ----
   const [isDrawing, setIsDrawing] = useState(false);
   const [showList, setShowList] = useState(false);
@@ -246,10 +284,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [currentPageNum, setCurrentPageNum] = useState(1);
-  const [pageCache, setPageCache] = useState<any>({});
+  const [currentPageNum, setCurrentPageNum] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : 1));
+  const [pageCache, setPageCache] = useState<any>(() => initialSeed.cache);
   const [headerSurahId, setHeaderSurahId] = useState(1);
-  const [headerPage, setHeaderPage] = useState(0);
+  const [headerPage, setHeaderPage] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : 0));
   const [menuVerse, setMenuVerse] = useState<number | null>(null);
   const [noteVerseKey, setNoteVerseKey] = useState<number | null>(null);
   const [menuY, setMenuY] = useState<number | null>(null);
@@ -273,7 +311,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [canvasData, setCanvasData] = useState<any>({ highlights: {}, notes: {}, drawings: {} });
   const deepLinkLoadedRef = useRef(false);
   const pagePromiseRef = useRef({});
-  const [pageVersesCache, setPageVersesCache] = useState<any>({});
+  const [pageVersesCache, setPageVersesCache] = useState<any>(() => initialSeed.vcache);
   const pageVersesPromiseRef = useRef({});
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const headerVisibleBeforeDrawRef = useRef(true);
@@ -281,8 +319,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const viewShotRef = useRef<any>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
-  const pageCacheOrderRef = useRef<number[]>([]);
-  const pageVersesOrderRef = useRef<number[]>([]);
+  const pageCacheOrderRef = useRef<number[]>(initialSeed.keys);
+  const pageVersesOrderRef = useRef<number[]>(initialSeed.vkeys);
   const currentPageNumRef = useRef(currentPageNum);
   // Timestamp of the last PROGRAMMATIC FlatList scroll (scrollToIndex/scrollToOffset)
   // — onMomentumScrollEnd ignores momentum for 400ms after one, so the stale settle
@@ -319,14 +357,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // effect's cleanup so a re-run/mode-switch never fires the previous refresh's work).
   let syncRefreshHandle: { cancel: () => void } | null = null;
   const bgColor = nightMode ? '#121212' : '#FFFFFF';
-  const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
   const isIndopak = indopakFonts.includes(textStyle);
   // ---- derived: page count (610 indopak vs 604), split-mode geometry ----
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
   const { width: winW, height: winH } = useWindowDimensions();
   const splitOn = !!(useSelector((s: any) => s.settings)?.mushafSplit && winW >= SPLIT_MIN_WIDTH);
   const splitCapable = winW >= SPLIT_MIN_WIDTH;
-  const pageW = Math.round((winW - GUTTER) / 2);
+  const pageW = Math.round(pageWFor(winW, splitOn));
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
@@ -510,7 +547,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // rendering keeps up with the flick, but the HEAVY per-page effects (prefetch window, canvas
   // drawing refresh, lastRead flush) only act once the page survives 120ms without another
   // momentum settle — a fast fling past N pages runs them ONCE for the final page, not N times.
-  const [settledPage, setSettledPage] = useState(1);
+  const [settledPage, setSettledPage] = useState(() => (route?.params?.page !== undefined ? initialLandPage : 1));
   const settleTimerRef = useRef<any>(null);
   // v76.2 — last LIVE scroll offset of the page FlatList (updated by its onScroll handler,
   // scrollEventThrottle=16). Used to self-validate onMomentumScrollEnd: the inverted list can
@@ -2075,6 +2112,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
             {readingMode === 'page' && (
               <FlatList ref={pageFlatListRef} data={splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers}
                 keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
+                {...(initialLandPage > 1 && initialLandPage <= pageNumbers.length ? { initialScrollIndex: splitOn ? pairIndexForPage(initialLandPage) : initialLandPage - 1 } : {})}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
                 removeClippedSubviews={true} scrollEventThrottle={16}

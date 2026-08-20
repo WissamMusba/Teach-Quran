@@ -6,14 +6,6 @@
       "sha1": "a2ff01e5359a9cb93b9f67d0d9268c2c4c9e62d5"
     },
     {
-      "path": "assets/fonts/Amiri-Regular.ttf",
-      "sha1": "a5f4fe8279d587ca8e65b01159c405788850c6d3"
-    },
-    {
-      "path": "assets/fonts/Harmattan-Regular.ttf",
-      "sha1": "8d06a7db0fb2c3f9a961a67c46a3a0be6c3612cf"
-    },
-    {
       "path": "assets/fonts/KFGQPCUthmanicScriptHAFS.ttf",
       "sha1": "672e441d0f956bee65d6f87d9aa08b676d5300aa"
     },
@@ -22,20 +14,8 @@
       "sha1": "551d6200bc7d658f60d0bc1cca3640382ce8b976"
     },
     {
-      "path": "assets/fonts/Me_Quran.ttf",
-      "sha1": "98bbd32a4db4ef3f24283dc012fc991452c80eb7"
-    },
-    {
-      "path": "assets/fonts/NotoNaskhArabic-Regular.ttf",
-      "sha1": "75368e3d8f72029a43249839baa4984cc26a64d3"
-    },
-    {
       "path": "assets/fonts/PDMSSaleemQuranFont.ttf",
       "sha1": "d869616ff9eb632fc1c48a82af50bda5e068d81b"
-    },
-    {
-      "path": "assets/fonts/ScheherazadeNew-Regular.ttf",
-      "sha1": "9deea08a3a74349a8cf37532d34146105d59818a"
     }
   ]
 }

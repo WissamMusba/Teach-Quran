@@ -29,6 +29,7 @@ import { getManifest, purgeLocalStudent } from '../database/localDB';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 import { formatDate, formatTime, toMillis } from '../utils/format';
+import { startStartupPrefetch } from '../utils/startupPrefetch';
 
 export default function DashboardScreen({ navigation }: any) {
   const [addModal, setAddModal] = useState(false);
@@ -84,6 +85,21 @@ export default function DashboardScreen({ navigation }: any) {
         .catch(() => {});
     });
     return () => { active = false; };
+  }, [students]);
+
+  /**
+   * WHAT: Fires the Tier-1 startup anchor prefetcher once the student list exists.
+   * FLOW: Derives the same ids the manifest effect above uses and hands them to
+   *       startStartupPrefetch (src/utils/startupPrefetch.ts) — that module defers the work
+   *       behind InteractionManager + 1500ms (Dashboard paints first) and runs its own
+   *       once-per-process guard, so re-fires here (list refresh / focus) are cheap no-ops.
+   * CALLS: startStartupPrefetch.
+   * CALLED BY: React on mount / whenever the Redux student list reference changes.
+   * AFFECTS: mushaf page/verse/layout-cache warm state (background, best-effort).
+   */
+  useEffect(() => {
+    const ids = (students || []).map((s: any) => s?.id).filter(Boolean);
+    if (ids.length) startStartupPrefetch(ids);
   }, [students]);
 
   /**
