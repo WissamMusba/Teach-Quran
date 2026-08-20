@@ -128,14 +128,16 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  // Spread margins: consistent with the single-page wrapper — horizontal 18 (frame-to-screen
-  // edge padding, v92; was 10 tablet / 6 phone), top 24. v90: the frame fills the space above the
-  // in-flow bottom strip + audio bar; the page pills live in that strip, never on the frame.
+  // Spread margins: consistent with the single-page wrapper — horizontal 18 on tablets (winW >= 600)
+  // / 6 on phones (frame-to-screen edge padding, v92; phones keep 6 — a wider phone margin shrinks
+  // lineW and pushes end-of-line words under the frame past the 0.5 scale floor). Top 24. v90: the
+  // frame fills the space above the in-flow bottom strip + audio bar; the page pills live in that
+  // strip, never on the frame.
   const spreadMargin = { marginTop: 24 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginHorizontal: 18 }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6 }, spreadMargin]}>
           {odd ? (
             pageCache[odd] ? (
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
@@ -148,7 +150,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginHorizontal: 18 }, spreadMargin]}>
+        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6 }, spreadMargin]}>
           {pageCache[even] ? (
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -190,8 +192,9 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
       {/* v92: the frame fills the space above the in-flow bottom strip + audio bar; the page
           pills live in that strip below the frame, never overlapping its ornament band.
-          marginHorizontal 18 = frame-to-screen-edge padding (was 10 tablet / 6 phone). */}
-      <View style={{ flex: 1, marginHorizontal: 18, marginTop: 24 }}>
+          marginHorizontal: 18 tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW
+          and clips end-of-line words past the 0.5 scale floor). */}
+      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6, marginTop: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
