@@ -116,7 +116,7 @@ const pageLastVerseFromPageData = (pd: any) => {
    * NOTES: GOTCHA — side-effect-in-render is impure; safe only because the loader
    *   callbacks are guarded by pagePromiseRef/pageVersesPromiseRef.
    */
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
@@ -131,8 +131,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   // Spread margins: mirror the single-page wrapper — horizontal 18 tablets / 6 phones (phones
   // keep 6 — a wider margin shrinks lineW and pushes end-of-line words under the frame past the
   // 0.5 scale floor). Top 24 = pill band above the frame; bottom 24 = pill band below it (v93:
-  // the Page N / pages-left pills hang from each page's frame bottom edge, scrolling with the
-  // page like the top Juz/Surah pills; only the Hide/Show-Header button stays in the strip).
+  // the Page N / pages-left pills AND the Hide/Show-Header button hang from each page's frame
+  // bottom edge, scrolling together with the page like the top Juz/Surah pills).
   const spreadMargin = { marginTop: 24, marginBottom: 24 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
@@ -144,6 +144,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
                 showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
                 onMeasured={onMeasured} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
@@ -156,6 +157,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
               showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
               onMeasured={onMeasured} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
@@ -178,7 +180,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
 * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
    * CALLED BY: page-mode FlatList renderItem (splitOn=false).
    */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode }: any) => {
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome }: any) => {
   useEffect(() => {
     // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
     // directly via ensurePageVersesLoaded (itself single-flight via pageVersesPromiseRef), so
@@ -190,11 +192,12 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* v93: the page pills (Page N / N pages left) live INSIDE each page frame now (bottom edge,
-          mirroring the top Juz/Surah pills) and scroll with the page; only the Hide/Show-Header
-          button stays in the fixed strip. marginBottom 24 = bottom margin band for the hanging
-          pills (mirror of the 24 top margin). marginHorizontal: 18 tablets / 6 phones (phones
-          keep 6 — a wider margin shrinks lineW and clips end-of-line words past the 0.5 floor). */}
+      {/* v93: the bottom chrome row (Page N / N pages left pills + Hide/Show-Header button) lives
+          INSIDE each page frame now (hanging from the bottom edge, mirroring the top Juz/Surah
+          pills) and scrolls with the page — the fixed strip is gone. marginBottom 24 = bottom
+          margin band for the hanging row (mirror of the 24 top margin). marginHorizontal: 18
+          tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW and clips end-of-line
+          words past the 0.5 floor). */}
       <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6, marginTop: 24, marginBottom: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
@@ -202,6 +205,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
           showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
           onMeasured={onMeasured} />
       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
       </View>
@@ -2125,7 +2129,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured} />
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} />
                 ) : ({ item }: any) => (
                   <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
                     highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
@@ -2135,6 +2140,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
                     nightMode={nightMode} />
                 )} />
             )}
@@ -2177,19 +2183,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share spinner overlay */}
       {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
-      {/* ---- bottom chrome strip — IN-FLOW row between the frame area and the audio bar.
-           v93: ONLY the hide/show-header button lives here (fixed, does not scroll). The Page N
-           / N pages left in Juz pills moved INTO each mushaf page frame (MushafPageView bottom
-           edge, mirroring the top Juz/Surah pills) so they scroll with their page. When the
-           header is hidden the audio bar disappears and this strip is the last in-flow element
-           (flush with the screen bottom). ---- */}
-      {!isDrawing && !isCapturing && !recordingVerseKey && (
-        <View style={styles(nightMode).bottomChromeRow} pointerEvents="box-none">
-          <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* bottom chrome strip REMOVED in v93: the Hide/Show-Header button + the Page N / pages-left
+          pills moved INTO each mushaf page frame (MushafPageView bottomPillRow, mirroring the top
+          Juz/Surah pills) so the whole row scrolls with its page. When the header is hidden the
+          audio bar disappears and the frame area is flush with the screen bottom. */}
 
       {/* bottom playback bar — visible only while the header is visible and no note is being recorded
           (hides together with the header, incl. via the edge/dead taps). In-flow: the frame (flex:1)
@@ -2339,11 +2336,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteActions: { flexDirection: 'row', justifyContent: 'space-between' },
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
-  bottomChromeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
-  // The Page N / pages-left pills moved into the mushaf frames (v93) — MushafPageView's
-  // bottomPillRow (mirror of the top pills). Only the hide/show-header button remains here.
-  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)' },
-  headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  // bottomChromeRow/headerToggleBtn/headerToggleText REMOVED in v93 — the Hide/Show-Header
+  // button moved into MushafPageView's bottomPillRow (hanging below each page's frame, scrolling
+  // with the page), where its styles now live.
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
 

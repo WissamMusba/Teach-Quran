@@ -221,7 +221,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, hideFrame = false, persistLayout = true, onMeasured = undefined }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -644,17 +644,25 @@ const mushafFontSize = getMushafFontSize(headerVisible);
           <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
       )}
-      {/* v93 — bottom band pills, mirror of the top Juz/Surah pills: "Page N" + "N pages left in
-          Juz", hanging from the frame's bottom edge (bottom: -22, same -22 straddle the top pills
-          use) into the page cell's 24px bottom margin band, so they SCROLL WITH THE PAGE. Same
-          badgePill/badgeText chip styling; the screen-level strip keeps only the Hide/Show-Header
-          button. */}
-      {pageNum > 0 && (
-        <View pointerEvents="none" style={styles(nightMode).bottomPillRow}>
-          <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-            <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
+      {/* v93 — bottom chrome row, mirror of the top pills: the "Page N" + "N pages left in Juz"
+          pills PLUS the Hide/Show-Header button, all hanging from the frame's bottom edge
+          (bottom: -22, same straddle the top pills use) into the page cell's 24px bottom margin
+          band, so the WHOLE row scrolls with the page. Hide button left, Page N horizontally
+          centered, pages-left pill right. Same badgePill/badgeText chip styling. Hidden during
+          share capture (keeps captured JPGs clean). */}
+      {pageNum > 0 && !hideBottomChrome && (
+        <View pointerEvents="box-none" style={styles(nightMode).bottomPillRow}>
+          {onToggleHeader && (
+            <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={onToggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles(nightMode).headerToggleText}>{headerVisible ? 'Hide Header' : 'Show Header'}</Text>
+            </TouchableOpacity>
+          )}
+          <View pointerEvents="none" style={styles(nightMode).bottomCenterWrap}>
+            <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+              <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
+            </View>
           </View>
-          <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+          <View pointerEvents="none" style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
             <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
           </View>
         </View>
@@ -914,9 +922,14 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   topRight: { position: 'absolute', top: -22, right: 19 },
   readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
-  // v93 — the Page N / pages-left pills hang from the frame's bottom edge like the top pills do
-  // at top: -22; the page cell's 24px bottom margin gives them room (they scroll with the page).
-  bottomPillRow: { position: 'absolute', bottom: -22, right: 6, flexDirection: 'row', gap: 6 },
+  // v93 — the bottom chrome row hangs from the frame's bottom edge like the top pills do at
+  // top: -22; the page cell's 24px bottom margin gives it room (the whole row scrolls with the
+  // page). Hide button left, Page N absolutely centered, pages-left pill right. box-none on the
+  // row so only the Hide button is tappable (the pills pass taps through, like the top pills).
+  bottomPillRow: { position: 'absolute', bottom: -22, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
+  bottomCenterWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)' },
+  headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   actionPillGap: { marginRight: 6 }
 });
 
