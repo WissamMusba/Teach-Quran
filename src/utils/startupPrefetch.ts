@@ -48,7 +48,7 @@ const winW = Dimensions.get('window').width;
 
 // Indopak font family list — mirrors quranData.ts:114 isIndopakStyle (NOT exported there) and
 // QuranViewScreen.tsx:322. Keep in sync if a font is ever added/removed.
-const INDOPAK_FONTS = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
+const INDOPAK_FONTS = ['saleem', 'indopak', 'alqalam', 'lateef'];
 const isIndopakStyle = (mushaf?: string): boolean => !!mushaf && INDOPAK_FONTS.includes(mushaf);
 
 /**

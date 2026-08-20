@@ -80,9 +80,9 @@ let fontLoadedOnce = false;
 
 /**
  * getFontAdj(ts, hv) — per-font size/vertical-offset corrections so each mushaf font sits at
- * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4, scheherazade
- * -1 when the header is visible, default +0. The size feeds fs (and thus the layout cache
- * key) and the word Text translateY transform (transform array only when adj.y is non-zero).
+ * the right visual height. switch: saleem +2, alqalam/uthmani +0, lateef +4 (default +0).
+ * The size feeds fs (and thus the layout cache key) and the word Text translateY transform
+ * (transform array only when adj.y is non-zero).
  * NOTES: hardcoded tuning values — a rebuild could move this into theme.ts.
  * y is 0 for ALL fonts: the old ~3px upward lift is gone; top/bottom balance now comes
  * from the container's percent-based padding (padTop/padBottom = 2.5% of screen height,
@@ -94,7 +94,6 @@ const getFontAdj = (ts: string, hv: boolean) => {
     case 'alqalam': return { size: 0, y: 0 };
     case 'uthmani': return { size: 0, y: 0 };
     case 'lateef': return { size: 4, y: 0 };
-    case 'scheherazade': return { size: hv ? -1 : 0, y: 0 };
     default: return { size: 0, y: 0 };
   }
 };

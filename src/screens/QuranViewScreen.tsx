@@ -120,7 +120,7 @@ const pageLastVerseFromPageData = (pd: any) => {
 // Indopak font family list — mirrors quranData.ts isIndopakStyle (NOT exported there) and
 // startupPrefetch.ts. Keep in sync if a font is ever added/removed. Module scope so the mount
 // frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
-const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
+const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
 
 const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome }: any) => {
   const even = pair?.[0];
@@ -1256,10 +1256,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   to re-render under the new mushaf.
    * AFFECTS: pageCache, pageVersesCache (local).
    * NOTES: textStyle union is 'saleem'|'uthmani'|'alqalam'|'lateef' but isIndopak
-   *   also matches 'indopak'|'harmattan' (legacy strings only reachable via
+   *   also matches 'indopak' (legacy string only reachable via
    *   `as any` from Settings). Indopak => 610 pages, else 604.
-   * FONT-SWITCH PERFORMANCE (Uthmani<->Indopak): all five indopak styles
-   *   (saleem/alqalam/lateef/harmattan/indopak) share ONE bundled mushaf — the
+   * FONT-SWITCH PERFORMANCE (Uthmani<->Indopak): all four indopak styles
+   *   (saleem/alqalam/lateef/indopak) share ONE bundled mushaf — the
    *   page JSON and verse rows are byte-identical across them; only the font
    *   family + per-font geometry changes, and that is re-derived by
    *   MushafPageView from redux textStyle on every render. So a same-family

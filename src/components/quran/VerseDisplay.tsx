@@ -44,7 +44,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   // Indopak-derived text styles render the Indopak orthography when the verse carries it.
-  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
+  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef';
   const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
   // Word split: plain whitespace + cleanQuranWord — no pageData/location wordPos in this mode.
   const words = displayText.trim().split(' ').map(cleanQuranWord);

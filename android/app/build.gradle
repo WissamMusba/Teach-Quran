@@ -2,6 +2,15 @@ apply plugin: "com.android.application"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
+// ABI filter for the release APK. RN 0.72's gradle plugin only applies
+// `reactNativeArchitectures` on the New Architecture (NdkConfiguratorUtils gates on
+// newArchEnabled) — on Old Arch every AAR ships ALL ABIs unless we filter here.
+// Default (phones): arm64-v8a + armeabi-v7a. Emulator/test builds override with
+// -PreactNativeArchitectures=x86_64 (e.g. the MuMu test APK).
+def reactNativeArchitectures = project.hasProperty("reactNativeArchitectures")
+    ? project.property("reactNativeArchitectures").toString().split(",")
+    : ["armeabi-v7a", "arm64-v8a"]
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -92,6 +101,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        ndk {
+            abiFilters(*reactNativeArchitectures)
+        }
     }
     signingConfigs {
         debug {

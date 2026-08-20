@@ -57,7 +57,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
   const sizeBoost: Record<string, number> = { saleem: 2, alqalam: 4, lateef: 4 };
   const size = baseSize + (sizeBoost[textStyle] || 0) + (fontSize === 'small' ? 4 : 0);
   const lineH = size * 1.9;
-  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef' || textStyle === 'harmattan';
+  const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef';
 
   const flow: any[] = [];
   verses.forEach((verse: any) => {

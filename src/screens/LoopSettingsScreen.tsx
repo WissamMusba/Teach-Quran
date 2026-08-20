@@ -43,8 +43,8 @@ const OptionPicker = ({ visible, title, options, selected, onSelect, onClose, la
           <FlatList
             data={options}
             keyExtractor={(item: any) => String(item)}
-            initialNumToRender={30}
-            maxToRenderPerBatch={30}
+            initialNumToRender={10}
+            maxToRenderPerBatch={20}
             renderItem={({ item }: any) => {
               const active = item === selected;
               return (

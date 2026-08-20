@@ -13,21 +13,21 @@ const wScale = W / 375;
 export const scaleW = (n: number) => PixelRatio.roundToNearestPixel(n * Math.min(wScale, 1.5));
 export const scaleFont = (n: number) => PixelRatio.roundToNearestPixel(Math.max(12, Math.min(n * wScale, n * 1.6)));
 
-// WHAT: Maps textStyle keys to registered font family names: saleem->PDMSSaleemQuranFont, uthmani->KFGQPCUthmanicScriptHAFS, alqalam->AlQalamQuranMajeed, lateef->Lateef-Regular, harmattan->Harmattan-Regular, amiri->Amiri-Regular, scheherazade->ScheherazadeNew-Regular.
-// NOTES: 'indopak' is NOT in the map — getArabicFont('indopak') falls back to uthmani (QuranViewScreen treats 'indopak' as an Indopak-style key elsewhere, but the font falls back here).
+// WHAT: Maps textStyle keys to registered font family names: saleem->PDMSSaleemQuranFont, uthmani->KFGQPCUthmanicScriptHAFS, alqalam->AlQalamQuranMajeed, lateef->Lateef-Regular.
+// NOTES: 'indopak' is NOT in the map — getArabicFont('indopak') falls back to the default below
+//        (the selectable textStyle keys are only saleem/uthmani/alqalam/lateef; harmattan/amiri/
+//        scheherazade fonts were deleted and their keys removed in v95).
 export const ARABIC_FONTS: Record<string, string> = {
   saleem: 'PDMSSaleemQuranFont',
   uthmani: 'KFGQPCUthmanicScriptHAFS',
   alqalam: 'AlQalamQuranMajeed',
   lateef: 'Lateef-Regular',
-  harmattan: 'Harmattan-Regular',
-  amiri: 'Amiri-Regular',
-  scheherazade: 'ScheherazadeNew-Regular',
 };
-// WHAT: ARABIC_FONTS[style] || ARABIC_FONTS.uthmani — unknown keys silently become Uthmani (no validation, a typo'd style renders Uthmani without warning).
+// WHAT: ARABIC_FONTS[style] || ARABIC_FONTS.alqalam — unknown keys silently become AlQalam
+//       (the quranSlice default textStyle), so a typo'd/legacy style never crashes the renderer.
 // CALLED BY: FlowingText.tsx, VerseDisplay.tsx, MushafPageView.tsx (fontFamily applied to every word Text style).
 // AFFECTS: Which glyph set renders the Quran text.
-export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.uthmani;
+export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.alqalam;
 
 // Shared palette. NOTES: DEAD-ish — no src/ consumer (colors are re-hardcoded per file elsewhere); candidate for consolidation.
 export const COLORS = { primary: '#1C3D72', primaryNight: '#7BA7DB', secondary: '#C9A227', secondaryNight: '#8C7320', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };

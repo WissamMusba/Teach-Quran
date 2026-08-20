@@ -103,7 +103,7 @@ const VERSES_BY_PAGE_MEMO_MAX = 400;
 
 /**
  * WHAT: True if the mushaf style string is an indopak-script font
- *       ('saleem','indopak','alqalam','lateef','harmattan').
+ *       ('saleem','indopak','alqalam','lateef').
  * CALLED BY: getMushafPageData, getVersePage, getVersesByPage — every read
  *            route splits into the indopak vs uthmani pipeline here.
  * AFFECTS: none (pure string test).
@@ -112,7 +112,7 @@ const VERSES_BY_PAGE_MEMO_MAX = 400;
  *        indopak tables/maps.
  */
 const isIndopakStyle = (mushaf?: string) => {
-  const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef', 'harmattan'];
+  const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
   return mushaf && indopakFonts.includes(mushaf);
 };
 
