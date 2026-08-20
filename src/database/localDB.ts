@@ -116,9 +116,12 @@ export const initDatabase = async () => {
   // layoutVer 4: v4 rows bundle the one-shot vertical-fit payload ({ lines, fit }) in the
   // lines TEXT column. v3 rows (plain number[]) lack the fit, so they are wiped ONCE here —
   // a hit mount must never replay a row without its paired fit (see MushafPageView replayFit).
-  if (ver < 4) {
+  // layoutVer 5 (v93): the page cells gained a 24px bottom margin band (in-frame bottom pills),
+  // shrinking the frame box by 24px — stale v4 fits replay against a boxH mismatch via the
+  // live-fit guard but never re-persist, degrading every mount, so wipe once to re-measure.
+  if (ver < 5) {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
-    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','4')`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','5')`);
   }
 
   // Migrate V1 to V2 schema if needed

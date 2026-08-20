@@ -617,8 +617,10 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   //   pill (top-right), plus the optional reading-mark bookmark button (top-right, left of the
   //   surah pill). Badges ALWAYS render (header visibility does not gate them) and sit in the
   //   top margin band OUTSIDE the frame: top pills at top: -22 lift them above the top band
-  //   edge (wrapper marginTop is 24). The bottom band (Page N / N pages left pills — removed
-  //   here in v86) is now rendered at screen level by QuranViewScreen's bottom chrome strip.
+  //   edge (wrapper marginTop is 24). The bottom band (Page N / N pages left pills — v93) hangs
+  //   from the frame's bottom edge at bottom: -22 into the wrapper's 24px bottom margin band,
+  //   scrolling with the page exactly like the top pills; the screen-level strip (QuranViewScreen)
+  //   keeps only the Hide/Show-Header button.
   //   compact (<600px) shrinks the pill styles.
   // hideFrame (hidden pre-render harness only): skips the OrnamentalFrame entirely — hidden
   //   off-screen pages must NOT touch the shared frame_cache/SESSION_BOX (a different-height
@@ -641,6 +643,21 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
+      )}
+      {/* v93 — bottom band pills, mirror of the top Juz/Surah pills: "Page N" + "N pages left in
+          Juz", hanging from the frame's bottom edge (bottom: -22, same -22 straddle the top pills
+          use) into the page cell's 24px bottom margin band, so they SCROLL WITH THE PAGE. Same
+          badgePill/badgeText chip styling; the screen-level strip keeps only the Hide/Show-Header
+          button. */}
+      {pageNum > 0 && (
+        <View pointerEvents="none" style={styles(nightMode).bottomPillRow}>
+          <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+            <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
+          </View>
+          <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
+            <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -897,6 +914,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   topRight: { position: 'absolute', top: -22, right: 19 },
   readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
+  // v93 — the Page N / pages-left pills hang from the frame's bottom edge like the top pills do
+  // at top: -22; the page cell's 24px bottom margin gives them room (they scroll with the page).
+  bottomPillRow: { position: 'absolute', bottom: -22, right: 6, flexDirection: 'row', gap: 6 },
   actionPillGap: { marginRight: 6 }
 });
 

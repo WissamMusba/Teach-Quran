@@ -128,12 +128,12 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  // Spread margins: consistent with the single-page wrapper — horizontal 18 on tablets (winW >= 600)
-  // / 6 on phones (frame-to-screen edge padding, v92; phones keep 6 — a wider phone margin shrinks
-  // lineW and pushes end-of-line words under the frame past the 0.5 scale floor). Top 24. v90: the
-  // frame fills the space above the in-flow bottom strip + audio bar; the page pills live in that
-  // strip, never on the frame.
-  const spreadMargin = { marginTop: 24 };
+  // Spread margins: mirror the single-page wrapper — horizontal 18 tablets / 6 phones (phones
+  // keep 6 — a wider margin shrinks lineW and pushes end-of-line words under the frame past the
+  // 0.5 scale floor). Top 24 = pill band above the frame; bottom 24 = pill band below it (v93:
+  // the Page N / pages-left pills hang from each page's frame bottom edge, scrolling with the
+  // page like the top Juz/Surah pills; only the Hide/Show-Header button stays in the strip).
+  const spreadMargin = { marginTop: 24, marginBottom: 24 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
@@ -190,11 +190,12 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* v92: the frame fills the space above the in-flow bottom strip + audio bar; the page
-          pills live in that strip below the frame, never overlapping its ornament band.
-          marginHorizontal: 18 tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW
-          and clips end-of-line words past the 0.5 scale floor). */}
-      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6, marginTop: 24 }}>
+      {/* v93: the page pills (Page N / N pages left) live INSIDE each page frame now (bottom edge,
+          mirroring the top Juz/Surah pills) and scroll with the page; only the Hide/Show-Header
+          button stays in the fixed strip. marginBottom 24 = bottom margin band for the hanging
+          pills (mirror of the 24 top margin). marginHorizontal: 18 tablets / 6 phones (phones
+          keep 6 — a wider margin shrinks lineW and clips end-of-line words past the 0.5 floor). */}
+      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6, marginTop: 24, marginBottom: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -2075,7 +2076,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 removeClippedSubviews={true} scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: 0 }}
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
-                // any padding clips the frame's bottom band below the viewport and reads as a gap above the pills strip.
+                // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 // v62-style lean virtualization: only the visible page + its immediate neighbours
                 // are ever mounted, so button presses and navigation never queue behind a wall of
@@ -2176,28 +2177,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* share spinner overlay */}
       {isCapturing && <View style={styles(nightMode).capturingOverlay}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>}
-      {/* ---- bottom chrome strip — IN-FLOW row between the frame area and the audio bar (v90).
-           Was an absolute overlay (v87) that floated on top of the frame's bottom ornament band;
-           now it occupies its own row, so the pills NEVER overlap the frame. When the header is
-           hidden the audio bar disappears and this strip is the last in-flow element (flush with
-           the screen bottom). Left→right: hide/show-header button (keeps its own look), "Page N"
-           pill, "N pages left in Juz" pill — the pills are styled like the mushaf's upper pills
-           (subtle translucent chip + grey text), matching MushafPageView's badgePill/badgeText. ---- */}
+      {/* ---- bottom chrome strip — IN-FLOW row between the frame area and the audio bar.
+           v93: ONLY the hide/show-header button lives here (fixed, does not scroll). The Page N
+           / N pages left in Juz pills moved INTO each mushaf page frame (MushafPageView bottom
+           edge, mirroring the top Juz/Surah pills) so they scroll with their page. When the
+           header is hidden the audio bar disappears and this strip is the last in-flow element
+           (flush with the screen bottom). ---- */}
       {!isDrawing && !isCapturing && !recordingVerseKey && (
         <View style={styles(nightMode).bottomChromeRow} pointerEvents="box-none">
           <TouchableOpacity style={styles(nightMode).headerToggleBtn} onPress={toggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={styles(nightMode).headerToggleText}>{isHeaderVisible ? 'Hide Header' : 'Show Header'}</Text>
           </TouchableOpacity>
-          {readingMode === 'page' && headerPage > 0 && (
-            <>
-              <View style={[styles(nightMode).bottomChromePill, { borderColor: (nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)') }]} pointerEvents="none">
-                <Text style={styles(nightMode).bottomChromeText}>Page {headerPage + 1}</Text>
-              </View>
-              <View style={[styles(nightMode).bottomChromePill, { borderColor: (nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)') }]} pointerEvents="none">
-                <Text style={styles(nightMode).bottomChromeText}>{getJuzInfoFromPage(headerPage).pagesLeft} pages left in Juz</Text>
-              </View>
-            </>
-          )}
         </View>
       )}
 
@@ -2350,12 +2340,8 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   noteCancelBtn: { padding: 10, alignItems: 'center', backgroundColor: '#333', borderRadius: 8, flex: 1, marginRight: 5 },
   noteSaveBtn: { padding: 10, alignItems: 'center', backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, flex: 1, marginLeft: 5 },
   bottomChromeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
-  // Pills mirror MushafPageView's upper pills (badgePill/badgeText): subtle translucent chip,
-  // thin frame-coloured border, grey text (v90 — previously blue-on-white, floating on the frame).
-  // No elevation/shadow: the chip sits flush against the frame's bottom edge (v91) and a shadow
-  // would cast a fake gap above it.
-  bottomChromePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)' },
-  bottomChromeText: { fontSize: 9.5, fontWeight: '600', color: (nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)') },
+  // The Page N / pages-left pills moved into the mushaf frames (v93) — MushafPageView's
+  // bottomPillRow (mirror of the top pills). Only the hide/show-header button remains here.
   headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)' },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
