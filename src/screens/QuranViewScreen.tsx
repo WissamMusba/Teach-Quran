@@ -2069,7 +2069,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
                 removeClippedSubviews={true} scrollEventThrottle={16}
-                contentContainerStyle={{ paddingBottom: IS_TABLET ? 20 : 10 }}
+                contentContainerStyle={{ paddingBottom: 0 }}
+                // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
+                // any padding clips the frame's bottom band below the viewport and reads as a gap above the pills strip.
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 // v62-style lean virtualization: only the visible page + its immediate neighbours
                 // are ever mounted, so button presses and navigation never queue behind a wall of
@@ -2350,7 +2352,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   // would cast a fake gap above it.
   bottomChromePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)' },
   bottomChromeText: { fontSize: 9.5, fontWeight: '600', color: (nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)') },
-  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  headerToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: nightMode ? 'rgba(18,18,20,0.78)' : 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: nightMode ? 'rgba(255,255,255,0.18)' : 'rgba(28,61,114,0.30)' },
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
