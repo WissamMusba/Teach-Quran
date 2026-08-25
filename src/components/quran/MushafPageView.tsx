@@ -106,14 +106,14 @@ const getFontAdj = (ts: string, hv: boolean) => {
  * CALLS: preloadPageLayoutCacheRange (localDB).
  * AFFECTS: layoutCacheMem + page_layout_cache read caching (no writes).
  */
-export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: string, pageWidth: number) => {
+export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: string, pageWidth: number, fontSizeScale = 1) => {
   try {
     const totalWords = Array.isArray(pageData?.lines)
       ? pageData.lines.reduce((a: number, l: any) => a + (l.words ? l.words.length : 0), 0)
       : 0;
     const sparse = totalWords < SPARSE_WORD_THRESHOLD;
     const keySparse = sparse ? 1 : 0;
-    const keyW = Math.round(pageWidth);
+    const keyW = Math.round(pageWidth * fontSizeScale);
     preloadPageLayoutCacheRange(pageNum, pageNum, textStyle, false, keySparse, keyW);
   } catch { /* best-effort */ }
 };
@@ -221,7 +221,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -235,8 +235,10 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)';
   const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)';
-const mushafFontSize = getMushafFontSize(headerVisible);
-  const mushafLineHeight = getMushafLineHeight(headerVisible);
+// v97: fontSizeScale (prop) shrinks the tablet mushaf font — 0.78 in split view, 0.88 for
+// single-page tablets — without touching the phone buckets. 1 (phones) = byte-identical.
+const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
+  const mushafLineHeight = getMushafLineHeight(headerVisible) * fontSizeScale;
   /**
    * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
@@ -257,7 +259,16 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   // box (never under the pattern band or its rules).
   const padTop = Math.max(0.010 * SCREEN_HEIGHT, frameInsetVFor(pageWidth));
   const padBottom = padTop;
-  const padSide = textInsetFor(pageWidth);
+  // v97 — TRUE CONTENT WIDTH: lines were laid out against the NOMINAL pageWidth prop while the
+  // real container is narrower by the wrapper margins (up to ~37px in tablet split), so full
+  // lines could cross the frame's inner rule ("words clipped / not inside the frame"). The box
+  // is measured on-layout; when it differs meaningfully from the nominal width the LAYOUT runs
+  // against the measured width. Phones differ by only ~12px and keep their exact legacy
+  // rendering (delta ≤ 16 → nominal, unchanged math).
+  const [boxWState, setBoxWState] = useState(0);
+  const boxWRef = useRef(0);
+  const layoutW = boxWState > 0 && Math.abs(pageWidth - boxWState) > 16 ? boxWState : pageWidth;
+  const padSide = textInsetFor(layoutW);
 
   // Sparse-page detection: count words across pageData lines (else whitespace-split fallback
   // verses); sparse → SPARSE_FONT_BOOST on fontSize AND lineHeight. fs rounds into the layout
@@ -268,7 +279,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
   // fs (base rendered size WITHOUT the per-line scale) — used for the ta'awwud line only; the
   // layout cache no longer keys on it (normalized sums are font-size-independent).
-  const fs = Math.round(getMushafFontSize(headerVisible) + adj.size);
+  const fs = Math.round(getMushafFontSize(headerVisible) * fontSizeScale + adj.size);
 
   // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
   //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
@@ -326,7 +337,11 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   const innerHRef = useRef(0);
   const pendingInnerHRef = useRef(0);
   const onBoxLayout = useCallback((e: any) => {
+    const w = Math.round(e.nativeEvent.layout.width);
     const h = Math.round(e.nativeEvent.layout.height);
+    // v97: capture the TRUE box width for the layoutW fix (immediate, no settle — width is
+    // stable per mount and padSide/lineW must be correct from the first measure pass).
+    if (w > 0 && boxWRef.current !== w) { boxWRef.current = w; setBoxWState(w); }
     if (h <= 0) return;
     pendingInnerHRef.current = h;
     if (innerHRef.current === 0) {
@@ -462,7 +477,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     fitAtPassRef.current = null;
     setLineScale({});
     setCacheState('loading');
-  }, [pageNum, textStyle, pageWidth, fixNonce]);
+  }, [pageNum, textStyle, pageWidth, fontSizeScale, fixNonce]);
 
   // Cache-load effect — reads the layout sums WITHOUT waiting for fontReady: the DB/mem read does
   // not need the font (only the measure pass does), so a cache-hit page renders the moment it
@@ -477,7 +492,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
     if (!pageData?.lines?.length) return;
     let cancelled = false;
     const keySparse = sparse ? 1 : 0;
-    const keyW = Math.round(pageWidth);
+    const keyW = Math.round(pageWidth * fontSizeScale);
     const applyHit = (cached: PageLayoutCacheRow | null) => {
       if (cancelled) return;
       if (cached) {
@@ -511,7 +526,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
       preloadPageLayoutCacheRange(Math.max(1, pageNum - 4), pageNum + 4, textStyle, false, keySparse, keyW);
     });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, pageWidth, fixNonce, headerVisible]);
+  }, [pageNum, textStyle, pageWidth, fontSizeScale, fixNonce, headerVisible]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.
@@ -584,8 +599,8 @@ const mushafFontSize = getMushafFontSize(headerVisible);
         // layoutCacheMem ONLY: background writes must never queue behind the reader's own
         // connection traffic; visible pages always persist (savePageLayoutCache → SQLite).
         const fitRow: PageLayoutCacheRow = { lines: sums, fit: fitAtPassRef.current };
-        if (persistLayout) savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), fitRow);
-        else savePageLayoutCacheMemOnly(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth), fitRow);
+        if (persistLayout) savePageLayoutCache(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth * fontSizeScale), fitRow);
+        else savePageLayoutCacheMemOnly(pageNum, textStyle, false, sparse ? 1 : 0, Math.round(pageWidth * fontSizeScale), fitRow);
         // The page's layout row is now persisted; onMeasured lets an optional hidden-instance
         // owner know the row is settled.
         if (onMeasured) onMeasured(pageNum);
@@ -603,7 +618,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
    */
   const scaleForLine = (lineIdx: number) => {
     if (layoutContentRef.current) {
-      const lineW = pageWidth - 2 * padSide;
+      const lineW = layoutW - 2 * padSide;
       const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
       // Cached sums are normalized units — multiply back by the CURRENT base size.
       const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) * normFontSize + (lineExtraRef.current[lineIdx] || 0);
@@ -926,7 +941,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgePillCompact: { paddingVertical: 4, paddingHorizontal: 4 },
   badgeTextCompact: { fontSize: 8.5 },
   topLeft: { position: 'absolute', top: -22, left: 6 },
-  topRight: { position: 'absolute', top: -22, right: 19 },
+  topRight: { position: 'absolute', top: -22, right: 30 },
   readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   // v93 — the bottom chrome row hangs from the frame's bottom edge like the top pills do at

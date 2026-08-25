@@ -12,7 +12,7 @@
  *          SplashScreen.tsx / LoginScreen.tsx (replace) and via "back" from QuranViewScreen.tsx
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { getStudents, createStudent, deleteStudent, updateStudent } from '../api/student';
@@ -25,7 +25,8 @@ import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
-import { getManifest, purgeLocalStudent } from '../database/localDB';
+import { getManifest, purgeLocalStudent, getStudentFace, saveStudentFace, clearStudentFace } from '../database/localDB';
+import ImagePicker from 'react-native-image-crop-picker';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 import { formatDate, formatTime, toMillis } from '../utils/format';
@@ -41,6 +42,8 @@ export default function DashboardScreen({ navigation }: any) {
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', buttons: undefined as any });
   // last-read cache: { studentId -> manifest } resolved asynchronously from SQLite.
   const [manifests, setManifests] = useState<Record<string, any>>({});
+  // v97: device-only student photos ({ studentId -> local file path }); never synced.
+  const [faces, setFaces] = useState<Record<string, string | null>>({});
   const dispatch = useDispatch();
   const students = useSelector((s: any) => s.student.list);
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
@@ -62,6 +65,17 @@ export default function DashboardScreen({ navigation }: any) {
   const sortedStudents = useMemo(() => {
     const arr = students ? [...students] : [];
     return arr.sort((a: any, b: any) => toMillis(a?.createdAt) - toMillis(b?.createdAt));
+  }, [students]);
+
+  // v97: resolve each student's LOCAL photo path (student_faces table — device-only).
+  useEffect(() => {
+    let active = true;
+    const ids = (students || []).map((s: any) => s?.id).filter(Boolean);
+    if (ids.length === 0) { setFaces({}); return; }
+    ids.forEach((id: string) => {
+      getStudentFace(id).then((path) => { if (active) setFaces((prev) => ({ ...prev, [id]: path })); }).catch(() => {});
+    });
+    return () => { active = false; };
   }, [students]);
 
   /**
@@ -249,6 +263,46 @@ export default function DashboardScreen({ navigation }: any) {
    * AFFECTS: studentSlice.currentStudent/studentData; quranSlice; drawingSlice.toolbarExpanded;
    *          navigation -> StudentHub.
    */
+  /**
+   * v97 — DEVICE-ONLY student photo: pick from gallery/camera, copy into app-private
+   * storage (student_faces/{id}.jpg) and record the path in SQLite. NEVER synced.
+   * CALLS: react-native-image-picker, react-native-fs, saveStudentFace/clearStudentFace.
+   */
+  const pickPhoto = useCallback(async (fromCamera: boolean) => {
+    if (!editId) return;
+    try {
+      // Circular crop UI (uCrop overlay) so the face fills the avatar exactly.
+      const img: any = fromCamera
+        ? await ImagePicker.openCamera({ width: 400, height: 400, cropping: true, cropperCircleOverlay: true, compressImageQuality: 0.8, includeBase64: false })
+        : await ImagePicker.openPicker({ width: 400, height: 400, cropping: true, cropperCircleOverlay: true, compressImageQuality: 0.8, mediaType: 'photo' });
+      if (!img?.path) return;
+      const asset = { uri: img.path };
+      const RNFS = require('react-native-fs').default || require('react-native-fs');
+      const dir = `${RNFS.DocumentDirectoryPath}/student_faces`;
+      if (!(await RNFS.exists(dir))) await RNFS.mkdir(dir);
+      const dest = `${dir}/${editId}.jpg`;
+      if (await RNFS.exists(dest)) await RNFS.unlink(dest);
+      await RNFS.copyFile(asset.uri.replace('file://', ''), dest);
+      await saveStudentFace(editId, dest);
+      setFaces((prev) => ({ ...prev, [editId]: dest }));
+    } catch (e: any) {
+      // image-crop-picker THROWS on user cancel (E_PICKER_CANCELLED) — silently ignore.
+      if (e?.code === 'E_PICKER_CANCELLED') return;
+      showAlert('Photo', e?.message || 'Could not save photo', [{ text: 'OK' }]);
+    }
+  }, [editId, showAlert]);
+
+  const removePhoto = useCallback(async () => {
+    if (!editId) return;
+    try {
+      const RNFS = require('react-native-fs').default || require('react-native-fs');
+      const dest = `${RNFS.DocumentDirectoryPath}/student_faces/${editId}.jpg`;
+      if (await RNFS.exists(dest)) await RNFS.unlink(dest);
+      await clearStudentFace(editId);
+      setFaces((prev) => ({ ...prev, [editId]: null }));
+    } catch {}
+  }, [editId]);
+
   const renderItem = useCallback(({ item }: any) => {
     // Last-read line: manifest is cached per student in local state (see mount effect).
     const manifest = manifests[item.id];
@@ -267,7 +321,11 @@ export default function DashboardScreen({ navigation }: any) {
     return (
       <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
         <View style={styles(nightMode).cardRow}>
-          <View style={styles(nightMode).avatar}><Text style={styles(nightMode).avatarText}>{initial}</Text></View>
+          {faces[item.id] ? (
+            <Image source={{ uri: `file://${faces[item.id]}` }} style={styles(nightMode).avatarImage} resizeMode="cover" />
+          ) : (
+            <View style={styles(nightMode).avatar}><Text style={styles(nightMode).avatarText}>{initial}</Text></View>
+          )}
           <View style={styles(nightMode).cardBody}>
             <Text style={[styles(nightMode).studentName, { color: nightMode ? '#fff' : '#1a1a1a' }]} numberOfLines={1}>{item.name}</Text>
             <Text style={styles(nightMode).readingLine} numberOfLines={1}>{readingLine}</Text>
@@ -323,8 +381,19 @@ export default function DashboardScreen({ navigation }: any) {
       <Modal visible={editModal} transparent animationType="fade" onRequestClose={() => setEditModal(false)}>
         <View style={styles(nightMode).modalOverlay}>
           <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
-            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Edit Student Name</Text>
+            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Edit Student</Text>
             <TextInput style={[styles(nightMode).input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} value={editName} onChangeText={setEditName} placeholder="Student name" placeholderTextColor="#666" autoFocus />
+            {/* v97: device-only photo (gallery / camera / remove) — never synced. */}
+            <View style={styles(nightMode).photoRow}>
+              {faces[editId] ? (
+                <Image source={{ uri: `file://${faces[editId]}` }} style={styles(nightMode).photoPreview} resizeMode="cover" />
+              ) : (
+                <View style={[styles(nightMode).photoPreview, styles(nightMode).photoPlaceholder]}><Text style={{ fontSize: 20, fontWeight: '700', color: (nightMode ? '#7BA7DB' : '#1C3D72') }}>{(editName || '?').charAt(0).toUpperCase()}</Text></View>
+              )}
+              <TouchableOpacity style={styles(nightMode).photoBtn} onPress={() => pickPhoto(false)}><Text style={styles(nightMode).photoBtnText}>Gallery</Text></TouchableOpacity>
+              <TouchableOpacity style={styles(nightMode).photoBtn} onPress={() => pickPhoto(true)}><Text style={styles(nightMode).photoBtnText}>Camera</Text></TouchableOpacity>
+              {faces[editId] ? <TouchableOpacity style={[styles(nightMode).photoBtn, { backgroundColor: '#ff4444' }]} onPress={removePhoto}><Text style={styles(nightMode).photoBtnText}>Remove</Text></TouchableOpacity> : null}
+            </View>
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
               <TouchableOpacity style={[styles(nightMode).cancelBtn, { backgroundColor: nightMode ? '#333' : '#e0e0e0' }]} onPress={() => setEditModal(false)}><Text style={[styles(nightMode).cancelText, { color: nightMode ? '#fff' : '#333' }]}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).saveBtn} onPress={handleEdit}><Text style={styles(nightMode).saveText}>Save</Text></TouchableOpacity>
@@ -351,6 +420,12 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   cardRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   avatarText: { color: '#121212', fontSize: 16, fontWeight: '800' },
+  avatarImage: { width: 40, height: 40, borderRadius: 20, marginRight: 10, resizeMode: 'cover' },
+  photoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  photoPreview: { width: 56, height: 56, borderRadius: 28, marginRight: 10, resizeMode: 'cover' },
+  photoPlaceholder: { backgroundColor: (nightMode ? '#2a2a4a' : '#e8edf5'), justifyContent: 'center', alignItems: 'center' },
+  photoBtn: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginLeft: 6 },
+  photoBtnText: { color: '#121212', fontWeight: '700', fontSize: 12 },
   cardBody: { flex: 1 },
   studentName: { fontSize: 15, fontWeight: '700' },
   readingLine: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 11.5, fontWeight: '600', marginTop: 2 },

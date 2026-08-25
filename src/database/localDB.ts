@@ -68,6 +68,8 @@ export const initDatabase = async () => {
           PRIMARY KEY (studentId, rangeKey))`);
       tx.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
           sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS student_faces (
+          studentId TEXT PRIMARY KEY, localPath TEXT NOT NULL, updatedAt INTEGER NOT NULL)`);
     });
   } catch (e) {
     // Safety net: if the batched transaction ever fails wholesale (e.g. disk
@@ -109,6 +111,8 @@ export const initDatabase = async () => {
         PRIMARY KEY (studentId, rangeKey))`);
     await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS local_student_state (
         sid TEXT PRIMARY KEY, lastPageSeen TEXT, updatedAt TEXT NOT NULL)`);
+    await dbInstance.executeSql(`CREATE TABLE IF NOT EXISTS student_faces (
+        studentId TEXT PRIMARY KEY, localPath TEXT NOT NULL, updatedAt INTEGER NOT NULL)`);
   }
 
   const r = await dbInstance.executeSql(`SELECT value FROM meta WHERE key='layoutVer'`);
@@ -600,6 +604,25 @@ export const addToSyncQueue = async (studentId: string, canvasKey: string) => {
     [studentId, canvasKey]
   );
 };
+// ---------------- student photos (DEVICE-ONLY, never synced) ----------------
+// Photos are copied by the UI into app-private storage
+// (DocumentDirectoryPath/student_faces/{studentId}.jpg) and recorded here so the
+// Dashboard/StudentHub can show a student's face. Deliberately OUTSIDE the sync engine:
+// children's faces never leave the device. purgeLocalStudent removes row + file.
+export const getStudentFace = async (studentId: string): Promise<string | null> => {
+  try {
+    const r = await getDB().executeSql(`SELECT localPath FROM student_faces WHERE studentId=?`, [studentId]);
+    return r && r[0].rows.length ? r[0].rows.item(0).localPath : null;
+  } catch { return null; }
+};
+export const saveStudentFace = async (studentId: string, localPath: string) => {
+  await getDB().executeSql(`INSERT OR REPLACE INTO student_faces (studentId, localPath, updatedAt) VALUES (?, ?, ?)`,
+    [studentId, localPath, Date.now()]);
+};
+export const clearStudentFace = async (studentId: string) => {
+  await getDB().executeSql(`DELETE FROM student_faces WHERE studentId=?`, [studentId]);
+};
+
 export const purgeLocalStudent = async (studentId: string) => {
   const db = getDB();
   await db.executeSql(`DELETE FROM student_data_cache WHERE studentId=?`, [studentId]);
@@ -607,6 +630,10 @@ export const purgeLocalStudent = async (studentId: string) => {
   await db.executeSql(`DELETE FROM student_manifest_cache WHERE studentId=?`, [studentId]);
   await db.executeSql(`DELETE FROM sync_last_push WHERE studentId=?`, [studentId]);
   await db.executeSql(`DELETE FROM audio_notes_cache WHERE studentId=?`, [studentId]);
+  // v97: device-only student photo — row + file never leave the phone, but they must
+  // not outlive the student either.
+  await db.executeSql(`DELETE FROM student_faces WHERE studentId=?`, [studentId]).catch(() => {});
+  try { const RNFS = require('react-native-fs').default || require('react-native-fs'); RNFS.unlink(`${RNFS.DocumentDirectoryPath}/student_faces/${studentId}.jpg`).catch(() => {}); } catch {}
   // Also drop the student from the per-uid LIST cache — getStudents() is cache-first, so a
   // deleted student left in student_list_cache is what resurrects it in the Dashboard on the
   // next focus/sync. Tombstone (deletedStudentIds) guards the in-flight refresh race too.

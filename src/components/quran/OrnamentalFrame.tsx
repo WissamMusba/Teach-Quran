@@ -150,24 +150,22 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   // text inset stay in perfect sync and the reclaimed width flows into lineW automatically (via
   // MushafPageView's framePad = textInsetFor = frameInsetFor + 10). The tile (band/2) and the
   // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
-  const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
-  const band = frameBandFor(W);             // layer 4: decorative band width (shared with frameInsetFor)
-  // v96 — SPLIT-HALF proportion guard: on a tablet's narrow/tall half-page the width-scaled
-  // vertical bands plus the free corner stretch read as "stretched". Corrections here are
-  // VERTICAL-ONLY and gated to split halves (window >= 600dp AND box narrower than half the
-  // window): the vertical band thickens a little (clamped) and the corner stretch gets a
-  // ceiling. Phones and full-width tablet pages keep the exact pre-v96 numbers, and the
-  // horizontal geometry (po/band/x*) is deliberately untouched — the text-inset contract
-  // (frameInsetFor) is computed from W by the importers and must keep matching the paint.
+  // v97 — TABLET FRAME SCALE GUARD: every ornament thickness below derives from a phone-like
+  // reference width on tablets (window >= 600dp), so split halves, portrait singles and wide
+  // landscape pages all wear the same compact frame a phone gets instead of width-scaled
+  // giant stretched bands (the v96 vertical-band boost made tall/narrow halves worse — it is
+  // fully reverted here). Phones (window < 600) use the raw width: pixel-identical to before.
+  // The text-inset contract is unaffected: textInsetFor's 6.7%-of-width floor always exceeds
+  // frameInsetFor, so padding never shrinks from this cap.
   const winW = Dimensions.get('window').width;
-  const isSplitHalf = winW >= 600 && W < winW / 2;
-  const bandV = isSplitHalf
-    ? Math.min(Math.max(frameBandVFor(W), H * 0.016), frameBandVFor(W) * 1.5)
-    : frameBandVFor(W);                     // vertical bands — taller than the side bands
-  const sw = Math.max(0.75, W * 0.0015);    // hairline stroke — pattern tiles, corner knots, inner rules
-  const outSw = Math.max(1.5, W * 0.0035);  // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
+  const geoRef = winW >= 600 ? Math.min(W, 430) : W;
+  const po = Math.max(2, geoRef * 0.010);   // layer 1: outer thin border offset
+  const band = frameBandFor(geoRef);        // layer 4: decorative band width (shared with frameInsetFor)
+  const bandV = frameBandVFor(geoRef);      // vertical bands — taller than the side bands
+  const sw = Math.max(0.75, geoRef * 0.0015);   // hairline stroke — pattern tiles, corner knots, inner rules
+  const outSw = Math.max(1.5, geoRef * 0.0035); // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
-  const vScale = Math.min(isSplitHalf ? 1.2 : 2, bandV / band); // corner-node vertical stretch (capped on halves so nodes never elongate)
+  const vScale = bandV / band;              // corner-node vertical stretch so nodes cover the taller top/bottom bands
 
   const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
   const x1 = band;                          // main frame inner edge (band inner edge)

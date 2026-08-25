@@ -62,7 +62,7 @@ import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import VoiceNoteRecorder from '../components/audio/VoiceNoteRecorder';
 import { playSurahFromVerse, pauseSurah, pauseSurahWithResume, cancelLoop, resumeSurah, isResumable, SURAH_VERSE_COUNTS, isSurahPlaying, getCurrentPlaybackVerse } from '../utils/audioPlayback';
-import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor, pageWFor } from '../utils/mushafLayout';
+import { GUTTER, SPLIT_MIN_WIDTH, pairIndexForPage, anchorFromIndex, pagePairsFor, pageWFor, SPLIT_FONT_SCALE, layoutFontScaleFor } from '../utils/mushafLayout';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Feature 1: session-wide "already pulled on toolbar-expand" set (${sid}/${range|key}).
 // Skips the SQLite probe + Firestore read on repeat toolbar expands; cleared on app foreground
@@ -79,6 +79,9 @@ const MENU_BTN_H = 36;
 const MENU_BUBBLE_W = 5 * MENU_BTN_W + 12;
 const MENU_BUBBLE_H = MENU_BTN_H + 12;
 const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
+// v97 — tablet mushaf font scales (phones always 1): split halves get clearly smaller text
+// (user request), single-page tablets get a mild trim to stop top-line clipping with the
+// header. Must match the fontSizeScale passed to MushafPageView AND warmPageLayoutFor.
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
 /**
@@ -133,18 +136,19 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  // Spread margins: v96 tablets get 33px to the SCREEN edges (+15 breathing room vs the old
-  // 18) and a tight 8px seam between the two pages (4+4 instead of 18+18); phones stay at 6.
-  // A lone page (first/last pair, partner null) keeps SYMMETRIC outer margins so it stays
-  // centered. Drawing alignment is preserved: outer+inner per side = 37px ≈ the old 36px, so
-  // each page's content box (and the winW/2 split anchor used by the drawing math) barely moves.
+  // Spread margins: v97 tablets go FLUSH to the screen edges (0px — user request: "no padding
+  // to the edge", portrait split was starving for width) with the 8px seam kept (4+4 inner);
+  // phones stay at 6. A lone page (first/last pair, partner null) keeps symmetric treatment.
+  // Drawing anchors: the right page's content still starts at winW/2+4 (unchanged from v96),
+  // so right-half stroke math is untouched; left-page strokes drawn before v97 replay ~33px
+  // right of their words (one-time cost of moving the page).
   // Top 24 = pill band above the frame; bottom 24 = pill band below it (v93: the Page N /
   // pages-left pills AND the Hide/Show-Header button hang from each page's frame bottom edge,
   // scrolling together with the page like the top Juz/Surah pills).
   const spreadMargin = { marginTop: 24, marginBottom: 24 };
   const tablet = winW >= 600;
-  const leftMargins = tablet ? (odd ? { marginLeft: 33, marginRight: 4 } : { marginHorizontal: 33 }) : { marginHorizontal: 6 };
-  const rightMargins = tablet ? (odd ? { marginLeft: 4, marginRight: 33 } : { marginHorizontal: 33 }) : { marginHorizontal: 6 };
+  const leftMargins = tablet ? (odd ? { marginLeft: 0, marginRight: 4 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
+  const rightMargins = tablet ? (odd ? { marginLeft: 4, marginRight: 0 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
@@ -156,7 +160,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
                 showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
                 onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-                onMeasured={onMeasured} />
+                onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
           ) : null}
         </View>
@@ -169,7 +173,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
               showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
               onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-              onMeasured={onMeasured} />
+              onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
         </View>
       </View>
@@ -209,7 +213,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           margin band for the hanging row (mirror of the 24 top margin). marginHorizontal: 18
           tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW and clips end-of-line
           words past the 0.5 floor). */}
-      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6, marginTop: 24, marginBottom: 24 }}>
+      <View style={{ flex: 1, marginHorizontal: winW >= 600 ? 33 : 6, marginTop: 24, marginBottom: 24 }}>
       {pData ? (
         <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -217,7 +221,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           onSpread={onSpread} spread={spread}
           showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} onReadingMarkToggle={() => onReadingMarkToggle(last)}
           onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-          onMeasured={onMeasured} />
+          onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
       </View>
     </View>
@@ -369,6 +373,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const splitOn = !!(useSelector((s: any) => s.settings)?.mushafSplit && winW >= SPLIT_MIN_WIDTH);
   const splitCapable = winW >= SPLIT_MIN_WIDTH;
   const pageW = Math.round(pageWFor(winW, splitOn));
+  // v97: the font scale the reader is currently rendering with — MUST match the fontSizeScale
+  // passed to MushafPageView so warmPageLayoutFor preloads the same layout-cache key.
+  const layoutFontScale = layoutFontScaleFor(winW, splitOn);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
@@ -602,7 +609,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       warmLayoutByPage.add(p);
       layoutWarmByPageRef.current.add(warmKey(p));
       getMushafPageData(p, textStyleRef.current).then(pd => {
-        if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+        if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
       }).catch(() => {});
     };
     // ONE 3-per-80ms drain queue for every off-screen page. A settle used to queue
@@ -721,7 +728,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
         layoutWarmByPageRef.current.add(warmKey(p));
         getMushafPageData(p, textStyleRef.current).then(pd => {
-          if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW));
+          if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
         }).catch(() => {});
       }
       if (queue.length) warmNearTimerRef.current = setTimeout(stepTick, 150);
@@ -778,7 +785,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // P0-A — stale-guard: if the reader moved on (fast swipe / surah change) while the page
     // data was loading, warm nothing here — the settle-warm effect covers their actual page.
     if (currentPageNumRef.current !== pg || !data || !data.lines?.length || Math.round(pageW) <= 0) return;
-    try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW)); } catch {}
+    try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW * layoutFontScale)); } catch {}
   }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
@@ -2238,7 +2245,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
                     onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-                    nightMode={nightMode} />
+                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false)} />
                 )} />
             )}
 

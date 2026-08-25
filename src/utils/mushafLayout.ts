@@ -13,6 +13,15 @@ export const GUTTER = 12;
 // SPLIT_MIN_WIDTH = 768 (dp) — below this width the app NEVER shows spreads (splitOn = settings.mushafSplit && winW >= SPLIT_MIN_WIDTH), and SettingsScreen hides the Spread switch entirely.
 export const SPLIT_MIN_WIDTH = 768;
 
+// v97 — tablet mushaf font scales (MushafPageView's fontSizeScale). Split halves render
+// clearly smaller text (user request); single-page tablets get a mild trim so the first
+// line stops clipping under the header. Phones are ALWAYS 1 — byte-identical rendering.
+// MUST be folded into every layout-cache key (warmPageLayoutFor / startupPrefetch / renderer).
+export const SPLIT_FONT_SCALE = 0.78;
+export const TABLET_SINGLE_FONT_SCALE = 0.88;
+export const layoutFontScaleFor = (winW: number, splitOn: boolean): number =>
+  splitOn ? SPLIT_FONT_SCALE : (winW >= 600 ? TABLET_SINGLE_FONT_SCALE : 1);
+
 // WHAT: THE shared horizontal text inset for a given page width — 6.7% of the page width,
 //       floored at the frame's inner text-box edge (frameInsetFor) so words never cross the
 //       frame rule. MushafPageView pads the text container by it, and stroke.ts's hPadFor

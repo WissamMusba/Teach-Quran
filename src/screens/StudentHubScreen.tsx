@@ -11,11 +11,11 @@
  *          DashboardScreen.tsx (student card tap).
  */
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Keyboard, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
-import { getStudentData, getLastPageSeenLocal, getManifest } from '../database/localDB';
+import { getStudentData, getLastPageSeenLocal, getManifest, getStudentFace } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -84,6 +84,15 @@ const ArrowRight = ({ c }: { c: string }) => (
 export default function StudentHubScreen({ navigation }: any) {
   const dispatch = useDispatch();
   const currentStudent = useSelector((s: any) => s.student.currentStudent);
+  // v97: device-only student photo (never synced) — shown beside the student name.
+  const [facePath, setFacePath] = useState<string | null>(null);
+  useEffect(() => {
+    const sid = currentStudent?.id;
+    if (!sid) { setFacePath(null); return; }
+    let active = true;
+    getStudentFace(sid).then((p) => { if (active) setFacePath(p); }).catch(() => {});
+    return () => { active = false; };
+  }, [currentStudent?.id]);
   const studentData = useSelector((s: any) => s.student.studentData);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -205,6 +214,7 @@ export default function StudentHubScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={(nightMode ? '#7BA7DB' : '#1C3D72')} />
         </TouchableOpacity>
+        {facePath ? <Image source={{ uri: `file://${facePath}` }} style={styles(nightMode).faceAvatar} resizeMode="cover" /> : null}
         <View style={styles(nightMode).headerTextWrap}>
           <Text style={[styles(nightMode).headerTitle, { color: titleC }]}>Teach Quran</Text>
           <Text style={[styles(nightMode).headerSubtitle, { color: subC }]} numberOfLines={1}>{currentStudent?.name || ''}</Text>
@@ -276,6 +286,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginRight: 4 },
   headerTextWrap: { flex: 1 },
+  faceAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10, resizeMode: 'cover' },
   headerTitle: { fontSize: 20, fontWeight: '700' },
   headerSubtitle: { fontSize: 13, marginTop: 2 },
   scrollContent: { padding: 16 },

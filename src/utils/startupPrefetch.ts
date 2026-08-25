@@ -31,7 +31,7 @@ import { Dimensions, InteractionManager } from 'react-native';
 import { getMushafPageData, getVersesByPage, getVersePage } from '../database/quranData';
 import { getLastPageSeenLocal, getManifest, preloadPageLayoutCacheRange } from '../database/localDB';
 import { store } from '../store';
-import { pageWFor, SPLIT_MIN_WIDTH } from './mushafLayout';
+import { pageWFor, SPLIT_MIN_WIDTH, layoutFontScaleFor } from './mushafLayout';
 import { SPARSE_WORD_THRESHOLD } from '../components/quran/MushafPageView';
 
 // P1-style single-flight guard (same pattern as SplashScreen.tsx:24): the prefetch pipeline
@@ -86,7 +86,8 @@ export const startStartupPrefetch = (studentIds: string[]): void => {
   const textStyle = store.getState().quran?.textStyle as string | undefined;
   const mushafSplit = store.getState().settings?.mushafSplit;
   const splitOn = !!(mushafSplit && winW >= SPLIT_MIN_WIDTH);
-  const pageW = Math.round(pageWFor(winW, splitOn));
+  // v97: warm rows under the SCALED key the reader will actually read (tablet font scales).
+  const pageW = Math.round(pageWFor(winW, splitOn) * layoutFontScaleFor(winW, splitOn));
   const totalPages = isIndopakStyle(textStyle) ? 610 : 604;
   const ids = studentIds.slice(0, 5);
 

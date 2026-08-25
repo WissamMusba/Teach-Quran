@@ -125,6 +125,15 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    packagingOptions {
+        // v97: keep native libs DEFLATED in the APK. The minSdk 21->23 bump flipped
+        // AGP to stored/uncompressed libs (extractNativeLibs=false), which doubled the
+        // sideload APK from ~17MB to ~34MB. Legacy packaging restores the v96 APK size.
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
