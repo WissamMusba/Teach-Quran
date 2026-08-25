@@ -183,6 +183,7 @@ const pushAllDirty = async (userId: string): Promise<number> => {
       // Bookmarks merge per-key by createdAt (newer wins). lastRead also syncs and
       // merges last-write-wins by updatedAt (missing updatedAt = oldest).
       let merged: Record<string, any> = {};
+      let del: Record<string, any> = {};
       try {
         const overviewV = await firestore().runTransaction(async (tx: any) => {
           const snap: any = await tx.get(overviewRef);
@@ -190,18 +191,33 @@ const pushAllDirty = async (userId: string): Promise<number> => {
           const cloudV: number = cloud.v || 0;
           const cloudBookmarks: Record<string, any> = cloud.bookmarks || {};
           const localBookmarks: Record<string, any> = m.data.bookmarks || {};
-          for (const [k, lv] of Object.entries(localBookmarks) as Array<[string, any]>) {
+          // ---- Tombstones: a deleted bookmark key must never be resurrected by the
+          // merge below (the old merge re-added every cloud key absent locally, making
+          // deletion impossible after first sync). Tombstones carry the deletion
+          // timestamp; a bookmark RE-CREATED after its tombstone is allowed to live and
+          // consumes the tombstone. Union local + cloud tombstone sets (newest wins) so
+          // both devices converge on the same deletion state.
+          const tsOf = (v: any): number => (typeof v === 'string' ? (Date.parse(v) || 0) : (Number(v) || 0));
+          del = { ...((cloud.deletedBookmarks as Record<string, any>) || {}) };
+          for (const [k, v] of Object.entries((m.data.deletedBookmarks as Record<string, any>) || {})) {
+            if (del[k] === undefined || tsOf(v) >= tsOf(del[k])) del[k] = v;
+          }
+          const keys = new Set([...Object.keys(localBookmarks), ...Object.keys(cloudBookmarks)]);
+          for (const k of keys) {
+            const lv = localBookmarks[k];
             const cv = cloudBookmarks[k];
             const lts = lv?.createdAt ? new Date(lv.createdAt).getTime() : 0;
             const cts = cv?.createdAt ? new Date(cv.createdAt).getTime() : 0;
-            merged[k] = lts >= cts ? lv : cv;
-          }
-          for (const [k, cv] of Object.entries(cloudBookmarks) as Array<[string, any]>) {
-            if (!(k in merged)) merged[k] = cv;
+            const best = lts >= cts ? lv : cv;
+            const bts = best?.createdAt ? new Date(best.createdAt).getTime() : 0;
+            const tts = del[k] !== undefined ? tsOf(del[k]) : 0;
+            if (tts && tts >= bts) continue;    // deleted at or after the bookmark was made: stays deleted
+            if (tts && bts > tts) delete del[k]; // re-bookmarked after the deletion: tombstone consumed
+            merged[k] = best;
           }
           const v = Math.max(m.data.v || 0, cloudV) + 1;
           const lr = newerLastRead(m.data.lastRead, cloud.lastRead);
-          const patch: Record<string, any> = { v, updatedAt: firestore.FieldValue.serverTimestamp(), bookmarks: merged };
+          const patch: Record<string, any> = { v, updatedAt: firestore.FieldValue.serverTimestamp(), bookmarks: merged, deletedBookmarks: del };
           if (lr) patch.lastRead = lr;
           tx.set(overviewRef, patch, { merge: true });
           tx.set(manifestRef(userId), manifestSubtree(sid, { v, pages: m.data.pages || {} }), { merge: true });
@@ -209,9 +225,9 @@ const pushAllDirty = async (userId: string): Promise<number> => {
         });
         await setLastPushAt(sid, Date.now());
         for (const k of manifestKeys) await markSynced(sid, k);
-        // Persist the MERGED bookmark map locally too, so this device keeps the
-        // cloud bookmarks it merged with (not just its own).
-        await saveManifestLocal(sid, { ...m.data, bookmarks: merged, v: overviewV }, Date.now(), false);
+        // Persist the MERGED bookmark map + tombstones locally too, so this device keeps
+        // the cloud bookmarks it merged with (not just its own) and remembers deletions.
+        await saveManifestLocal(sid, { ...m.data, bookmarks: merged, deletedBookmarks: del, v: overviewV }, Date.now(), false);
         pushed++;
       } catch (e) { console.warn(`manifest push failed ${sid}`, e); for (const k of manifestKeys) await bumpAttempt(sid, k); }
     }
@@ -364,6 +380,27 @@ const pullStudent = async (
     // Reading mark now syncs: keep whichever device wrote it last (LWW by updatedAt).
     const lr = newerLastRead(localM.data.lastRead, cloudMeta.lastRead);
     if (lr) cloudMeta.lastRead = lr; else delete cloudMeta.lastRead;
+    // ---- Tombstones: strip deleted bookmarks from the pulled map BEFORE
+    // savePullBatch replaces the whole local manifest, and fold the cloud
+    // tombstone set into the local one (newest wins) — the wholesale replace
+    // would otherwise forget this device's not-yet-pushed deletions.
+    const tsOf = (v: any): number => (typeof v === 'string' ? (Date.parse(v) || 0) : (Number(v) || 0));
+    const cbDel: Record<string, any> = (cloudMeta.deletedBookmarks as Record<string, any>) || {};
+    if (cloudMeta.bookmarks) {
+      const bm: Record<string, any> = {};
+      for (const [k, v] of Object.entries(cloudMeta.bookmarks as Record<string, any>)) {
+        const tts = cbDel[k] !== undefined ? tsOf(cbDel[k]) : 0;
+        const bts = v?.createdAt ? new Date(v.createdAt).getTime() : 0;
+        if (tts && tts >= bts) continue;   // deleted at or after creation: stays deleted
+        bm[k] = v;
+      }
+      cloudMeta.bookmarks = bm;
+    }
+    const mergedDel: Record<string, any> = { ...((localM.data.deletedBookmarks as Record<string, any>) || {}) };
+    for (const [k, v] of Object.entries(cbDel)) {
+      if (mergedDel[k] === undefined || tsOf(v) >= tsOf(mergedDel[k])) mergedDel[k] = v;
+    }
+    cloudMeta.deletedBookmarks = mergedDel;
     manifestChanged = true;
   }
 
@@ -459,30 +496,40 @@ export interface DrawingGeometry { canvasW: number; canvasH: number; padX: numbe
 let lastDrawingGeo: DrawingGeometry | null = null;
 
 /**
- * Compacts + content-box-normalizes the page's strokes and writes ONE cloud doc
- * per 10-page range. Points become fractions of the text content box (inside the
- * horizontal padding), so a stroke under a word lands under that same word on any
- * device. norm:1 marks normalized paths for pullDrawings.
+ * Compacts + content-box-normalizes the page's strokes and writes them into the ONE
+ * cloud doc per 10-page range, MERGED per-page (dot-paths) so sibling pages in the
+ * same range doc are never touched. Points become fractions of the text content box
+ * (inside the horizontal padding), so a stroke under a word lands under that same
+ * word on any device. norm:1 marks normalized paths for pullDrawings. An emptied
+ * page is written as an explicit empty array so pullDrawings cannot resurrect
+ * erased strokes from stale cloud data.
  */
 export const pushDrawings = async (studentId: string, groupKey: string, pageKeys: string[], geo: DrawingGeometry) => {
   try {
     lastDrawingGeo = geo;
     const chunks = await Promise.all(pageKeys.map(k => getChunk(studentId, k).then(local => ({ k, local }))));
-    const strokesByPage: Record<string, any[]> = {};
+    // Write EVERY requested page key as its own dot-path field — including empty
+    // arrays when a page's strokes were all erased locally. A bare whole-map .set()
+    // here used to REPLACE the entire strokesByPage map with only the passed pages,
+    // silently WIPING every sibling page in this range doc from the cloud.
+    const patch: Record<string, any> = {};
+    let hasLocal = false;
     let hasAny = false;
     for (const { k, local } of chunks) {
+      if (local) hasLocal = true;
       const raw = local?.data?.strokes;
-      if (raw && raw.length) {
-        strokesByPage[k] = raw.map((p: any) => ({ ...p, norm: 1, points: compactStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) }));
-        hasAny = true;
-      }
+      const arr = raw && raw.length
+        ? raw.map((p: any) => ({ ...p, norm: 1, points: compactStroke(p.points || [], geo.canvasW, geo.canvasH, geo.padX) }))
+        : [];
+      if (arr.length) hasAny = true;
+      patch[`strokesByPage.${k}`] = arr;
     }
-    if (!hasAny) return;
+    if (!hasLocal) return;   // nothing ever saved for these pages — no doc to create
     const studRef = firestore().collection('users').doc(getUserId()).collection('students').doc(studentId);
-    await studRef.collection('drawings').doc(groupKey).set({
-      strokesByPage,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
-    });
+    await studRef.collection('drawings').doc(groupKey).set(
+      { ...patch, updatedAt: firestore.FieldValue.serverTimestamp() },
+      { merge: true },   // merge at per-page dot-paths: sibling pages not in pageKeys stay untouched
+    );
   } catch (e) { console.warn('pushDrawings', e); }
 };
 

@@ -77,12 +77,17 @@ const AppInner = () => {
   const studentIdRef = useRef<string | null>(null);
   studentIdRef.current = currentStudent?.id || null;
   const listJsonRef = useRef('');
-  const studentDataJsonRef = useRef('');
+  // PERF: mirror the Redux studentData by REFERENCE only (one pointer write per
+  // edit). The old mirror ran JSON.stringify over the ENTIRE student blob (every
+  // highlight/note/stroke point) on every single edit, growing with annotation
+  // history; the fingerprint is now computed lazily inside refreshReduxAfterPull,
+  // which runs only when a pull actually changed something.
+  const studentDataRef = useRef<any>(null);
   useEffect(() => {
     listJsonRef.current = JSON.stringify((studentList || []).map((s: any) => [s?.id || '', s?.updatedAt || '']));
   }, [studentList]);
   useEffect(() => {
-    studentDataJsonRef.current = JSON.stringify(studentData || null);
+    studentDataRef.current = studentData;
   }, [studentData]);
 
   /**
@@ -115,8 +120,12 @@ const AppInner = () => {
       const d = await getStudentData(sid);
       if (!d) return;
       markStudentDataLoaded(sid, snapshot);
+      // Fingerprint comparison runs HERE (per pull-with-changes), not per edit:
+      // SQLite re-aggregation always yields a fresh object, so reference equality
+      // can't be used — but the cost of stringifying both sides is now paid once
+      // per pull instead of once per user action.
       const json = JSON.stringify(d);
-      if (json !== studentDataJsonRef.current) { studentDataJsonRef.current = json; dispatch(setStudentData(d)); }
+      if (json !== JSON.stringify(studentDataRef.current || null)) { dispatch(setStudentData(d)); }
     } catch {}
   }, [dispatch]);
 

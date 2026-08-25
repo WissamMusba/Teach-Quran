@@ -1543,6 +1543,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ReactNativeHapticFeedback.trigger('impactMedium');
     getManifest(currentStudent.id).then(m => {
       m.data.bookmarks = newMarks; m.data.v++;
+      // Tombstone bookkeeping (sync.ts filters these during bookmark merges): record
+      // WHEN a key was deleted so the push/pull merge can't resurrect it, and clear
+      // the tombstone if the same verse is re-bookmarked later.
+      const del = { ...(m.data.deletedBookmarks || {}) };
+      if (newMarks[vKey]) delete del[vKey]; else del[vKey] = new Date().toISOString();
+      m.data.deletedBookmarks = del;
       saveManifestLocal(currentStudent.id, m.data);
     });
   }, [studentData, currentStudent, currentSurahId]);
