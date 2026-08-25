@@ -9,7 +9,7 @@
  */
 
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { useSelector } from 'react-redux';
 import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
@@ -39,7 +39,7 @@ import WordHitArea from '../common/WordHitArea';
  *   - No bookmark badge in this component; ayah-mode bookmarks live in the parent's header row.
  *   - memo() is effective: verse objects come from the redux verses array (stable identities).
  */
-const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse, onDeadTap }: any) => {
+const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse, onDeadTap, onBadgeTap }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
@@ -76,9 +76,13 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
             </WordHitArea>
           );
 })}
-        <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
-        </View>
+        {/* v96: badge TAP sets/clears the reading mark (long-press menu's Reading button removed). */}
+        <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+          </View>
+        </TouchableOpacity>
       </Pressable>
       {showTranslation && <Text style={styles(nightMode).translation}>{verse.textTranslation}</Text>}
     </View>
@@ -92,10 +96,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
   basmala: { textAlign: 'center', marginBottom: 6 },
-  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 3 },
+  verseBadge: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 3 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { fontSize: 10, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'normal' },
   bookmarkedBadgeText: { color: '#000000' },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });

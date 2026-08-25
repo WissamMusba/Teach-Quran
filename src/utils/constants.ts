@@ -13,13 +13,15 @@ export const DRAWING_COLORS = [
   { id: 'yellow', name: 'Yellow', hex: '#FFD700' },
   { id: 'black', name: 'Black', hex: '#000000' }
 ];
-// WHAT: Named sizes for FLOWING mode (ayah/continuous): small 22 / medium 26 / large 30 / xl 36.
+// WHAT: Named sizes for FLOWING mode (ayah/continuous): small 20 / medium 24 / large 28 / xl 34.
 // CALLED BY: VerseDisplay.tsx and FlowingText.tsx -> scaleFont(FONT_SIZES[fontSize]).
 // NOTES: Mushaf page mode does NOT use this — it uses getMushafFontSize buckets (responsive.ts).
-export const FONT_SIZES = { small: 22, medium: 26, large: 30, xl: 36 };
-// WHAT: 0.5 — center-half band for word taps; passed as `tapFraction` to WordHitArea (MushafPageView, FlowingText, VerseDisplay).
-// AFFECTS: Tap precision — 50% of the word's width must be hit for a word-press.
-export const WORD_TAP_FRACTION = 0.5;
+export const FONT_SIZES = { small: 20, medium: 24, large: 28, xl: 34 };
+// WHAT: 0.8 — center-80% band for word taps; passed as `tapFraction` to WordHitArea (MushafPageView, FlowingText, VerseDisplay).
+// AFFECTS: Tap precision — 80% of the word's WIDTH must be hit for a word-press (height never factors in).
+// NOTES: v96 — widened from 0.5 because edge taps were swallowing highlights; the outer
+// 10% margins on each side still fall through to the header toggle (onDeadTap).
+export const WORD_TAP_FRACTION = 0.8;
 // DEAD EXPORT: 5 * 60 * 1000 (5 min) intended auto-sync cadence — no importer found in src/ (App.tsx's periodic refresh does not use it).
 export const SYNC_INTERVAL = 5 * 60 * 1000;
 // WHAT: Canonical red for word mistakes/highlights.

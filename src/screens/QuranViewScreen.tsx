@@ -69,16 +69,15 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // so a second expand after returning re-checks (another device may have pushed meanwhile).
 const expandedDrawPullAttempted = new Set<string>();
 const IS_TABLET = SCREEN_WIDTH >= 600;
-const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 28) / 6));
+const MENU_BTN_W = Math.min(62, Math.floor((SCREEN_WIDTH - 44) / 5));
 const MENU_BTN_H = 36;
-// REAL bubble geometry: the 6 buttons render as a compact 2×3 WRAP GRID —
-//   3 buttons per row × MENU_BTN_W, 2 rows × MENU_BTN_H,
-//   + 2×4 bubble padding + 2×1 border = 3×62+10 = 196 wide × 2×36+10 = 82 tall.
-// The _H/_W constants below match that (+2px slack) so menuPos clamps/placement
-// can never overshoot the rendered bubble (the old column-style 6×H formula
-// placed the bubble ~180px above the finger on bottom-half presses).
-const MENU_BUBBLE_W = 3 * MENU_BTN_W + 12;
-const MENU_BUBBLE_H = 2 * MENU_BTN_H + 12;
+// REAL bubble geometry (v96): SINGLE row of FIVE buttons (Play/Bookmark/Note/Record/Copy —
+// the Reading button moved to verse-badge taps in flowing modes) —
+//   5 buttons × MENU_BTN_W + 2×3 padding + 2×1 border ≈ 5×62+8 = 318 wide × 36+8 = 44 tall.
+// The _H/_W constants below carry +2px slack so menuPos clamps/placement can never
+// overshoot the rendered bubble.
+const MENU_BUBBLE_W = 5 * MENU_BTN_W + 12;
+const MENU_BUBBLE_H = MENU_BTN_H + 12;
 const MENU_BUBBLE_BG = 'rgba(18,18,20,0.85)';
 const MENU_ICON_C = '#CFCFCF';
 const MENU_LABEL_C = '#b0b0b0';
@@ -134,16 +133,22 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  // Spread margins: mirror the single-page wrapper — horizontal 18 tablets / 6 phones (phones
-  // keep 6 — a wider margin shrinks lineW and pushes end-of-line words under the frame past the
-  // 0.5 scale floor). Top 24 = pill band above the frame; bottom 24 = pill band below it (v93:
-  // the Page N / pages-left pills AND the Hide/Show-Header button hang from each page's frame
-  // bottom edge, scrolling together with the page like the top Juz/Surah pills).
+  // Spread margins: v96 tablets get 33px to the SCREEN edges (+15 breathing room vs the old
+  // 18) and a tight 8px seam between the two pages (4+4 instead of 18+18); phones stay at 6.
+  // A lone page (first/last pair, partner null) keeps SYMMETRIC outer margins so it stays
+  // centered. Drawing alignment is preserved: outer+inner per side = 37px ≈ the old 36px, so
+  // each page's content box (and the winW/2 split anchor used by the drawing math) barely moves.
+  // Top 24 = pill band above the frame; bottom 24 = pill band below it (v93: the Page N /
+  // pages-left pills AND the Hide/Show-Header button hang from each page's frame bottom edge,
+  // scrolling together with the page like the top Juz/Surah pills).
   const spreadMargin = { marginTop: 24, marginBottom: 24 };
+  const tablet = winW >= 600;
+  const leftMargins = tablet ? (odd ? { marginLeft: 33, marginRight: 4 } : { marginHorizontal: 33 }) : { marginHorizontal: 6 };
+  const rightMargins = tablet ? (odd ? { marginLeft: 4, marginRight: 33 } : { marginHorizontal: 33 }) : { marginHorizontal: 6 };
   return (
     <View style={{ width: winW, flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6 }, spreadMargin]}>
+        <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
             pageCache[odd] ? (
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
@@ -157,7 +162,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
-        <View style={[{ flex: 1, marginHorizontal: winW >= 600 ? 18 : 6 }, spreadMargin]}>
+        <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
           {pageCache[even] ? (
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -299,7 +304,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareDrawings, setShareDrawings] = useState(true);
   const [shareMistakes, setShareMistakes] = useState(true);
-  const [shareBookmarks, setShareBookmarks] = useState(true);
+  // v96: shareBookmarks toggle REMOVED — bookmarks are always included in shares.
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
   const [flashingSurah, setFlashingSurah] = useState(0);
   const flatListRef = useRef<any>(null);
@@ -1553,14 +1558,30 @@ export default function QuranViewScreen({ navigation, route }: any) {
     });
   }, [studentData, currentStudent, currentSurahId]);
 
+  /**
+   * WHAT (v96): Toggles the reading mark on a VERSE BADGE in flowing/ayah modes — replaces
+   *   the Reading button removed from the long-press menu. Same lastRead shape as
+   *   handleReadingMarkToggle: tapping the marked verse clears it, tapping another moves it.
+   * CALLS: updateData.
+   * CALLED BY: FlowingText / VerseDisplay onBadgeTap.
+   * AFFECTS: studentData.lastRead.{surah, verse, updatedAt}.
+   */
+  const handleBadgeReadingMark = useCallback((verseNum: number) => {
+    if (!currentStudent || !verseNum) return;
+    const lr = studentData?.lastRead;
+    const isMarked = !!lr && Number(lr.surah) === Number(currentSurahId) && Number(lr.verse) === Number(verseNum);
+    updateData({ lastRead: isMarked ? null : { surah: Number(currentSurahId), verse: Number(verseNum), updatedAt: new Date().toISOString() } });
+    ReactNativeHapticFeedback.trigger('impactMedium');
+  }, [currentStudent, currentSurahId, studentData?.lastRead]);
+
   // ---- tap callbacks: curried handlers passed down to every renderer ----
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
   // toggleHeader: any dead tap on the mushaf text/line background ALWAYS toggles (no pageY filter)
   const toggleHeader = useCallback(() => setIsHeaderVisible((prev: boolean) => !prev), []);
   const onBookmarkToggle = useCallback((verseNum: number, surahId?: number) => () => handleBookmarkFlow(verseNum, surahId), [handleBookmarkFlow]);
   /**
-   * WHAT: Long-press a verse -> haptic + menuVerse/menuY -> floating 6-button
-   *   bubble (Play/Bookmark/Reading/Note/Record/Copy).
+   * WHAT: Long-press a verse -> haptic + menuVerse/menuY -> floating single-row 5-button
+   *   bubble (Play/Bookmark/Note/Record/Copy; v96: Reading moved to badge taps).
    * CALLED BY: VerseDisplay / FlowingText / MushafPageView onVerseLongPress
    *   (and SpreadItem's two MushafPageViews).
    * ALSO (badge taps): MushafPageView verse BADGES call this SAME handler via
@@ -1711,21 +1732,50 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * WHAT: Captures the reading area (viewShotRef wrapper, collapsable={false}) as a
    *   JPG via captureRef and opens the native share sheet — only the annotation
    *   layers whose menu toggle is ON are rendered in the image.
-   * FLOW: close menu, hide header (restored in finally), isCapturing=true, wait
-   *   150ms for re-layout, captureRef(viewShotRef, {format:'jpg', quality:0.95}),
-   *   Share.open (file:// prefix on Android), spinner overlay while capturing.
+   * FLOW: close menu, isCapturing=true, wait 150ms for chrome overlays to unmount,
+   *   captureRef(viewShotRef, {format:'jpg', quality:0.95}), Share.open (file:// prefix
+   *   on Android), spinner overlay while capturing.
    * CALLS: captureRef (react-native-view-shot), Share.open (react-native-share).
-   * AFFECTS: isHeaderVisible/isCapturing during capture; DrawingCanvas is
-   *   unmounted while capturing and StaticDrawingOverlay re-draws the paths
-   *   (only when shareDrawings is ON); highlights/bookmarks props are emptied
-   *   when their toggle is OFF so they stay out of the image.
+   * AFFECTS: s.isCapturing during capture; DrawingCanvas is unmounted while capturing
+   *   and StaticDrawingOverlay re-draws the paths (only when Drawings toggle is ON);
+   *   highlights props are emptied when their toggle is OFF so they stay out of the image.
+   * NOTES (v96): the header NO LONGER hides during capture. Hiding it changed the page
+   *   box height, which re-ran MushafPageView's vertical fit and SHIFTED the text under
+   *   strokes painted at pre-shift coordinates — drawings appeared displaced (up to a
+   *   full verse) in shared images. AnimatedHeader sits OUTSIDE viewShotRef, so leaving
+   *   it visible never shows up in the JPG; the capture now matches the on-screen
+   *   layout pixel-for-pixel. Bookmarks are always included (toggle removed).
    */
   const runShare = async () => {
     setShowShareMenu(false);
-    const wasHeaderVisible = isHeaderVisible;
-    try { setIsHeaderVisible(false); setIsCapturing(true); await new Promise<void>(r => setTimeout(() => r(), 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
-    catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); setIsHeaderVisible(wasHeaderVisible); }
+    try { setIsCapturing(true); await new Promise<void>(r => setTimeout(() => r(), 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
+    catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); }
   };
+
+  // ---- v96: PRE-HIDE the header the moment the drawing TOOLBAR expands (not when a tool
+  // is first pressed). Pressing PEN right after opening used to freeze ~5s: the header flip
+  // triggered MushafPageView's fit/measurement pass in the same commit as the canvas mount,
+  // blocking touches until it settled. Moving the flip to expand time gets that work out of
+  // the "grab pen and draw" moment — by the time PEN is pressed the layout is settled.
+  // Collapse WITHOUT drawing restores the header (same ref the EXIT path already used).
+  // Reuses the toolbarExpanded selector declared with the expand-prefetch state above.
+  const prevToolbarExpandedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    // First run after mount: adopt the CURRENT expanded value (the drawing slice is
+    // redux-persisted, so the toolbar can already be expanded at cold start — adopting
+    // prevents a phantom false→true transition from hiding the header on launch).
+    if (prevToolbarExpandedRef.current === null) {
+      prevToolbarExpandedRef.current = toolbarExpanded;
+      return;
+    }
+    if (isCapturing) return;
+    if (toolbarExpanded && !prevToolbarExpandedRef.current && !isDrawing) {
+      if (isHeaderVisible) { headerVisibleBeforeDrawRef.current = true; setIsHeaderVisible(false); }
+    } else if (!toolbarExpanded && prevToolbarExpandedRef.current && !isDrawing) {
+      setIsHeaderVisible(headerVisibleBeforeDrawRef.current);
+    }
+    prevToolbarExpandedRef.current = toolbarExpanded;
+  }, [toolbarExpanded, isDrawing, isCapturing, isHeaderVisible]);
 
   /**
    * WHAT: PanGestureHandler vertical/horizontal swipes — header toggle + surah
@@ -1771,7 +1821,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const capturePaths = composeSpreadPaths();
   // Share toggles apply ONLY while capturing — normal reading keeps everything.
   const captureHighlights = isCapturing && !shareMistakes ? {} : canvasData.highlights;
-  const captureBookmarks = isCapturing && !shareBookmarks ? {} : studentData?.bookmarks;
+  // v96: bookmarks are ALWAYS included in share captures (toggle removed).
+  const captureBookmarks = studentData?.bookmarks;
   const readingMarkVerse = (() => {
     const lr = studentData?.lastRead;
     const s = Number(lr?.surah);
@@ -2088,7 +2139,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   <VerseDisplay verse={item} highlights={captureHighlights?.[`${currentSurahId}_${item.verseNumber}`]?.highlights}
                     isBookmarked={!!captureBookmarks?.[`${currentSurahId}_${item.verseNumber}`]} isReadingMark={readingMarkVerse === item.verseNumber}
                     onWordPress={onWordPress(item.verseNumber)} onBookmarkToggle={onBookmarkToggle(item.verseNumber)} onVerseLongPress={handleVerseLongPress}
-                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
+                    showTranslation={showTranslation} fontSize={fontSize} flashingVerse={flashingVerse} onDeadTap={toggleHeader}
+                    onBadgeTap={handleBadgeReadingMark} />
                 )}
                 onEndReached={() => { if (!loadingMore && hasMore && verses.length > 0) { setLoadingMore(true); loadSurah(currentSurahId, false).finally(() => setLoadingMore(false)); } }}
                 onEndReachedThreshold={0.5} ListFooterComponent={loadingMore ? <ActivityIndicator color={(nightMode ? '#7BA7DB' : '#1C3D72')} /> : null}
@@ -2109,7 +2161,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 <FlowingText verses={verses} highlights={captureHighlights} onWordPress={handleWordFlow} onVerseLongPress={handleVerseLongPress}
                   onBookmarkToggle={handleBookmarkFlow} showTranslation={showTranslation} fontSize={fontSize}
                   bookmarks={captureBookmarks}
-                  notes={canvasData.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader} />
+                  notes={canvasData.notes} readingMarkVerse={readingMarkVerse} flashingVerse={flashingVerse} onDeadTap={toggleHeader}
+                  onBadgeTap={handleBadgeReadingMark} />
                 {loadingMore && <ActivityIndicator color={(nightMode ? '#7BA7DB' : '#1C3D72')} />}
               </ScrollView>
             )}
@@ -2216,13 +2269,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
           onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />
       )}
 
-      {/* ---- AnnotationToolbar: undo/redo/clear/exit + activate-draw; onActivateDraw remembers the
-           header state (headerVisibleBeforeDrawRef), hides the header, then setIsDrawing(true) ---- */}
+      {/* ---- AnnotationToolbar: undo/redo/clear/exit + activate-draw; the header is already
+           hidden by the expand watcher (v96), so onActivateDraw only guards + setIsDrawing(true) ---- */}
       <ToolbarBoundary>
         <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
           onClear={() => canvasRef.current?.clear()} onExit={() => { if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); } else { dispatch(setToolbarExpanded(false)); } }}
           canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
-          onActivateDraw={() => { if (!isDrawing) { headerVisibleBeforeDrawRef.current = isHeaderVisible; setIsHeaderVisible(false); setIsDrawing(true); }}} />
+          onActivateDraw={() => { if (!isDrawing) { if (isHeaderVisible) { headerVisibleBeforeDrawRef.current = true; setIsHeaderVisible(false); } setIsDrawing(true); } }} />
       </ToolbarBoundary>
 
       {/* share spinner overlay */}
@@ -2284,7 +2337,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
             <View style={styles(nightMode).bubble}>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); startPlayFromVerse(menuVerse!); }}><IconPlay c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Play</Text></TouchableOpacity>
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { setMenuVerse(null); setMenuY(null); handleBookmarkFlow(menuVerse!); }}><IconBookmark c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Bookmark</Text></TouchableOpacity>
-              <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { const v = menuVerse; setMenuVerse(null); setMenuY(null); Alert.alert('Set Reading Mark', `Start reading from verse ${v}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { if (v) updateData({ lastRead: { surah: currentSurahId, verse: v, updatedAt: new Date().toISOString() } }); } }]); }}><IconPin c={MENU_ICON_C} /><Text style={styles(nightMode).bubbleLabel}>Reading</Text></TouchableOpacity>
+              {/* v96: Reading button removed — reading marks are set via verse-badge taps
+                  (flowing/ayah modes) or the page ribbon (page mode). */}
               <TouchableOpacity style={styles(nightMode).bubbleBtn} onPress={() => { openNoteModal(); setMenuVerse(null); setMenuY(null); }}><IconNote c={MENU_ICON_C} /><Text style={[styles(nightMode).bubbleLabel, styles(nightMode).bubbleLabelWide, { textAlign: 'center' }]} numberOfLines={1}>{studentData?.notes?.[`${currentSurahId}_${menuVerse}`] ? 'View/Edit note' : 'Note'}</Text></TouchableOpacity>
               {/* Record: NOTE — pauses via RAW audioPlayer.pausePlayer(), NOT pauseSurah, so the
                   audioPlayback module's playing/playToken state goes stale (ghost isSurahPlaying) */}
@@ -2326,10 +2380,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
               <Text style={styles(nightMode).shareMenuLabel}>Include mistakes</Text>
               <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
             </View>
-            <View style={styles(nightMode).shareMenuRow}>
-              <Text style={styles(nightMode).shareMenuLabel}>Include bookmarks</Text>
-              <Switch value={shareBookmarks} onValueChange={setShareBookmarks} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
-            </View>
             <TouchableOpacity style={styles(nightMode).shareMenuButton} onPress={runShare} activeOpacity={0.75}>
               <Text style={styles(nightMode).shareMenuButtonText}>Share</Text>
             </TouchableOpacity>
@@ -2367,7 +2417,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   menuOverlayCentered: { justifyContent: 'center' },
   bubbleCenteredWrap: { alignItems: 'center' },
   bubbleWrap: { position: 'absolute', alignItems: 'center' },
-  bubble: { flexDirection: 'row', flexWrap: 'wrap', width: 3 * MENU_BTN_W + 10, alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  bubble: { flexDirection: 'row', flexWrap: 'nowrap', width: 5 * MENU_BTN_W + 8, alignItems: 'center', backgroundColor: MENU_BUBBLE_BG, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
   bubbleBtn: { width: MENU_BTN_W, height: MENU_BTN_H, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bubbleLabel: { fontSize: 8, color: MENU_LABEL_C, marginTop: 2, fontWeight: '600' },
   // long label ("View/Edit note") must fit its 62dp button on Android too
@@ -2396,9 +2446,6 @@ const IconPlay = ({ c }: { c: string }) => (
 );
 const IconBookmark = ({ c, s = 18, filled = false }: { c: string; s?: number; filled?: boolean }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" {...ICON_ST} stroke={c} fill={filled ? c : 'none'}><Path d="M7 3h10v18l-5-3.6L7 21V3z" /></Svg>
-);
-const IconPin = ({ c }: { c: string }) => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M12 2.5l1.6 5.9 5.9 1.6-5.9 1.6L12 17.5l-1.6-5.9-5.9-1.6 5.9-1.6L12 2.5z" /></Svg>
 );
 const IconNote = ({ c }: { c: string }) => (
   <Svg width={18} height={18} viewBox="0 0 24 24" {...ICON_ST} stroke={c}><Path d="M6 3h12v18l-4-2-4 2-4-2-2 2V3z" /><Path d="M9 8h6M9 12h6" /></Svg>

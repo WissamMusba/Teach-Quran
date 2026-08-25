@@ -5,12 +5,19 @@ import com.facebook.react.ReactActivityDelegate;
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint;
 import com.facebook.react.defaults.DefaultReactActivityDelegate;
 
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 
 public class MainActivity extends ReactActivity {
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
+    // v96: lock PHONES to portrait — tablets (smallest-width >= 600dp, matching the JS
+    // side's IS_TABLET = width >= 600) keep free rotation so split-view landscape keeps
+    // working. Applied before super.onCreate so the first frame is already oriented.
+    if (getResources().getConfiguration().smallestScreenWidthDp < 600) {
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
     super.onCreate(null);
   }
 

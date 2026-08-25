@@ -422,15 +422,22 @@ const mushafFontSize = getMushafFontSize(headerVisible);
 
   // Ta'awwud line placement: a surah begins exactly where a 'surah-header' or 'basmala'
   // marker line appears; Fallback for headerless pages (e.g. At-Tawba): the first line's
-  // first word is verse 1 word 1. taawudLineIdx lands on that line so the ta'awwud renders
-  // ABOVE the surah-start line (it takes only its own content height — no flex:1 — so verse
-  // lines keep their space). Non-interactive, not part of word measurement.
-  const taawudLineIdx = (() => {
+  // first word is verse 1 word 1. v96: a SET of indices — the old single findIndex only
+  // marked the FIRST start, so pages beginning 2-3 surahs rendered the ta'awwud above the
+  // first one only. Each strip renders ABOVE its own surah-start line (it takes only its
+  // own content height — no flex:1 — so verse lines keep their space). Non-interactive,
+  // not part of word measurement.
+  const taawudLineSet = (() => {
     const lines = pageData?.lines || [];
-    const i = lines.findIndex((l: any) => l.type === 'surah-header' || l.type === 'basmala');
-    if (i !== -1) return i;
-    const loc = ((lines[0]?.words?.[0]?.location) || '').split(':');
-    return (loc.length >= 2 && parseInt(loc[1], 10) === 1 && parseInt(loc[2] || '1', 10) === 1) ? 0 : -1;
+    const set = new Set<number>();
+    lines.forEach((l: any, i: number) => {
+      if (l.type === 'surah-header' || l.type === 'basmala') set.add(i);
+    });
+    if (!set.size) {
+      const loc = ((lines[0]?.words?.[0]?.location) || '').split(':');
+      if (loc.length >= 2 && parseInt(loc[1], 10) === 1 && parseInt(loc[2] || '1', 10) === 1) set.add(0);
+    }
+    return set;
   })();
 
   // Reset effect — a page/font/width/fixNonce change invalidates ALL measurement state and pushes
@@ -769,7 +776,7 @@ const mushafFontSize = getMushafFontSize(headerVisible);
   return (
     <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
       {pageData.lines.map((line: any, lineIdx: number) => {
-        const taawud = lineIdx === taawudLineIdx ? (
+        const taawud = taawudLineSet.has(lineIdx) ? (
           <View style={styles(nightMode).taawudRow}>
             <View style={[styles(nightMode).taawudRule, { backgroundColor: nightMode ? 'rgba(123,167,219,0.30)' : 'rgba(28,61,114,0.35)' }]} />
             <Text style={[styles(nightMode).taawudText, { color: nightMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)', fontFamily, fontSize: Math.max(12, Math.round(fs * 0.55)) }]}>

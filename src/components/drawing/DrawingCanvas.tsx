@@ -51,6 +51,12 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
   const [paths, setPaths] = useState<any[]>(initialPaths);
   const [redoStack, setRedoStack] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState<any>(null);
+  // v96 — PERSISTENT LASER DOT: the laser marker used to vanish the moment the finger
+  // lifted (release discarded currentPath). Now the last point survives as laserDot and
+  // keeps rendering WHILE the laser tool stays selected; it is cleared automatically the
+  // moment another tool is chosen (see the activeTool watch below), so pen/eraser/underline
+  // never show it. Never persisted: laserDot lives only in this component's state.
+  const [laserDot, setLaserDot] = useState<string | null>(null);
 
   const pathsRef = useRef<any[]>(paths);
   const stateRef = useRef({ activeTool, activeColor, penSize });
@@ -96,6 +102,10 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
   useEffect(() => { pathsRef.current = paths; }, [paths]);
   useEffect(() => { stateRef.current = { activeTool, activeColor, penSize }; }, [activeTool, activeColor, penSize]);
   useEffect(() => { currentPathRef.current = currentPath; }, [currentPath]);
+  // v96: leaving laser mode erases the parked dot — pen/eraser/underline never see it.
+  useEffect(() => {
+    if (activeTool !== 'laser') setLaserDot(null);
+  }, [activeTool]);
 
   // Initial state report on mount — informs toolbar UNDO/REDO button enablement (canUndo if paths or a clear-snapshot exist).
   useEffect(() => {
@@ -217,6 +227,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       const s = stateRef.current;
       if (s.activeTool === 'laser') {
         lastPenPointRef.current = null;
+        setLaserDot(null);   // v96: a fresh drag supersedes the parked dot — no double marker
         const newPath = {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           points: [`${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`],
@@ -286,12 +297,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
         }
       }
     },
-    // RELEASE — laser: discard currentPath only (never persisted, by design). Eraser: sweep captured points and drop any
+    // RELEASE — laser: PARK the dot at its last point (laserDot) instead of discarding it —
+    // it stays visible until the tool changes (v96). Eraser: sweep captured points and drop any
     // committed path whose distanceToPath(...) < 30px; commit+save only if something was removed. Pen/underline: commit when points.length > 1 (clears redoStack + logs a history 'add').
     onPanResponderRelease: (e) => {
       const s = stateRef.current;
       lastPenPointRef.current = null;
       if (s.activeTool === 'laser') {
+        const pts = currentPathRef.current?.points;
+        if (pts && pts.length) setLaserDot(pts[pts.length - 1]);
         setCurrentPath(null);
         currentPathRef.current = null;
         onGestureEndRef.current?.();
@@ -380,8 +394,27 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
   // Hidden -> not mounted. The parent only renders this while isDrawing, and toolbar handle calls are optional-chained, so null here is safe.
   if (!visible) return null;
 
+  // v96 — LASER DOT RENDER: layered translucent circles (wide faint halo → mid glow → core)
+  // give a soft laser-glow without SVG filters, and a closed jittered polyline rim adds an
+  // irregular "laser light" edge — offsets vary around the circumference and are SEEDED from
+  // the position so the shape is stable per dot instead of flickering every render.
+  const laserR = Math.max(6, penSize + 3);
+  const laserWobbleD = (cx: number, cy: number, r: number) => {
+    const N = 16;
+    let d = '';
+    for (let i = 0; i <= N; i++) {
+      const a = ((i % N) / N) * Math.PI * 2;
+      const seed = Math.sin(i * 12.9898 + cx * 0.37 + cy * 0.11) * 43758.5453;
+      const j = (seed - Math.floor(seed)) - 0.5;   // deterministic -0.5..0.5
+      const rr = r * (1 + j * 0.36);
+      d += (i === 0 ? 'M' : 'L') + (cx + Math.cos(a) * rr).toFixed(1) + ',' + (cy + Math.sin(a) * rr).toFixed(1);
+    }
+    return d + 'Z';
+  };
+  const showLaser = (currentPath && currentPath.tool === 'laser' && currentPath.points[0]) || laserDot;
+
   // RENDER — committed paths as Paths (round caps; style 'double' adds a half-width duplicate translated +3px);
-  // laser shows as a red Circle at its single point; eraser strokes are NOT rendered while drawing (excluded below).
+  // laser shows as the glowing parked dot (live point while dragging); eraser strokes are NOT rendered while drawing (excluded below).
   return (
     <View style={styles.overlay} pointerEvents="box-none">
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
@@ -394,8 +427,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
               )}
             </React.Fragment>
           ))}
-          {currentPath && currentPath.tool === 'laser' ? (
-            (() => { const [cx, cy] = currentPath.points[0].split(',').map(Number); return <Circle cx={cx} cy={cy} r={Math.max(4, currentPath.width)} fill="#FF0000" opacity={0.85} />; })()
+          {showLaser ? (
+            (() => { const [cx, cy] = String(showLaser).split(',').map(Number); return (
+              <React.Fragment key={`laser_${cx}_${cy}`}>
+                <Circle cx={cx} cy={cy} r={laserR * 2.1} fill="#FF2D2D" opacity={0.10} />
+                <Circle cx={cx} cy={cy} r={laserR * 1.5} fill="#FF2D2D" opacity={0.18} />
+                <Circle cx={cx} cy={cy} r={laserR} fill="#FF3B30" opacity={0.42} />
+                <Path d={laserWobbleD(cx, cy, laserR * 1.05)} stroke="#FF5A5A" strokeWidth={1.5} opacity={0.55} fill="none" strokeLinejoin="round" />
+              </React.Fragment>
+            ); })()
           ) : (
             currentPath && currentPath.tool !== 'eraser' && <Path d={generatePathD(currentPath.points, currentPath.style)} stroke={currentPath.color} strokeWidth={currentPath.width} strokeOpacity={currentPath.opacity} fill="none" strokeLinecap="round" />
           )}

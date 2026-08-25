@@ -152,11 +152,22 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
   const po = Math.max(2, W * 0.010);        // layer 1: outer thin border offset
   const band = frameBandFor(W);             // layer 4: decorative band width (shared with frameInsetFor)
-  const bandV = frameBandVFor(W);           // vertical bands — taller than the side bands
+  // v96 — SPLIT-HALF proportion guard: on a tablet's narrow/tall half-page the width-scaled
+  // vertical bands plus the free corner stretch read as "stretched". Corrections here are
+  // VERTICAL-ONLY and gated to split halves (window >= 600dp AND box narrower than half the
+  // window): the vertical band thickens a little (clamped) and the corner stretch gets a
+  // ceiling. Phones and full-width tablet pages keep the exact pre-v96 numbers, and the
+  // horizontal geometry (po/band/x*) is deliberately untouched — the text-inset contract
+  // (frameInsetFor) is computed from W by the importers and must keep matching the paint.
+  const winW = Dimensions.get('window').width;
+  const isSplitHalf = winW >= 600 && W < winW / 2;
+  const bandV = isSplitHalf
+    ? Math.min(Math.max(frameBandVFor(W), H * 0.016), frameBandVFor(W) * 1.5)
+    : frameBandVFor(W);                     // vertical bands — taller than the side bands
   const sw = Math.max(0.75, W * 0.0015);    // hairline stroke — pattern tiles, corner knots, inner rules
   const outSw = Math.max(1.5, W * 0.0035);  // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
   const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
-  const vScale = bandV / band;              // corner-node vertical stretch so nodes cover the taller top/bottom bands
+  const vScale = Math.min(isSplitHalf ? 1.2 : 2, bandV / band); // corner-node vertical stretch (capped on halves so nodes never elongate)
 
   const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
   const x1 = band;                          // main frame inner edge (band inner edge)
