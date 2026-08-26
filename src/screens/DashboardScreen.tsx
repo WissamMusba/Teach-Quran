@@ -31,6 +31,8 @@ import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { startStartupPrefetch } from '../utils/startupPrefetch';
+import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
+import TutorialAnchor from '../tutorial/TutorialAnchor';
 
 export default function DashboardScreen({ navigation }: any) {
   const [addModal, setAddModal] = useState(false);
@@ -170,7 +172,7 @@ export default function DashboardScreen({ navigation }: any) {
    */
   const handleCreate = useCallback(async () => {
     const res = await createStudent(name);
-    if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setAddModal(false); setName(''); }
+    if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setAddModal(false); setName(''); emitTutorialEvent('student_created', res.studentId); }
     else showAlert('Error', res.error);
   }, [name]);
 
@@ -303,7 +305,7 @@ export default function DashboardScreen({ navigation }: any) {
     } catch {}
   }, [editId]);
 
-  const renderItem = useCallback(({ item }: any) => {
+  const renderItem = useCallback(({ item, index }: any) => {
     // Last-read line: manifest is cached per student in local state (see mount effect).
     const manifest = manifests[item.id];
     const lr = manifest?.lastRead;
@@ -319,7 +321,8 @@ export default function DashboardScreen({ navigation }: any) {
     const initial = (item.name || '?').charAt(0).toUpperCase();
 
     return (
-      <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+      <TutorialAnchor id={index === 0 ? 'student-card' : `student-card-${item.id}`}>
+      <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); emitTutorialEvent('student_opened'); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
         <View style={styles(nightMode).cardRow}>
           {faces[item.id] ? (
             <Image source={{ uri: `file://${faces[item.id]}` }} style={styles(nightMode).avatarImage} resizeMode="cover" />
@@ -333,6 +336,7 @@ export default function DashboardScreen({ navigation }: any) {
           </View>
         </View>
       </TouchableOpacity>
+      </TutorialAnchor>
     );
   }, [navigation, nightMode, manifests, surahNames]);
 
@@ -363,7 +367,9 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </View>
       <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14 }} renderItem={renderItem} />
+      <TutorialAnchor id="dashboard-fab">
       <TouchableOpacity style={[styles(nightMode).fab, { bottom: adCollapsed ? 24 : 84 }]} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles(nightMode).fabText}>+</Text></TouchableOpacity>
+      </TutorialAnchor>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
         <View style={styles(nightMode).modalOverlay}>

@@ -16,6 +16,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import { getStudentData, getLastPageSeenLocal, getManifest, getStudentFace } from '../database/localDB';
+import TutorialAnchor from '../tutorial/TutorialAnchor';
+import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
 import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -224,11 +226,13 @@ export default function StudentHubScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles(nightMode).scrollContent} keyboardShouldPersistTaps="handled">
         <View style={[styles(nightMode).card, { backgroundColor: rowBg, borderColor: cardBorder }]}>
           {/* 1 — RESUME: local last page VIEWED (falls back to lastRead, else page 1). */}
+          <TutorialAnchor id="hub-resume">
           <TouchableOpacity style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border }]}
-            onPress={() => resumeInfo && navigation.navigate('QuranView' as any, { page: resumeInfo.page } as any)} activeOpacity={0.7}>
+            onPress={() => { emitTutorialEvent('quran_opened'); resumeInfo && navigation.navigate('QuranView' as any, { page: resumeInfo.page } as any); }} activeOpacity={0.7}>
             <Text style={[styles(nightMode).rowLabel, { color: titleC }]}>RESUME</Text>
             <Text style={[styles(nightMode).rowSub, { color: subC }]} numberOfLines={1}>{resumeSubtitle}</Text>
           </TouchableOpacity>
+          </TutorialAnchor>
 
           {/* 2 — BOOKMARKS & NOTES: one row split in two halves (vertical divider) */}
           <View style={[styles(nightMode).row, styles(nightMode).rowBorder, { borderBottomColor: border, paddingLeft: 0, paddingRight: 0 }]}>

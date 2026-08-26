@@ -15,6 +15,8 @@
  *   onEnter     controller side-effect when the step becomes active ('enter-draw')
  *   exitDraw    controller tells the bridge to leave drawing mode when the step activates
  *   skipLabel   extra "skip this" button on action steps (acts as Next)
+ *   allowZone   {fx,fy,fw,fh} fractions — the ONLY region that stays interactive on
+ *               passThrough steps without an anchor; everything else stays dark + dead.
  */
 export type TutorialScreen = 'Dashboard' | 'StudentHub' | 'QuranView';
 
@@ -31,6 +33,7 @@ export interface TutorialStep {
   handPos?: { fx: number; fy: number };
   compare?: { lTitle: string; lBody: string; rTitle: string; rBody: string };
   skipLabel?: string;
+  allowZone?: { fx: number; fy: number; fw: number; fh: number };
   onEnter?: 'enter-draw';
   exitDraw?: boolean;
 }
@@ -45,7 +48,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'create-student', screen: 'Dashboard', kind: 'action',
     title: 'Create your first student',
-    body: 'Tap the + button and add a student by name — this is who you will teach. (Already have one? This step finishes itself.)',
+    body: 'Tap the + button and add a student by name — this is who you will teach. No students yet? Just make a practice one — it is removed automatically when the walkthrough ends.',
     anchorId: 'dashboard-fab', waitEvent: 'student_created', passThrough: true, hand: true,
   },
   {
@@ -90,19 +93,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'highlight', screen: 'QuranView', kind: 'action',
     title: 'Mark a mistake',
     body: 'Press any word to highlight it with a red underline — that\'s how you track a mistake. Try it now on any word.',
-    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 },
+    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, allowZone: { fx: 0.03, fy: 0.14, fw: 0.94, fh: 0.66 },
   },
   {
     id: 'verse-menu', screen: 'QuranView', kind: 'action',
     title: 'The verse menu',
     body: 'Tap the small number circle at the END of any verse (long-pressing the words does the same). The menu lets you: ▶ Play the verse · 🔖 Bookmark it · 📝 Add a note · 🎙 Record recitation · ⧉ Copy the text.',
-    waitEvent: 'menu_opened', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 },
+    waitEvent: 'menu_opened', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, allowZone: { fx: 0.03, fy: 0.14, fw: 0.94, fh: 0.66 },
   },
   {
     id: 'verse-menu-close', screen: 'QuranView', kind: 'action',
     title: 'Five tools, one tap',
     body: 'That menu is your everyday toolkit. ▶ Play recitation · 🔖 Bookmark saves a verse to revisit (as many as you like) · 📝 Note · 🎙 Record · ⧉ Copy. Close the menu by tapping outside it to continue.',
-    waitEvent: 'menu_closed', passThrough: true,
+    waitEvent: 'menu_closed', passThrough: true, allowZone: { fx: 0.03, fy: 0.1, fw: 0.94, fh: 0.8 },
   },
   {
     id: 'notes-info', screen: 'QuranView', kind: 'info',
@@ -113,7 +116,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'draw', screen: 'QuranView', kind: 'action',
     title: 'Draw on the page',
     body: 'Drawing mode is now ON with the pen ready — underline a word or circle it. Your drawing is saved with the page. (Laser pointer, eraser, colors and sizes are on the same toolbar.)',
-    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, onEnter: 'enter-draw',
+    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, onEnter: 'enter-draw', allowZone: { fx: 0.03, fy: 0.12, fw: 0.94, fh: 0.72 },
   },
   {
     id: 'draw-exit', screen: 'QuranView', kind: 'info',
@@ -125,7 +128,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'voice-note', screen: 'QuranView', kind: 'action',
     title: 'Record a recitation',
     body: 'Open the verse menu again (number circle) and press 🎙 Record — capture a few seconds of recitation, then Save. Or skip this step.',
-    waitEvent: 'voice_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, skipLabel: 'Skip recording',
+    waitEvent: 'voice_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, skipLabel: 'Skip recording', allowZone: { fx: 0.03, fy: 0.1, fw: 0.94, fh: 0.82 },
   },
   {
     id: 'bookmark-vs-mark', screen: 'QuranView', kind: 'compare',
@@ -148,7 +151,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'share-send', screen: 'QuranView', kind: 'action',
     title: 'Send it (or cancel)',
     body: 'Press the big Share button — the normal Android share sheet opens. Cancel it if you like; the tutorial continues either way.',
-    waitEvent: 'share_opened', passThrough: true,
+    waitEvent: 'share_opened', passThrough: true, allowZone: { fx: 0.06, fy: 0.2, fw: 0.88, fh: 0.6 },
   },
   {
     id: 'mistakes', screen: 'QuranView', kind: 'spotlight',

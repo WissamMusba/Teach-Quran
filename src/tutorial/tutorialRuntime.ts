@@ -29,12 +29,12 @@ export const { startTutorial, setTutorialStep, endTutorial } = tutorialSlice.act
 export default tutorialSlice.reducer;
 
 // ---------------- event bus ----------------
-let eventHandler: ((e: string) => void) | null = null;
-export const onTutorialEvent = (fn: (e: string) => void): (() => void) => {
+let eventHandler: ((e: string, payload?: any) => void) | null = null;
+export const onTutorialEvent = (fn: (e: string, payload?: any) => void): (() => void) => {
   eventHandler = fn;
   return () => { if (eventHandler === fn) eventHandler = null; };
 };
-export const emitTutorialEvent = (e: string) => { try { eventHandler?.(e); } catch {} };
+export const emitTutorialEvent = (e: string, payload?: any) => { try { eventHandler?.(e, payload); } catch {} };
 
 // ---------------- anchor registry ----------------
 export interface TutorialAnchorRect { x: number; y: number; w: number; h: number; }

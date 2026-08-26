@@ -1,18 +1,19 @@
 /**
  * FILE: src/tutorial/TutorialController.tsx
  * ROLE: The tutorial engine — mounted ONCE inside NavigationContainer (App.tsx). Owns step
- *       advancement, screen navigation, event waiting, draw-mode side effects, practice-edit
- *       cleanup, and renders TutorialOverlay when active.
- * DEPENDS ON: tutorialSteps, tutorialRuntime, TutorialOverlay, react-redux, navigation.
+ *       advancement (Next/Back/events), screen navigation, anchor polling, draw-mode side
+ *       effects, PRACTICE cleanup (practice edits + a practice student created on a fresh
+ *       account), and renders TutorialOverlay when active.
+ * DEPENDS ON: tutorialSteps, tutorialRuntime, TutorialOverlay, react-redux, navigation,
+ *             api/student + database/localDB (practice-student removal).
  * USED BY: App.tsx (AppInner).
- * FLOW: Login/Register dispatch startTutorial() → this controller navigates to the current
- *       step's screen, shows the overlay, waits for Next taps or tutorial events, and on
- *       finish/skip runs the QuranView-registered cleanup (practice highlight/drawing
- *       rollback) then marks settings.tutorialDone so it never auto-plays again.
- * NOTES: If tutorialDone is somehow already set while active (stale dispatch), the effect
- *       below ends it immediately — the walkthrough never replays against the user's will.
+ * PRACTICE-STUDENT LIFECYCLE (user requirement): when the account has NO students at
+ *       tutorial start, the create-student step walks the user through making one; that
+ *       student is flagged by the student_created payload and DELETED at finish/skip
+ *       (Firestore + local purge + redux), then the app lands back on the Dashboard.
+ *       Accounts that already have students skip the create step entirely.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { TUTORIAL_STEPS } from './tutorialSteps';
@@ -21,6 +22,9 @@ import {
   getTutorialAnchor, getTutorialBridge,
 } from './tutorialRuntime';
 import { setTutorialDone } from '../store/settingsSlice';
+import { removeStudent } from '../store/studentSlice';
+import { deleteStudent } from '../api/student';
+import { purgeLocalStudent } from '../database/localDB';
 import TutorialOverlay from './TutorialOverlay';
 
 export default function TutorialController() {
@@ -31,6 +35,18 @@ export default function TutorialController() {
   const studentCount = useSelector((s: any) => (s.student?.list || []).length);
   const step = active ? TUTORIAL_STEPS[stepIndex] : null;
   const [anchorRect, setAnchorRect] = useState<any>(null);
+
+  // Practice-student tracking: did the account have students when the tutorial started,
+  // and which student id was created DURING it (removed at the end if so).
+  const startHadStudentsRef = useRef<boolean | null>(null);
+  const practiceStudentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (active && startHadStudentsRef.current === null) startHadStudentsRef.current = studentCount > 0;
+    if (!active) {
+      startHadStudentsRef.current = null;
+      practiceStudentIdRef.current = null;
+    }
+  }, [active, studentCount]);
 
   // Stale-start guard: never run when the done-flag says we already finished.
   useEffect(() => {
@@ -52,16 +68,15 @@ export default function TutorialController() {
     }
   }, [active, stepIndex, step?.screen, navigation]);
 
-  // Refresh the spotlight rect when the step changes, when anchors re-measure, and once
-  // after a short delay (post-navigation layout settle).
+  // Anchor resolution: poll while active (simple + immune to subscription-order races),
+  // plus an immediate refresh on step change and on any anchor re-measure.
   useEffect(() => {
     if (!active || !step) { setAnchorRect(null); return; }
     const refresh = () => setAnchorRect(step.anchorId ? getTutorialAnchor(step.anchorId) : null);
     refresh();
-    const t1 = setTimeout(refresh, 350);
-    const t2 = setTimeout(refresh, 900);
+    const iv = step.anchorId ? setInterval(refresh, 300) : null;
     const unsub = onTutorialAnchorsChanged(refresh);
-    return () => { unsub(); clearTimeout(t1); clearTimeout(t2); };
+    return () => { unsub(); if (iv) clearInterval(iv); };
   }, [active, stepIndex, step?.anchorId]);
 
   // Step side effects: enter/exit drawing mode via the QuranView bridge.
@@ -71,11 +86,18 @@ export default function TutorialController() {
     if (step.exitDraw) getTutorialBridge().exitDraw?.();
   }, [active, stepIndex, step?.onEnter, step?.exitDraw]);
 
-  // Advance on Next (non-action) or on the step's waited event (action). finish() runs the
-  // practice-edit rollback + done flag; used by BOTH the last step and Skip.
   const finish = () => {
     try { getTutorialBridge().cleanup?.(); } catch {}
     try { getTutorialBridge().exitDraw?.(); } catch {}
+    // Remove the PRACTICE student this walkthrough created on a fresh account.
+    const pid = practiceStudentIdRef.current;
+    if (pid) {
+      practiceStudentIdRef.current = null;
+      deleteStudent(pid).catch(() => {});
+      purgeLocalStudent(pid).catch(() => {});
+      dispatch(removeStudent(pid));
+      try { (navigation as any).navigate('Dashboard' as never); } catch {}
+    }
     dispatch(endTutorial());
     dispatch(setTutorialDone(true));
   };
@@ -83,10 +105,18 @@ export default function TutorialController() {
     if (stepIndex + 1 >= TUTORIAL_STEPS.length) finish();
     else dispatch(setTutorialStep(stepIndex + 1));
   };
+  const back = () => {
+    if (stepIndex > 0) dispatch(setTutorialStep(stepIndex - 1));
+  };
 
+  // Event waiting — resubscribed per step so stale events can never double-advance.
   useEffect(() => {
     if (!active || !step) return;
-    return onTutorialEvent((e: string) => {
+    return onTutorialEvent((e: string, payload?: any) => {
+      if (e === 'student_created' && payload) {
+        // Fresh account (no students at start) → the created student is PRACTICE data.
+        if (startHadStudentsRef.current === false) practiceStudentIdRef.current = payload;
+      }
       if (step.waitEvent && e === step.waitEvent) advance();
     });
   }, [active, stepIndex, step?.waitEvent]);
@@ -99,6 +129,7 @@ export default function TutorialController() {
       total={TUTORIAL_STEPS.length}
       anchorRect={anchorRect}
       onNext={advance}
+      onBack={back}
       onSkip={finish}
     />
   );
