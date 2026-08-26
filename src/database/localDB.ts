@@ -127,6 +127,12 @@ export const initDatabase = async () => {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
     await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','5')`);
   }
+  // layoutVer 6 (v98): landscape-split pads + line-height changed the one-shot fit inputs —
+  // stale rows would replay the old squeeze. Wipe once; every page re-measures on first view.
+  if (ver < 6) {
+    await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','6')`);
+  }
 
   // Migrate V1 to V2 schema if needed
   await migrateV1IfNeeded(dbInstance);

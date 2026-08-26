@@ -237,8 +237,11 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(255,255,255,0.88)';
 // v97: fontSizeScale (prop) shrinks the tablet mushaf font — 0.78 in split view, 0.88 for
 // single-page tablets — without touching the phone buckets. 1 (phones) = byte-identical.
+// v98: LANDSCAPE split halves are short — font drops further (0.65 via the caller) and the
+// line box tightens 18% so the first line stops clipping under the top band.
+const isLandscapeSplit = spread === true && Dimensions.get('window').width > Dimensions.get('window').height;
 const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
-  const mushafLineHeight = getMushafLineHeight(headerVisible) * fontSizeScale;
+  const mushafLineHeight = getMushafLineHeight(headerVisible) * fontSizeScale * (isLandscapeSplit ? 0.82 : 1);
   /**
    * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
@@ -257,7 +260,9 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   // of the PAGE WIDTH (textInsetFor, shared with stroke.ts for drawing registration). Each is
   // floored at the frame inset so the text always stays strictly inside the frame's inner text
   // box (never under the pattern band or its rules).
-  const padTop = Math.max(0.010 * SCREEN_HEIGHT, frameInsetVFor(pageWidth));
+  // v98: landscape split — text sits ~10px from the frame's inner rule (matches the 8px
+  // seam between the two frames); the frame itself does not move.
+  const padTop = isLandscapeSplit ? Math.max(8, frameInsetVFor(pageWidth) - 12) : Math.max(0.010 * SCREEN_HEIGHT, frameInsetVFor(pageWidth));
   const padBottom = padTop;
   // v97 — TRUE CONTENT WIDTH: lines were laid out against the NOMINAL pageWidth prop while the
   // real container is narrower by the wrapper margins (up to ~37px in tablet split), so full

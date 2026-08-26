@@ -24,7 +24,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
-import { setToolbarExpanded } from '../store/drawingSlice';
+import { setToolbarExpanded, setTool } from '../store/drawingSlice';
+import { emitTutorialEvent, registerTutorialBridge } from '../tutorial/tutorialRuntime';
 import { addPendingChange } from '../store/syncSlice';
 import { setStudentData } from '../store/studentSlice';
 import { setPlaying } from '../store/audioSlice';
@@ -310,6 +311,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [shareMistakes, setShareMistakes] = useState(true);
   // v96: shareBookmarks toggle REMOVED — bookmarks are always included in shares.
   const [drawingGestureActive, setDrawingGestureActive] = useState(false);
+  // v97.1: tutorial — announce the reader is open (advances the 'Open the mushaf' step).
+  useEffect(() => { emitTutorialEvent('quran_opened'); }, []);
+
+
   const [flashingSurah, setFlashingSurah] = useState(0);
   const flatListRef = useRef<any>(null);
   // P0-A — the page-mode FlatList gets its own ref so landOnPage can scroll the MOMENT it is
@@ -375,7 +380,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageW = Math.round(pageWFor(winW, splitOn));
   // v97: the font scale the reader is currently rendering with — MUST match the fontSizeScale
   // passed to MushafPageView so warmPageLayoutFor preloads the same layout-cache key.
-  const layoutFontScale = layoutFontScaleFor(winW, splitOn);
+  const layoutFontScale = layoutFontScaleFor(winW, splitOn, winH);
 
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
@@ -1527,6 +1532,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const base = lastStudentDataRef.current || studentData || {};
     lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
     dispatch(setStudentData(lastStudentDataRef.current));
+    emitTutorialEvent('highlight_made');
     ReactNativeHapticFeedback.trigger('impactLight');
     getVersePage(currentSurahId, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
@@ -1581,6 +1587,62 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ReactNativeHapticFeedback.trigger('impactMedium');
   }, [currentStudent, currentSurahId, studentData?.lastRead]);
 
+  // v97.1 — tutorial bridge: lets the controller open/leave drawing mode and roll back the
+  // PRACTICE edits (highlight + drawing made during the walkthrough) when it finishes.
+  // Snapshot policy: highlight ids captured the first time studentData exists (baseline);
+  // drawing paths captured at enterDraw for the active canvas key. Cleanup runs through the
+  // normal updateData funnel so persistence/sync behave exactly like manual edits.
+  const tutorialSnapRef = useRef<{ highlightIds: Set<string> | null; drawPaths: any[] | null; drawKey: string | null }>({ highlightIds: null, drawPaths: null, drawKey: null });
+  useEffect(() => {
+    if (studentData && !tutorialSnapRef.current.highlightIds) {
+      const ids = new Set<string>();
+      for (const entry of Object.values(studentData.highlights || {})) {
+        for (const h of ((entry as any)?.highlights || [])) if (h?.id) ids.add(h.id);
+      }
+      tutorialSnapRef.current.highlightIds = ids;
+    }
+    registerTutorialBridge({
+      enterDraw: () => {
+        if (!currentStudent || isDrawing) return;
+        try {
+          const key = splitOn ? (spreadOddKey || '') : drawingKey;
+          tutorialSnapRef.current.drawPaths = [...(((studentData?.drawings || {})[key] as any)?.paths || [])];
+          tutorialSnapRef.current.drawKey = key;
+        } catch {}
+        if (isHeaderVisible) { headerVisibleBeforeDrawRef.current = true; setIsHeaderVisible(false); }
+        setIsDrawing(true);
+        setTimeout(() => { try { dispatch(setTool('pen')); } catch {} }, 60);
+      },
+      exitDraw: () => {
+        if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }
+      },
+      cleanup: () => {
+        try {
+          const snap = tutorialSnapRef.current;
+          if (snap.highlightIds && studentData?.highlights) {
+            const cleaned: any = {};
+            let removed = false;
+            for (const [vKey, entry] of Object.entries(studentData.highlights)) {
+              const hs = (entry as any)?.highlights || [];
+              const kept = hs.filter((h: any) => snap.highlightIds!.has(h?.id));
+              if (kept.length !== hs.length) removed = true;
+              if (kept.length) cleaned[vKey] = { ...(entry as any), highlights: kept };
+            }
+            if (removed) updateData({ highlights: cleaned });
+          }
+          if (snap.drawPaths && snap.drawKey && studentData?.drawings?.[snap.drawKey]) {
+            const cur = ((studentData.drawings[snap.drawKey] as any)?.paths || []);
+            if (cur.length !== snap.drawPaths.length) {
+              updateData({ drawings: { ...(studentData.drawings || {}), [snap.drawKey]: { paths: snap.drawPaths, updatedAt: new Date() } } });
+            }
+          }
+          tutorialSnapRef.current = { highlightIds: null, drawPaths: null, drawKey: null };
+        } catch {}
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawing, isHeaderVisible, currentStudent, studentData, splitOn, spreadOddKey, drawingKey]);
+
   // ---- tap callbacks: curried handlers passed down to every renderer ----
   const onWordPress = useCallback((verseNum: number) => (index: number) => handleWordFlow(verseNum, index), [handleWordFlow]);
   // toggleHeader: any dead tap on the mushaf text/line background ALWAYS toggles (no pageY filter)
@@ -1596,7 +1658,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   auto-bookmarking. pageY comes from the badge press event; when absent
    *   (pageY ?? null) the menu falls back to its centered-overlay mode.
    */
-  const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); }, []);
+  const handleVerseLongPress = useCallback((verseNum: number, pageY?: number) => { ReactNativeHapticFeedback.trigger('impactMedium'); setMenuVerse(verseNum); setMenuY(pageY ?? null); emitTutorialEvent('menu_opened'); }, []);
 
   /**
    * WHAT: Copies Arabic + translation of a verse to the clipboard.
@@ -1661,6 +1723,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   notes upload to Storage and sync cross-device again.
    */
   const handleVoiceNoteSaved = useCallback(async (path: string, ms: number) => {
+    emitTutorialEvent('voice_saved');
     if (!currentStudent || !recordingVerseKey) return;
     const existing = canvasData.notes?.[recordingVerseKey] || '';
     const newText = existing + (existing ? '\n' : '') + `audio:${path}`;
@@ -1733,7 +1796,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * FLOW: no capture happens here — just showShareMenu=true; runShare does the work.
    * CALLED BY: AnimatedHeader onShare (toolbar Share button).
    */
-  const handleSharePage = useCallback(async () => { setShowShareMenu(true); }, []);
+  const handleSharePage = useCallback(async () => { emitTutorialEvent('share_menu_opened'); setShowShareMenu(true); }, []);
 
   /**
    * WHAT: Captures the reading area (viewShotRef wrapper, collapsable={false}) as a
@@ -1754,6 +1817,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   layout pixel-for-pixel. Bookmarks are always included (toggle removed).
    */
   const runShare = async () => {
+    emitTutorialEvent('share_opened');
     setShowShareMenu(false);
     try { setIsCapturing(true); await new Promise<void>(r => setTimeout(() => r(), 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
     catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); }
@@ -2260,6 +2324,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
         <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing}
           initialPaths={composeSpreadPaths()}
           onSave={(paths: any) => {
+            emitTutorialEvent('stroke_saved');
             if (!studentData) return;
             const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
             if (!splitOn) {
@@ -2336,8 +2401,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
 
       {/* ---- long-press verse menu: floating 6-button bubble (Play/Bookmark/Reading/Note/Record/Copy) ---- */}
-      <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => { setMenuVerse(null); setMenuY(null); }}>
-        <TouchableOpacity style={[styles(nightMode).menuOverlay, menuY === null && styles(nightMode).menuOverlayCentered]} activeOpacity={1} onPress={() => { setMenuVerse(null); setMenuY(null); }}>
+      <Modal visible={menuVerse !== null} transparent animationType="fade" onRequestClose={() => { setMenuVerse(null); setMenuY(null); emitTutorialEvent('menu_closed'); }}>
+        <TouchableOpacity style={[styles(nightMode).menuOverlay, menuY === null && styles(nightMode).menuOverlayCentered]} activeOpacity={1} onPress={() => { setMenuVerse(null); setMenuY(null); emitTutorialEvent('menu_closed'); }}>
           <View style={menuY === null ? styles(nightMode).bubbleCenteredWrap : [styles(nightMode).bubbleWrap, { top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, width: menuPos?.width ?? 0 }]}>
             {menuPos?.arrowUp && <View style={[styles(nightMode).bubbleArrow, { top: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
             {menuPos?.arrowDown && <View style={[styles(nightMode).bubbleArrow, { bottom: -6, backgroundColor: MENU_BUBBLE_BG }]} />}
@@ -2375,8 +2440,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 )}
 
       {/* share menu: include toggles + big Share button; capture runs via runShare */}
-      <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => setShowShareMenu(false)}>
-        <Pressable style={styles(nightMode).shareMenuBackdrop} onPress={() => setShowShareMenu(false)}>
+      <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => { emitTutorialEvent('share_opened'); setShowShareMenu(false); }}>
+        <Pressable style={styles(nightMode).shareMenuBackdrop} onPress={() => { emitTutorialEvent('share_opened'); setShowShareMenu(false); }}>
           <Pressable style={styles(nightMode).shareMenuCard} onPress={() => {}}>
             <Text style={styles(nightMode).shareMenuTitle}>Share page</Text>
             <View style={styles(nightMode).shareMenuRow}>

@@ -18,9 +18,12 @@ export const SPLIT_MIN_WIDTH = 768;
 // line stops clipping under the header. Phones are ALWAYS 1 — byte-identical rendering.
 // MUST be folded into every layout-cache key (warmPageLayoutFor / startupPrefetch / renderer).
 export const SPLIT_FONT_SCALE = 0.78;
+export const SPLIT_FONT_SCALE_LANDSCAPE = 0.65; // v98: landscape halves are SHORT — 0.78 still clipped the top line
 export const TABLET_SINGLE_FONT_SCALE = 0.88;
-export const layoutFontScaleFor = (winW: number, splitOn: boolean): number =>
-  splitOn ? SPLIT_FONT_SCALE : (winW >= 600 ? TABLET_SINGLE_FONT_SCALE : 1);
+export const layoutFontScaleFor = (winW: number, splitOn: boolean, winH?: number): number => {
+  if (!splitOn) return winW >= 600 ? TABLET_SINGLE_FONT_SCALE : 1;
+  return winH != null && winH > winW ? SPLIT_FONT_SCALE_LANDSCAPE : SPLIT_FONT_SCALE;
+};
 
 // WHAT: THE shared horizontal text inset for a given page width — 6.7% of the page width,
 //       floored at the frame's inner text-box edge (frameInsetFor) so words never cross the

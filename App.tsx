@@ -31,6 +31,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import LoopSettingsScreen from './src/screens/LoopSettingsScreen';
 import { setSyncing, setSynced, setOffline } from './src/store/syncSlice';
+import TutorialController from './src/tutorial/TutorialController';
 import { setStudents, setStudentData } from './src/store/studentSlice';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -219,6 +220,8 @@ const AppInner = () => {
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LoopSettings" component={LoopSettingsScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
+      {/* v97.1: interactive walkthrough engine — renders the overlay when active. */}
+      <TutorialController />
     </NavigationContainer>
   );
 };

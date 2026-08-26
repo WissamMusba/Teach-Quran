@@ -13,6 +13,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator 
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../api/auth';
 import { setUser } from '../store/authSlice';
+import { startTutorial } from '../tutorial/tutorialRuntime';
+import { store } from '../store';
 import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function LoginScreen({ navigation }: any) {
@@ -56,6 +58,8 @@ export default function LoginScreen({ navigation }: any) {
     setLoading(false);
     if (res.success) {
       dispatch(setUser({ id: res.user.uid, username: u.trim() }));
+      // v97.1: first-login walkthrough (skipped once settings.tutorialDone is set).
+      if (!store.getState().settings.tutorialDone) dispatch(startTutorial());
       navigation.replace('Dashboard');
     } else {
       setAlert({ visible: true, title: 'Login Failed', message: res.error });

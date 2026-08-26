@@ -8,7 +8,8 @@ import React, { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setMushafSplit, togglePlayBasmala } from '../store/settingsSlice';
+import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
+import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont } from '../utils/theme';
 import { RootState } from '../store';
@@ -104,6 +105,13 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Dark mode</Text><Text style={styles(nightMode).settingDesc}>Use dark background and light text</Text></View>
             <Switch value={nightMode} onValueChange={() => { dispatch(toggleNightMode()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
           </View>
+        </View>
+
+        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <TouchableOpacity style={styles(nightMode).row} activeOpacity={0.7} onPress={() => { dispatch(setTutorialDone(false)); onClose?.(); requestAnimationFrame(() => dispatch(startTutorial())); }}>
+            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Replay Tutorial</Text><Text style={styles(nightMode).settingDesc}>Walkthrough of students, highlighting, notes, drawing and more</Text></View>
+            <Text style={{ color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontWeight: '700' }}>▶</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>

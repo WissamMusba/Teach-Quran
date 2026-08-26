@@ -27,7 +27,8 @@ const persistConfig = {
 };
 
 // Aggregate all 8 slice reducers under their state keys.
-const rootReducer = combineReducers({ 
+const rootReducer = combineReducers({
+  tutorial: require('../tutorial/tutorialRuntime').default, 
   auth: authReducer, 
   student: studentReducer, 
   quran: quranReducer, 
