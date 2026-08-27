@@ -26,6 +26,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
 import { setToolbarExpanded, setTool } from '../store/drawingSlice';
 import { emitTutorialEvent, registerTutorialBridge } from '../tutorial/tutorialRuntime';
+import TutorialAnchor from '../tutorial/TutorialAnchor';
 import { addPendingChange } from '../store/syncSlice';
 import { setStudentData } from '../store/studentSlice';
 import { setPlaying } from '../store/audioSlice';
@@ -579,6 +580,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // (handleVisibleMeasured) and read by the settle-warm + explicit-navigation warm passes.
   const warmedPagesRef = useRef<Set<string>>(new Set());
   const hiddenFocus = useIsFocused();
+
+  // B2 fix — the mobile header name + audio bar follow the SETTLED page, not stale redux
+  // (RESUME / GO TO PAGE / index jumps never ran the momentum-scroll surah derivation).
+  useEffect(() => {
+    if (readingMode !== 'page' || !settledPage) return;
+    const pData = pageCache[settledPage];
+    const firstWord = pData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
+    const sId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
+    if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledPage, pageCache, readingMode, currentSurahId]);
 
   // Visible-page counterpart: pages measured on-screen (single or spread) also count as warmed,
   // so the settle-warm / warmNearPages passes never re-measure what the user has already seen.
@@ -1521,9 +1533,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   SpreadItem word taps.
    * AFFECTS: studentData.highlights.<surah_verse>.highlights[].
    */
-  const handleWordFlow = useCallback((verseNum: number, wordIndex: number) => {
+  const handleWordFlow = useCallback((verseNum: number, wordIndex: number, surahOverride?: number) => {
+    // B1 fix: page-mode taps report the WORD's own surah (page data), so a highlight after
+    // RESUME/GO TO PAGE can never land on the stale-redux surah.
     if (!currentStudent) return;
-    const vKey = `${currentSurahId}_${verseNum}`;
+    const tapSurah = surahOverride || currentSurahId;
+    const vKey = `${tapSurah}_${verseNum}`;
     const cHigh = canvasData.highlights || {};
     const vHighs = cHigh[vKey]?.highlights || [];
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
@@ -1534,7 +1549,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     dispatch(setStudentData(lastStudentDataRef.current));
     emitTutorialEvent('highlight_made');
     ReactNativeHapticFeedback.trigger('impactLight');
-    getVersePage(currentSurahId, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+    getVersePage(tapSurah, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
       const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
       saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
       dispatch(addPendingChange());
@@ -1936,6 +1951,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     updateData({
       lastRead: isMarked ? null : { surah: Number(lv.surahId), verse: Number(lv.verseNumber), updatedAt: new Date().toISOString() },
     });
+    emitTutorialEvent('reading_mark_set');
     ReactNativeHapticFeedback.trigger('impactLight');
   }, [studentData, updateData]);
 
@@ -2361,7 +2377,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
           (hides together with the header, incl. via the edge/dead taps). In-flow: the frame (flex:1)
           and the chrome strip above it reflow automatically around the bar's (compact, v90) height. */}
       {!recordingVerseKey && isHeaderVisible && (
+        <TutorialAnchor id="audio-bar">
         <AudioPlayerBar nightMode={nightMode} surahId={currentSurahId} onOpenQari={() => setShowQariModal(true)} onOpenLoopSettings={() => navigation.navigate('LoopSettings' as any, { page: currentPageNum } as any)} onResume={togglePlayAudio} onPlayPageStart={playPageStart} onPlayNewSurah={playNewSurah} canPlayNewSurah={!!newSurahOnPage} onPrevVerse={() => stepVerse(-1)} onNextVerse={() => stepVerse(1)} canStep={isPlaying} isPlaying={isPlaying} canResume={isResumable()} loopEnabled={!!loopSettings?.enabled} />
+        </TutorialAnchor>
       )}
 
       {/* surah picker modal (onSelect -> setSurah reload; onSelectPage -> page jump) + qari picker */}

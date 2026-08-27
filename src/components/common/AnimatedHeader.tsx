@@ -22,6 +22,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions } from 'react-native';
+import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import Svg, { Path, Circle } from 'react-native-svg';
 
 // Per-button accent colors; MISTAKES is #FF3B30 — same as MISTAKE_COLOR in constants.ts.
@@ -172,18 +173,20 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
             <IconBack c={p.nightMode ? '#7BA7DB' : ACCENT} />
           </TouchableOpacity>
+          <TutorialAnchor id="hdr-list">
           <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
             <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
             <Text style={[s.surahSub, { color: subColor }]} numberOfLines={1}>
               {`Surah ${p.surahId} ☰`}
             </Text>
           </TouchableOpacity>
+          </TutorialAnchor>
           <View style={s.iconsRow}>
-            <Btn label="SHARE" icon={<IconShare c={p.nightMode ? '#7BA7DB' : C_SHARE} />} onPress={p.onShare} />
-            <Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} />
-            <Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} />
+            <TutorialAnchor id="hdr-share"><Btn label="SHARE" icon={<IconShare c={p.nightMode ? '#7BA7DB' : C_SHARE} />} onPress={p.onShare} /></TutorialAnchor>
+            <TutorialAnchor id="hdr-mistakes"><Btn label="MISTAKES" icon={<IconPen c={C_MISTAKES} />} onPress={p.onMistakes} /></TutorialAnchor>
+            <TutorialAnchor id="hdr-notes"><Btn label="NOTES" icon={<IconNote c={C_NOTES} />} onPress={p.onNotes} /></TutorialAnchor>
             <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
-            <Btn label="SETTINGS" labelStyle={s.iconLabTight} icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} />
+            <TutorialAnchor id="hdr-settings"><Btn label="SETTINGS" labelStyle={s.iconLabTight} icon={<IconSettings c={C_SETTINGS} />} onPress={p.onSettings} /></TutorialAnchor>
           </View>
         </View>
       </Animated.View>

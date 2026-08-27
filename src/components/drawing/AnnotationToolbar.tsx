@@ -5,6 +5,8 @@
  * USED BY: src/screens/QuranViewScreen.tsx:626-628 inside <ToolbarBoundary> (an error boundary that renders null if the toolbar throws — toolbar bugs must not crash the reader).
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import TutorialAnchor from '../../tutorial/TutorialAnchor';
+
 import {
   View, Text, TouchableOpacity, StyleSheet,
   useWindowDimensions, Alert, Platform, StatusBar,
@@ -277,6 +279,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
 
   // WRAP - the whole toolbar. Responder negotiation is deepest-first: touches on a button or the grip are claimed by that child, so the wrap only ever receives frame touches (padding/gaps/corners). Elevation is ALWAYS 200 (constant) - above the DrawingCanvas (zIndex 100) even while drawing.
   return (
+    <TutorialAnchor id="draw-toolbar">
     <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}
       onStartShouldSetResponder={() => true}
       onResponderGrant={onTouchStart}
@@ -336,6 +339,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         </View>
       )}
     </View>
+    </TutorialAnchor>
   );
 };
 

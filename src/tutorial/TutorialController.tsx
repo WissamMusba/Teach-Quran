@@ -35,6 +35,7 @@ export default function TutorialController() {
   const studentCount = useSelector((s: any) => (s.student?.list || []).length);
   const step = active ? TUTORIAL_STEPS[stepIndex] : null;
   const [anchorRect, setAnchorRect] = useState<any>(null);
+  const [flash, setFlash] = useState(false);
 
   // Practice-student tracking: did the account have students when the tutorial started,
   // and which student id was created DURING it (removed at the end if so).
@@ -117,7 +118,11 @@ export default function TutorialController() {
         // Fresh account (no students at start) → the created student is PRACTICE data.
         if (startHadStudentsRef.current === false) practiceStudentIdRef.current = payload;
       }
-      if (step.waitEvent && e === step.waitEvent) advance();
+      if (step.waitEvent && e === step.waitEvent) {
+        // ✓ feedback: confirm the action for ~600ms BEFORE advancing (review #9/#10).
+        setFlash(true);
+        setTimeout(() => { setFlash(false); advance(); }, 600);
+      }
     });
   }, [active, stepIndex, step?.waitEvent]);
 
@@ -128,6 +133,7 @@ export default function TutorialController() {
       stepIndex={stepIndex}
       total={TUTORIAL_STEPS.length}
       anchorRect={anchorRect}
+      flash={flash}
       onNext={advance}
       onBack={back}
       onSkip={finish}

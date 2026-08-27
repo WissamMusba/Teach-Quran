@@ -35,7 +35,7 @@ export default function TutorialHand() {
     return () => loop.stop();
   }, [press, ripple]);
 
-  const ringSize = ripple.interpolate({ inputRange: [0, 1], outputRange: [10, 46] });
+  const ringScale = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1.15] });
   const ringOpacity = ripple.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.55, 0.25, 0] });
   const pressScale = press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.88] });
   const nudge = press.interpolate({ inputRange: [0, 1], outputRange: [0, 3] });
@@ -46,8 +46,8 @@ export default function TutorialHand() {
       <Animated.View
         style={{
           position: 'absolute', left: TIP.x - 40, top: TIP.y - 40,
-          borderWidth: 2.5, borderColor: '#7BA7DB',
-          width: ringSize as any, height: ringSize as any, borderRadius: 999,
+          width: 80, height: 80, borderRadius: 40, borderWidth: 2.5, borderColor: '#7BA7DB',
+          transform: [{ scale: ringScale }],
           opacity: ringOpacity as any,
         }}
       />

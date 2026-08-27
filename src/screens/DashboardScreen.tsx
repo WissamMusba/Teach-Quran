@@ -355,7 +355,7 @@ export default function DashboardScreen({ navigation }: any) {
       <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
         <View style={styles(nightMode).titleRow}><View style={styles(nightMode).titleDot} /><Text style={[styles(nightMode).title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <SyncStatus />
+          <TutorialAnchor id="sync-pill"><SyncStatus /></TutorialAnchor>
           <TouchableOpacity onPress={handleManualSync} disabled={isSyncing}>
             <Text style={[styles(nightMode).syncBtn, (isSyncing || pendingChanges === 0) && { color: '#555' }]}>{isSyncing ? 'Syncing...' : `Sync (${pendingChanges})`}</Text>
           </TouchableOpacity>

@@ -14,6 +14,7 @@ import React, { memo, useState, useRef, useEffect, useCallback, useLayoutEffect 
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
+import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame, { frameInsetFor, frameInsetVFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
@@ -667,9 +668,11 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         </View>
       )}
       {showReadingMarkBtn && onReadingMarkToggle && (
+        <TutorialAnchor id="reading-ribbon">
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
+        </TutorialAnchor>
       )}
       {/* v93 — bottom chrome row, mirror of the top pills: the "Page N" + "N pages left in Juz"
           pills PLUS the Hide/Show-Header button, all hanging from the frame's bottom edge
@@ -884,7 +887,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
               return (
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles(nightMode).wordBox}
-                    onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1)} onDeadTap={onDeadTap}
+                    onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
                     <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
