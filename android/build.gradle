@@ -2,10 +2,10 @@
 
 buildscript {
     ext {
-        buildToolsVersion = "33.0.0"
+        buildToolsVersion = "34.0.0" // AGP 7.4 aapt2 cannot parse android-35 jar; compile stays 34, target is 35 (Play checks target)
         minSdkVersion = 23   // v97: 23 required by react-native-image-crop-picker (student photos)
         compileSdkVersion = 34
-        targetSdkVersion = 34
+        targetSdkVersion = 35
 
         // We use NDK 23 which has both M1 support and is the side-by-side NDK version from AGP.
         ndkVersion = "23.1.7779620"

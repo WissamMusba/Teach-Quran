@@ -24,6 +24,10 @@ build/
 # Secrets / Firebase
 android/app/google-services.json
 
+# Signing keystores — keep the upload keystore out of git (debug keystore stays tracked)
+my-upload-key.keystore
+*.jks
+
 # Temporary / Zips
 *.zip
 *.log

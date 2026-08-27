@@ -162,7 +162,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'reading-mark', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Set the Daily Recitation mark',
-    body: 'The MOST important habit: tap the ribbon bookmark at the TOP of this page, then Confirm. That pins "we read UP TO HERE" for this student — the Daily Recitation row and this ribbon now show it. (Tapping the ribbon again removes the mark — the step continues either way.)',
+    body: 'The MOST important habit: the pointing hand shows the ribbon BOOKMARK at the top of this page — tap it, then Confirm. That pins "we read UP TO HERE" for this student. If an older mark exists on another page it is removed and the mark UPDATES here automatically (only ONE mark per student). Tapping the ribbon again removes the mark.',
     anchorId: 'reading-ribbon', waitEvent: 'reading_mark_set', passThrough: true, hand: true, skipLabel: 'Skip this',
   },
   {
