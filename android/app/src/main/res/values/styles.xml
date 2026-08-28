@@ -4,6 +4,8 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- Never draw content under the camera cutout (S10-class punch-hole phones): the status bar keeps its own strip. Safe no-op on notchless devices. -->
+            <item name="android:windowLayoutInDisplayCutoutMode">never</item>
     </style>
 
 </resources>
