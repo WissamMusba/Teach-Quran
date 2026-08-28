@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { getStudents, createStudent, deleteStudent, updateStudent } from '../api/student';
 import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
@@ -35,6 +36,7 @@ import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 
 export default function DashboardScreen({ navigation }: any) {
+  const statusBarPad = useSafeAreaInsets().top;
   const [addModal, setAddModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [name, setName] = useState('');
@@ -352,7 +354,7 @@ export default function DashboardScreen({ navigation }: any) {
    */
   return (
     <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}>
-      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0' }]}>
+      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0', paddingTop: 16 + statusBarPad }]}>
         <View style={styles(nightMode).titleRow}><View style={styles(nightMode).titleDot} /><Text style={[styles(nightMode).title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TutorialAnchor id="sync-pill"><SyncStatus /></TutorialAnchor>

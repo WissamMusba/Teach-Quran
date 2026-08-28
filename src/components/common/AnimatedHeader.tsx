@@ -22,6 +22,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import Svg, { Path, Circle } from 'react-native-svg';
 
@@ -98,6 +99,7 @@ export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?:
  *        ("Style property height is not supported by native module").
  */
 const AnimatedHeader: React.FC<Props> = (p) => {
+  const statusBarPad = useSafeAreaInsets().top;
   const { width } = useWindowDimensions();
   const [measured, setMeasured] = useState(0);
   const measuredRef = useRef(0);
@@ -166,7 +168,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
       pointerEvents={p.visible ? 'auto' : 'none'}
     >
       <Animated.View
-        style={{ transform: [{ translateY }] }}
+        style={{ transform: [{ translateY }], paddingTop: statusBarPad }}
         onLayout={onContentLayout}
       >
         <View style={s.topRow}>
