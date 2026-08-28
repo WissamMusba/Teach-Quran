@@ -2211,6 +2211,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} nightMode={nightMode}
         onBack={onBack} onOpenList={onOpenList} onMistakes={openMistakes}
         onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings} />
+      <TutorialAnchor id="reading-area" style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
           <View style={{ flex: 1, position: 'relative' }}>
@@ -2334,6 +2335,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
           </View>
         </PanGestureHandler></GestureHandlerRootView>
       </View>
+      </TutorialAnchor>
 
       {/* ================= drawing wiring: canvas + toolbar (error-boundary wrapped) ================= */}
       {isDrawing && (

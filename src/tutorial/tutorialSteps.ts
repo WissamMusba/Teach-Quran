@@ -105,19 +105,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'highlight', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Mark a mistake',
     body: 'Press any word — it gets highlighted in RED. That\'s how you track a mistake. Try it now on any word.',
-    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, allowZone: { fx: 0.03, fy: 0.14, fw: 0.94, fh: 0.66 },
+    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area',
   },
   {
     id: 'verse-menu', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'The verse menu',
     body: 'Tap the small number circle at the END of any verse (long-pressing the words does the same) to open its menu.',
-    waitEvent: 'menu_opened', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, allowZone: { fx: 0.03, fy: 0.14, fw: 0.94, fh: 0.66 },
+    waitEvent: 'menu_opened', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area',
   },
   {
     id: 'verse-menu-close', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Five tools, one tap',
     body: '▶ Play the verse · 🔖 Bookmark saves it to revisit (as many as you like) · 📝 Note · 🎙 Record recitation · ⧉ Copy the text. Try any tool you like — then close the menu (tap outside it) to continue.',
-    waitEvent: 'menu_closed', passThrough: true, allowZone: { fx: 0.03, fy: 0.1, fw: 0.94, fh: 0.8 },
+    waitEvent: 'menu_closed', passThrough: true, anchorId: 'reading-area',
   },
   {
     id: 'notes-info', screen: 'QuranView', kind: 'info', chapter: 'Annotate',
@@ -128,7 +128,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'draw', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Draw on the page',
     body: 'Drawing mode is now ON with the pen ready — underline a word or circle it. Your drawing is saved with the page.',
-    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, onEnter: 'enter-draw', allowZone: { fx: 0.03, fy: 0.12, fw: 0.94, fh: 0.72 },
+    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, onEnter: 'enter-draw', anchorId: 'reading-area',
   },
   {
     id: 'draw-tools', screen: 'QuranView', kind: 'spotlight', chapter: 'Annotate',
@@ -146,7 +146,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'voice-note', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Record a recitation',
     body: 'Open the verse menu again (number circle) and press 🎙 Record — capture a few seconds of recitation, then Save. Or skip this step.',
-    waitEvent: 'voice_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, skipLabel: 'Skip recording', allowZone: { fx: 0.03, fy: 0.1, fw: 0.94, fh: 0.82 },
+    waitEvent: 'voice_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, skipLabel: 'Skip recording', anchorId: 'reading-area',
   },
   {
     id: 'bookmark-vs-mark', screen: 'QuranView', kind: 'compare', chapter: 'Annotate',
