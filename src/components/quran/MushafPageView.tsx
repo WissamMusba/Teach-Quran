@@ -222,7 +222,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, isCurrentPage = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
@@ -451,8 +451,12 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   const taawudLineSet = (() => {
     const lines = pageData?.lines || [];
     const set = new Set<number>();
+    // Only the 'surah-header' line marks where the A'udhu belongs. A 'basmala' line
+    // directly follows its surah-header, so adding BOTH made every surah render the
+    // A'udhu twice (once per marker). Fatiha has no basmala line (Basmala is Ayah 1)
+    // — which is exactly why it was the only surah that looked correct.
     lines.forEach((l: any, i: number) => {
-      if (l.type === 'surah-header' || l.type === 'basmala') set.add(i);
+      if (l.type === 'surah-header') set.add(i);
     });
     if (!set.size) {
       const loc = ((lines[0]?.words?.[0]?.location) || '').split(':');
@@ -668,7 +672,15 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         </View>
       )}
       {showReadingMarkBtn && onReadingMarkToggle && (
-        <TutorialAnchor id="reading-ribbon">
+        // position/top/right MUST live on the TutorialAnchor wrapper, not the button: the
+        // anchor View is an in-flow child of this absolute-fill layer, so an absolute button
+        // inside an unstyled anchor positions against the anchor's 0x0 box (lands off-screen)
+        // AND the anchor measures 0x0 so the spotlight never finds it (same bug class as the
+        // v99.0 draw-toolbar fix). active={isCurrentPage}: the page FlatList keeps neighbour
+        // pages mounted — only the CURRENT page may register 'reading-ribbon', otherwise the
+        // neighbours' offscreen measures race this page's and the spotlight flashes between
+        // the ribbon and the top-left corner.
+        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 }}>
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
           <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
@@ -812,7 +824,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
           return <React.Fragment key={lineIdx}>{taawud}</React.Fragment>;
         }
         if (line.type === 'basmala') {
-          return <React.Fragment key={lineIdx}>{taawud}<View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: basmalaFontSize, lineHeight: basmalaLineH }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
+          return <React.Fragment key={lineIdx}><View style={[styles(nightMode).headerLine, { borderBottomColor: lineColor }]}><Text style={[styles(nightMode).headerText, { color: textColor, fontFamily, fontSize: basmalaFontSize, lineHeight: basmalaLineH }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text></View></React.Fragment>;
         }
         return (
           <React.Fragment key={lineIdx}>
@@ -868,9 +880,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
               // If this is a verse-end marker, don't render the garbled text
               // but still allow verse boundary badge to appear
               if (isVerseEndMarker) {
-                return (
-                  <React.Fragment key={wordIdx}>
-                    {isVerseBoundary && (
+                const badgeEl = (
                       <View style={styles(nightMode).verseBadgeContainer}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
@@ -879,7 +889,10 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
                         </TouchableOpacity>
                         {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
                       </View>
-                    )}
+                );
+                return (
+                  <React.Fragment key={wordIdx}>
+                    {isVerseBoundary && badgeEl}
                   </React.Fragment>
                 );
               }
@@ -950,7 +963,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   badgeTextCompact: { fontSize: 8.5 },
   topLeft: { position: 'absolute', top: -22, left: 6 },
   topRight: { position: 'absolute', top: -22, right: 30 },
-  readingMarkBtn: { position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 },
+  readingMarkBtn: {},
   bottomLeftRow: { position: 'absolute', bottom: 2, left: 10, flexDirection: 'row', alignItems: 'center' },
   // v93 — the bottom chrome row hangs from the frame's bottom edge like the top pills do at
   // top: -22; the page cell's 24px bottom margin gives it room (the whole row scrolls with the

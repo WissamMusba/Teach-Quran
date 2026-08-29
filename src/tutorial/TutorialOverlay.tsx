@@ -21,6 +21,7 @@ import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, StyleShe
 import TutorialHand from './TutorialHand';
 import type { TutorialStep } from './tutorialSteps';
 import type { TutorialAnchorRect } from './tutorialRuntime';
+import { getTutorialContext } from './tutorialRuntime';
 
 const DIM = 'rgba(0,0,0,0.55)';
 const ACCENT = '#7BA7DB';
@@ -51,18 +52,41 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
   }, [stepIndex, fade]);
 
   // Interactive region: anchored element, else the step's allowZone, else nothing (full dim).
-  const zone: TutorialAnchorRect | null = anchorRect
+  // Defense-in-depth: a rect that is non-finite or fully off-window is treated as missing —
+  // the runtime guard already rejects those, but a bad rect must NEVER clamp into a
+  // misleading top-left spotlight.
+  const validAnchor = anchorRect
+    && [anchorRect.x, anchorRect.y, anchorRect.w, anchorRect.h].every(Number.isFinite)
+    && anchorRect.w > 0 && anchorRect.h > 0
+    && anchorRect.x + anchorRect.w > 0 && anchorRect.y + anchorRect.h > 0
+    && anchorRect.x < winW && anchorRect.y < winH
+    ? anchorRect : null;
+  // Phones (S10 + others) were landing too high across all steps — nudge every
+  // spotlight down so the ring/hand sit centered on the target (24px total after the
+  // previous 16; emulator stays correct, larger shifts would clip on small screens).
+  const NUDGE_Y = 24;
+  const zone: TutorialAnchorRect | null = validAnchor
     ? {
-        x: Math.max(4, anchorRect.x),
-        y: Math.max(4, anchorRect.y),
-        w: Math.max(24, Math.min(anchorRect.w, winW - 8 - Math.max(4, anchorRect.x))),
-        h: Math.max(24, Math.min(anchorRect.h, winH - 8 - Math.max(4, anchorRect.y))),
+        x: Math.max(4, validAnchor.x),
+        y: Math.max(4, validAnchor.y + NUDGE_Y),
+        w: Math.max(24, Math.min(validAnchor.w, winW - 8 - Math.max(4, validAnchor.x))),
+        h: Math.max(24, Math.min(validAnchor.h, winH - 8 - Math.max(4, validAnchor.y + NUDGE_Y))),
       }
     : step.allowZone
       ? { x: step.allowZone.fx * winW, y: step.allowZone.fy * winH, w: step.allowZone.fw * winW, h: step.allowZone.fh * winH }
       : null;
 
   const isAction = step.kind === 'action';
+
+  // Dynamic text tokens — {resumePage} is filled from the tutorial context (StudentHub sets
+  // it when the student's resume page resolves); generic wording until it lands.
+  const resolveTokens = (t: string) => t.replace(/\{resumePage\}/g, getTutorialContext('resumePage') || 'the last page you viewed');
+  const title = resolveTokens(step.title);
+  const body = resolveTokens(step.body);
+  const compare = step.compare ? {
+    lTitle: resolveTokens(step.compare.lTitle), lBody: resolveTokens(step.compare.lBody),
+    rTitle: resolveTokens(step.compare.rTitle), rBody: resolveTokens(step.compare.rBody),
+  } : null;
 
   // Hand: zone center, or the handPos fraction; hidden entirely when neither resolved.
   const handPos = zone
@@ -129,22 +153,22 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
           </View>
 
           <ScrollView style={styles.bodyScroll} bounces={false}>
-            <Text style={styles.title}>{step.title}</Text>
+            <Text style={styles.title}>{title}</Text>
 
-            {step.kind === 'compare' && step.compare ? (
+            {step.kind === 'compare' && compare ? (
               <View style={{ flexDirection: 'row', marginTop: 8 }}>
                 <View style={styles.compareHalf}>
-                  <Text style={styles.compareTitle}>{step.compare.lTitle}</Text>
-                  <Text style={styles.compareBody}>{step.compare.lBody}</Text>
+                  <Text style={styles.compareTitle}>{compare.lTitle}</Text>
+                  <Text style={styles.compareBody}>{compare.lBody}</Text>
                 </View>
                 <View style={[styles.compareHalf, { marginLeft: 8 }]}>
-                  <Text style={styles.compareTitle}>{step.compare.rTitle}</Text>
-                  <Text style={styles.compareBody}>{step.compare.rBody}</Text>
+                  <Text style={styles.compareTitle}>{compare.rTitle}</Text>
+                  <Text style={styles.compareBody}>{compare.rBody}</Text>
                 </View>
               </View>
             ) : null}
 
-            <Text style={styles.body}>{step.body}</Text>
+            <Text style={styles.body}>{body}</Text>
           </ScrollView>
 
           <View style={styles.footer}>

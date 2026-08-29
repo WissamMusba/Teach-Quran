@@ -126,7 +126,7 @@ const pageLastVerseFromPageData = (pd: any) => {
 // frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
 const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
 
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
@@ -160,7 +160,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
                 onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
                 onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
@@ -173,7 +173,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
               onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
               onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
@@ -197,7 +197,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
 * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
    * CALLED BY: page-mode FlatList renderItem (splitOn=false).
    */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome }: any) => {
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum }: any) => {
   useEffect(() => {
     // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
     // directly via ensurePageVersesLoaded (itself single-flight via pageVersesPromiseRef), so
@@ -221,7 +221,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
-          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} isCurrentPage={item === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(last)}
           onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
           onMeasured={onMeasured} fontSizeScale={SPLIT_FONT_SCALE} />
       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
@@ -330,7 +330,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageVersesPromiseRef = useRef({});
   const audioPlayer = useRef(new AudioRecorderPlayer());
   const headerVisibleBeforeDrawRef = useRef(true);
-  const pageScrollSurahChangeRef = useRef(false);
+  // v99.1: armed with the SURAH ID a page-scroll surah change belongs to (was a boolean —
+  // a stale true from an unconsumed run swallowed the next SurahList selection outright).
+  const pageScrollSurahChangeRef = useRef(0);
   const viewShotRef = useRef<any>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
@@ -353,6 +355,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const canvasRestoreRef = useRef<string | null>(null);
   // Feature 1: toolbar-expand pre-fetch — 200ms debounce timer (cancel on collapse/unmount).
   const toolbarExpanded = useSelector((s: any) => s.drawing.toolbarExpanded);
+  // v100 tutorial: lets the drawing toolbar keep its grip clear of the tutorial bottom sheet.
+  const tutorialActive = useSelector((s: any) => s.tutorial?.active === true);
   const expandPullTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---- Redux subscriptions ----
@@ -583,14 +587,19 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // B2 fix — the mobile header name + audio bar follow the SETTLED page, not stale redux
   // (RESUME / GO TO PAGE / index jumps never ran the momentum-scroll surah derivation).
+  // v99.1: currentSurahId REMOVED from the deps (read from the render closure instead).
+  // With it as a dep, a fresh SurahList selection (redux surah flips while the settled
+  // page still shows the OLD surah) re-ran this effect instantly and REVERTED redux to
+  // the old surah — the selection's async landing then aborted on its stale-guard, so
+  // picking Al-Fatiha left the reader on the current surah's start page.
   useEffect(() => {
     if (readingMode !== 'page' || !settledPage) return;
     const pData = pageCache[settledPage];
     const firstWord = pData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
     const sId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
-    if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
+    if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = sId; dispatch(setSurah({ surahId: sId, verses: [] })); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settledPage, pageCache, readingMode, currentSurahId]);
+  }, [settledPage, pageCache, readingMode]);
 
   // Visible-page counterpart: pages measured on-screen (single or spread) also count as warmed,
   // so the settle-warm / warmNearPages passes never re-measure what the user has already seen.
@@ -863,7 +872,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
       if (firstWord?.location) {
         const sId = parseInt(firstWord.location.split(':')[0], 10);
-        if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
+        if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = sId; dispatch(setSurah({ surahId: sId, verses: [] })); }
       }
     }
     ensurePageLoaded(pg); ensurePageVersesLoaded(pg);
@@ -1028,13 +1037,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   Dashboard, lastRead restore.
    */
   useEffect(() => {
+    // v99.1: the page-scroll guard now carries the surah ID it was armed FOR, not a
+    // boolean. The boolean could go stale — armed while a deep-link window made the
+    // early return below skip consuming it — and then swallowed the NEXT SurahList
+    // selection: picking a surah landed on the CURRENT surah's first page instead of
+    // the chosen one. The flag is cleared on EVERY run, so an explicit list selection
+    // (flag 0 or armed for a different surah) always navigates properly.
+    const armedFor = pageScrollSurahChangeRef.current;
+    pageScrollSurahChangeRef.current = 0;
+    if (armedFor === currentSurahId) { setHeaderSurahId(currentSurahId); return; } // surah came from a page scroll — header sync only, never yank to verse 1
     if (paramsHandledRef.current) return; // a route-params deep link (hub/Bookmarks/etc.) owns the landing position
     setHeaderSurahId(currentSurahId);
     if (readingMode === 'page') {
-      if (pageScrollSurahChangeRef.current) {
-        pageScrollSurahChangeRef.current = false;
-        return;
-      }
       getVersePage(currentSurahId, 1, textStyle).then(pg => {
         if (surahIdRef.current !== currentSurahId) return;
         setCurrentPageNum(pg); setHeaderPage(pg); prefetchPartner(pg);
@@ -1346,7 +1360,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   the lastRead verse of the current surah shown to the user ("Set Reading
    *   Mark" menu item + page bookmark interplay).
    */
+  // v99.1: the lastRead restore is a MOUNT-TIME landing only. Re-running it whenever
+  // lastRead.surah changed mid-session yanked the reader to the reading mark while the
+  // user was navigating surahs ("jumping back"). The ref trips once studentData has
+  // loaded (a late async load still restores) or once a deep link takes ownership.
+  const lastReadRestoredRef = useRef(false);
   useEffect(() => {
+    if (lastReadRestoredRef.current) return;
     // A route-params deep link (StudentHub RESUME / DAILY RECITATION / GO TO PAGE,
     // Bookmarks / Mistakes / Notes / Surah / Juz index) OWNS the landing position for
     // this mount. The persisted lastRead restore must never override it — it used to,
@@ -1355,7 +1375,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // the mark's page for seconds before the deep link finally landed. Route params are
     // stable for the life of a pushed screen, so this check is sticky for the mount.
     const hasDeepLinkParams = !!(route?.params && (route.params.surahId !== undefined || route.params.page !== undefined));
-    if (hasDeepLinkParams || paramsHandledRef.current) return;
+    if (hasDeepLinkParams || paramsHandledRef.current) { lastReadRestoredRef.current = true; return; }
+    if (!studentData) return; // data still loading — restore when it lands
+    lastReadRestoredRef.current = true;
     if (studentData?.lastRead) {
       const surah = Number(studentData.lastRead.surah);
       const verse = Number(studentData.lastRead.verse);
@@ -1629,7 +1651,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
         setTimeout(() => { try { dispatch(setTool('pen')); } catch {} }, 60);
       },
       exitDraw: () => {
+        // Also collapse the toolbar: since v100 the tutorial opens it itself (draw-open step),
+        // so leaving drawing mode must restore the pre-draw UI (grip only). The expand watcher
+        // restores the header on the same transition; the ref-set below is the same value.
         if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }
+        dispatch(setToolbarExpanded(false));
       },
       cleanup: () => {
         try {
@@ -2301,7 +2327,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
                       if (firstWord?.location) {
                         const sId = parseInt(firstWord.location.split(':')[0], 10);
-                        if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = true; dispatch(setSurah({ surahId: sId, verses: [] })); }
+                        if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = sId; dispatch(setSurah({ surahId: sId, verses: [] })); }
                       }
                     }
                   }
@@ -2315,7 +2341,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
-                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} />
+                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum} />
                 ) : ({ item }: any) => (
                   <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
                     highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
@@ -2326,7 +2352,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
                     onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false)} />
+                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false)} currentPageNum={currentPageNum} />
                 )} />
             )}
 
@@ -2364,7 +2390,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       <ToolbarBoundary>
         <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
           onClear={() => canvasRef.current?.clear()} onExit={() => { if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); } else { dispatch(setToolbarExpanded(false)); } }}
-          canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo}
+          canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo} tutorialActive={tutorialActive}
           onActivateDraw={() => { if (!isDrawing) { if (isHeaderVisible) { headerVisibleBeforeDrawRef.current = true; setIsHeaderVisible(false); } setIsDrawing(true); } }} />
       </ToolbarBoundary>
 

@@ -16,7 +16,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, I
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { getStudents, createStudent, deleteStudent, updateStudent } from '../api/student';
+import { getStudents, createStudent, deleteStudent, updateStudent, ensureMyQuranStudent } from '../api/student';
 import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
 import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
@@ -26,7 +26,10 @@ import SyncStatus from '../components/common/SyncStatus';
 import SyncIndicator from '../components/sync/SyncIndicator';
 import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
-import { getManifest, purgeLocalStudent, getStudentFace, saveStudentFace, clearStudentFace } from '../database/localDB';
+import DashboardFooter from '../components/common/DashboardFooter';
+import { getVersePage } from '../database/quranData';
+import { JUZ_MAP } from '../utils/theme';
+import { getManifest, purgeLocalStudent, getStudentFace, saveStudentFace, clearStudentFace, getLastPageSeenLocal } from '../database/localDB';
 import ImagePicker from 'react-native-image-crop-picker';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
@@ -66,10 +69,18 @@ export default function DashboardScreen({ navigation }: any) {
    *       createdAt normalizes to 0 and, being the smallest value, floats the student to the top.
    * AFFECTS: FlatList data only — getStudents() still populates Redux exactly as before.
    */
-  const sortedStudents = useMemo(() => {
-    const arr = students ? [...students] : [];
-    return arr.sort((a: any, b: any) => toMillis(a?.createdAt) - toMillis(b?.createdAt));
+  const isMyQuranStudent = (s: any) => s?.isMyQuran === true || s?.name === 'My Quran';
+  const myQuranStudent = useMemo(() => {
+    const list: any[] = students ? [...students] : [];
+    return list.find((s: any) => isMyQuranStudent(s)) || null;
   }, [students]);
+  const nonMyQuranStudents = useMemo(() => {
+    const list: any[] = students ? [...students] : [];
+    return list.filter((s: any) => !isMyQuranStudent(s));
+  }, [students]);
+  const sortedStudents = useMemo(() => {
+    return [...nonMyQuranStudents].sort((a: any, b: any) => toMillis(a?.createdAt) - toMillis(b?.createdAt));
+  }, [nonMyQuranStudents]);
 
   // v97: resolve each student's LOCAL photo path (student_faces table — device-only).
   useEffect(() => {
@@ -106,6 +117,70 @@ export default function DashboardScreen({ navigation }: any) {
   }, [students]);
 
   /**
+   * WHAT: Pinned My Quran resume info — same derivation as StudentHubScreen's
+   *       RESUME (useFocusEffect): getLastPageSeenLocal (device-only local_student_state,
+   *       written by QuranView per settled page) falling back to lastRead
+   *       (manifest lastRead synced), then getVersePage -> resumeInfo {page,juz,surah,verse}.
+   *       This lets the pinned card show Reading page N · Para J · timeAgo.
+   */
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
+  const [myQuranResumeInfo, setMyQuranResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
+  const [myQuranLastSeenAt, setMyQuranLastSeenAt] = useState<string>('');
+  const myQuranLastRead = useMemo(() => {
+    if (!myQuranStudent?.id) return null;
+    return manifests[myQuranStudent.id]?.lastRead || null;
+  }, [myQuranStudent?.id, manifests]);
+  const getJuzForVerseLocal = useCallback((surahId: number, verseNum: number): number => {
+    let j = 1;
+    for (const entry of JUZ_MAP) {
+      if (entry.s < surahId || (entry.s === surahId && entry.v <= verseNum)) j = entry.j as number;
+    }
+    return j;
+  }, []);
+  const myQuranTimeAgo = useCallback((ts: any): string => {
+    const ms = toMillis(ts);
+    if (!ms) return '';
+    const mins = Math.floor((Date.now() - ms) / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} mins ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  }, []);
+  const myQuranResumeSubtitle = useMemo(() => {
+    if (!myQuranResumeInfo) return '';
+    const parts = [`Reading page ${myQuranResumeInfo.page + 1}`, `Para ${myQuranResumeInfo.juz}`];
+    const t = myQuranLastSeenAt || (myQuranLastRead?.updatedAt ? String(myQuranLastRead.updatedAt) : '');
+    const ago = myQuranTimeAgo(t);
+    if (ago) parts.push(ago);
+    return parts.join(' · ');
+  }, [myQuranResumeInfo, myQuranLastSeenAt, myQuranLastRead, myQuranTimeAgo]);
+  useFocusEffect(useCallback(() => {
+    const sid = myQuranStudent?.id;
+    if (!sid) { setMyQuranResumeInfo(null); setMyQuranLastSeenAt(''); return; }
+    let cancelled = false;
+    const lrSurah = myQuranLastRead ? Number(myQuranLastRead.surah) : 0;
+    const lrVerse = myQuranLastRead ? Number(myQuranLastRead.verse) : 0;
+    const choose = (seen: any) => {
+      if (!cancelled && seen?.at) setMyQuranLastSeenAt(String(seen.at));
+      else if (!cancelled && !seen?.at && myQuranLastRead?.updatedAt) setMyQuranLastSeenAt(String(myQuranLastRead.updatedAt));
+      if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) return { surah: Number(seen.surah), verse: Number(seen.verse) };
+      if (lrSurah > 0 && lrVerse > 0) return { surah: lrSurah, verse: lrVerse };
+      return null;
+    };
+    const apply = (src: any) => {
+      if (cancelled) return;
+      if (!src) { setMyQuranResumeInfo({ page: 1, juz: 1, surah: 1, verse: 1 }); return; }
+      getVersePage(src.surah, src.verse, textStyle).then(pg => {
+        if (!cancelled) setMyQuranResumeInfo({ page: pg, juz: getJuzForVerseLocal(src.surah, src.verse), surah: src.surah, verse: src.verse });
+      }).catch(() => { if (!cancelled) setMyQuranResumeInfo({ page: 1, juz: getJuzForVerseLocal(src.surah, src.verse), surah: src.surah, verse: src.verse }); });
+    };
+    getLastPageSeenLocal(sid).then(seen => apply(choose(seen))).catch(() => apply(choose(null)));
+    return () => { cancelled = true; };
+  }, [myQuranStudent?.id, myQuranLastRead, textStyle, getJuzForVerseLocal]));
+
+  /**
    * WHAT: Fires the Tier-1 startup anchor prefetcher once the student list exists.
    * FLOW: Derives the same ids the manifest effect above uses and hands them to
    *       startStartupPrefetch (src/utils/startupPrefetch.ts) — that module defers the work
@@ -137,14 +212,40 @@ export default function DashboardScreen({ navigation }: any) {
    *        ignored by the .then).
    */
   useFocusEffect(useCallback(() => {
-    getStudents().then(res => res.success && dispatch(setStudents(res.students)))
+    getStudents().then(async (res: any) => {
+      if (res?.success && Array.isArray(res.students)) {
+        const list: any[] = res.students;
+        const hasMyQuran = list.some((s: any) => s?.isMyQuran === true || s?.name === 'My Quran');
+        if (!hasMyQuran) {
+          try { await ensureMyQuranStudent(); } catch {}
+          try {
+            const again = await getStudents();
+            if (again?.success && Array.isArray(again.students)) dispatch(setStudents(again.students));
+            else dispatch(setStudents(list));
+          } catch { dispatch(setStudents(list)); }
+          return;
+        }
+        dispatch(setStudents(list));
+      }
+    });
   }, [dispatch]));
 
   useEffect(() => {
     const prev = prevSyncStatus.current;
     prevSyncStatus.current = syncStatus;
     if (prev === 'syncing' && syncStatus !== 'syncing') {
-      getStudents().then(res => res.success && dispatch(setStudents(res.students)));
+      getStudents().then(async (res: any) => {
+        if (res?.success && Array.isArray(res.students)) {
+          const list: any[] = res.students;
+          const hasMyQuran = list.some((s: any) => s?.isMyQuran === true || s?.name === 'My Quran');
+          if (!hasMyQuran) {
+            try { await ensureMyQuranStudent(); } catch {}
+            const again = await getStudents();
+            if (again?.success) { dispatch(setStudents(again.students)); return; }
+          }
+          dispatch(setStudents(list));
+        }
+      });
     }
   }, [syncStatus, dispatch]);
 
@@ -232,6 +333,10 @@ export default function DashboardScreen({ navigation }: any) {
    *        fails unhandled when offline (no try/catch in src/api/student.ts).
    */
   const handleLongPress = useCallback((item: any) => {
+    if (isMyQuranStudent(item)) {
+      showAlert('My Quran', 'My Quran cannot be deleted or renamed.', [{ text: 'OK' }]);
+      return;
+    }
     showAlert(item.name, 'Choose an action:', [
       { text: 'Edit Name', onPress: () => { setEditId(item.id); setEditName(item.name); setEditModal(true); } },
       { text: 'Delete', style: 'destructive' as const, onPress: async () => {
@@ -251,10 +356,12 @@ export default function DashboardScreen({ navigation }: any) {
    */
   const handleEdit = useCallback(async () => {
     if (!editName.trim()) return;
+    const cur = (students || []).find((s: any) => s?.id === editId);
+    if (cur && isMyQuranStudent(cur)) { showAlert('My Quran', 'My Quran cannot be renamed.', [{ text: 'OK' }]); return; }
     const res = await updateStudent(editId, editName.trim());
     if (res.success) { dispatch(updateStudentSlice({ id: editId, name: editName.trim() })); setEditModal(false); }
     else showAlert('Error', res.error);
-  }, [editId, editName]);
+  }, [editId, editName, students, showAlert]);
 
   /**
    * Renders a student card; tap selects the student and enters QuranView.
@@ -347,11 +454,35 @@ export default function DashboardScreen({ navigation }: any) {
    * - Header: title (with blue accent dot) + SyncStatus pill + manual "Sync (n)" button
    *   (n = pendingChanges badge; disabled only while a sync is in flight — always runs a full
    *   push+run) + Logout button.
-   * - Sorted FlatList of students (sortedStudents, oldest first); renderItem above.
+   * - Pinned My Quran card (direct Resume to QuranView — same lastPageSeen/lastRead -> getVersePage -> page/juz logic as StudentHub).
+   * - Sorted FlatList of non-My-Quran students; renderItem above.
    * - FAB opens the Add Student modal.
    * - Add Student modal (autoFocus TextInput) / Edit modal (pre-filled value).
+   * - Pinned DashboardFooter (Surah Index | Bookmarks | Go to page on My Quran) above CollapsibleBannerAd.
    * - SyncIndicator overlay (global syncing spinner) + AlertModal for confirm/error dialogs.
    */
+  const myQuranCardSubtitle = useMemo(() => {
+    if (!myQuranStudent) return 'Setting up…';
+    if (!myQuranResumeInfo) return myQuranResumeSubtitle || '…';
+    return myQuranResumeSubtitle || `Reading page ${myQuranResumeInfo.page + 1} · Para ${myQuranResumeInfo.juz}`;
+  }, [myQuranStudent, myQuranResumeInfo, myQuranResumeSubtitle]);
+  const myQuranDailyLine = useMemo(() => {
+    if (!myQuranLastRead?.surah) return '';
+    const ls = Number(myQuranLastRead.surah);
+    const lv = Number(myQuranLastRead.verse);
+    const nm = surahNames?.[ls] || `Surah ${ls}`;
+    return `${nm} · Ayat ${lv}${myQuranLastRead.updatedAt ? ` · ${formatDate(myQuranLastRead.updatedAt)}` : ''}`;
+  }, [myQuranLastRead, surahNames]);
+  const handleMyQuranPress = useCallback(() => {
+    if (!myQuranStudent?.id) return;
+    dispatch(setCurrentStudent(myQuranStudent));
+    dispatch(setSurah({ surahId: 1, verses: [] }));
+    dispatch(setToolbarExpanded(false));
+    const page = myQuranResumeInfo?.page ?? 1;
+    emitTutorialEvent('quran_opened');
+    navigation.navigate('QuranView' as any, { page } as any);
+  }, [myQuranStudent, myQuranResumeInfo, dispatch, navigation]);
+
   return (
     <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}>
       <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0', paddingTop: 16 + statusBarPad }]}>
@@ -368,9 +499,42 @@ export default function DashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14 }} renderItem={renderItem} />
-      <TutorialAnchor id="dashboard-fab">
-      <TouchableOpacity style={[styles(nightMode).fab, { bottom: adCollapsed ? 24 : 84 }]} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles(nightMode).fabText}>+</Text></TouchableOpacity>
+      {/* Pinned My Quran — direct Resume to QuranView (same resume info as StudentHub). Non-deletable, non-renameable. */}
+      <View style={{ paddingHorizontal: 10, paddingTop: 10 }}>
+        {myQuranStudent ? (
+          <TutorialAnchor id="my-quran-resume">
+            <TouchableOpacity
+              style={[styles(nightMode).card, styles(nightMode).myQuranCard, { backgroundColor: nightMode ? '#1e2a4a' : '#eef3ff', borderColor: nightMode ? '#2f4a7a' : '#c5d3f0' }]}
+              onPress={handleMyQuranPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles(nightMode).cardRow}>
+                <View style={[styles(nightMode).avatar, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]}>
+                  <Text style={styles(nightMode).avatarText}>Q</Text>
+                </View>
+                <View style={styles(nightMode).cardBody}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles(nightMode).studentName, { color: nightMode ? '#fff' : '#1a1a1a' }]}>My Quran</Text>
+                    <View style={[styles(nightMode).pinnedDot, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} />
+                  </View>
+                  <Text style={styles(nightMode).readingLine} numberOfLines={1}>{myQuranCardSubtitle}</Text>
+                  {myQuranDailyLine ? <Text style={[styles(nightMode).dateLine, { color: nightMode ? '#8a90a0' : '#6b7280' }]} numberOfLines={1}>{myQuranDailyLine}</Text> : null}
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TutorialAnchor>
+        ) : (
+          <View style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0', opacity: 0.7 }]}>
+            <Text style={[styles(nightMode).readingLine]}>Setting up My Quran…</Text>
+          </View>
+        )}
+      </View>
+      <FlatList style={{ flex: 1 }} data={sortedStudents} keyExtractor={(item: any) => item.id} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 72 }} renderItem={renderItem} />
+      {/* position/right/bottom live on the TutorialAnchor wrapper (not the button): an absolute
+          child of an unstyled anchor positions against the anchor's 0x0 box and the anchor never
+          measures — the step-2 spotlight/hand would never find the FAB (same fix as draw-toolbar). */}
+      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 24, bottom: adCollapsed ? 96 : 140 }}>
+      <TouchableOpacity style={styles(nightMode).fab} onPress={() => setAddModal(true)} activeOpacity={0.8}><Text style={styles(nightMode).fabText}>+</Text></TouchableOpacity>
       </TutorialAnchor>
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
@@ -412,6 +576,7 @@ export default function DashboardScreen({ navigation }: any) {
 
 <SyncIndicator />
       <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
+      <DashboardFooter myQuran={myQuranStudent} navigation={navigation} />
       <CollapsibleBannerAd />
     </View>
   );
@@ -438,7 +603,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   studentName: { fontSize: 15, fontWeight: '700' },
   readingLine: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 11.5, fontWeight: '600', marginTop: 2 },
   dateLine: { fontSize: 10.5, marginTop: 1 },
-  fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  myQuranCard: { paddingVertical: 12 },
+  pinnedDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 8 },
+  fab: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
   fabText: { color: '#121212', fontSize: 28, fontWeight: '700', lineHeight: 30 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContent: { width: '82%', padding: 24, borderRadius: 16, borderWidth: 1 },

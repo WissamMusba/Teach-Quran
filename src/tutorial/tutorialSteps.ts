@@ -2,8 +2,12 @@
  * FILE: src/tutorial/tutorialSteps.ts
  * ROLE: The tutorial SCRIPT — one array entry per step. Delete an entry and that step
  *       disappears cleanly (steps chain by ORDER, nothing references ids). v3: grouped into
- *       4 chapters (progress bar), reading-mark + draw-tools + audio + sync steps added,
- *       closing card uses the exact cross-device wording.
+ *       4 chapters (progress bar), reading-mark + audio + sync steps added, closing card
+ *       uses the exact cross-device wording. v100: drawing is a guided 3-tap sequence
+ *       (open toolbar → PEN → draw), resume-vs-daily shows the live resume page via the
+ *       {resumePage} token, verse-menu/voice steps highlight the whole reading area (the
+ *       per-page verse-badge anchor proved unreliable), and the action steps 9/10/11/14/
+ *       15/20/21 carry a skip button.
  * DEPENDS ON: nothing (pure data).
  * USED BY: TutorialController.tsx (drives), TutorialOverlay.tsx (renders).
  * TYPES:
@@ -83,7 +87,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'Two different "where we are" pointers — the most important distinction in the app:',
     compare: {
       lTitle: '▶ RESUME',
-      lBody: 'The last page that was OPEN — say page 147. Tap it to jump straight back to where you left off VIEWING, even after closing the app.',
+      lBody: 'The last page that was OPEN — say page {resumePage}. Tap it to jump straight back to where you left off VIEWING, even after closing the app.',
       rTitle: '📍 DAILY RECITATION',
       rBody: 'The 📍 reading mark YOU set from the ribbon at the top of a page — where the student is UP TO. Setting a new mark REPLACES the old one: one mark per student.',
     },
@@ -105,19 +109,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'highlight', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Mark a mistake',
     body: 'Press any word — it gets highlighted in RED. That\'s how you track a mistake. Try it now on any word.',
-    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area',
+    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area', skipLabel: 'Skip this',
   },
   {
     id: 'verse-menu', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'The verse menu',
     body: 'Tap the small number circle at the END of any verse (long-pressing the words does the same) to open its menu.',
-    waitEvent: 'menu_opened', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area',
+    waitEvent: 'menu_opened', passThrough: true, hand: true, anchorId: 'reading-area', skipLabel: 'Skip this',
   },
   {
     id: 'verse-menu-close', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Five tools, one tap',
     body: '▶ Play the verse · 🔖 Bookmark saves it to revisit (as many as you like) · 📝 Note · 🎙 Record recitation · ⧉ Copy the text. Try any tool you like — then close the menu (tap outside it) to continue.',
-    waitEvent: 'menu_closed', passThrough: true, anchorId: 'reading-area',
+    waitEvent: 'menu_closed', passThrough: true, anchorId: 'reading-area', skipLabel: 'Skip this',
   },
   {
     id: 'notes-info', screen: 'QuranView', kind: 'info', chapter: 'Annotate',
@@ -125,16 +129,25 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'A note you write on a verse also appears in the NOTES screen — so you can review every note for this student in one list later.',
   },
   {
-    id: 'draw', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
-    title: 'Draw on the page',
-    body: 'Drawing mode is now ON with the pen ready — underline a word or circle it. Your drawing is saved with the page.',
-    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, onEnter: 'enter-draw', anchorId: 'reading-area',
+    id: 'draw-open', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
+    title: 'Open the drawing tool',
+    body: 'Tap the floating pencil button to open the drawing toolbar.',
+    // exitDraw here NORMALIZES state: if the user already expanded the toolbar (or entered
+    // drawing mode) during a previous live step, collapse it first so this step always
+    // starts from the collapsed pencil grip the hand points at.
+    anchorId: 'draw-open-btn', waitEvent: 'draw_opened', passThrough: true, hand: true, exitDraw: true,
   },
   {
-    id: 'draw-tools', screen: 'QuranView', kind: 'spotlight', chapter: 'Annotate',
-    title: 'The drawing toolbar',
-    body: 'LASER points without saving (great for live lessons) · ERASE removes strokes · UNDER/LINE draws straight lines · UNDO/REDO/CLEAR sit on the right · the palette and dot change color and pen size. Drag the grip to move it; tap EXIT when done.',
-    anchorId: 'draw-toolbar', hand: true,
+    id: 'draw-pen', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
+    title: 'Pick the pen',
+    body: 'Tap PEN to start drawing. (LASER points without saving — great for live lessons — ERASE removes strokes, LINE draws straight ones.)',
+    anchorId: 'pen-tool', waitEvent: 'pen_selected', passThrough: true, hand: true, skipLabel: 'Skip this',
+  },
+  {
+    id: 'draw', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
+    title: 'Draw on the page',
+    body: 'Underline a word or circle it — your drawing is saved with the page. Color and pen size are on the right of the toolbar; UNDO/REDO/CLEAR too.',
+    waitEvent: 'stroke_saved', passThrough: true, hand: true, anchorId: 'reading-area', skipLabel: 'Skip this',
   },
   {
     id: 'draw-exit', screen: 'QuranView', kind: 'info', chapter: 'Annotate',
@@ -145,8 +158,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'voice-note', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Record a recitation',
-    body: 'Open the verse menu again (number circle) and press 🎙 Record — capture a few seconds of recitation, then Save. Or skip this step.',
-    waitEvent: 'voice_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, skipLabel: 'Skip recording', anchorId: 'reading-area',
+    body: 'Open the verse menu again — tap any verse\'s number circle — and press 🎙 Record. Capture a few seconds of recitation, then Save. Or skip this step.',
+    waitEvent: 'voice_saved', passThrough: true, hand: true, skipLabel: 'Skip recording', anchorId: 'reading-area',
   },
   {
     id: 'bookmark-vs-mark', screen: 'QuranView', kind: 'compare', chapter: 'Annotate',
@@ -169,13 +182,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'share', screen: 'QuranView', kind: 'action', chapter: 'Review & Sync',
     title: 'Share a page',
     body: 'Tap SHARE in the header. In the menu you choose whether to include drawings and mistakes — bookmarks are always included. Then press Share to send the image (you can cancel the send).',
-    anchorId: 'hdr-share', waitEvent: 'share_menu_opened', passThrough: true, hand: true,
+    anchorId: 'hdr-share', waitEvent: 'share_menu_opened', passThrough: true, hand: true, skipLabel: 'Skip this',
   },
   {
     id: 'share-send', screen: 'QuranView', kind: 'action', chapter: 'Review & Sync',
     title: 'Send it (or cancel)',
     body: 'Press the big Share button — the normal Android share sheet opens. Cancel it if you like; the tutorial continues either way.',
-    waitEvent: 'share_opened', passThrough: true, allowZone: { fx: 0.06, fy: 0.2, fw: 0.88, fh: 0.6 },
+    waitEvent: 'share_opened', passThrough: true, allowZone: { fx: 0.06, fy: 0.2, fw: 0.88, fh: 0.6 }, skipLabel: 'Skip this',
   },
   {
     id: 'mistakes', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',

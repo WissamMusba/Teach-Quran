@@ -6,6 +6,7 @@
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
+import { emitTutorialEvent } from '../../tutorial/tutorialRuntime';
 
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -60,6 +61,7 @@ interface Props {
   canUndo: boolean;
   canRedo: boolean;
   onActivateDraw?: () => void;
+  tutorialActive?: boolean;
 }
 
 /**
@@ -69,7 +71,7 @@ interface Props {
  * AFFECTS: drawingSlice (tool/color/size/expanded), parent's isDrawing/isHeaderVisible, the canvas via the imperative handle.
  * NOTES: position (x/y) is NOT persisted across restarts; `open` is global Redux state, so surah/page changes collapse the toolbar externally (also triggering the selection-reset effect).
  */
-const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw }) => {
+const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onUndo, onRedo, onClear, onExit, canUndo, canRedo, onActivateDraw, tutorialActive }) => {
   const dispatch = useDispatch();
   const { width, height } = useWindowDimensions();
   const sbHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
@@ -122,6 +124,35 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const posRef = useRef({ x: MARGIN, y: initY });
   const preDockRef = useRef({ x: MARGIN, y: initY });
+
+  // While the tutorial is active, keep the toolbar clear of the bottom-sheet card (it covers
+  // ~300dp). The draw-open grip was hiding behind it on phones; open/draw steps need the
+  // toolbar VISIBLE above the card. Park at the top of the screen for those steps.
+  useEffect(() => {
+    if (!tutorialActive) return;
+    const topY = sbHeight + 8;
+    if (!open) {
+      // Collapsed: keep the pencil grip near the top so the "Pick the pen" step's toolbar is above the card.
+      const maxY = height - 320 - ROUND;
+      const ny = posRef.current.y > maxY || posRef.current.y > height / 2 ? Math.max(sbHeight, maxY) : posRef.current.y;
+      // Also bring it up top if it started below center (so PEN ends up above the sheet when opened).
+      if (posRef.current.y > height * 0.45) {
+        const ty = topY;
+        setPos([posRef.current.x, ty]);
+        posRef.current = { x: posRef.current.x, y: ty };
+      } else if (posRef.current.y > maxY) {
+        const ty2 = Math.max(sbHeight, maxY);
+        setPos([posRef.current.x, ty2]);
+        posRef.current = { x: posRef.current.x, y: ty2 };
+      }
+      return;
+    }
+    // Open: nudge the whole bar to the top so the bottom sheet never covers the PEN/ERASE row.
+    if (posRef.current.y > topY + 30) {
+      setPos([posRef.current.x, topY]);
+      posRef.current = { x: posRef.current.x, y: topY };
+    }
+  }, [tutorialActive, open, height, ROUND, sbHeight]);
 
   // Clamps — when open the toolbar can never leave the screen (clampXOpen); when collapsed, half-off-screen docking positions are allowed; clampY guards status-bar and bottom edges.
   const clampX = (v: number) => Math.max(-Math.round(ROUND / 2), Math.min(v, width - Math.round(ROUND / 2)));
@@ -206,6 +237,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         setPos([clamped.x, clamped.y]);
         posRef.current = clamped;
         dispatch(setToolbarExpanded(true));
+        emitTutorialEvent('draw_opened');
       }
       return;
     }
@@ -256,7 +288,7 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const ToolBtn = ({ k, label, Icon }: { k: any; label: string; Icon: any }) => {
     const sel = selectedTool === k;
     const lblC = sel ? accent : labC;
-    return (<TouchableOpacity style={d.col} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); onActivateDraw?.(); }} activeOpacity={0.5}>
+    return (<TouchableOpacity style={d.col} onPress={() => { setPal(false); setSelectedTool(k); dispatch(setTool(k)); if (k === 'pen') emitTutorialEvent('pen_selected'); onActivateDraw?.(); }} activeOpacity={0.5}>
       <Icon c={sel ? accent : iconC} sz={SZ1} sw={swt} />
       {k === 'underline' ? (
         <>
@@ -278,14 +310,18 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   );
 
   // WRAP - the whole toolbar. Responder negotiation is deepest-first: touches on a button or the grip are claimed by that child, so the wrap only ever receives frame touches (padding/gaps/corners). Elevation is ALWAYS 200 (constant) - above the DrawingCanvas (zIndex 100) even while drawing.
+  // left/top MUST live on the TutorialAnchor wrapper, not the inner wrap: the anchor View is an
+  // in-flow sibling after the flex:1 reading area, so an absolute child positioned against it
+  // would measure from that zero-height edge and land off-screen (v99.0 "draw tool vanished").
   return (
-    <TutorialAnchor id="draw-toolbar">
-    <View style={[s.wrap, { left: x, top: y, flexDirection: 'row', elevation: 200, zIndex: 200 }]}
+    <TutorialAnchor id="draw-toolbar" style={{ position: 'absolute', left: x, top: y, zIndex: 200 }}>
+    <View style={[s.wrap, { flexDirection: 'row', elevation: 200 }]}
       onStartShouldSetResponder={() => true}
       onResponderGrant={onTouchStart}
       onResponderMove={onTouchMove}
       onResponderRelease={onWrapEnd}>
-      {/* GRIP — keeps its own full responder chain: drag it, or tap to toggle (see onTouchEnd); the chevron reflects the docked edge when collapsed. */}
+      {/* GRIP — keeps its own full responder chain: drag it, or tap to toggle (see onTouchEnd); the chevron reflects the docked edge when collapsed. Wrapped in the draw-open-btn anchor so the tutorial can point at it (in-flow wrap — the anchor adds no positioning). */}
+      <TutorialAnchor id="draw-open-btn">
       <View style={[d.grip, { backgroundColor: barBg }]}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
@@ -294,12 +330,13 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
         onResponderRelease={onTouchEnd}>
         {open ? <HandleIcon c={iconC} sz={SZ1} sw={swt} /> : docked === 'left' ? <ChevR c={iconC} sz={SZ3} sw={swt} /> : docked === 'right' ? <ChevL c={iconC} sz={SZ3} sw={swt} /> : docked === 'top' ? <ChevD c={iconC} sz={SZ3} sw={swt} /> : docked === 'bottom' ? <ChevU c={iconC} sz={SZ3} sw={swt} /> : <Pencil c={iconC} sz={SZ1} sw={swt} />}
       </View>
+      </TutorialAnchor>
 
       {open && (
         <View style={[d.bar, { backgroundColor: barBg, marginLeft: GAP }]}>
-          {/* Tool buttons — LASER/PEN/ERASE/LINE: dispatch setTool(k) + onActivateDraw?.() (parent enters drawing mode) */}
+          {/* Tool buttons — LASER/PEN/ERASE/LINE: dispatch setTool(k) + onActivateDraw?.() (parent enters drawing mode). PEN is wrapped in the pen-tool anchor so the tutorial can point at it. */}
           <ToolBtn k="laser" label="LASER" Icon={LaserI} />
-          <ToolBtn k="pen" label="PEN" Icon={Pencil} />
+          <TutorialAnchor id="pen-tool" style={{ width: COL }}><ToolBtn k="pen" label="PEN" Icon={Pencil} /></TutorialAnchor>
           <ToolBtn k="eraser" label="ERASE" Icon={EraserI} />
           <ToolBtn k="underline" label="LINE" Icon={UnderI} />
           {/* Action buttons — UNDO/REDO/CLEAR: call through the parent -> canvasRef.current?.undo()/redo()/clear() */}
@@ -343,9 +380,9 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   );
 };
 
-// Styles — wrap is the positioned draggable frame (constant elevation 200); colorWrap anchors the absolutely-positioned palette; grid lays out the 8-color swatches.
+// Styles — wrap is the draggable frame row; its absolute left/top + zIndex live on the TutorialAnchor wrapper (see return), so the anchor sizes to the toolbar and positions it against the fullscreen container. colorWrap anchors the absolutely-positioned palette; grid lays out the 8-color swatches.
 const s = StyleSheet.create({
-  wrap: { position: 'absolute', alignItems: 'center', elevation: 200, zIndex: 200 },
+  wrap: { alignItems: 'center' },
   colorWrap: { position: 'relative' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
 });

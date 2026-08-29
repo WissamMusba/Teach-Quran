@@ -7,19 +7,33 @@
  *          AnimatedHeader (SHARE / MISTAKES / NOTES / surah-list buttons).
  * NOTES: Pure passthrough — adds one View + onLayout measure; zero behavior change.
  */
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View } from 'react-native';
-import { setTutorialAnchor } from './tutorialRuntime';
+import { setTutorialAnchor, onTutorialMeasureTick } from './tutorialRuntime';
 
-export default function TutorialAnchor({ id, children, style }: { id: string; children?: any; style?: any }) {
+export default function TutorialAnchor({ id, children, style, active = true }: { id: string; children?: any; style?: any; active?: boolean }) {
   const ref = useRef<View | null>(null);
   const measure = () => {
+    if (!active) return;
     try {
       ref.current?.measureInWindow((x, y, w, h) => {
         if (w > 0 && h > 0) setTutorialAnchor(id, { x, y, w, h });
       });
     } catch {}
   };
+  // While the tutorial runs, re-measure on the shared runtime tick: the page FlatList
+  // translates pages without re-firing onLayout, so a swiped-in page's anchor would
+  // otherwise keep a stale rect (offscreen results are rejected by the runtime guard).
+  // `active` gates registration: the FlatList keeps neighbour pages mounted, so if every
+  // mounted page registered the same id their offscreen/mid-layout measures would race the
+  // current page's and the spotlight would flash between rects. An inactive anchor still
+  // renders its wrapper View (layout preserved) — it just never writes to the registry.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!active) return;
+    measure();
+    return onTutorialMeasureTick(measure);
+  }, [id, active]);
   return (
     <View ref={ref} style={style} onLayout={measure} collapsable={false}>
       {children}

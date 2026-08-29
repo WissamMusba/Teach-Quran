@@ -17,7 +17,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import { getStudentData, getLastPageSeenLocal, getManifest, getStudentFace } from '../database/localDB';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
-import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
+import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
 import { setStudentData } from '../store/studentSlice';
 import { getVersePage } from '../database/quranData';
 import { JUZ_MAP } from '../utils/theme';
@@ -156,6 +156,12 @@ export default function StudentHubScreen({ navigation }: any) {
     }
     return () => { cancelled = true; };
   }, [currentStudent?.id, lrSurah, lrVerse, textStyle]));
+
+  // v100 tutorial: publish the student's resume page (DISPLAY numbering, +1) so the
+  // resume-vs-daily compare step can show the REAL page instead of a hardcoded one.
+  useEffect(() => {
+    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.page + 1));
+  }, [resumeInfo]);
 
   const resumeSubtitle = useMemo(() => {
     if (!resumeInfo) return '';

@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { TUTORIAL_STEPS } from './tutorialSteps';
 import {
   setTutorialStep, endTutorial, onTutorialEvent, onTutorialAnchorsChanged,
-  getTutorialAnchor, getTutorialBridge,
+  getTutorialAnchor, getTutorialBridge, setTutorialMeasuringActive, onTutorialContextChanged,
 } from './tutorialRuntime';
 import { setTutorialDone } from '../store/settingsSlice';
 import { removeStudent } from '../store/studentSlice';
@@ -79,6 +79,18 @@ export default function TutorialController() {
     const unsub = onTutorialAnchorsChanged(refresh);
     return () => { unsub(); if (iv) clearInterval(iv); };
   }, [active, stepIndex, step?.anchorId]);
+
+  // While active, every TutorialAnchor re-measures on the shared runtime tick (the page
+  // FlatList translates pages without re-firing onLayout — stale rects made spotlights
+  // land top-left after swipes).
+  useEffect(() => {
+    setTutorialMeasuringActive(active);
+    return () => setTutorialMeasuringActive(false);
+  }, [active]);
+
+  // Dynamic text tokens ({resumePage}…) resolve at overlay render — re-render when they land.
+  const [, setCtxTick] = useState(0);
+  useEffect(() => onTutorialContextChanged(() => setCtxTick((t) => t + 1)), []);
 
   // Step side effects: enter/exit drawing mode via the QuranView bridge.
   useEffect(() => {

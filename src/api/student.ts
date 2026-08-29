@@ -170,3 +170,46 @@ export const deleteStudent = async (id: string) => {
   await firestore().collection('users').doc(userId).collection('students').doc(id).delete();
   return { success: true };
 };
+
+/**
+ * WHAT: Ensures the reserved "My Quran" student exists — the pinned personal Quran.
+ * FLOW: 1) getUserId() guard. 2) getStudents() (cache-first, falls back to Firestore
+ *          cloud read). 3) If any doc has isMyQuran===true or name==="My Quran",
+ *          return its id. 4) Else createStudent("My Quran"), then Firestore update
+ *          isMyQuran:true on that doc, then patch the SQLite student_list_cache so
+ *          the next Dashboard paint sees it without waiting for background refresh.
+ * CALLS: getUserId, getStudents (self), createStudent, cacheStudentList.
+ * CALLED BY: src/api/auth.ts registerUser (new accounts), DashboardScreen
+ *            useFocusEffect migration (existing accounts).
+ * NOTES: Offline create is intentionally deferred — returns null (caller retries
+ *        on next Dashboard focus when online). Never queued.
+ */
+export const ensureMyQuranStudent = async (): Promise<string | null> => {
+  const userId = getUserId();
+  if (!userId) return null;
+  try {
+    const res = await getStudents();
+    const list: any[] = res?.success && Array.isArray(res.students) ? res.students : [];
+    const existing = list.find((s: any) => s?.isMyQuran === true || s?.name === 'My Quran');
+    if (existing?.id) return String(existing.id);
+    const created = await createStudent('My Quran');
+    if (!created?.success || !created?.studentId) return null;
+    try {
+      await firestore().collection('users').doc(userId).collection('students').doc(created.studentId).update({ isMyQuran: true });
+    } catch {}
+    try {
+      const cached = (await getCachedStudentList()) || [];
+      const idx = cached.findIndex((s: any) => s?.id === created.studentId);
+      if (idx !== -1) {
+        const patched = [...cached];
+        patched[idx] = { ...patched[idx], name: 'My Quran', isMyQuran: true };
+        await cacheStudentList(patched);
+      } else {
+        await cacheStudentList([...cached, { id: created.studentId, name: 'My Quran', isMyQuran: true, createdAt: new Date().toISOString() }]);
+      }
+    } catch {}
+    return String(created.studentId);
+  } catch {
+    return null;
+  }
+};

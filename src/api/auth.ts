@@ -8,6 +8,7 @@
  *          src/screens/DashboardScreen.tsx (logoutUser)
  */
 import { auth, firestore, formatUsernameToEmail } from './firebase';
+import { ensureMyQuranStudent } from './student';
 
 /**
  * WHAT: Translates Firebase error codes into user-friendly copy.
@@ -68,6 +69,7 @@ export const registerUser = async (username: string, password: string) => {
     const email = formatUsernameToEmail(username);
     const userCredential = await auth().createUserWithEmailAndPassword(email, password);
     await firestore().collection('users').doc(userCredential.user.uid).set({ username, createdAt: firestore.FieldValue.serverTimestamp() });
+    try { await ensureMyQuranStudent(); } catch {}
     return { success: true, user: userCredential.user };
   } catch (error: any) { return { success: false, error: mapFirebaseError(error) }; }
 };
