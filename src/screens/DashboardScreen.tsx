@@ -431,7 +431,7 @@ export default function DashboardScreen({ navigation }: any) {
 
     return (
       <TutorialAnchor id={index === 0 ? 'student-card' : `student-card-${item.id}`}>
-      <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? '#1a1a2e' : '#ffffff', borderColor: nightMode ? '#2a2a4a' : '#e5e7f0' }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); emitTutorialEvent('student_opened'); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
+      <TouchableOpacity style={[styles(nightMode).card, { backgroundColor: nightMode ? (index % 2 === 0 ? '#1a1a2e' : '#161628') : (index % 2 === 0 ? '#FBF9F4' : '#EFECE4'), borderColor: nightMode ? (index % 2 === 0 ? '#2a2a4a' : '#232344') : (index % 2 === 0 ? '#e2ddd2' : '#d9d3c6') }]} onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); emitTutorialEvent('student_opened'); navigation.navigate('StudentHub'); }} onLongPress={() => handleLongPress(item)} activeOpacity={0.7} delayLongPress={400}>
         <View style={styles(nightMode).cardRow}>
           {faces[item.id] ? (
             <Image source={{ uri: `file://${faces[item.id]}` }} style={styles(nightMode).avatarImage} resizeMode="cover" />
@@ -484,8 +484,8 @@ export default function DashboardScreen({ navigation }: any) {
   }, [myQuranStudent, myQuranResumeInfo, dispatch, navigation]);
 
   return (
-    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}>
-      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0', paddingTop: 16 + statusBarPad }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#F4F1EA' }]}>
+      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#FBF9F4', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0', paddingTop: 16 + statusBarPad }]}>
         <View style={styles(nightMode).titleRow}><View style={styles(nightMode).titleDot} /><Text style={[styles(nightMode).title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TutorialAnchor id="sync-pill"><SyncStatus /></TutorialAnchor>
@@ -539,7 +539,7 @@ export default function DashboardScreen({ navigation }: any) {
 
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
         <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
+          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#FBF9F4', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
             <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Add Student</Text>
             <TextInput style={[styles(nightMode).input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} placeholder="Student name" placeholderTextColor="#666" onChangeText={setName} autoFocus />
             <View style={{ flexDirection: 'row', marginTop: 10 }}>
@@ -552,7 +552,7 @@ export default function DashboardScreen({ navigation }: any) {
 
       <Modal visible={editModal} transparent animationType="fade" onRequestClose={() => setEditModal(false)}>
         <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#ffffff', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
+          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1e1e1e' : '#FBF9F4', borderColor: nightMode ? '#2a2a2a' : '#d0d0d0' }]}>
             <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Edit Student</Text>
             <TextInput style={[styles(nightMode).input, { color: nightMode ? '#fff' : '#1a1a1a', backgroundColor: nightMode ? '#121212' : '#f5f5f5', borderColor: nightMode ? '#333' : '#ccc' }]} value={editName} onChangeText={setEditName} placeholder="Student name" placeholderTextColor="#666" autoFocus />
             {/* v97: device-only photo (gallery / camera / remove) — never synced. */}
