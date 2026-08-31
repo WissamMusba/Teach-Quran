@@ -367,7 +367,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
-  const { nightMode, bgBrightness, playBasmala } = useSelector((s: any) => s.settings);
+  const { nightMode, bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
   const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
@@ -732,6 +732,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   identical to the settle effect's warmLayout, so no page is ever re-queried.
    */
   const warmNearPages = useCallback((pg: number) => {
+    if (legacySmoothRef.current) return;
     if (warmNearTimerRef.current) { clearTimeout(warmNearTimerRef.current); warmNearTimerRef.current = null; }
     const step = splitOn ? 2 : 1;
     const queue: number[] = [];
@@ -826,6 +827,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   MushafPageView render (single) or SpreadItem (split).
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
+    if (legacySmoothRef.current) return;
     if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
     // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
     // verifies off-screen halves (the FlatList window renders those anyway when needed).
@@ -1425,6 +1427,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   //   -> saveStudentData + addToSyncQueue -> addPendingChange (sync badge).
   // Additional flush triggers: AppState background/inactive + unmount.
   const pendingSaveRef = useRef<any>(null);
+  const legacySmoothRef = useRef(false);
+  useEffect(() => { legacySmoothRef.current = legacySmooth; }, [legacySmooth]);
   const saveTimerRef = useRef<any>(null);
   // STALE-SNAPSHOT FIX — synchronous mirror of the newest dispatched studentData: written
   // BEFORE each dispatch, so a second edit inside the same render tick (fast word double-tap,

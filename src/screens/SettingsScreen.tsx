@@ -8,7 +8,7 @@ import React, { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
+import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone, toggleLegacySmooth } from '../store/settingsSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont } from '../utils/theme';

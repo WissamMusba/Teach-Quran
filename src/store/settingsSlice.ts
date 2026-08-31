@@ -21,6 +21,7 @@ const initialState = {
   playBasmala: true,          // play the reciter's basmala before verse 1 of a surah (surah 1 & 9 excluded)
   adCollapsed: false,         // CollapsibleBannerAd user preference: true = banner hidden (tiny ▴ only)
   tutorialDone: false,        // v97.1: interactive walkthrough finished once (Replay Tutorial restarts it)
+  legacySmooth: false,        // v99.1: Note-era Samsung / weak GPU phones — disables per-swipe prefetch work
 };
 
 export const settingsSlice = createSlice({
@@ -36,6 +37,7 @@ export const settingsSlice = createSlice({
      *          MushafPageView.tsx:50/:54-62/:226-330 (text/line/frame/badge colors).
      */
     setTutorialDone: (state, action) => { state.tutorialDone = action.payload === true; },
+    toggleLegacySmooth: (state) => { state.legacySmooth = !state.legacySmooth; },
     toggleNightMode: (state) => { state.nightMode = !state.nightMode; },
     /**
      * WHAT: Sets 0-255 Arabic-text opacity scalar.
