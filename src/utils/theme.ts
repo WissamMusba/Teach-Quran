@@ -1,8 +1,6 @@
 /**
  * FILE: src/utils/theme.ts
  * ROLE: Font-family lookup by text style key, theme color constants, and the juz<->page/surah static tables with helpers.
- * DEPENDS ON: hardcoded static tables (JUZ_PAGE_START, JUZ_MAP, JUZ_NAMES).
- * USED BY: QuranViewScreen.tsx (getJuzInfoFromPage, getStartJuzOfSurah); MushafPageView.tsx (getArabicFont, getJuzInfoFromPage); FlowingText.tsx (getArabicFont); VerseDisplay.tsx (getArabicFont); SurahList.tsx (getStartJuzOfSurah, JUZ_MAP); BookmarksScreen.tsx (JUZ_MAP); JuzIndexScreen.tsx (JUZ_NAMES).
  */
 import { Dimensions, PixelRatio, Platform } from 'react-native';
 const { width: W } = Dimensions.get('window');
@@ -19,6 +17,63 @@ export const ARABIC_FONTS: Record<string, string> = {
 };
 
 export const getArabicFont = (style: string) => ARABIC_FONTS[style] || ARABIC_FONTS.alqalam;
+
+export interface AppThemeColors {
+  primary: string;
+  accent: string;
+  gold: string;
+  bg: string;
+  cardBg: string;
+  border: string;
+  heroBg: string;
+  heroBorder: string;
+  text: string;
+  subText: string;
+}
+
+export const getThemeColors = (colorTheme = 'classic', nightMode = true): AppThemeColors => {
+  if (colorTheme === 'emerald') {
+    return {
+      primary: '#0F4C3A',
+      accent: '#52B788',
+      gold: '#D4AF37',
+      bg: nightMode ? '#0B1B15' : '#F5F8F5',
+      cardBg: nightMode ? '#142821' : '#EAF2EC',
+      border: nightMode ? '#1F3D32' : '#D3E2D6',
+      heroBg: nightMode ? '#13382C' : '#E2EFE7',
+      heroBorder: nightMode ? '#225242' : '#C2DBCB',
+      text: nightMode ? '#FFFFFF' : '#0B1B15',
+      subText: nightMode ? '#85A89B' : '#5E786E',
+    };
+  }
+  if (colorTheme === 'obsidian') {
+    return {
+      primary: '#20242D',
+      accent: '#8FA4C4',
+      gold: '#E5C07B',
+      bg: nightMode ? '#000000' : '#F2EFE9',
+      cardBg: nightMode ? '#111114' : '#E8E4DC',
+      border: nightMode ? '#222228' : '#D6D0C4',
+      heroBg: nightMode ? '#14151C' : '#E5E7EB',
+      heroBorder: nightMode ? '#282A38' : '#CCD1DA',
+      text: nightMode ? '#FFFFFF' : '#141416',
+      subText: nightMode ? '#888898' : '#6A6A78',
+    };
+  }
+  // Default: Classic Royal Navy
+  return {
+    primary: '#1C3D72',
+    accent: '#7BA7DB',
+    gold: '#C9A227',
+    bg: nightMode ? '#10121A' : '#FAF7EE',
+    cardBg: nightMode ? '#1C202E' : '#F3EFE4',
+    border: nightMode ? '#2B3145' : '#E2DDD0',
+    heroBg: nightMode ? '#18233C' : '#EAF0FA',
+    heroBorder: nightMode ? '#2D3F66' : '#C7D7F0',
+    text: nightMode ? '#FFFFFF' : '#1A1A1A',
+    subText: nightMode ? '#8E95A8' : '#7D7667',
+  };
+};
 
 export const COLORS = { primary: '#1C3D72', primaryNight: '#7BA7DB', secondary: '#C9A227', secondaryNight: '#8C7320', gold: '#ffd700', blue: '#4a90d9', borderDark: '#2a2a2a', borderLight: '#e0e0e0' };
 

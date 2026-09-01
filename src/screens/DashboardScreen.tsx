@@ -1,21 +1,14 @@
 /**
  * FILE: src/screens/DashboardScreen.tsx
- * ROLE: Post-login hub — lists students (cache-first with background refresh), CRUD via
- *       modals + long-press, manual sync of the offline queue, logout, settings entry, and entry point
- *       into QuranView for a selected student.
- * DEPENDS ON: src/api/student.ts, src/api/auth.ts, src/api/sync.ts, src/database/localDB.ts,
- *             src/utils/format.ts (formatDate/formatTime/toMillis),
- *             src/store/{studentSlice,authSlice,quranSlice,syncSlice,drawingSlice}.ts,
- *             src/components/common/{AlertModal,SyncStatus}.tsx,
- *             src/components/sync/SyncIndicator.tsx
- * USED BY: registered as stack screen "Dashboard" in App.tsx; reached from
- *          SplashScreen.tsx / LoginScreen.tsx (replace) and via "back" from QuranViewScreen.tsx
+ * ROLE: Post-login hub — lists students, My Quran Hero card with animated progress ring,
+ *       student activity status dots, streak counter, rolling animated FAB, and dynamic themes.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Animated, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
+import Svg, { Circle } from 'react-native-svg';
 import { getStudents, createStudent, deleteStudent, updateStudent, ensureMyQuranStudent } from '../api/student';
 import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
 import { logoutUser } from '../api/auth';
@@ -27,7 +20,7 @@ import AlertModal from '../components/common/AlertModal';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import DashboardFooter from '../components/common/DashboardFooter';
 import { getVersePage } from '../database/quranData';
-import { JUZ_MAP } from '../utils/theme';
+import { JUZ_MAP, getThemeColors } from '../utils/theme';
 import { getManifest, purgeLocalStudent, getStudentFace, saveStudentFace, clearStudentFace, getLastPageSeenLocal } from '../database/localDB';
 import ImagePicker from 'react-native-image-crop-picker';
 import { processSyncQueue } from '../api/sync';
@@ -37,6 +30,33 @@ import { startStartupPrefetch } from '../utils/startupPrefetch';
 import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import SettingsScreen from './SettingsScreen';
+
+const ProgressCircle = ({ pct, color, bgTrack }: { pct: number; color: string; bgTrack: string }) => {
+  const r = 16;
+  const stroke = 3.2;
+  const circ = 2 * Math.PI * r;
+  const strokeDashoffset = circ - (pct / 100) * circ;
+  return (
+    <View style={{ width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
+      <Svg width={40} height={40} viewBox="0 0 40 40">
+        <Circle cx="20" cy="20" r={r} stroke={bgTrack} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx="20"
+          cy="20"
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${circ} ${circ}`}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          transform="rotate(-90 20 20)"
+        />
+      </Svg>
+      <Text style={{ position: 'absolute', fontSize: 9.5, fontWeight: '800', color }}>{pct}%</Text>
+    </View>
+  );
+};
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -50,18 +70,19 @@ export default function DashboardScreen({ navigation }: any) {
   const [editId, setEditId] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', buttons: undefined as any });
-  // last-read cache: { studentId -> manifest } resolved asynchronously from SQLite.
   const [manifests, setManifests] = useState<Record<string, any>>({});
-  // v97: device-only student photos ({ studentId -> local file path }); never synced.
   const [faces, setFaces] = useState<Record<string, string | null>>({});
   const dispatch = useDispatch();
   const students = useSelector((s: any) => s.student.list);
   const pendingChanges = useSelector((s: any) => s.sync.pendingChanges);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings.colorTheme || 'classic');
   const syncStatus = useSelector((s: any) => s.sync.status);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const adCollapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const prevSyncStatus = useRef<string | null>(null);
+
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
   // Rolling FAB animation on mount
   const fabAnim = useRef(new Animated.Value(0)).current;
@@ -140,6 +161,15 @@ export default function DashboardScreen({ navigation }: any) {
     if (hrs < 24) return `${hrs}h ago`;
     const days = Math.floor(hrs / 24);
     return `${days}d ago`;
+  }, []);
+
+  const getActivityColor = useCallback((ts: any): string => {
+    const ms = toMillis(ts);
+    if (!ms) return '#8E95A8';
+    const hrs = Math.floor((Date.now() - ms) / (1000 * 60 * 60));
+    if (hrs < 24) return '#4CAF50';
+    if (hrs < 96) return '#FFB300';
+    return '#8E95A8';
   }, []);
 
   useFocusEffect(useCallback(() => {
@@ -298,23 +328,28 @@ export default function DashboardScreen({ navigation }: any) {
     const lr = manifest?.lastRead;
     let readingLine: string;
     let dateLine: string | null = null;
+    let activityColor = '#8E95A8';
+
     if (manifest && lr?.surah) {
       const ls = Number(lr.surah);
       const lv = Number(lr.verse);
       const nm = surahNames?.[ls] || `Surah ${ls}`;
       readingLine = `${nm} · Ayat ${lv}`;
       dateLine = lr.updatedAt ? `${formatDate(lr.updatedAt)} · ${formatTime(lr.updatedAt)}` : '';
-    } else { readingLine = manifest ? 'Not read yet' : '…'; }
+      activityColor = getActivityColor(lr.updatedAt);
+    } else {
+      readingLine = manifest ? 'Not read yet' : '…';
+    }
     const initial = (item.name || '?').charAt(0).toUpperCase();
 
     return (
       <TutorialAnchor id={index === 0 ? 'student-card' : `student-card-${item.id}`}>
       <TouchableOpacity
         style={[
-          styles(nightMode).card,
+          styles(nightMode, themeColors).card,
           {
-            backgroundColor: nightMode ? (index % 2 === 0 ? '#1b1d28' : '#161822') : (index % 2 === 0 ? '#FAF7EE' : '#F4EFE2'),
-            borderColor: nightMode ? (index % 2 === 0 ? '#2c3044' : '#222536') : (index % 2 === 0 ? '#E2DDD0' : '#D8D1BF'),
+            backgroundColor: themeColors.cardBg,
+            borderColor: themeColors.border,
           }
         ]}
         onPress={() => { dispatch(setCurrentStudent(item)); dispatch(setSurah({ surahId: 1, verses: [] })); dispatch(setToolbarExpanded(false)); emitTutorialEvent('student_opened'); navigation.navigate('StudentHub'); }}
@@ -322,27 +357,34 @@ export default function DashboardScreen({ navigation }: any) {
         activeOpacity={0.75}
         delayLongPress={400}
       >
-        <View style={styles(nightMode).cardRow}>
-          {faces[item.id] ? (
-            <Image source={{ uri: `file://${faces[item.id]}` }} style={styles(nightMode).avatarImage} resizeMode="cover" />
-          ) : (
-            <View style={[styles(nightMode).avatar, { backgroundColor: nightMode ? '#28334E' : '#E6DEC8', borderColor: nightMode ? '#3C4D75' : '#D0C4A4', borderWidth: 1 }]}>
-              <Text style={[styles(nightMode).avatarText, { color: nightMode ? '#93BCF0' : '#1C3D72' }]}>{initial}</Text>
-            </View>
-          )}
-          <View style={styles(nightMode).cardBody}>
-            <Text style={[styles(nightMode).studentName, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]} numberOfLines={1}>{item.name}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-              <Text style={styles(nightMode).readingLine} numberOfLines={1}>{readingLine}</Text>
-            </View>
-            {dateLine ? <Text style={[styles(nightMode).dateLine, { color: nightMode ? '#8E95A8' : '#7D7667' }]} numberOfLines={1}>{dateLine}</Text> : null}
+        <View style={styles(nightMode, themeColors).cardRow}>
+          {/* Avatar with Activity Dot */}
+          <View style={{ position: 'relative' }}>
+            {faces[item.id] ? (
+              <Image source={{ uri: `file://${faces[item.id]}` }} style={styles(nightMode, themeColors).avatarImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles(nightMode, themeColors).avatar, { backgroundColor: nightMode ? '#28334E' : '#E6DEC8', borderColor: nightMode ? '#3C4D75' : '#D0C4A4', borderWidth: 1 }]}>
+                <Text style={[styles(nightMode, themeColors).avatarText, { color: themeColors.accent }]}>{initial}</Text>
+              </View>
+            )}
+            <View style={[styles(nightMode, themeColors).activityDot, { backgroundColor: activityColor }]} />
           </View>
-          <Text style={[styles(nightMode).chevron, { color: nightMode ? '#5C6378' : '#AFA794' }]}>›</Text>
+
+          <View style={styles(nightMode, themeColors).cardBody}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[styles(nightMode, themeColors).studentName, { color: themeColors.text }]} numberOfLines={1}>{item.name}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+              <Text style={[styles(nightMode, themeColors).readingLine, { color: themeColors.accent }]} numberOfLines={1}>{readingLine}</Text>
+            </View>
+            {dateLine ? <Text style={[styles(nightMode, themeColors).dateLine, { color: themeColors.subText }]} numberOfLines={1}>{dateLine}</Text> : null}
+          </View>
+          <Text style={[styles(nightMode, themeColors).chevron, { color: themeColors.subText }]}>›</Text>
         </View>
       </TouchableOpacity>
       </TutorialAnchor>
     );
-  }, [navigation, nightMode, manifests, surahNames, faces, handleLongPress, dispatch]);
+  }, [navigation, nightMode, manifests, surahNames, faces, handleLongPress, dispatch, themeColors, getActivityColor]);
 
   const handleMyQuranPress = useCallback(() => {
     if (!myQuranStudent?.id) return;
@@ -359,13 +401,18 @@ export default function DashboardScreen({ navigation }: any) {
     return surahNames?.[myQuranResumeInfo.surah] || `Surah ${myQuranResumeInfo.surah}`;
   }, [myQuranResumeInfo, surahNames]);
 
+  const progressPct = useMemo(() => {
+    const pg = myQuranResumeInfo?.page ?? 1;
+    return Math.min(100, Math.max(1, Math.round((pg / 610) * 100)));
+  }, [myQuranResumeInfo?.page]);
+
   return (
-    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#10121A' : '#FAF7EE', paddingBottom: insets.bottom }]}>
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg, paddingBottom: insets.bottom }]}>
       {/* Top Header */}
-      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#171A24' : '#F3EFE4', borderBottomColor: nightMode ? '#242838' : '#E2DDD0', paddingTop: 14 + statusBarPad }]}>
-        <View style={styles(nightMode).titleRow}>
-          <View style={styles(nightMode).titleDot} />
-          <Text style={[styles(nightMode).title, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]}>Students</Text>
+      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: 14 + statusBarPad }]}>
+        <View style={styles(nightMode, themeColors).titleRow}>
+          <View style={[styles(nightMode, themeColors).titleDot, { backgroundColor: themeColors.accent }]} />
+          <Text style={[styles(nightMode, themeColors).title, { color: themeColors.text }]}>Students</Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -373,15 +420,15 @@ export default function DashboardScreen({ navigation }: any) {
 
           {/* 3-Line Hamburger Menu Button */}
           <TouchableOpacity
-            style={styles(nightMode).menuBtn}
+            style={[styles(nightMode, themeColors).menuBtn, { backgroundColor: nightMode ? '#222738' : '#E8E3D5' }]}
             onPress={() => setMenuModalVisible(true)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <View style={[styles(nightMode).menuLine, { backgroundColor: nightMode ? '#FFFFFF' : '#1C3D72' }]} />
-            <View style={[styles(nightMode).menuLine, { backgroundColor: nightMode ? '#FFFFFF' : '#1C3D72', width: 15 }]} />
-            <View style={[styles(nightMode).menuLine, { backgroundColor: nightMode ? '#FFFFFF' : '#1C3D72' }]} />
-            {pendingChanges > 0 && <View style={styles(nightMode).menuPendingDot} />}
+            <View style={[styles(nightMode, themeColors).menuLine, { backgroundColor: themeColors.accent }]} />
+            <View style={[styles(nightMode, themeColors).menuLine, { backgroundColor: themeColors.accent, width: 15 }]} />
+            <View style={[styles(nightMode, themeColors).menuLine, { backgroundColor: themeColors.accent }]} />
+            {pendingChanges > 0 && <View style={styles(nightMode, themeColors).menuPendingDot} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -392,50 +439,55 @@ export default function DashboardScreen({ navigation }: any) {
           <TutorialAnchor id="my-quran-resume">
             <TouchableOpacity
               style={[
-                styles(nightMode).card,
-                styles(nightMode).heroCard,
+                styles(nightMode, themeColors).card,
+                styles(nightMode, themeColors).heroCard,
                 {
-                  backgroundColor: nightMode ? '#18233C' : '#EAF0FA',
-                  borderColor: nightMode ? '#2D3F66' : '#C7D7F0',
+                  backgroundColor: themeColors.heroBg,
+                  borderColor: themeColors.heroBorder,
                 }
               ]}
               onPress={handleMyQuranPress}
               activeOpacity={0.8}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={[styles(nightMode).heroBadge, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]}>
-                    <Text style={styles(nightMode).heroBadgeText}>MY QURAN</Text>
+                  <View style={[styles(nightMode, themeColors).heroBadge, { backgroundColor: themeColors.primary }]}>
+                    <Text style={styles(nightMode, themeColors).heroBadgeText}>MY QURAN</Text>
                   </View>
                   {myQuranLastSeenAt ? (
-                    <Text style={[styles(nightMode).heroTimeAgo, { color: nightMode ? '#93A4C7' : '#55698C' }]}>
+                    <Text style={[styles(nightMode, themeColors).heroTimeAgo, { color: themeColors.subText }]}>
                       {myQuranTimeAgo(myQuranLastSeenAt)}
                     </Text>
                   ) : null}
                 </View>
-                <View style={[styles(nightMode).continueBtn, { backgroundColor: nightMode ? '#2B3C61' : '#1C3D72' }]}>
-                  <Text style={[styles(nightMode).continueBtnText, { color: nightMode ? '#99C0FF' : '#FFFFFF' }]}>Continue ➔</Text>
+
+                {/* Progress Ring & Continue Button */}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <ProgressCircle pct={progressPct} color={themeColors.accent} bgTrack={nightMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'} />
+                  <View style={[styles(nightMode, themeColors).continueBtn, { backgroundColor: themeColors.primary, marginLeft: 10 }]}>
+                    <Text style={[styles(nightMode, themeColors).continueBtnText, { color: '#FFFFFF' }]}>Continue ➔</Text>
+                  </View>
                 </View>
               </View>
 
               <View style={{ marginTop: 10 }}>
-                <Text style={[styles(nightMode).heroTitle, { color: nightMode ? '#FFFFFF' : '#111D33' }]}>
+                <Text style={[styles(nightMode, themeColors).heroTitle, { color: themeColors.text }]}>
                   {currentSurahTitle}
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
-                  <View style={[styles(nightMode).heroPill, { backgroundColor: nightMode ? 'rgba(123,167,219,0.18)' : '#DDE8F8' }]}>
-                    <Text style={[styles(nightMode).heroPillText, { color: nightMode ? '#8EBEF5' : '#1C3D72' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, flexWrap: 'wrap' }}>
+                  <View style={[styles(nightMode, themeColors).heroPill, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Text style={[styles(nightMode, themeColors).heroPillText, { color: themeColors.accent }]}>
                       Page {myQuranResumeInfo ? myQuranResumeInfo.page : 1}
                     </Text>
                   </View>
-                  <View style={[styles(nightMode).heroPill, { backgroundColor: nightMode ? 'rgba(123,167,219,0.18)' : '#DDE8F8', marginLeft: 6 }]}>
-                    <Text style={[styles(nightMode).heroPillText, { color: nightMode ? '#8EBEF5' : '#1C3D72' }]}>
+                  <View style={[styles(nightMode, themeColors).heroPill, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', marginLeft: 6 }]}>
+                    <Text style={[styles(nightMode, themeColors).heroPillText, { color: themeColors.accent }]}>
                       Juz {myQuranResumeInfo ? myQuranResumeInfo.juz : 1}
                     </Text>
                   </View>
                   {myQuranResumeInfo?.verse ? (
-                    <View style={[styles(nightMode).heroPill, { backgroundColor: nightMode ? 'rgba(123,167,219,0.18)' : '#DDE8F8', marginLeft: 6 }]}>
-                      <Text style={[styles(nightMode).heroPillText, { color: nightMode ? '#8EBEF5' : '#1C3D72' }]}>
+                    <View style={[styles(nightMode, themeColors).heroPill, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', marginLeft: 6 }]}>
+                      <Text style={[styles(nightMode, themeColors).heroPillText, { color: themeColors.accent }]}>
                         Ayat {myQuranResumeInfo.verse}
                       </Text>
                     </View>
@@ -445,8 +497,8 @@ export default function DashboardScreen({ navigation }: any) {
             </TouchableOpacity>
           </TutorialAnchor>
         ) : (
-          <View style={[styles(nightMode).card, { backgroundColor: nightMode ? '#18233C' : '#EAF0FA', borderColor: nightMode ? '#2D3F66' : '#C7D7F0', opacity: 0.7 }]}>
-            <Text style={[styles(nightMode).readingLine, { textAlign: 'center', paddingVertical: 12 }]}>Setting up My Quran…</Text>
+          <View style={[styles(nightMode, themeColors).card, { backgroundColor: themeColors.heroBg, borderColor: themeColors.heroBorder, opacity: 0.7 }]}>
+            <Text style={[styles(nightMode, themeColors).readingLine, { textAlign: 'center', paddingVertical: 12, color: themeColors.accent }]}>Setting up My Quran…</Text>
           </View>
         )}
       </View>
@@ -462,21 +514,21 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* Rolling Animated FAB */}
       <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 20, bottom: adCollapsed ? 94 : 138 }}>
-        <Animated.View style={[styles(nightMode).fabContainer, { width: fabWidth }]}>
+        <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
-            style={[styles(nightMode).fabTouchable, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]}
+            style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
             onPress={() => setAddModal(true)}
             activeOpacity={0.85}
           >
-            <Animated.Text style={[styles(nightMode).fabPlus, { color: nightMode ? '#0F1829' : '#FFFFFF', transform: [{ rotate: fabRotate }] }]}>
+            <Animated.Text style={[styles(nightMode, themeColors).fabPlus, { color: '#FFFFFF', transform: [{ rotate: fabRotate }] }]}>
               +
             </Animated.Text>
             <Animated.Text
               numberOfLines={1}
               style={[
-                styles(nightMode).fabTextLabel,
+                styles(nightMode, themeColors).fabTextLabel,
                 {
-                  color: nightMode ? '#0F1829' : '#FFFFFF',
+                  color: '#FFFFFF',
                   opacity: fabTextOpacity,
                   transform: [{ translateX: fabTextTranslate }],
                 }
@@ -490,11 +542,10 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* 3-Line Menu Modal */}
       <Modal visible={menuModalVisible} transparent animationType="fade" onRequestClose={() => setMenuModalVisible(false)}>
-        <Pressable style={styles(nightMode).menuBackdrop} onPress={() => setMenuModalVisible(false)}>
-          <View style={[styles(nightMode).menuDropdown, { backgroundColor: nightMode ? '#1C202E' : '#FFFFFF', borderColor: nightMode ? '#323950' : '#E0DCD0', top: statusBarPad + 58 }]}>
-            {/* Settings Option */}
+        <Pressable style={styles(nightMode, themeColors).menuBackdrop} onPress={() => setMenuModalVisible(false)}>
+          <View style={[styles(nightMode, themeColors).menuDropdown, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 58 }]}>
             <TouchableOpacity
-              style={styles(nightMode).menuItem}
+              style={styles(nightMode, themeColors).menuItem}
               onPress={() => {
                 setMenuModalVisible(false);
                 setSettingsModalVisible(true);
@@ -502,14 +553,13 @@ export default function DashboardScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <Text style={{ fontSize: 18, marginRight: 12 }}>⚙️</Text>
-              <Text style={[styles(nightMode).menuItemText, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]}>Settings</Text>
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>Settings</Text>
             </TouchableOpacity>
 
-            <View style={[styles(nightMode).menuDivider, { backgroundColor: nightMode ? '#2B3145' : '#EFECE2' }]} />
+            <View style={[styles(nightMode, themeColors).menuDivider, { backgroundColor: themeColors.border }]} />
 
-            {/* Save to Cloud / Sync Option */}
             <TouchableOpacity
-              style={styles(nightMode).menuItem}
+              style={styles(nightMode, themeColors).menuItem}
               onPress={() => {
                 setMenuModalVisible(false);
                 handleManualSync();
@@ -519,22 +569,21 @@ export default function DashboardScreen({ navigation }: any) {
             >
               <Text style={{ fontSize: 18, marginRight: 12 }}>☁️</Text>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={[styles(nightMode).menuItemText, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]}>
+                <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>
                   {isSyncing ? 'Syncing...' : 'Save to Cloud (Sync)'}
                 </Text>
                 {pendingChanges > 0 && (
-                  <View style={styles(nightMode).badgePill}>
-                    <Text style={styles(nightMode).badgePillText}>{pendingChanges}</Text>
+                  <View style={styles(nightMode, themeColors).badgePill}>
+                    <Text style={styles(nightMode, themeColors).badgePillText}>{pendingChanges}</Text>
                   </View>
                 )}
               </View>
             </TouchableOpacity>
 
-            <View style={[styles(nightMode).menuDivider, { backgroundColor: nightMode ? '#2B3145' : '#EFECE2' }]} />
+            <View style={[styles(nightMode, themeColors).menuDivider, { backgroundColor: themeColors.border }]} />
 
-            {/* Logout Option */}
             <TouchableOpacity
-              style={styles(nightMode).menuItem}
+              style={styles(nightMode, themeColors).menuItem}
               onPress={async () => {
                 setMenuModalVisible(false);
                 await logoutUser();
@@ -544,7 +593,7 @@ export default function DashboardScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <Text style={{ fontSize: 18, marginRight: 12 }}>🚪</Text>
-              <Text style={[styles(nightMode).menuItemText, { color: '#FF5252', fontWeight: '700' }]}>Logout</Text>
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF5252', fontWeight: '700' }]}>Logout</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -561,22 +610,22 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* Add Student Modal */}
       <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
-        <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1C202E' : '#FAF7EE', borderColor: nightMode ? '#323950' : '#DCD6C5' }]}>
-            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]}>Add Student</Text>
+        <View style={styles(nightMode, themeColors).modalOverlay}>
+          <View style={[styles(nightMode, themeColors).modalContent, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]}>
+            <Text style={[styles(nightMode, themeColors).modalTitle, { color: themeColors.text }]}>Add Student</Text>
             <TextInput
-              style={[styles(nightMode).input, { color: nightMode ? '#FFFFFF' : '#1A1A1A', backgroundColor: nightMode ? '#121520' : '#F0EBE0', borderColor: nightMode ? '#38405A' : '#CDC4B0' }]}
+              style={[styles(nightMode, themeColors).input, { color: themeColors.text, backgroundColor: nightMode ? '#121520' : '#F0EBE0', borderColor: themeColors.border }]}
               placeholder="Student name"
               placeholderTextColor={nightMode ? '#757E9E' : '#999080'}
               onChangeText={setName}
               autoFocus
             />
             <View style={{ flexDirection: 'row', marginTop: 14 }}>
-              <TouchableOpacity style={[styles(nightMode).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setAddModal(false)}>
-                <Text style={[styles(nightMode).cancelText, { color: nightMode ? '#FFFFFF' : '#333333' }]}>Cancel</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setAddModal(false)}>
+                <Text style={[styles(nightMode, themeColors).cancelText, { color: themeColors.text }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles(nightMode).saveBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} onPress={handleCreate}>
-                <Text style={[styles(nightMode).saveText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>Save</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary }]} onPress={handleCreate}>
+                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -585,43 +634,43 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* Edit Student Modal */}
       <Modal visible={editModal} transparent animationType="fade" onRequestClose={() => setEditModal(false)}>
-        <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).modalContent, { backgroundColor: nightMode ? '#1C202E' : '#FAF7EE', borderColor: nightMode ? '#323950' : '#DCD6C5' }]}>
-            <Text style={[styles(nightMode).modalTitle, { color: nightMode ? '#FFFFFF' : '#1A1A1A' }]}>Edit Student</Text>
+        <View style={styles(nightMode, themeColors).modalOverlay}>
+          <View style={[styles(nightMode, themeColors).modalContent, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]}>
+            <Text style={[styles(nightMode, themeColors).modalTitle, { color: themeColors.text }]}>Edit Student</Text>
             <TextInput
-              style={[styles(nightMode).input, { color: nightMode ? '#FFFFFF' : '#1A1A1A', backgroundColor: nightMode ? '#121520' : '#F0EBE0', borderColor: nightMode ? '#38405A' : '#CDC4B0' }]}
+              style={[styles(nightMode, themeColors).input, { color: themeColors.text, backgroundColor: nightMode ? '#121520' : '#F0EBE0', borderColor: themeColors.border }]}
               value={editName}
               onChangeText={setEditName}
               placeholder="Student name"
               placeholderTextColor={nightMode ? '#757E9E' : '#999080'}
               autoFocus
             />
-            <View style={styles(nightMode).photoRow}>
+            <View style={styles(nightMode, themeColors).photoRow}>
               {faces[editId] ? (
-                <Image source={{ uri: `file://${faces[editId]}` }} style={styles(nightMode).photoPreview} resizeMode="cover" />
+                <Image source={{ uri: `file://${faces[editId]}` }} style={styles(nightMode, themeColors).photoPreview} resizeMode="cover" />
               ) : (
-                <View style={[styles(nightMode).photoPreview, styles(nightMode).photoPlaceholder]}>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: (nightMode ? '#7BA7DB' : '#1C3D72') }}>{(editName || '?').charAt(0).toUpperCase()}</Text>
+                <View style={[styles(nightMode, themeColors).photoPreview, styles(nightMode, themeColors).photoPlaceholder]}>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: themeColors.accent }}>{(editName || '?').charAt(0).toUpperCase()}</Text>
                 </View>
               )}
-              <TouchableOpacity style={[styles(nightMode).photoBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} onPress={() => pickPhoto(false)}>
-                <Text style={[styles(nightMode).photoBtnText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>Gallery</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary }]} onPress={() => pickPhoto(false)}>
+                <Text style={[styles(nightMode, themeColors).photoBtnText, { color: '#FFFFFF' }]}>Gallery</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles(nightMode).photoBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} onPress={() => pickPhoto(true)}>
-                <Text style={[styles(nightMode).photoBtnText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>Camera</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary }]} onPress={() => pickPhoto(true)}>
+                <Text style={[styles(nightMode, themeColors).photoBtnText, { color: '#FFFFFF' }]}>Camera</Text>
               </TouchableOpacity>
               {faces[editId] ? (
-                <TouchableOpacity style={[styles(nightMode).photoBtn, { backgroundColor: '#FF4444' }]} onPress={removePhoto}>
-                  <Text style={[styles(nightMode).photoBtnText, { color: '#FFFFFF' }]}>Remove</Text>
+                <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: '#FF4444' }]} onPress={removePhoto}>
+                  <Text style={[styles(nightMode, themeColors).photoBtnText, { color: '#FFFFFF' }]}>Remove</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
             <View style={{ flexDirection: 'row', marginTop: 14 }}>
-              <TouchableOpacity style={[styles(nightMode).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setEditModal(false)}>
-                <Text style={[styles(nightMode).cancelText, { color: nightMode ? '#FFFFFF' : '#333333' }]}>Cancel</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setEditModal(false)}>
+                <Text style={[styles(nightMode, themeColors).cancelText, { color: themeColors.text }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles(nightMode).saveBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]} onPress={handleEdit}>
-                <Text style={[styles(nightMode).saveText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>Save</Text>
+              <TouchableOpacity style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary }]} onPress={handleEdit}>
+                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -635,23 +684,24 @@ export default function DashboardScreen({ navigation }: any) {
   );
 }
 
-const styles = (nightMode: boolean) => StyleSheet.create({
+const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center' },
-  titleDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginRight: 8 },
+  titleDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   title: { fontSize: 24, fontWeight: '800', letterSpacing: 0.2 },
-  menuBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: nightMode ? '#222738' : '#E8E3D5', justifyContent: 'center', alignItems: 'center', marginLeft: 10, position: 'relative' },
+  menuBtn: { width: 38, height: 38, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: 10, position: 'relative' },
   menuLine: { width: 19, height: 2.2, borderRadius: 1.5, marginVertical: 1.8 },
-  menuPendingDot: { position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF9800', borderWidth: 1.5, borderColor: nightMode ? '#171A24' : '#F3EFE4' },
+  menuPendingDot: { position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF9800', borderWidth: 1.5, borderColor: '#171A24' },
   card: { padding: 12, borderRadius: 14, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   avatarText: { fontSize: 17, fontWeight: '800' },
   avatarImage: { width: 44, height: 44, borderRadius: 22, marginRight: 12 },
+  activityDot: { position: 'absolute', bottom: 1, right: 10, width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: '#1C202E' },
   cardBody: { flex: 1 },
   studentName: { fontSize: 15.5, fontWeight: '700', letterSpacing: 0.1 },
-  readingLine: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 12, fontWeight: '600' },
+  readingLine: { fontSize: 12, fontWeight: '600' },
   dateLine: { fontSize: 10.5, marginTop: 2 },
   chevron: { fontSize: 22, fontWeight: '600', marginLeft: 6 },
   heroCard: { padding: 14, borderRadius: 16, marginBottom: 4, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6 },
@@ -680,7 +730,7 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 },
   photoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   photoPreview: { width: 52, height: 52, borderRadius: 26, marginRight: 10 },
-  photoPlaceholder: { backgroundColor: (nightMode ? '#222738' : '#E6DEC8'), justifyContent: 'center', alignItems: 'center' },
+  photoPlaceholder: { justifyContent: 'center', alignItems: 'center' },
   photoBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginLeft: 6 },
   photoBtnText: { fontWeight: '700', fontSize: 12 },
   cancelBtn: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 12, marginRight: 6 },

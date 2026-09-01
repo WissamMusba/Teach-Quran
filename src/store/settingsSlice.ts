@@ -1,93 +1,48 @@
 /**
  * FILE: src/store/settingsSlice.ts
  * ROLE: Reader appearance + reading preferences (all persisted).
- * DEPENDS ON: none.
- * USED BY: src/screens/SettingsScreen.tsx:5 (toggleNightMode, setTextBrightness,
- *          setBgBrightness, setMushafSplit);
- *          src/screens/QuranViewScreen.tsx:10 (setMushafSplit);
- *          readers of nightMode/textBrightness/bgBrightness/mushafSplit across
- *          DashboardScreen, QuranViewScreen, VerseDisplay, FlowingText,
- *          MushafPageView, AnnotationToolbar.
- * NOTE: Persisted via whitelist 'settings'.
  */
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   nightMode: true,            // dark theme (defaults ON)
+  colorTheme: 'classic' as 'classic' | 'emerald' | 'obsidian',
   textBrightness: 255,        // 0-255 alpha of Arabic text color
-  bgBrightness: 18,           // 0-255 background dim (UNUSED in render — dead setting)
-  translationTextSize: 16,    // DEAD: setter exists, no dispatcher, no reader
+  bgBrightness: 18,           // 0-255 background dim
+  translationTextSize: 16,
   mushafSplit: false,         // tablet two-page spread
-  playBasmala: true,          // play the reciter's basmala before verse 1 of a surah (surah 1 & 9 excluded)
-  adCollapsed: false,         // CollapsibleBannerAd user preference: true = banner hidden (tiny ▴ only)
-  tutorialDone: false,        // v97.1: interactive walkthrough finished once (Replay Tutorial restarts it)
-  legacySmooth: false,        // v99.1: Note-era Samsung / weak GPU phones — disables per-swipe prefetch work
+  playBasmala: true,          // play the reciter's basmala before verse 1 of a surah
+  adCollapsed: false,         // CollapsibleBannerAd user preference
+  tutorialDone: false,        // interactive walkthrough finished once
+  legacySmooth: false,        // legacy smooth scroll flag
 };
 
 export const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
-    /**
-     * WHAT: Flips nightMode.
-     * CALLED BY: SettingsScreen.tsx:57 (Night mode switch).
-     * AFFECTS: Background/foreground colors in DashboardScreen.tsx:28/:66/:72-74,
-     *          QuranViewScreen.tsx:110/:112 (bgColor), AnnotationToolbar.tsx:88
-     *          (inverts bar palette), VerseDisplay.tsx:11/:24, FlowingText.tsx:11/:33,
-     *          MushafPageView.tsx:50/:54-62/:226-330 (text/line/frame/badge colors).
-     */
     setTutorialDone: (state, action) => { state.tutorialDone = action.payload === true; },
     toggleLegacySmooth: (state) => { state.legacySmooth = !state.legacySmooth; },
     toggleNightMode: (state) => { state.nightMode = !state.nightMode; },
-    /**
-     * WHAT: Sets 0-255 Arabic-text opacity scalar.
-     * CALLED BY: SettingsScreen.tsx:61 (Text brightness slider, Math.round).
-     * AFFECTS: textColor = `rgba(...,${textBrightness/255})` in VerseDisplay.tsx:12/:16,
-     *          FlowingText.tsx:12/:13, MushafPageView.tsx:51/:54.
-     */
+    setColorTheme: (state, action) => { state.colorTheme = action.payload; },
     setTextBrightness: (state, action) => { state.textBrightness = action.payload; },
-    /**
-     * WHAT: Sets 0-255 background dim scalar.
-     * CALLED BY: SettingsScreen.tsx:66 (Background brightness slider).
-     * AFFECTS: NOTHING in render. QuranViewScreen.tsx:110 selects bgBrightness
-     *          but never uses it (bgColor hardcoded at :112); slider only reflects
-     *          itself (SettingsScreen.tsx:14/:67). Dead setting.
-     */
     setBgBrightness: (state, action) => { state.bgBrightness = action.payload; },
-    /**
-     * WHAT: Would set translation font size.
-     * CALLED BY: NOBODY — action exported (:25) but zero dispatchers in src/.
-     *            DEAD ACTION. Translation size is hardcoded 16 (VerseDisplay.tsx:46)
-     *            and 14 (FlowingText.tsx:63).
-     */
-    setTranslationTextSize: (state, action) => { state.translationTextSize = action.payload; },
-    /**
-     * WHAT: Sets two-page spread flag.
-     * CALLED BY: SettingsScreen.tsx:80 (Spread view switch, tablet only — row hidden
-     *            unless width >= SPLIT_MIN_WIDTH); QuranViewScreen.tsx:511
-     *            (AnimatedHeader onSpread -> setMushafSplit(!splitOn)).
-     * AFFECTS: splitOn = mushafSplit && winW >= SPLIT_MIN_WIDTH (QuranViewScreen.tsx:117)
-     *          -> SpreadItem pairs (:573), prefetchPartner (:186), drawing key halves
-     *          (:440-444), scroll index math (:214/:314/:549-572).
-     */
-    setMushafSplit: (state, action) => { state.mushafSplit = !!action.payload; },
-    /**
-     * WHAT: Flips playBasmala (audio prelude setting).
-     * CALLED BY: SettingsScreen.tsx (Basmala before verse 1 switch).
-     * AFFECTS: QuranViewScreen passes `{ playBasmala }` to playSurahFromVerse ->
-     *          audioPlayback plays the basmala (reciter's 1:1 file) before verse 1
-     *          of any surah except 1 (Al-Fatiha) and 9 (At-Tawbah).
-     */
+    setMushafSplit: (state, action) => { state.mushafSplit = action.payload; },
     togglePlayBasmala: (state) => { state.playBasmala = !state.playBasmala; },
-    /**
-     * WHAT: Sets the collapsible-banner collapsed flag (persisted via whitelist —
-     *       the user's "hide the ad" preference survives restarts).
-     * CALLED BY: CollapsibleBannerAd (collapse ▾ / expand ▴ buttons), Dashboard FAB
-     *            clearance reads the same value.
-     */
-    setAdCollapsed: (state, action) => { state.adCollapsed = !!action.payload; },
+    setAdCollapsed: (state, action) => { state.adCollapsed = action.payload === true; },
   }
 });
 
-export const { toggleNightMode, setTextBrightness, setBgBrightness, setTranslationTextSize, setMushafSplit, togglePlayBasmala, setAdCollapsed , setTutorialDone } = settingsSlice.actions;
+export const {
+  toggleNightMode,
+  setColorTheme,
+  setTextBrightness,
+  setBgBrightness,
+  setMushafSplit,
+  togglePlayBasmala,
+  setAdCollapsed,
+  setTutorialDone,
+  toggleLegacySmooth,
+} = settingsSlice.actions;
+
 export default settingsSlice.reducer;

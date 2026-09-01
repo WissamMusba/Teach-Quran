@@ -1,15 +1,15 @@
 /**
  * FILE: src/screens/SettingsScreen.tsx
- * ROLE: Settings UI: reading toggles, appearance, preferences, and Offline Audio Downloads.
+ * ROLE: Settings UI: reading toggles, appearance, theme palettes, preferences, and Offline Audio Downloads.
  */
-import React, { memo, useState, useEffect, useCallback } from 'react';
+import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
+import { toggleNightMode, setColorTheme, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
-import { getArabicFont } from '../utils/theme';
+import { getArabicFont, getThemeColors } from '../utils/theme';
 import { RootState } from '../store';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
@@ -25,6 +25,12 @@ const SCRIPT_OPTIONS = [
   { key: 'uthmani', label: 'Uthmani' },
   { key: 'alqalam', label: 'Indopak' },
   { key: 'lateef', label: 'Tajweed' },
+];
+
+const THEME_OPTIONS = [
+  { key: 'classic', label: 'Royal Navy', color: '#1C3D72', accent: '#7BA7DB' },
+  { key: 'emerald', label: 'Madinah Emerald', color: '#0F4C3A', accent: '#52B788' },
+  { key: 'obsidian', label: 'OLED Obsidian', color: '#111114', accent: '#8FA4C4' },
 ];
 
 const scriptLabel = (key: string) => SCRIPT_OPTIONS.find((o) => o.key === key)?.label || key;
@@ -43,14 +49,16 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
 
   const { showTranslation, fontSize, readingMode, textStyle } = useSelector((state: RootState) => state.quran);
-  const { nightMode, mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
+  const { nightMode, colorTheme = 'classic', mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
 
-  const bg = nightMode ? '#10121A' : '#FAF7EE';
-  const cardBg = nightMode ? '#1C202E' : '#F3EFE4';
-  const cardBorder = nightMode ? '#2B3145' : '#E2DDD0';
-  const labelColor = nightMode ? '#fff' : '#1a1a1a';
-  const btnBorder = nightMode ? '#3a3a5e' : '#CDC4B0';
-  const inactiveText = nightMode ? '#b0b0c8' : '#7a7a90';
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
+
+  const bg = themeColors.bg;
+  const cardBg = themeColors.cardBg;
+  const cardBorder = themeColors.border;
+  const labelColor = themeColors.text;
+  const btnBorder = themeColors.border;
+  const inactiveText = themeColors.subText;
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
   const checkDownloadStatus = useCallback(async (qari: string, surah: number) => {
@@ -122,128 +130,151 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const currentSurahMeta = SURAH_META[selectedSurah - 1] || SURAH_META[0];
 
   return (
-    <View style={[styles(nightMode).wrapper, { backgroundColor: bg }]}>
-      <ScreenHeader title="Settings" subtitle="Reading & offline audio" onBack={onClose} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode).content}>
+    <View style={[styles(nightMode, themeColors).wrapper, { backgroundColor: bg }]}>
+      <ScreenHeader title="Settings" subtitle="Reading & themes" onBack={onClose} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode, themeColors).content}>
         {/* Reading Settings */}
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={styles(nightMode).sectionTitle}>Reading Settings</Text>
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Reading Settings</Text>
 
-          <View style={styles(nightMode).row}>
-            <Text style={[styles(nightMode).label, { color: labelColor }]}>Show Translation</Text>
-            <Switch value={showTranslation} onValueChange={() => { dispatch(toggleTranslation()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
+          <View style={styles(nightMode, themeColors).row}>
+            <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Show Translation</Text>
+            <Switch value={showTranslation} onValueChange={() => { dispatch(toggleTranslation()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
           </View>
 
-          <Text style={[styles(nightMode).label, { color: labelColor }]}>Reading Mode</Text>
-          <View style={styles(nightMode).modeContainer}>
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Reading Mode</Text>
+          <View style={styles(nightMode, themeColors).modeContainer}>
             {['ayah', 'continuous', 'page'].map((mode) => (
-              <TouchableOpacity key={mode} style={[styles(nightMode).modeBtn, { borderColor: btnBorder }, readingMode === mode && styles(nightMode).activeBtn]} onPress={() => dispatch(setReadingMode(mode))}>
-                <Text style={readingMode === mode ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>{mode === 'ayah' ? 'Ayah List' : mode === 'continuous' ? 'Continuous' : 'Page Swipe'}</Text>
+              <TouchableOpacity key={mode} style={[styles(nightMode, themeColors).modeBtn, { borderColor: btnBorder }, readingMode === mode && styles(nightMode, themeColors).activeBtn]} onPress={() => dispatch(setReadingMode(mode))}>
+                <Text style={readingMode === mode ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>{mode === 'ayah' ? 'Ayah List' : mode === 'continuous' ? 'Continuous' : 'Page Swipe'}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={[styles(nightMode).label, { color: labelColor }]}>Arabic Font Size</Text>
-          <View style={styles(nightMode).sizeContainer}>
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Arabic Font Size</Text>
+          <View style={styles(nightMode, themeColors).sizeContainer}>
             {['small', 'medium', 'large', 'xl'].map((size) => (
-              <TouchableOpacity key={size} style={[styles(nightMode).sizeBtn, { borderColor: btnBorder }, fontSize === size && styles(nightMode).activeBtn]} onPress={() => dispatch(setFontSize(size))}>
-                <Text style={fontSize === size ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>{size.toUpperCase()}</Text>
+              <TouchableOpacity key={size} style={[styles(nightMode, themeColors).sizeBtn, { borderColor: btnBorder }, fontSize === size && styles(nightMode, themeColors).activeBtn]} onPress={() => dispatch(setFontSize(size))}>
+                <Text style={fontSize === size ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>{size.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={[styles(nightMode).label, { color: labelColor }]}>Quran Script</Text>
-          <TouchableOpacity style={styles(nightMode).previewWrap} activeOpacity={0.9} onPress={() => setScriptModal(true)}>
-            <View style={styles(nightMode).previewBox}>
-              <Text style={[styles(nightMode).previewText, { fontFamily: getArabicFont(textStyle) }]}>{SCRIPT_SAMPLE}</Text>
-              <View style={styles(nightMode).previewBadge}>
-                <Text style={styles(nightMode).previewBadgeText}>{scriptLabel(textStyle)}</Text>
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Quran Script</Text>
+          <TouchableOpacity style={styles(nightMode, themeColors).previewWrap} activeOpacity={0.9} onPress={() => setScriptModal(true)}>
+            <View style={styles(nightMode, themeColors).previewBox}>
+              <Text style={[styles(nightMode, themeColors).previewText, { fontFamily: getArabicFont(textStyle) }]}>{SCRIPT_SAMPLE}</Text>
+              <View style={styles(nightMode, themeColors).previewBadge}>
+                <Text style={styles(nightMode, themeColors).previewBadgeText}>{scriptLabel(textStyle)}</Text>
               </View>
             </View>
-            <View style={[styles(nightMode).scriptRow, { borderColor: btnBorder }]}>
-              <Text style={[styles(nightMode).scriptRowLabel, { color: labelColor }]}>{scriptLabel(textStyle)}</Text>
-              <Text style={styles(nightMode).chevron}>⌄</Text>
+            <View style={[styles(nightMode, themeColors).scriptRow, { borderColor: btnBorder }]}>
+              <Text style={[styles(nightMode, themeColors).scriptRowLabel, { color: labelColor }]}>{scriptLabel(textStyle)}</Text>
+              <Text style={styles(nightMode, themeColors).chevron}>⌄</Text>
             </View>
-            <Text style={styles(nightMode).legend}>Tap to switch script</Text>
+            <Text style={styles(nightMode, themeColors).legend}>Tap to switch script</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Appearance */}
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={styles(nightMode).sectionTitle}>Appearance</Text>
-          <View style={styles(nightMode).row}>
-            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Dark mode</Text><Text style={styles(nightMode).settingDesc}>Use dark background and light text</Text></View>
-            <Switch value={nightMode} onValueChange={() => { dispatch(toggleNightMode()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
+        {/* Appearance & Themes */}
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Appearance & Themes</Text>
+          <View style={styles(nightMode, themeColors).row}>
+            <View style={styles(nightMode, themeColors).settingInfo}>
+              <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Dark mode</Text>
+              <Text style={styles(nightMode, themeColors).settingDesc}>Use dark background and light text</Text>
+            </View>
+            <Switch value={nightMode} onValueChange={() => { dispatch(toggleNightMode()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+          </View>
+
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor, marginTop: 6 }]}>Color Theme Palette</Text>
+          <View style={styles(nightMode, themeColors).modeContainer}>
+            {THEME_OPTIONS.map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[
+                  styles(nightMode, themeColors).modeBtn,
+                  { borderColor: btnBorder },
+                  colorTheme === t.key && styles(nightMode, themeColors).activeBtn,
+                ]}
+                onPress={() => dispatch(setColorTheme(t.key))}
+              >
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: t.accent, marginBottom: 4 }} />
+                <Text numberOfLines={1} style={colorTheme === t.key ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
         {/* Reading Preferences */}
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={styles(nightMode).sectionTitle}>Reading Preferences</Text>
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Reading Preferences</Text>
           {width >= SPLIT_MIN_WIDTH && (
-            <View style={styles(nightMode).row}>
-              <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Spread view (two pages side by side)</Text><Text style={styles(nightMode).settingDesc}>Show two mushaf pages side by side on tablets</Text></View>
-              <Switch value={mushafSplit} onValueChange={(v) => { dispatch(setMushafSplit(v)); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
+            <View style={styles(nightMode, themeColors).row}>
+              <View style={styles(nightMode, themeColors).settingInfo}><Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Spread view (two pages side by side)</Text><Text style={styles(nightMode, themeColors).settingDesc}>Show two mushaf pages side by side on tablets</Text></View>
+              <Switch value={mushafSplit} onValueChange={(v) => { dispatch(setMushafSplit(v)); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
             </View>
           )}
-          <View style={styles(nightMode).row}>
-            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Bismillah before verse 1</Text><Text style={styles(nightMode).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text></View>
-            <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
+          <View style={styles(nightMode, themeColors).row}>
+            <View style={styles(nightMode, themeColors).settingInfo}><Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Bismillah before verse 1</Text><Text style={styles(nightMode, themeColors).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text></View>
+            <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
           </View>
         </View>
 
         {/* Tutorial */}
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <TouchableOpacity style={styles(nightMode).row} activeOpacity={0.7} onPress={() => { dispatch(setTutorialDone(false)); onClose?.(); requestAnimationFrame(() => dispatch(startTutorial())); }}>
-            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Replay Tutorial</Text><Text style={styles(nightMode).settingDesc}>Walkthrough of students, highlighting, notes, drawing and more</Text></View>
-            <Text style={{ color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontWeight: '700', fontSize: 16 }}>▶</Text>
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <TouchableOpacity style={styles(nightMode, themeColors).row} activeOpacity={0.7} onPress={() => { dispatch(setTutorialDone(false)); onClose?.(); requestAnimationFrame(() => dispatch(startTutorial())); }}>
+            <View style={styles(nightMode, themeColors).settingInfo}><Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Replay Tutorial</Text><Text style={styles(nightMode, themeColors).settingDesc}>Walkthrough of students, highlighting, notes, drawing and more</Text></View>
+            <Text style={{ color: themeColors.accent, fontWeight: '700', fontSize: 16 }}>▶</Text>
           </TouchableOpacity>
         </View>
 
         {/* Offline Audio Downloads */}
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={styles(nightMode).sectionTitle}>Offline Audio Downloads</Text>
-          <Text style={[styles(nightMode).settingDesc, { marginBottom: 14 }]}>
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Offline Audio Downloads</Text>
+          <Text style={[styles(nightMode, themeColors).settingDesc, { marginBottom: 14 }]}>
             Download surahs for offline listening with zero internet required.
           </Text>
 
           {/* Qari Selection */}
-          <Text style={[styles(nightMode).label, { color: labelColor, fontSize: 14 }]}>Select Reciter (Qari)</Text>
-          <View style={styles(nightMode).modeContainer}>
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 14 }]}>Select Reciter (Qari)</Text>
+          <View style={styles(nightMode, themeColors).modeContainer}>
             <TouchableOpacity
-              style={[styles(nightMode).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.alafasy' && styles(nightMode).activeBtn]}
+              style={[styles(nightMode, themeColors).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.alafasy' && styles(nightMode, themeColors).activeBtn]}
               onPress={() => setSelectedQari('ar.alafasy')}
             >
-              <Text style={selectedQari === 'ar.alafasy' ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>
+              <Text style={selectedQari === 'ar.alafasy' ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
                 Mishary Al-Afasy
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles(nightMode).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.abdulbasit' && styles(nightMode).activeBtn]}
+              style={[styles(nightMode, themeColors).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.abdulbasit' && styles(nightMode, themeColors).activeBtn]}
               onPress={() => setSelectedQari('ar.abdulbasit')}
             >
-              <Text style={selectedQari === 'ar.abdulbasit' ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>
+              <Text style={selectedQari === 'ar.abdulbasit' ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
                 Abdul Basit
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Surah Selector */}
-          <Text style={[styles(nightMode).label, { color: labelColor, fontSize: 14, marginTop: 4 }]}>Select Surah</Text>
+          <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 14, marginTop: 4 }]}>Select Surah</Text>
           <TouchableOpacity
-            style={[styles(nightMode).scriptRow, { borderColor: btnBorder, marginTop: 2, marginBottom: 14 }]}
+            style={[styles(nightMode, themeColors).scriptRow, { borderColor: btnBorder, marginTop: 2, marginBottom: 14 }]}
             onPress={() => setSurahPickerModal(true)}
             activeOpacity={0.7}
           >
             <View>
-              <Text style={[styles(nightMode).scriptRowLabel, { color: labelColor }]}>
+              <Text style={[styles(nightMode, themeColors).scriptRowLabel, { color: labelColor }]}>
                 {selectedSurah}. {currentSurahMeta.en}
               </Text>
-              <Text style={[styles(nightMode).settingDesc, { fontSize: 12 }]}>
+              <Text style={[styles(nightMode, themeColors).settingDesc, { fontSize: 12 }]}>
                 {currentSurahMeta.verses} ayahs · Juz {currentSurahMeta.startJuz}
               </Text>
             </View>
-            <Text style={[styles(nightMode).previewText, { fontSize: 20, lineHeight: 28, color: (nightMode ? '#E2C275' : '#8C6D15') }]}>
+            <Text style={[styles(nightMode, themeColors).previewText, { fontSize: 20, lineHeight: 28, color: themeColors.gold }]}>
               {currentSurahMeta.ar}
             </Text>
           </TouchableOpacity>
@@ -251,8 +282,8 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           {/* Download Actions */}
           {isDownloading ? (
             <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <ActivityIndicator color={nightMode ? '#7BA7DB' : '#1C3D72'} size="small" />
-              <Text style={[styles(nightMode).settingDesc, { marginTop: 8, fontWeight: '700' }]}>
+              <ActivityIndicator color={themeColors.accent} size="small" />
+              <Text style={[styles(nightMode, themeColors).settingDesc, { marginTop: 8, fontWeight: '700' }]}>
                 Downloading: {downloadProgress?.current ?? 0} / {downloadProgress?.total ?? 0} ayahs
               </Text>
               <TouchableOpacity
@@ -266,19 +297,19 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ color: '#4CAF50', fontSize: 16, marginRight: 6 }}>✅</Text>
-                <Text style={[styles(nightMode).settingTitle, { color: '#4CAF50', fontSize: 14, marginBottom: 0 }]}>Downloaded (Offline Ready)</Text>
+                <Text style={[styles(nightMode, themeColors).settingTitle, { color: '#4CAF50', fontSize: 14, marginBottom: 0 }]}>Downloaded (Offline Ready)</Text>
               </View>
-              <TouchableOpacity style={[styles(nightMode).deleteBtn, { backgroundColor: '#FF5252' }]} onPress={handleDeleteSurah}>
+              <TouchableOpacity style={[styles(nightMode, themeColors).deleteBtn, { backgroundColor: '#FF5252' }]} onPress={handleDeleteSurah}>
                 <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Delete</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles(nightMode).downloadActionBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]}
+              style={[styles(nightMode, themeColors).downloadActionBtn, { backgroundColor: themeColors.primary }]}
               onPress={handleStartDownload}
               activeOpacity={0.8}
             >
-              <Text style={[styles(nightMode).downloadActionText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>
+              <Text style={[styles(nightMode, themeColors).downloadActionText, { color: '#FFFFFF' }]}>
                 ⬇ Download Surah {currentSurahMeta.en}
               </Text>
             </TouchableOpacity>
@@ -295,18 +326,18 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 
       {/* Script Modal */}
       <Modal visible={scriptModal} transparent animationType="slide" onRequestClose={() => setScriptModal(false)}>
-        <TouchableOpacity style={styles(nightMode).modalOverlay} activeOpacity={1} onPress={() => setScriptModal(false)}>
-          <View style={[styles(nightMode).sheet, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-            <Text style={styles(nightMode).sheetTitle}>Choose Script</Text>
+        <TouchableOpacity style={styles(nightMode, themeColors).modalOverlay} activeOpacity={1} onPress={() => setScriptModal(false)}>
+          <View style={[styles(nightMode, themeColors).sheet, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <Text style={styles(nightMode, themeColors).sheetTitle}>Choose Script</Text>
             {SCRIPT_OPTIONS.map((opt) => (
-              <TouchableOpacity key={opt.key} style={[styles(nightMode).optionRow, { borderColor: btnBorder }]} onPress={() => { dispatch(setTextStyle(opt.key as any)); setScriptModal(false); }}>
-                <Text style={[styles(nightMode).optionLabel, { color: labelColor }]}>{opt.label}</Text>
-                <Text style={[styles(nightMode).optionSample, { fontFamily: getArabicFont(opt.key) }]}>{SCRIPT_WORD}</Text>
-                {textStyle === opt.key && <Text style={styles(nightMode).optionCheck}>✓</Text>}
+              <TouchableOpacity key={opt.key} style={[styles(nightMode, themeColors).optionRow, { borderColor: btnBorder }]} onPress={() => { dispatch(setTextStyle(opt.key as any)); setScriptModal(false); }}>
+                <Text style={[styles(nightMode, themeColors).optionLabel, { color: labelColor }]}>{opt.label}</Text>
+                <Text style={[styles(nightMode, themeColors).optionSample, { fontFamily: getArabicFont(opt.key) }]}>{SCRIPT_WORD}</Text>
+                {textStyle === opt.key && <Text style={styles(nightMode, themeColors).optionCheck}>✓</Text>}
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles(nightMode).cancelBtn} onPress={() => setScriptModal(false)}>
-              <Text style={styles(nightMode).cancelText}>Cancel</Text>
+            <TouchableOpacity style={styles(nightMode, themeColors).cancelBtn} onPress={() => setScriptModal(false)}>
+              <Text style={styles(nightMode, themeColors).cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -314,29 +345,29 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 
       {/* Surah Picker Modal for Downloads */}
       <Modal visible={surahPickerModal} transparent animationType="slide" onRequestClose={() => setSurahPickerModal(false)}>
-        <View style={styles(nightMode).modalOverlay}>
-          <View style={[styles(nightMode).sheet, { backgroundColor: cardBg, borderColor: cardBorder, maxHeight: '80%' }]}>
-            <Text style={styles(nightMode).sheetTitle}>Select Surah to Download</Text>
+        <View style={styles(nightMode, themeColors).modalOverlay}>
+          <View style={[styles(nightMode, themeColors).sheet, { backgroundColor: cardBg, borderColor: cardBorder, maxHeight: '80%' }]}>
+            <Text style={styles(nightMode, themeColors).sheetTitle}>Select Surah to Download</Text>
             <ScrollView style={{ maxHeight: 400 }}>
               {SURAH_META.map((s) => (
                 <TouchableOpacity
                   key={s.id}
-                  style={[styles(nightMode).optionRow, { borderColor: btnBorder }]}
+                  style={[styles(nightMode, themeColors).optionRow, { borderColor: btnBorder }]}
                   onPress={() => {
                     setSelectedSurah(s.id);
                     setSurahPickerModal(false);
                   }}
                 >
-                  <Text style={[styles(nightMode).optionLabel, { color: labelColor }]}>
+                  <Text style={[styles(nightMode, themeColors).optionLabel, { color: labelColor }]}>
                     {s.id}. {s.en} ({s.verses} ayahs)
                   </Text>
-                  <Text style={[styles(nightMode).optionSample, { color: (nightMode ? '#E2C275' : '#8C6D15') }]}>{s.ar}</Text>
-                  {selectedSurah === s.id && <Text style={styles(nightMode).optionCheck}>✓</Text>}
+                  <Text style={[styles(nightMode, themeColors).optionSample, { color: themeColors.gold }]}>{s.ar}</Text>
+                  {selectedSurah === s.id && <Text style={styles(nightMode, themeColors).optionCheck}>✓</Text>}
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity style={styles(nightMode).cancelBtn} onPress={() => setSurahPickerModal(false)}>
-              <Text style={styles(nightMode).cancelText}>Close</Text>
+            <TouchableOpacity style={styles(nightMode, themeColors).cancelBtn} onPress={() => setSurahPickerModal(false)}>
+              <Text style={styles(nightMode, themeColors).cancelText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -347,28 +378,28 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   );
 };
 
-const styles = (nightMode: boolean) => StyleSheet.create({
+const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   wrapper: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   section: { borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 16 },
-  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: theme.accent, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   label: { fontSize: 15.5, fontWeight: '600', marginBottom: 10 },
   modeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
-  modeBtn: { padding: 10, borderWidth: 1, borderRadius: 10, width: '32%', alignItems: 'center' },
-  activeBtn: { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72', borderColor: nightMode ? '#7BA7DB' : '#1C3D72' },
-  activeText: { color: nightMode ? '#0F1829' : '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  inactiveText: { fontWeight: '600', fontSize: 13 },
+  modeBtn: { padding: 10, borderWidth: 1, borderRadius: 10, width: '32%', alignItems: 'center', justifyContent: 'center' },
+  activeBtn: { backgroundColor: theme.primary, borderColor: theme.primary },
+  activeText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+  inactiveText: { fontWeight: '600', fontSize: 12 },
   sizeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
   sizeBtn: { padding: 10, borderWidth: 1, borderRadius: 10, width: '23%', alignItems: 'center' },
   previewWrap: { marginBottom: 4 },
   previewBox: { minHeight: 90, borderRadius: 14, backgroundColor: PREVIEW_BG, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 18, overflow: 'hidden' },
   previewText: { fontSize: 26, lineHeight: 44, color: PREVIEW_TEXT, textAlign: 'center' },
   previewBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: (nightMode ? 'rgba(123,167,219,0.6)' : 'rgba(28,61,114,0.6)'), borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  previewBadgeText: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  previewBadgeText: { color: theme.accent, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   scriptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   scriptRowLabel: { fontSize: 15, fontWeight: '600' },
-  chevron: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 18, fontWeight: 'bold' },
+  chevron: { color: theme.accent, fontSize: 18, fontWeight: 'bold' },
   legend: { fontSize: 12, color: '#8a8a8a', marginTop: 8, textAlign: 'center' },
   settingInfo: { flex: 1, marginRight: 16 },
   settingTitle: { fontSize: 15.5, fontWeight: '600', marginBottom: 3 },
@@ -378,13 +409,13 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   deleteBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20, paddingBottom: 34 },
-  sheetTitle: { fontSize: 16, fontWeight: '800', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sheetTitle: { fontSize: 16, fontWeight: '800', color: theme.accent, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.6 },
   optionRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, paddingVertical: 12 },
   optionLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
   optionSample: { fontSize: 20, color: '#d4a24e', marginLeft: 12 },
-  optionCheck: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 18, fontWeight: 'bold', width: 24, textAlign: 'right', marginLeft: 12 },
+  optionCheck: { color: theme.accent, fontSize: 18, fontWeight: 'bold', width: 24, textAlign: 'right', marginLeft: 12 },
   cancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: (nightMode ? 'rgba(123,167,219,0.12)' : 'rgba(28,61,114,0.12)') },
-  cancelText: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 15, fontWeight: '700' },
+  cancelText: { color: theme.accent, fontSize: 15, fontWeight: '700' },
 });
 
 export default memo(SettingsScreen);

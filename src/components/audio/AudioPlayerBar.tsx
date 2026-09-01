@@ -1,18 +1,9 @@
 /**
  * FILE: src/components/audio/AudioPlayerBar.tsx
- * ROLE: Bottom playback bar, two rows: (1) reciter name + "Surah N" + LOOP SETTINGS + CHANGE button
- *       (opens QariSelector); (2) compact controls — circular ◀ (prev verse), big teal PLAY/PAUSE circle
- *       (SVG icons; fresh state plays from the page's first verse, paused state resumes),
- *       circular ▶ (next verse), LOOP START (greyed until the loop is enabled in Loop Settings —
- *       label flips to LOOP END while a loop pass is playing), SURAH START (plays
- *       the surah that begins on this page; greyed when none).
- * DEPENDS ON: props onOpenQari/onOpenLoopSettings/onResume/onPlaySurahStart/onPlayPageStart/onPlayNewSurah/
- *             canPlayNewSurah/onPrevVerse/onNextVerse/canStep/isPlaying/canResume/nightMode/surahId;
- *             Redux audioSlice.currentQari (read-only); react-native-svg for the inline control icons.
- * USED BY: src/screens/QuranViewScreen.tsx — `{!recordingVerseKey && isHeaderVisible && <AudioPlayerBar ... />}`.
+ * ROLE: Bottom playback bar with reciter info, animated dancing equalizer bars when playing, and compact controls.
  */
-import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 
@@ -29,40 +20,78 @@ const IconNextTrack = ({ c, s = 14 }: { c: string; s?: number }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
 );
 
-/**
- * AudioPlayerBar (memoized) — presentational bottom bar; makes NO direct calls, fully driven by props.
- * WHAT: Renders the reciter row and the control row.
- * FLOW: 1) theme = nightMode ? darkTheme : lightTheme; disabled color = disC.
-*       2) Center circle: shows PAUSE bars while playing, PLAY triangle otherwise; press routes to
- *          onPlayPageStart when fresh (nothing to resume, not playing) else onResume (pause/resume).
- *       3) Circular ◀ / ▶ -> onPrevVerse/onNextVerse, greyed unless canStep (isPlaying).
- *       4) LOOP START -> onPlayPageStart; greyed unless loopEnabled. Label flips to LOOP END
- *          while the loop is actively playing.
- *       5) SURAH START -> onPlayNewSurah; greyed unless canPlayNewSurah.
- *       6) reciter area + LOOP SETTINGS + CHANGE -> onOpenQari / onOpenLoopSettings / onOpenQari.
- * PROPS: isPlaying — drives the center icon; onResume — play/pause toggle;
- *        onPlayPageStart — start playback from the page's first verse (or the loop range
- *        when a loop is enabled);
- *        onPlayNewSurah — start from verse 1 of the surah beginning on this page; canPlayNewSurah — enables it;
- *        onPrevVerse/onNextVerse — step playback to the adjacent verse; canStep — enables them (isPlaying);
- *        onOpenQari — opens the QariSelector modal; onOpenLoopSettings — opens the Loop Settings screen;
- *        surahId — shown in the "Surah N" label; nightMode — theme.
- * CALLS: onResume/onPlaySurahStart -> QuranViewScreen play/pause handlers; onPlayPageStart/onPlayNewSurah
- *        -> QuranViewScreen playPageStart/playNewSurah; onPrevVerse/onNextVerse -> stepVerse(±1);
- *        onOpenQari -> setShowQariModal(true); onOpenLoopSettings -> navigation.navigate('LoopSettings').
- * CALLED BY: QuranViewScreen, gated on isHeaderVisible (bar disappears when the header is hidden — even mid-playback).
- * AFFECTS: Nothing directly (read-only); indirectly drives audioSlice.isPlaying via the parent handlers.
- */
-const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageStart, onPlayNewSurah, canPlayNewSurah, onPrevVerse, onNextVerse, canStep, isPlaying, canResume, loopEnabled, nightMode, surahId }: any) => {
+const AudioEqualizer = ({ active, color }: { active: boolean; color: string }) => {
+  const bars = [
+    useRef(new Animated.Value(4)).current,
+    useRef(new Animated.Value(8)).current,
+    useRef(new Animated.Value(12)).current,
+    useRef(new Animated.Value(6)).current,
+  ];
+
+  useEffect(() => {
+    let loops: Animated.CompositeAnimation[] = [];
+    if (active) {
+      bars.forEach((b, i) => {
+        const loop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(b, { toValue: 4 + ((i * 3 + 7) % 11), duration: 240 + i * 40, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(b, { toValue: 2, duration: 200 + i * 35, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(b, { toValue: 6 + ((i * 4 + 5) % 10), duration: 260 + i * 30, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+          ])
+        );
+        loops.push(loop);
+        loop.start();
+      });
+    } else {
+      bars.forEach((b) => b.setValue(3));
+    }
+    return () => loops.forEach((l) => l.stop());
+  }, [active, bars]);
+
+  return (
+    <View style={eqStyles.wrap}>
+      {bars.map((b, idx) => (
+        <Animated.View key={idx} style={[eqStyles.bar, { height: b, backgroundColor: color }]} />
+      ))}
+    </View>
+  );
+};
+
+const eqStyles = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'flex-end', height: 16, gap: 2.5, marginRight: 6 },
+  bar: { width: 2.5, borderRadius: 1.5 },
+});
+
+const AudioPlayerBar = ({
+  onOpenQari,
+  onOpenLoopSettings,
+  onResume,
+  onPlayPageStart,
+  onPlayNewSurah,
+  canPlayNewSurah,
+  onPrevVerse,
+  onNextVerse,
+  canStep,
+  isPlaying,
+  canResume,
+  loopEnabled,
+  nightMode,
+  surahId,
+}: any) => {
   const { currentQari } = useSelector((s: any) => s.audio);
   const theme = nightMode ? darkTheme : lightTheme;
   const disC = nightMode ? '#5a5a5a' : '#b0b0b0';
   const showPlay = !isPlaying && !canResume;
+  const accentColor = nightMode ? '#7BA7DB' : '#1C3D72';
+
   return (
     <View style={[styles.container, theme.container]}>
       <View style={styles.qariRow}>
         <TouchableOpacity style={styles.qariInfo} onPress={onOpenQari} activeOpacity={0.7}>
-          <Text style={[styles.qariName, theme.qariName]} numberOfLines={1}>{currentQari}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {isPlaying && <AudioEqualizer active={isPlaying} color={accentColor} />}
+            <Text style={[styles.qariName, theme.qariName]} numberOfLines={1}>{currentQari}</Text>
+          </View>
           <Text style={[styles.surahName, theme.surahName]}>Surah {surahId}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.changeBtn, theme.ctrl]} onPress={onOpenLoopSettings} activeOpacity={0.7}>
@@ -94,7 +123,7 @@ const AudioPlayerBar = ({ onOpenQari, onOpenLoopSettings, onResume, onPlayPageSt
 };
 
 const styles = StyleSheet.create({
-  container: { borderTopWidth: 1, paddingHorizontal: 10, paddingVertical: 3 },
+  container: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 4 },
   qariRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   qariInfo: { flex: 1 },
   qariName: { fontSize: 12, fontWeight: 'bold' },
@@ -102,15 +131,15 @@ const styles = StyleSheet.create({
   changeBtn: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
   changeText: { fontSize: 9, fontWeight: '700' },
   ctrlRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  circle: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  playCircle: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  action: { flex: 1, minHeight: 22, borderRadius: 10, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
-  actionText: { fontSize: 9, fontWeight: '700' },
+  circle: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  playCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  action: { flex: 1, minHeight: 24, borderRadius: 10, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
+  actionText: { fontSize: 9.5, fontWeight: '700' },
   disabled: { opacity: 0.45 },
 });
 
 const darkTheme = StyleSheet.create({
-  container: { backgroundColor: '#1a1a2e', borderTopColor: '#2a2a2a' },
+  container: { backgroundColor: '#141824', borderTopColor: '#283048' },
   qariName: { color: '#fff' },
   surahName: { color: '#b0b0b0' },
   ctrl: { backgroundColor: 'rgba(255,255,255,0.08)' },
@@ -120,7 +149,7 @@ const darkTheme = StyleSheet.create({
 });
 
 const lightTheme = StyleSheet.create({
-  container: { backgroundColor: '#f5f5f5', borderTopColor: 'rgba(0,0,0,0.12)' },
+  container: { backgroundColor: '#F3EFE4', borderTopColor: '#E2DDD0' },
   qariName: { color: '#1a1a1a' },
   surahName: { color: '#777' },
   ctrl: { backgroundColor: 'rgba(0,0,0,0.06)' },
