@@ -1,14 +1,15 @@
 /**
  * FILE: src/screens/DashboardScreen.tsx
  * ROLE: Post-login hub — lists students, My Quran Hero card with animated progress ring,
- *       student activity status dots, streak counter, rolling animated FAB, and dynamic themes.
+ *       student activity status dots, streak counter, silky smooth rolling FAB (counter-clockwise),
+ *       vector SVG menu icons, and dynamic themes.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Animated, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Animated, Pressable, Easing } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { getStudents, createStudent, deleteStudent, updateStudent, ensureMyQuranStudent } from '../api/student';
 import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
 import { logoutUser } from '../api/auth';
@@ -30,6 +31,27 @@ import { startStartupPrefetch } from '../utils/startupPrefetch';
 import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import SettingsScreen from './SettingsScreen';
+
+const IconMenuSettings = ({ c }: { c: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 12 }}>
+    <Circle cx="12" cy="12" r="3" />
+    <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </Svg>
+);
+
+const IconMenuCloud = ({ c }: { c: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 12 }}>
+    <Path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+  </Svg>
+);
+
+const IconMenuLogout = ({ c }: { c: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 12 }}>
+    <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <Path d="M16 17l5-5-5-5" />
+    <Path d="M21 12H9" />
+  </Svg>
+);
 
 const ProgressCircle = ({ pct, color, bgTrack }: { pct: number; color: string; bgTrack: string }) => {
   const r = 16;
@@ -84,21 +106,22 @@ export default function DashboardScreen({ navigation }: any) {
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  // Rolling FAB animation on mount
+  // Silky smooth rolling FAB animation on mount (counter-clockwise rotation)
   const fabAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fabAnim, {
       toValue: 1,
-      duration: 650,
-      delay: 350,
+      duration: 750,
+      delay: 250,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
       useNativeDriver: false,
     }).start();
   }, [fabAnim]);
 
-  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [52, 148] });
-  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0, 0, 1] });
-  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 148] });
+  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
+  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
+  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
 
   const isMyQuranStudent = (s: any) => s?.isMyQuran === true || s?.name === 'My Quran';
   const myQuranStudent = useMemo(() => {
@@ -418,7 +441,7 @@ export default function DashboardScreen({ navigation }: any) {
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TutorialAnchor id="sync-pill"><SyncStatus /></TutorialAnchor>
 
-          {/* 3-Line Hamburger Menu Button */}
+          {/* 3-Line / 3-Dot Menu Button */}
           <TouchableOpacity
             style={[styles(nightMode, themeColors).menuBtn, { backgroundColor: nightMode ? '#222738' : '#E8E3D5' }]}
             onPress={() => setMenuModalVisible(true)}
@@ -512,7 +535,7 @@ export default function DashboardScreen({ navigation }: any) {
         renderItem={renderItem}
       />
 
-      {/* Rolling Animated FAB */}
+      {/* Silky Smooth Rolling Animated FAB */}
       <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 20, bottom: adCollapsed ? 94 : 138 }}>
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
@@ -540,7 +563,7 @@ export default function DashboardScreen({ navigation }: any) {
         </Animated.View>
       </TutorialAnchor>
 
-      {/* 3-Line Menu Modal */}
+      {/* 3-Line Menu Modal with Vector SVG Icons */}
       <Modal visible={menuModalVisible} transparent animationType="fade" onRequestClose={() => setMenuModalVisible(false)}>
         <Pressable style={styles(nightMode, themeColors).menuBackdrop} onPress={() => setMenuModalVisible(false)}>
           <View style={[styles(nightMode, themeColors).menuDropdown, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 58 }]}>
@@ -552,7 +575,7 @@ export default function DashboardScreen({ navigation }: any) {
               }}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 18, marginRight: 12 }}>⚙️</Text>
+              <IconMenuSettings c={themeColors.accent} />
               <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>Settings</Text>
             </TouchableOpacity>
 
@@ -567,7 +590,7 @@ export default function DashboardScreen({ navigation }: any) {
               disabled={isSyncing}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 18, marginRight: 12 }}>☁️</Text>
+              <IconMenuCloud c={themeColors.accent} />
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>
                   {isSyncing ? 'Syncing...' : 'Save to Cloud (Sync)'}
@@ -592,7 +615,7 @@ export default function DashboardScreen({ navigation }: any) {
               }}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 18, marginRight: 12 }}>🚪</Text>
+              <IconMenuLogout c="#FF5252" />
               <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF5252', fontWeight: '700' }]}>Logout</Text>
             </TouchableOpacity>
           </View>
