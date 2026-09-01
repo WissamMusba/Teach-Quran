@@ -53,9 +53,9 @@ interface OrnamentalFrameProps {
 // pages; band/corner fill backgrounds darken to match the page.
 const BLUE = '#1C3D72';
 const BLUE_NIGHT = '#7BA7DB';
-const BAND_BG = '#F8F9FA';
+const BAND_BG = '#F5F2E9';
 const BAND_BG_NIGHT = '#1E2532';
-const CORNER_BG = '#FFFFFF';
+const CORNER_BG = '#FAF7EE';
 const CORNER_BG_NIGHT = '#232A38';
 
 /**

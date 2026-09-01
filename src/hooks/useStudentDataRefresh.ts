@@ -26,7 +26,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
-import { getStudentData, getDB } from '../database/localDB';
+import { getStudentData, getManifest, getDB } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
 
 // Freshness snapshot per student:id of the last SUCCESSFUL load. A re-focus that computes
@@ -88,6 +88,21 @@ export const useStudentDataRefresh = () => {
     if (inFlight && inFlight.studentId === currentStudentId) return inFlight.promise;
     const load = (async () => {
       try {
+        // Fast-seed manifest: instant ~2ms bookmarks and lastRead load while heavy chunks aggregate
+        getManifest(currentStudentId).then((m) => {
+          if (m?.data?.bookmarks || m?.data?.lastRead) {
+            dispatch(setStudentData({
+              bookmarks: m.data.bookmarks || {},
+              lastRead: m.data.lastRead || null,
+              highlights: {},
+              notes: {},
+              drawings: {},
+              schemaVersion: m.data.schemaVersion || 3,
+              v: m.data.v || 0,
+            }));
+          }
+        }).catch(() => {});
+
         const snapshot = await freshnessSnapshot(currentStudentId);
         if (snapshot !== null && loadedSnapshotPerStudent.get(currentStudentId) === snapshot) return;
         const d = await getStudentData(currentStudentId);

@@ -1,11 +1,9 @@
 /**
  * FILE: src/screens/SettingsScreen.tsx
- * ROLE: Settings UI: reading toggles that dispatch to quranSlice (showTranslation, fontSize, readingMode, textStyle) and appearance/preferences toggles that dispatch to settingsSlice (nightMode, mushafSplit, playBasmala). Renders the fixed ScreenHeader plus theme-aware rounded cards.
- * DEPENDS ON: ../store/quranSlice (toggleTranslation/setFontSize/setReadingMode/setTextStyle, quranSlice.ts:16-21); ../store/settingsSlice (toggleNightMode/setMushafSplit/togglePlayBasmala, settingsSlice.ts:16-21); ../utils/mushafLayout SPLIT_MIN_WIDTH (768, mushafLayout.ts:2); ../utils/theme getArabicFont (font lookup for the Quran Script preview + options); ../components/common/ScreenHeader (fixed theme-aware header, self-reads nightMode); ../store RootState. Redux only â€” quranSlice state is NOT persisted; settingsSlice state IS persisted (redux-persist whitelist ['auth','drawing','sync','settings','audio'], src/store/index.ts:16).
- * USED BY: QuranView toolbar `onSettings` (QuranViewScreen.tsx:510).
+ * ROLE: Settings UI: reading toggles, appearance, preferences, and Offline Audio Downloads.
  */
-import React, { memo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions } from 'react-native';
+import React, { memo, useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
 import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
@@ -15,6 +13,8 @@ import { getArabicFont } from '../utils/theme';
 import { RootState } from '../store';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
+import { SURAH_META } from '../utils/surahMeta';
+import { downloadSurahAudio, isSurahDownloaded, deleteSurahAudio, clearAllAudioDownloads, cancelSurahDownload } from '../utils/audioDownloader';
 
 const PREVIEW_BG = '#16294d';
 const PREVIEW_TEXT = '#f5d98a';
@@ -29,33 +29,103 @@ const SCRIPT_OPTIONS = [
 
 const scriptLabel = (key: string) => SCRIPT_OPTIONS.find((o) => o.key === key)?.label || key;
 
-/**
- * WHAT: Screen component: three cards of settings controls that dispatch Redux actions on change, topped by the fixed ScreenHeader. Wrapped in memo() (bottom of file).
- * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, mushafSplit, playBasmala. 2) "Reading Settings" card: Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Quran Script preview box (Basmala in getArabicFont(textStyle)) + dropdown row that opens a bottom-sheet Modal listing Uthmani=uthmani / Indopak=alqalam / Tajweed=lateef (each sample word in its own font, ✓ on the current pick) -> setTextStyle(style). 3) "Appearance" card: Dark mode Switch -> toggleNightMode(). 4) "Reading Preferences" card: Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v); Bismillah play Switch -> togglePlayBasmala().
- * CALLS: toggleTranslation / setFontSize / setReadingMode / setTextStyle (quranSlice); toggleNightMode / setMushafSplit / togglePlayBasmala (settingsSlice).
- * CALLED BY: React Navigation; via QuranViewScreen.tsx:510.
- * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, mushafSplit, playBasmala) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.
- * NOTES: QARI IS NOT A SETTING HERE â€” no qari control exists on this screen. Qari lives in audioSlice.currentQari ('Mishary Al-Afasy' default, audioSlice.ts:5), set via QariSelector modal from AudioPlayerBar in QuranView; audio slice IS persisted. translationTextSize exists in settingsSlice (settingsSlice.ts:7,19) but has NO UI here and NO dispatcher/reader anywhere (dead state). quranSlice settings reset on every app restart (not whitelisted): showTranslation/fontSize/readingMode/textStyle default back to false/'medium'/'page'/'lateef'. The brightness sliders were removed from this UI â€” textBrightness/bgBrightness stay in settingsSlice untouched and persist at their last values (default 255), they just have no control here anymore. Whole screen adapts to nightMode via inline card/row/switch colors; the Quran Script preview keeps a fixed dark-navy backdrop with gold/cream text in both modes.
- */
 const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const dispatch = useDispatch();
   const { width } = useWindowDimensions();
   const [scriptModal, setScriptModal] = useState(false);
+  const [surahPickerModal, setSurahPickerModal] = useState(false);
+
+  // Audio Download State
+  const [selectedQari, setSelectedQari] = useState<'ar.alafasy' | 'ar.abdulbasit'>('ar.alafasy');
+  const [selectedSurah, setSelectedSurah] = useState<number>(1);
+  const [isCurrentDownloaded, setIsCurrentDownloaded] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
+
   const { showTranslation, fontSize, readingMode, textStyle } = useSelector((state: RootState) => state.quran);
   const { nightMode, mushafSplit, playBasmala } = useSelector((state: RootState) => state.settings);
 
-  const bg = nightMode ? '#121212' : '#ffffff';
-  const cardBg = nightMode ? '#1a1a2e' : '#f5f6ff';
-  const cardBorder = nightMode ? '#2a2a4a' : '#e4e6f4';
+  const bg = nightMode ? '#10121A' : '#FAF7EE';
+  const cardBg = nightMode ? '#1C202E' : '#F3EFE4';
+  const cardBorder = nightMode ? '#2B3145' : '#E2DDD0';
   const labelColor = nightMode ? '#fff' : '#1a1a1a';
-  const btnBorder = nightMode ? '#3a3a5e' : '#d8dae8';
+  const btnBorder = nightMode ? '#3a3a5e' : '#CDC4B0';
   const inactiveText = nightMode ? '#b0b0c8' : '#7a7a90';
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
+  const checkDownloadStatus = useCallback(async (qari: string, surah: number) => {
+    const downloaded = await isSurahDownloaded(qari, surah);
+    setIsCurrentDownloaded(downloaded);
+  }, []);
+
+  useEffect(() => {
+    checkDownloadStatus(selectedQari, selectedSurah);
+  }, [selectedQari, selectedSurah, checkDownloadStatus]);
+
+  const handleStartDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadProgress({ current: 0, total: SURAH_META[selectedSurah - 1]?.verses || 1 });
+
+    const result = await downloadSurahAudio(selectedQari, selectedSurah, (current, total) => {
+      setDownloadProgress({ current, total });
+    });
+
+    setIsDownloading(false);
+    setDownloadProgress(null);
+
+    if (result.success) {
+      setIsCurrentDownloaded(true);
+      Alert.alert('Download Complete', `Surah ${SURAH_META[selectedSurah - 1]?.en || selectedSurah} is ready for offline playback.`);
+    } else if (result.error !== 'Download cancelled') {
+      Alert.alert('Download Error', result.error || 'Failed to download audio files.');
+    }
+  };
+
+  const handleDeleteSurah = async () => {
+    Alert.alert(
+      'Delete Audio',
+      `Delete downloaded audio for Surah ${SURAH_META[selectedSurah - 1]?.en}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteSurahAudio(selectedQari, selectedSurah);
+            setIsCurrentDownloaded(false);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearAll = async () => {
+    Alert.alert(
+      'Clear All Offline Audio',
+      'This will delete all downloaded offline audio to free up storage space. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllAudioDownloads();
+            setIsCurrentDownloaded(false);
+            Alert.alert('Success', 'Offline audio cache cleared.');
+          },
+        },
+      ]
+    );
+  };
+
+  const currentSurahMeta = SURAH_META[selectedSurah - 1] || SURAH_META[0];
+
   return (
     <View style={[styles(nightMode).wrapper, { backgroundColor: bg }]}>
-      <ScreenHeader title="Settings" subtitle="Reading & appearance" onBack={onClose} />
+      <ScreenHeader title="Settings" subtitle="Reading & offline audio" onBack={onClose} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode).content}>
+        {/* Reading Settings */}
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode).sectionTitle}>Reading Settings</Text>
 
@@ -98,6 +168,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           </TouchableOpacity>
         </View>
 
+        {/* Appearance */}
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode).sectionTitle}>Appearance</Text>
           <View style={styles(nightMode).row}>
@@ -106,13 +177,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           </View>
         </View>
 
-        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <TouchableOpacity style={styles(nightMode).row} activeOpacity={0.7} onPress={() => { dispatch(setTutorialDone(false)); onClose?.(); requestAnimationFrame(() => dispatch(startTutorial())); }}>
-            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Replay Tutorial</Text><Text style={styles(nightMode).settingDesc}>Walkthrough of students, highlighting, notes, drawing and more</Text></View>
-            <Text style={{ color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontWeight: '700' }}>▶</Text>
-          </TouchableOpacity>
-        </View>
-
+        {/* Reading Preferences */}
         <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode).sectionTitle}>Reading Preferences</Text>
           {width >= SPLIT_MIN_WIDTH && (
@@ -126,8 +191,109 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: nightMode ? '#7BA7DB' : '#1C3D72' }} />
           </View>
         </View>
+
+        {/* Tutorial */}
+        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <TouchableOpacity style={styles(nightMode).row} activeOpacity={0.7} onPress={() => { dispatch(setTutorialDone(false)); onClose?.(); requestAnimationFrame(() => dispatch(startTutorial())); }}>
+            <View style={styles(nightMode).settingInfo}><Text style={[styles(nightMode).settingTitle, { color: labelColor }]}>Replay Tutorial</Text><Text style={styles(nightMode).settingDesc}>Walkthrough of students, highlighting, notes, drawing and more</Text></View>
+            <Text style={{ color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontWeight: '700', fontSize: 16 }}>▶</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Offline Audio Downloads */}
+        <View style={[styles(nightMode).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode).sectionTitle}>Offline Audio Downloads</Text>
+          <Text style={[styles(nightMode).settingDesc, { marginBottom: 14 }]}>
+            Download surahs for offline listening with zero internet required.
+          </Text>
+
+          {/* Qari Selection */}
+          <Text style={[styles(nightMode).label, { color: labelColor, fontSize: 14 }]}>Select Reciter (Qari)</Text>
+          <View style={styles(nightMode).modeContainer}>
+            <TouchableOpacity
+              style={[styles(nightMode).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.alafasy' && styles(nightMode).activeBtn]}
+              onPress={() => setSelectedQari('ar.alafasy')}
+            >
+              <Text style={selectedQari === 'ar.alafasy' ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>
+                Mishary Al-Afasy
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles(nightMode).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.abdulbasit' && styles(nightMode).activeBtn]}
+              onPress={() => setSelectedQari('ar.abdulbasit')}
+            >
+              <Text style={selectedQari === 'ar.abdulbasit' ? styles(nightMode).activeText : [styles(nightMode).inactiveText, { color: inactiveText }]}>
+                Abdul Basit
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Surah Selector */}
+          <Text style={[styles(nightMode).label, { color: labelColor, fontSize: 14, marginTop: 4 }]}>Select Surah</Text>
+          <TouchableOpacity
+            style={[styles(nightMode).scriptRow, { borderColor: btnBorder, marginTop: 2, marginBottom: 14 }]}
+            onPress={() => setSurahPickerModal(true)}
+            activeOpacity={0.7}
+          >
+            <View>
+              <Text style={[styles(nightMode).scriptRowLabel, { color: labelColor }]}>
+                {selectedSurah}. {currentSurahMeta.en}
+              </Text>
+              <Text style={[styles(nightMode).settingDesc, { fontSize: 12 }]}>
+                {currentSurahMeta.verses} ayahs · Juz {currentSurahMeta.startJuz}
+              </Text>
+            </View>
+            <Text style={[styles(nightMode).previewText, { fontSize: 20, lineHeight: 28, color: (nightMode ? '#E2C275' : '#8C6D15') }]}>
+              {currentSurahMeta.ar}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Download Actions */}
+          {isDownloading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <ActivityIndicator color={nightMode ? '#7BA7DB' : '#1C3D72'} size="small" />
+              <Text style={[styles(nightMode).settingDesc, { marginTop: 8, fontWeight: '700' }]}>
+                Downloading: {downloadProgress?.current ?? 0} / {downloadProgress?.total ?? 0} ayahs
+              </Text>
+              <TouchableOpacity
+                style={{ marginTop: 8, paddingHorizontal: 12, paddingVertical: 4 }}
+                onPress={() => cancelSurahDownload(selectedSurah)}
+              >
+                <Text style={{ color: '#FF5252', fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isCurrentDownloaded ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: '#4CAF50', fontSize: 16, marginRight: 6 }}>✅</Text>
+                <Text style={[styles(nightMode).settingTitle, { color: '#4CAF50', fontSize: 14, marginBottom: 0 }]}>Downloaded (Offline Ready)</Text>
+              </View>
+              <TouchableOpacity style={[styles(nightMode).deleteBtn, { backgroundColor: '#FF5252' }]} onPress={handleDeleteSurah}>
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles(nightMode).downloadActionBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72' }]}
+              onPress={handleStartDownload}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles(nightMode).downloadActionText, { color: nightMode ? '#0F1829' : '#FFFFFF' }]}>
+                ⬇ Download Surah {currentSurahMeta.en}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Clear Storage */}
+          <TouchableOpacity style={{ marginTop: 18, alignSelf: 'center' }} onPress={handleClearAll}>
+            <Text style={{ color: '#888', fontSize: 12.5, textDecorationLine: 'underline' }}>
+              Clear all offline audio downloads
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
+      {/* Script Modal */}
       <Modal visible={scriptModal} transparent animationType="slide" onRequestClose={() => setScriptModal(false)}>
         <TouchableOpacity style={styles(nightMode).modalOverlay} activeOpacity={1} onPress={() => setScriptModal(false)}>
           <View style={[styles(nightMode).sheet, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -145,6 +311,37 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Surah Picker Modal for Downloads */}
+      <Modal visible={surahPickerModal} transparent animationType="slide" onRequestClose={() => setSurahPickerModal(false)}>
+        <View style={styles(nightMode).modalOverlay}>
+          <View style={[styles(nightMode).sheet, { backgroundColor: cardBg, borderColor: cardBorder, maxHeight: '80%' }]}>
+            <Text style={styles(nightMode).sheetTitle}>Select Surah to Download</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {SURAH_META.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles(nightMode).optionRow, { borderColor: btnBorder }]}
+                  onPress={() => {
+                    setSelectedSurah(s.id);
+                    setSurahPickerModal(false);
+                  }}
+                >
+                  <Text style={[styles(nightMode).optionLabel, { color: labelColor }]}>
+                    {s.id}. {s.en} ({s.verses} ayahs)
+                  </Text>
+                  <Text style={[styles(nightMode).optionSample, { color: (nightMode ? '#E2C275' : '#8C6D15') }]}>{s.ar}</Text>
+                  {selectedSurah === s.id && <Text style={styles(nightMode).optionCheck}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles(nightMode).cancelBtn} onPress={() => setSurahPickerModal(false)}>
+              <Text style={styles(nightMode).cancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <CollapsibleBannerAd />
     </View>
   );
@@ -153,37 +350,41 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 const styles = (nightMode: boolean) => StyleSheet.create({
   wrapper: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
-  section: { borderRadius: 16, borderWidth: 1, padding: 20, marginBottom: 16 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 18, textTransform: 'uppercase', letterSpacing: 0.6 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
-  label: { fontSize: 16, fontWeight: '500', marginBottom: 12 },
-  modeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  modeBtn: { padding: 10, borderWidth: 1, borderRadius: 8, width: '32%', alignItems: 'center' },
+  section: { borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 16 },
+  sectionTitle: { fontSize: 13.5, fontWeight: '800', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.6 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  label: { fontSize: 15.5, fontWeight: '600', marginBottom: 10 },
+  modeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
+  modeBtn: { padding: 10, borderWidth: 1, borderRadius: 10, width: '32%', alignItems: 'center' },
   activeBtn: { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72', borderColor: nightMode ? '#7BA7DB' : '#1C3D72' },
-  activeText: { color: '#121212', fontWeight: 'bold' },
-  inactiveText: { fontWeight: '500' },
+  activeText: { color: nightMode ? '#0F1829' : '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
+  inactiveText: { fontWeight: '600', fontSize: 13 },
   sizeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
-  sizeBtn: { padding: 10, borderWidth: 1, borderRadius: 8, width: '23%', alignItems: 'center' },
+  sizeBtn: { padding: 10, borderWidth: 1, borderRadius: 10, width: '23%', alignItems: 'center' },
   previewWrap: { marginBottom: 4 },
-  previewBox: { minHeight: 90, borderRadius: 12, backgroundColor: PREVIEW_BG, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 18, overflow: 'hidden' },
+  previewBox: { minHeight: 90, borderRadius: 14, backgroundColor: PREVIEW_BG, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 18, overflow: 'hidden' },
   previewText: { fontSize: 26, lineHeight: 44, color: PREVIEW_TEXT, textAlign: 'center' },
-  previewBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: (nightMode ? `rgba(123,167,219,${0.6})` : `rgba(28,61,114,${0.6})`), borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  previewBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: (nightMode ? 'rgba(123,167,219,0.6)' : 'rgba(28,61,114,0.6)'), borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   previewBadgeText: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  scriptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  scriptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   scriptRowLabel: { fontSize: 15, fontWeight: '600' },
   chevron: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 18, fontWeight: 'bold' },
   legend: { fontSize: 12, color: '#8a8a8a', marginTop: 8, textAlign: 'center' },
   settingInfo: { flex: 1, marginRight: 16 },
-  settingTitle: { fontSize: 16, fontWeight: '500', marginBottom: 4 },
-  settingDesc: { fontSize: 14, color: '#888', lineHeight: 20 },
+  settingTitle: { fontSize: 15.5, fontWeight: '600', marginBottom: 3 },
+  settingDesc: { fontSize: 13, color: '#888', lineHeight: 18 },
+  downloadActionBtn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  downloadActionText: { fontWeight: '700', fontSize: 14 },
+  deleteBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20, paddingBottom: 34 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.6 },
-  optionRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, paddingVertical: 14 },
+  sheetTitle: { fontSize: 16, fontWeight: '800', color: nightMode ? '#7BA7DB' : '#1C3D72', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.6 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, paddingVertical: 12 },
   optionLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
-  optionSample: { fontSize: 22, color: '#d4a24e', marginLeft: 12 },
+  optionSample: { fontSize: 20, color: '#d4a24e', marginLeft: 12 },
   optionCheck: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 18, fontWeight: 'bold', width: 24, textAlign: 'right', marginLeft: 12 },
-  cancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
+  cancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: (nightMode ? 'rgba(123,167,219,0.12)' : 'rgba(28,61,114,0.12)') },
   cancelText: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 15, fontWeight: '700' },
 });
+
 export default memo(SettingsScreen);

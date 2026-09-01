@@ -34,20 +34,25 @@ export function simplifyStroke(points: string[], epsilon = 1.2): string[] {
   return points.filter((_, i) => keep[i]);
 }
 export const hPadFor = (w: number) => textInsetFor(w);
-export const compactStroke = (points: string[], canvasW: number, canvasH: number, padX = 0): string[] => {
+export const compactStroke = (points: string[], canvasW: number, canvasH: number, padX = 0, padY = 0): string[] => {
   const cw = canvasW - 2 * padX > 1 ? canvasW - 2 * padX : canvasW;
+  const ch = canvasH - 2 * padY > 1 ? canvasH - 2 * padY : canvasH;
   return simplifyStroke(thinStrokePoints(points, 3), 1.5)
     .map(p => {
       const [x, y] = p.split(',').map(Number);
       const cx = Math.max(-0.05 * cw, Math.min(cw * 1.05, x - padX));
-      return `${(cx / cw).toFixed(4)},${(y / canvasH).toFixed(4)}`;
+      const cy = padY > 0 ? Math.max(-0.05 * ch, Math.min(ch * 1.05, y - padY)) : y;
+      return `${(cx / cw).toFixed(4)},${(padY > 0 ? cy / ch : y / canvasH).toFixed(4)}`;
     });
 };
-export const denormalizeStroke = (points: string[], canvasW: number, canvasH: number, padX = 0): string[] => {
+export const denormalizeStroke = (points: string[], canvasW: number, canvasH: number, padX = 0, padY = 0): string[] => {
   const cw = canvasW - 2 * padX > 1 ? canvasW - 2 * padX : canvasW;
+  const ch = canvasH - 2 * padY > 1 ? canvasH - 2 * padY : canvasH;
   return points.map(p => {
     const [x, y] = p.split(',').map(Number);
-    return `${Math.round(padX + x * cw)},${Math.round(y * canvasH)}`;
+    const px = Math.round(padX + x * cw);
+    const py = padY > 0 ? Math.round(padY + y * ch) : Math.round(y * canvasH);
+    return `${px},${py}`;
   });
 };
 export const denormalizePoints = denormalizeStroke;

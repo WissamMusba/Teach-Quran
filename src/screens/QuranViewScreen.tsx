@@ -375,7 +375,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // P2-H — runAfterInteractions handle for the post-sync refresh below (cancelled in the
   // effect's cleanup so a re-run/mode-switch never fires the previous refresh's work).
   let syncRefreshHandle: { cancel: () => void } | null = null;
-  const bgColor = nightMode ? '#121212' : '#FFFFFF';
+  const bgColor = nightMode ? '#121212' : '#FAF7EE';
   const isIndopak = indopakFonts.includes(textStyle);
   // ---- derived: page count (610 indopak vs 604), split-mode geometry ----
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
