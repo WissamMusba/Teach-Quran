@@ -267,6 +267,21 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
       }
       if (currentPathRef.current) {
         const newPoint = `${Math.round(e.nativeEvent.locationX)},${Math.round(e.nativeEvent.locationY)}`;
+        const last = lastPenPointRef.current;
+        if (last === null) {
+          lastPenPointRef.current = newPoint;
+          const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
+          return;
+        }
+        const [lx, ly] = last.split(',').map(Number);
+        const [nx, ny] = newPoint.split(',').map(Number);
+        const dx = nx - lx;
+        const dy = ny - ly;
+        if (dx * dx + dy * dy < 9) return; // ignore sub-pixel / high-frequency jitter
+        lastPenPointRef.current = newPoint;
+
         if (stateRef.current.activeTool === 'eraser') {
           const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
           currentPathRef.current = updatedPath;
@@ -276,24 +291,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(({ visible, initial
           currentPathRef.current = updatedPath;
           setCurrentPath(updatedPath);
         } else {
-          const last = lastPenPointRef.current;
-          if (last === null) {
-            lastPenPointRef.current = newPoint;
-            const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
-            currentPathRef.current = updatedPath;
-            setCurrentPath(updatedPath);
-            return;
-          }
-          const [lx, ly] = last.split(',').map(Number);
-          const [nx, ny] = newPoint.split(',').map(Number);
-          const dx = nx - lx;
-          const dy = ny - ly;
-          if (dx * dx + dy * dy >= 9) {
-            lastPenPointRef.current = newPoint;
-            const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
-            currentPathRef.current = updatedPath;
-            setCurrentPath(updatedPath);
-          }
+          const updatedPath = { ...currentPathRef.current, points: [...currentPathRef.current.points, newPoint] };
+          currentPathRef.current = updatedPath;
+          setCurrentPath(updatedPath);
         }
       }
     },

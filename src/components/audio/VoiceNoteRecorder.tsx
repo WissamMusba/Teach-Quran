@@ -1,13 +1,15 @@
 /**
  * FILE: src/components/audio/VoiceNoteRecorder.tsx
  * ROLE: Premium footer-bar voice note recorder with pulsing mic halo, live animated soundwave visualizer,
- *       and sleek glassmorphic controls.
+ *       and sleek glassmorphic controls with full dynamic theme palette support.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, PermissionsAndroid, Platform, Animated, Easing } from 'react-native';
+import { useSelector } from 'react-redux';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { getThemeColors } from '../../utils/theme';
 
 let AudioEncoderAndroidType: any, OutputFormatAndroidType: any, AudioSourceAndroidType: any;
 try {
@@ -83,6 +85,10 @@ const VoiceNoteRecorder = ({
   const stoppingRef = useRef(false);
   const liveRef = useRef(false);
 
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
+
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowOpacity = useRef(new Animated.Value(0.4)).current;
@@ -99,244 +105,234 @@ const VoiceNoteRecorder = ({
 
   // Pulse & Waveform loop while recording
   useEffect(() => {
-    let pulseLoop: Animated.CompositeAnimation | null = null;
+    let animLoop: Animated.CompositeAnimation | null = null;
     let waveLoops: Animated.CompositeAnimation[] = [];
 
     if (phase === 'recording') {
-      pulseLoop = Animated.loop(
+      animLoop = Animated.loop(
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(pulseAnim, { toValue: 1.25, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-            Animated.timing(pulseAnim, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1.25, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
           ]),
           Animated.sequence([
-            Animated.timing(glowOpacity, { toValue: 0.85, duration: 800, useNativeDriver: true }),
-            Animated.timing(glowOpacity, { toValue: 0.25, duration: 800, useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.8, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.25, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
           ]),
         ])
       );
-      pulseLoop.start();
+      animLoop.start();
 
-      waveAnims.forEach((anim, i) => {
-        const h1 = 6 + Math.floor(Math.random() * 20);
-        const h2 = 8 + Math.floor(Math.random() * 22);
+      // Soundwave bar jitter
+      waveLoops = waveAnims.map((val, idx) => {
+        const h1 = 6 + ((idx * 5) % 18);
+        const h2 = 14 + ((idx * 7) % 14);
         const loop = Animated.loop(
           Animated.sequence([
-            Animated.timing(anim, { toValue: h1, duration: 250 + i * 40, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-            Animated.timing(anim, { toValue: h2, duration: 280 + i * 35, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-            Animated.timing(anim, { toValue: 4, duration: 220 + i * 30, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(val, { toValue: h2, duration: 180 + idx * 30, easing: Easing.linear, useNativeDriver: false }),
+            Animated.timing(val, { toValue: h1, duration: 180 + idx * 30, easing: Easing.linear, useNativeDriver: false }),
           ])
         );
-        waveLoops.push(loop);
         loop.start();
+        return loop;
       });
     } else {
       pulseAnim.setValue(1);
-      glowOpacity.setValue(0.3);
-      waveAnims.forEach((anim) => anim.setValue(4));
+      glowOpacity.setValue(0.4);
+      waveAnims.forEach((val) => val.setValue(6));
     }
 
     return () => {
-      pulseLoop?.stop();
+      animLoop?.stop();
       waveLoops.forEach((l) => l.stop());
     };
   }, [phase, pulseAnim, glowOpacity, waveAnims]);
 
-  useEffect(() => () => {
-    recorder.removeRecordBackListener();
-    if (liveRef.current) {
-      try { recorder.stopRecorder(); } catch {}
-    }
-  }, []);
-
-  useEffect(() => {
-    if (phase !== 'done') return;
-    const t = setTimeout(() => onCancel(), 4000);
-    return () => clearTimeout(t);
-  }, [phase, onCancel]);
-
-  const bestEffortUnlink = (p: string | null) => { if (p) { try { RNFS.unlink(p); } catch {} } };
-
-  const requestPermission = async () => {
+  const requestPerm = async () => {
     if (Platform.OS !== 'android') return true;
     try {
       const g = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
         title: 'Microphone Permission',
-        message: 'TeachQuran needs microphone access to record voice notes.',
-        buttonPositive: 'Allow',
+        message: 'Teach Quran needs microphone access to record recitation voice notes.',
+        buttonNeutral: 'Ask Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
       });
       return g === PermissionsAndroid.RESULTS.GRANTED;
-    } catch { return false; }
-  };
-
-  const stop = async (auto = false) => {
-    if (stoppingRef.current) return;
-    stoppingRef.current = true;
-    try {
-      const res = await recorder.stopRecorder();
-      recorder.removeRecordBackListener();
-      liveRef.current = false;
-      const ms = durRef.current;
-      if (res && ms > 500) {
-        onSaved(res, ms);
-        setPhase('done');
-      } else {
-        bestEffortUnlink(res || pathRef.current);
-        if (!auto) Alert.alert('Too short', 'Recording was too short to save.');
-        setPhase('idle');
-        setTime('00:00');
-        durRef.current = 0;
-      }
-    } catch (e: any) {
-      if (!auto) Alert.alert('Error', e?.message || 'Could not stop recording.');
-      liveRef.current = false;
-      setPhase('idle');
-    } finally {
-      stoppingRef.current = false;
+    } catch {
+      return false;
     }
   };
 
   const start = async () => {
-    const ok = await requestPermission();
+    const ok = await requestPerm();
     if (!ok) {
-      Alert.alert('Permission needed', 'Microphone permission is required to record voice notes.');
+      Alert.alert('Permission required', 'Microphone access is needed to record voice notes.');
       return;
     }
+    const dir = `${RNFS.DocumentDirectoryPath}/voicenotes`;
+    try {
+      await RNFS.mkdir(dir);
+    } catch {}
+    const p = `${dir}/note_${Date.now()}.mp4`;
+    pathRef.current = p;
     durRef.current = 0;
     setTime('00:00');
+    stoppingRef.current = false;
+    liveRef.current = true;
     try {
-      const p = `${RNFS.DocumentDirectoryPath}/vn_${Date.now()}.m4a`;
-      pathRef.current = p;
-      await recorder.startRecorder(p, buildAudioSets(), false);
-      liveRef.current = true;
+      await recorder.startRecorder(p, buildAudioSets());
       recorder.addRecordBackListener((e) => {
-        const ms = Math.floor(e.currentPosition);
-        durRef.current = ms;
-        setTime(fmt(ms));
-        if (ms >= maxMs) stop(true);
+        if (!liveRef.current) return;
+        const cur = e.currentPosition;
+        durRef.current = cur;
+        setTime(fmt(cur));
+        if (cur >= maxMs && !stoppingRef.current) {
+          stoppingRef.current = true;
+          stop(true);
+        }
       });
       setPhase('recording');
-    } catch (e: any) {
-      Alert.alert('Recording error', e?.message || 'Could not start recording.');
+    } catch {
+      Alert.alert('Recording failed', 'Could not initialize the audio recorder.');
       setPhase('idle');
+      liveRef.current = false;
     }
   };
 
   const pause = async () => {
     try {
       await recorder.pauseRecorder();
-      liveRef.current = false;
       setPhase('paused');
-    } catch (e: any) {
-      Alert.alert('Pause error', e?.message || 'Could not pause recording.');
-    }
+    } catch {}
   };
 
   const resume = async () => {
     try {
       await recorder.resumeRecorder();
-      liveRef.current = true;
       setPhase('recording');
-    } catch (e: any) {
-      Alert.alert('Resume error', e?.message || 'Could not resume recording.');
+    } catch {}
+  };
+
+  const stop = async (auto = false) => {
+    liveRef.current = false;
+    try {
+      await recorder.stopRecorder();
+      recorder.removeRecordBackListener();
+    } catch {}
+    const p = pathRef.current;
+    const d = durRef.current;
+    if (p && d > 500) {
+      setPhase('done');
+      onSaved(p, d);
+    } else {
+      if (p) {
+        try {
+          await RNFS.unlink(p);
+        } catch {}
+      }
+      setPhase('idle');
+      if (!auto) Alert.alert('Too short', 'Hold or record for at least 1 second to save a note.');
     }
   };
 
-  const cancel = () => {
-    if (liveRef.current || phase === 'recording' || phase === 'paused') {
-      try {
-        recorder.stopRecorder().then((p) => bestEffortUnlink(p || pathRef.current)).catch(() => {});
-      } catch {}
+  const cancel = async () => {
+    liveRef.current = false;
+    try {
+      await recorder.stopRecorder();
       recorder.removeRecordBackListener();
-      liveRef.current = false;
+    } catch {}
+    const p = pathRef.current;
+    if (p) {
+      try {
+        await RNFS.unlink(p);
+      } catch {}
     }
     setPhase('idle');
-    setTime('00:00');
-    durRef.current = 0;
     onCancel();
   };
 
-  const deleteNote = () => {
-    bestEffortUnlink(pathRef.current);
+  const deleteNote = async () => {
+    const p = pathRef.current;
+    if (p) {
+      try {
+        await RNFS.unlink(p);
+      } catch {}
+    }
+    setPhase('idle');
     onDelete?.();
     onCancel();
   };
 
-  const atMax = (phase === 'recording' || phase === 'paused') && durRef.current >= maxMs - 200;
-  const pct = Math.min(100, (durRef.current / maxMs) * 100);
-
-  const caption = phase === 'idle' ? 'Ready to record voice note (max 01:00)'
-    : phase === 'recording' ? 'Recording in progress…'
-    : phase === 'paused' ? 'Recording paused'
-    : 'Voice note saved successfully';
+  const pct = Math.min(100, Math.round((durRef.current / maxMs) * 100));
+  const atMax = durRef.current >= maxMs;
 
   return (
-    <View style={styles.container}>
-      {/* Top Status & Caption Bar */}
+    <View style={[styles.container, { backgroundColor: themeColors.cardBg, borderTopColor: themeColors.border }]}>
+      {/* Header Info */}
       <View style={styles.topRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {phase === 'recording' ? (
-            <View style={styles.recordingDot} />
-          ) : phase === 'paused' ? (
-            <View style={[styles.recordingDot, { backgroundColor: '#FFA000' }]} />
-          ) : null}
-          <Text style={[styles.caption, phase === 'recording' && { color: '#FF5252', fontWeight: '700' }]}>
-            {caption}
+          {phase === 'recording' && <View style={styles.recordingDot} />}
+          <Text style={[styles.caption, { color: themeColors.subText }]}>
+            {phase === 'idle' && 'Tap mic to record voice note'}
+            {phase === 'recording' && 'Recording recitation…'}
+            {phase === 'paused' && 'Paused'}
+            {phase === 'done' && 'Voice note saved'}
           </Text>
         </View>
-        <Text style={[styles.timer, atMax && { color: '#FF5252' }]}>
-          {`${time} / ${fmt(maxMs)}`}
-        </Text>
+        <Text style={[styles.timer, { color: themeColors.text }]}>{time}</Text>
       </View>
 
-      {/* Visualizer & Waveform Bar */}
+      {/* Main Visualizer & Action Bar */}
       <View style={styles.visualizerRow}>
-        {/* Glowing Mic Halo */}
+        {/* Pulsing Mic Halo */}
         <View style={styles.micHaloWrap}>
           {phase === 'recording' && (
             <Animated.View
               style={[
                 styles.glowingHalo,
                 {
+                  backgroundColor: `${themeColors.accent}55`,
                   transform: [{ scale: pulseAnim }],
                   opacity: glowOpacity,
                 },
               ]}
             />
           )}
-          <View style={[styles.micIconCircle, phase === 'recording' && styles.micIconRecording]}>
-            <IconMic c={phase === 'recording' ? '#FFFFFF' : '#7BA7DB'} />
+          <View style={[styles.micIconCircle, { backgroundColor: nightMode ? '#1A1E2C' : '#EFEBE0', borderColor: themeColors.border }, phase === 'recording' && [styles.micIconRecording, { backgroundColor: themeColors.primary, borderColor: themeColors.accent }]]}>
+            <IconMic c={phase === 'recording' ? '#FFFFFF' : themeColors.accent} />
           </View>
         </View>
 
-        {/* Live Dynamic Waveform Bars */}
+        {/* Dynamic Animated Waveform */}
         <View style={styles.waveformContainer}>
-          {waveAnims.map((anim, i) => (
+          {waveAnims.map((animH, i) => (
             <Animated.View
               key={i}
               style={[
                 styles.waveformBar,
                 {
-                  height: anim,
-                  backgroundColor: phase === 'recording' ? '#7BA7DB' : phase === 'paused' ? '#FFA000' : '#454C62',
+                  height: animH,
+                  backgroundColor: phase === 'recording' ? themeColors.accent : themeColors.border,
+                  opacity: phase === 'recording' ? 0.9 : 0.4,
                 },
               ]}
             />
           ))}
         </View>
 
-        {/* Action Controls */}
+        {/* Control Buttons */}
         <View style={styles.actionButtons}>
           {phase === 'idle' && (
-            <TouchableOpacity style={[styles.ctrlBtn, styles.btnRecord]} onPress={start} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.ctrlBtn, styles.btnRecord, { backgroundColor: themeColors.primary }]} onPress={start} activeOpacity={0.85}>
               <IconMic c="#FFFFFF" />
             </TouchableOpacity>
           )}
 
           {phase === 'recording' && (
             <>
-              <TouchableOpacity style={[styles.ctrlBtn, styles.btnPause]} onPress={pause} activeOpacity={0.85}>
-                <IconPause c="#FFFFFF" />
+              <TouchableOpacity style={[styles.ctrlBtn, styles.btnPause, { backgroundColor: nightMode ? '#2C344A' : '#DED8CB' }]} onPress={pause} activeOpacity={0.85}>
+                <IconPause c={themeColors.text} />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.ctrlBtn, styles.btnStop]} onPress={() => stop(false)} activeOpacity={0.85}>
                 <IconStop c="#FFFFFF" />
@@ -346,7 +342,7 @@ const VoiceNoteRecorder = ({
 
           {phase === 'paused' && (
             <>
-              <TouchableOpacity style={[styles.ctrlBtn, styles.btnResume]} onPress={resume} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.ctrlBtn, styles.btnResume, { backgroundColor: themeColors.primary }]} onPress={resume} activeOpacity={0.85}>
                 <IconPlay c="#FFFFFF" />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.ctrlBtn, styles.btnStop]} onPress={() => stop(false)} activeOpacity={0.85}>
@@ -362,8 +358,8 @@ const VoiceNoteRecorder = ({
           )}
 
           {phase !== 'done' && (
-            <TouchableOpacity style={styles.cancelBtn} onPress={cancel} activeOpacity={0.7}>
-              <Text style={styles.cancelText}>✕</Text>
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: nightMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' }]} onPress={cancel} activeOpacity={0.7}>
+              <Text style={[styles.cancelText, { color: themeColors.text }]}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -371,7 +367,7 @@ const VoiceNoteRecorder = ({
 
       {/* Progress Track */}
       <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${pct}%` }, atMax && { backgroundColor: '#FF5252' }]} />
+        <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: themeColors.accent }, atMax && { backgroundColor: '#FF5252' }]} />
       </View>
     </View>
   );
@@ -383,9 +379,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#121520',
     borderTopWidth: 1,
-    borderTopColor: '#283048',
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
@@ -410,12 +404,10 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   caption: {
-    color: '#93A4C7',
     fontSize: 12,
     fontWeight: '600',
   },
   timer: {
-    color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
@@ -438,17 +430,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 82, 82, 0.4)',
   },
   micIconCircle: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E2538',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#303B5A',
   },
   micIconRecording: {
     backgroundColor: '#FF5252',
@@ -481,13 +470,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   btnRecord: {
-    backgroundColor: '#1C3D72',
   },
   btnPause: {
-    backgroundColor: '#2E3854',
   },
   btnResume: {
-    backgroundColor: '#1C3D72',
   },
   btnStop: {
     backgroundColor: '#FF5252',
@@ -496,13 +482,11 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 4,
   },
   cancelText: {
-    color: '#C7D2E8',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -528,7 +512,6 @@ const styles = StyleSheet.create({
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#7BA7DB',
     borderRadius: 1.5,
   },
 });

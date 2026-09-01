@@ -12,6 +12,8 @@
       android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
+      android:hardwareAccelerated="true"
+      android:largeHeap="true"
       android:usesCleartextTraffic="true">
       <!-- TEST app id — TODO replace with the real AdMob application id before release. -->
       <meta-data
