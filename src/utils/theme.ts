@@ -2,7 +2,7 @@
  * FILE: src/utils/theme.ts
  * ROLE: Font-family lookup by text style key, theme color constants, and the juz<->page/surah static tables with helpers.
  */
-import { Dimensions, PixelRatio, Platform } from 'react-native';
+import { Dimensions, PixelRatio } from 'react-native';
 const { width: W } = Dimensions.get('window');
 const wScale = W / 375;
 
@@ -29,6 +29,13 @@ export interface AppThemeColors {
   heroBorder: string;
   text: string;
   subText: string;
+  frameStroke: string;
+  frameBandBg: string;
+  frameCornerBg: string;
+  badgeBg: string;
+  badgeBorder: string;
+  headerBg: string;
+  headerBorder: string;
 }
 
 export const getThemeColors = (colorTheme = 'classic', nightMode = true): AppThemeColors => {
@@ -44,6 +51,13 @@ export const getThemeColors = (colorTheme = 'classic', nightMode = true): AppThe
       heroBorder: nightMode ? '#225242' : '#C2DBCB',
       text: nightMode ? '#FFFFFF' : '#0B1B15',
       subText: nightMode ? '#85A89B' : '#5E786E',
+      frameStroke: nightMode ? '#52B788' : '#0F4C3A',
+      frameBandBg: nightMode ? '#142821' : '#EAF2EC',
+      frameCornerBg: nightMode ? '#183027' : '#F5F8F5',
+      badgeBg: nightMode ? 'rgba(20, 40, 33, 0.92)' : 'rgba(245, 248, 245, 0.95)',
+      badgeBorder: nightMode ? 'rgba(82, 183, 136, 0.35)' : 'rgba(15, 76, 58, 0.35)',
+      headerBg: nightMode ? '#0E1F18' : '#EAF2EC',
+      headerBorder: nightMode ? '#1F3D32' : '#D3E2D6',
     };
   }
   if (colorTheme === 'obsidian') {
@@ -58,6 +72,13 @@ export const getThemeColors = (colorTheme = 'classic', nightMode = true): AppThe
       heroBorder: nightMode ? '#282A38' : '#CCD1DA',
       text: nightMode ? '#FFFFFF' : '#141416',
       subText: nightMode ? '#888898' : '#6A6A78',
+      frameStroke: nightMode ? '#8FA4C4' : '#20242D',
+      frameBandBg: nightMode ? '#111114' : '#E8E4DC',
+      frameCornerBg: nightMode ? '#17181F' : '#F2EFE9',
+      badgeBg: nightMode ? 'rgba(17, 17, 20, 0.92)' : 'rgba(242, 239, 233, 0.95)',
+      badgeBorder: nightMode ? 'rgba(143, 164, 196, 0.35)' : 'rgba(32, 36, 45, 0.35)',
+      headerBg: nightMode ? '#000000' : '#E8E4DC',
+      headerBorder: nightMode ? '#222228' : '#D6D0C4',
     };
   }
   // Default: Classic Royal Navy
@@ -72,6 +93,13 @@ export const getThemeColors = (colorTheme = 'classic', nightMode = true): AppThe
     heroBorder: nightMode ? '#2D3F66' : '#C7D7F0',
     text: nightMode ? '#FFFFFF' : '#1A1A1A',
     subText: nightMode ? '#8E95A8' : '#7D7667',
+    frameStroke: nightMode ? '#7BA7DB' : '#1C3D72',
+    frameBandBg: nightMode ? '#1E2532' : '#F5F2E9',
+    frameCornerBg: nightMode ? '#232A38' : '#FAF7EE',
+    badgeBg: nightMode ? 'rgba(18, 18, 20, 0.85)' : 'rgba(250, 247, 238, 0.92)',
+    badgeBorder: nightMode ? 'rgba(123, 167, 219, 0.35)' : 'rgba(28, 61, 114, 0.35)',
+    headerBg: nightMode ? '#141824' : '#F3EFE4',
+    headerBorder: nightMode ? '#283048' : '#E2DDD0',
   };
 };
 

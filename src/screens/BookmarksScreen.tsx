@@ -1,20 +1,9 @@
 /**
  * FILE: src/screens/BookmarksScreen.tsx
  * ROLE: Lists the current student's bookmarks (newest first) with the reading mark (lastRead)
- *       as the FIRST row (tagged "LAST READ", same card style — not pinned above the list);
- *       tapping any item deep-links back into QuranView at that verse.
- * DEPENDS ON: Redux s.student.studentData.bookmarks (keyed `surah_verse`) + studentData.lastRead
- *             (studentData is hydrated only by QuranViewScreen's mount effect via getStudentData
- *             in src/database/localDB.ts — this screen never calls SQLite itself), s.quran.surahNames,
- *             s.settings.nightMode, src/utils/format.ts (formatDate/formatTime/getJuzForVerse),
- *             src/database/localDB.ts (getVersePagesDB — ONE batched async page lookup for every
- *             bookmark + lastRead, cached in local state AND in a module-level session cache so a
- *             second visit renders real page numbers on the very first frame with zero SQLite
- *             traffic; pages render as "…" only on the first-ever session lookup).
- * USED BY: Opened from the QuranView toolbar `onBookmarks` (QuranViewScreen.tsx); NOT
- *          reachable from Dashboard.
+ *       as the FIRST row with full theme integration (Classic, Emerald, Obsidian).
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -23,116 +12,75 @@ import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
 import { getVersePagesDB } from '../database/localDB';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
+import { getThemeColors } from '../utils/theme';
 
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
-
-// Module-level session cache for mushaf pages: verse->page mappings never change during a
-// session, so a bookmark list page number resolved today is still correct at the next visit.
-// This makes page-enriched first frames instant on every open AFTER the first-ever query and
-// avoids re-issuing the batched SQLite lookup on each screen mount.
 const sessionPageCache: Record<string, number> = {};
 
-/**
- * WHAT: Screen component: derives the sorted bookmark list + last read from Redux, renders
- *       ScreenHeader (fixed, above the list), empty state, pinned card, or FlatList of
- *       premium bookmark cards.
-* FLOW: 1) useSelector s.student.studentData (bookmarks + lastRead read via granular
- *          selectors so unrelated Redux churn never invalidates this screen), s.quran.surahNames,
- *          s.settings.nightMode;
- *       2) sortedBookmarks useMemo: Object.values(bookmarks) sorted desc by
- *          createdAt (sort() MUTATES the values array in place);
- *       3) pageMap local state: ONE background getVersePagesDB call (page lookups for every
- *          bookmark + lastRead batched into a single SQLite query) fills the map keyed
- *          `surah_verse`; cards render "…" until their row lands. The effect is keyed on
- *          the bookmark/lastRead set and deduped in-flight, so the DB is touched once per
- *          change — never per card render;
- *       4) renderBookmark: onPress → handleNavigate(item.surah, item.verse);
- *       5) renders the FlatList (reading mark first when it exists), else empty state.
- * CALLS: handleNavigate → navigation.navigate('QuranView', { surahId, scrollToVerse }) — THE
- *        deep-link contract (QuranViewScreen consumes these params); getJuzForVerse /
- *        formatDate / formatTime for badges + timestamps; getVersePagesDB (single batched
- *        SQLite query) for mushaf pages — runs in the BACKGROUND, never blocks first paint.
- * CALLED BY: React Navigation (registered in the root stack; opened via QuranViewScreen.tsx
- *            toolbar onBookmarks).
- * AFFECTS: Redux: none. Navigation: pushes QuranView with {surahId, scrollToVerse}.
- * NOTES: keyExtractor uses the array index — safe here (no reordering between renders) but
- *        fragile if deletes are added. If studentData is null (QuranView never mounted this
- *        session), both lists render empty — no loading/refresh path in this screen. The
- *        empty-state hint "Long-press a verse to bookmark it" refers to QuranViewScreen's
- *        handleBookmarkFlow, not to any action in this screen.
- * PERF: the whole screen paints instantly from Redux (no awaits before first render);
- *        the only SQLite work — the batched mushaf-page lookup — is deferred to a background
- *        effect that fills the "…" placeholders when the query resolves.
- */
 export default function BookmarksScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
-  useStudentDataRefresh();
   const navigation = navProp || useNavigation<any>();
-  // Granular selectors: only re-render when bookmarks/lastRead actually change (never on
-  // unrelated Redux churn), and never re-read the whole studentData blob on a pageMap flip.
   const bookmarks = useSelector((s: any) => s.student.studentData?.bookmarks);
   const lastRead = useSelector((s: any) => s.student.studentData?.lastRead);
-  // Type-coerced reading mark (cloud round-trips can deliver string ids) — the pin,
-  // the page-batch collect and the LAST READ card all derive from these.
+  const surahNames = useSelector((s: any) => s.quran.surahNames);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
+  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
+
+  useStudentDataRefresh();
+
   const lrSurah = lastRead ? Number(lastRead.surah) : 0;
   const lrVerse = lastRead ? Number(lastRead.verse) : 0;
-  const surahNames = useSelector((s: any) => s.quran.surahNames);
-  const nightMode = !!useSelector((s: any) => s.settings?.nightMode);
 
-  const [pageMap, setPageMap] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
-  const pageMapRef = useRef<Record<string, number>>(pageMap);
-  const pendingPagesRef = useRef<Set<string>>(new Set());
-
-  // Sort with a PRECOMPUTED epoch-ms map instead of `new Date(...)` inside the comparator
-  // (which previously did ~2·n·log n Date parses synchronously at mount AND on every refresh
-  // re-render — the dominant first-frame cost on phones with many bookmarks).
   const sortedBookmarks = React.useMemo(() => {
-    const list: any[] = bookmarks ? (Object.values(bookmarks) as any[]) : [];
-    const createdAtMs = new Map<string, number>();
-    for (const b of list) createdAtMs.set(pageKey(b.surah, b.verse), toMillis(b.createdAt));
-    return list.sort(
-      (a: any, b: any) =>
-        (createdAtMs.get(pageKey(b.surah, b.verse)) || 0) - (createdAtMs.get(pageKey(a.surah, a.verse)) || 0),
-    );
+    const raw: any[] = bookmarks ? Object.values(bookmarks) : [];
+    return raw.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
   }, [bookmarks]);
 
-  // ONE background getVersePagesDB call per bookmark/lastRead set — every mushaf-page lookup
-  // is batched into a single SQLite query, and card renders never touch the DB. The in-flight
-  // set dedupes a still-pending pair (canvas a re-run of this effect while a query is out), and
-  // resolved pairs are skipped forever so re-renders / post-refresh re-fires cost nothing.
+  const [pageMap, setPageMap] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
+
   useEffect(() => {
-    const entries: [number, number][] = [];
-    const collect = (surah: number, verse: number) => {
-      const key = pageKey(surah, verse);
-      if (pageMapRef.current[key] !== undefined || pendingPagesRef.current.has(key)) return;
-      pendingPagesRef.current.add(key);
-      entries.push([surah, verse]);
-    };
-    for (const b of sortedBookmarks) collect(b.surah, b.verse);
-    if (lrSurah > 0) collect(lrSurah, lrVerse);
-    if (!entries.length) return;
     let cancelled = false;
-    getVersePagesDB(entries).then((pages) => {
+    const pendingKeys: [number, number][] = [];
+    const seed: Record<string, number> = { ...pageMap };
+    let seedChanged = false;
+
+    const check = (s: number, v: number) => {
+      const k = pageKey(s, v);
+      if (sessionPageCache[k] !== undefined) {
+        if (seed[k] !== sessionPageCache[k]) { seed[k] = sessionPageCache[k]; seedChanged = true; }
+      } else {
+        pendingKeys.push([s, v]);
+      }
+    };
+
+    if (lrSurah > 0 && lrVerse > 0) check(lrSurah, lrVerse);
+    for (const b of sortedBookmarks as any[]) {
+      const s = Number(b.surah); const v = Number(b.verse);
+      if (s > 0 && v > 0) check(s, v);
+    }
+
+    if (seedChanged) setPageMap({ ...seed });
+    if (pendingKeys.length === 0) return;
+
+    getVersePagesDB(pendingKeys).then((res) => {
       if (cancelled) return;
-      const next = pageMapRef.current;
-      for (const [key, page] of Object.entries(pages)) {
-        pendingPagesRef.current.delete(key);
-        sessionPageCache[key] = page; // seed the session cache so later visits skip this query
+      const next = { ...seed };
+      for (const [key, page] of Object.entries(res)) {
+        sessionPageCache[key] = page;
         if (next[key] !== page) next[key] = page;
       }
       setPageMap({ ...next });
     });
     return () => { cancelled = true; };
-  }, [sortedBookmarks, lastRead?.surah, lastRead?.verse]);
+  }, [sortedBookmarks, lrSurah, lrVerse, textStyle]);
 
   const handleNavigate = React.useCallback(
     (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any),
     [navigation],
   );
 
-  // Unified list data: the reading mark (lastRead) is NOT pinned above the list — it is simply
-  // the FIRST row (same card style, keeps its LAST READ tag), followed by the bookmarks sorted
-  // newest-first by createdAt. A bookmark that IS the reading mark's verse is deduped (it would
-  // otherwise appear both first and in its chronological position).
   const listData = React.useMemo(() => {
     const out: any[] = [];
     if (lrSurah > 0) out.push({ surah: lrSurah, verse: lrVerse, __lastRead: true });
@@ -143,9 +91,6 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
     return out;
   }, [lrSurah, lrVerse, sortedBookmarks]);
 
-  // Per-card display data (surah name, juz, Date/Time strings) is computed ONCE per bookmark
-  // set instead of inside every card render — pageMap flips (which re-render visible cards)
-  // now never re-parse dates, and the juz linear-scan happens once per bookmark, not per frame.
   const cardMeta = React.useMemo(() => {
     const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
     const tsOf = (b: any) => toMillis(b.createdAt || b.updatedAt);
@@ -176,68 +121,74 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
     const page = pageMap[pageKey(item.surah, item.verse)];
     return (
       <TouchableOpacity
-        style={[styles(nightMode).card, nightMode ? styles(nightMode).cardDark : styles(nightMode).cardLight]}
+        style={[
+          styles(nightMode, themeColors).card,
+          {
+            backgroundColor: themeColors.cardBg,
+            borderColor: themeColors.border,
+          }
+        ]}
         onPress={() => handleNavigate(item.surah, item.verse)}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        {/* One-line top row: [LAST READ tag] [Surah name] [Date] [Time] — the name flexes and
-            truncates so the chips stay right-aligned; saves a full row per card. */}
-        <View style={[styles(nightMode).topRow, styles(nightMode).topRowCompact]}>
-          {item.__lastRead ? (
-            <Text style={[styles(nightMode).lastReadTag, { marginBottom: 0 }]}>LAST READ</Text>
+        <View style={styles(nightMode, themeColors).topRow}>
+          {item.__lastRead ? <Text style={[styles(nightMode, themeColors).lastReadTag, { color: themeColors.accent }]}>LAST READ</Text> : null}
+          {meta?.date ? (
+            <View style={[styles(nightMode, themeColors).chip, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: themeColors.border }]}>
+              <Text style={[styles(nightMode, themeColors).chipText, { color: themeColors.text }]}>Date: {meta.date}</Text>
+            </View>
           ) : null}
-          <Text style={[styles(nightMode).surahName, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{meta.name}</Text>
-          <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipDateDark : styles(nightMode).chipDateLight]}>
-            <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipDateTextDark : styles(nightMode).chipDateTextLight]}>
-              {meta.date}
-            </Text>
-          </View>
-          <View style={[styles(nightMode).chip, nightMode ? styles(nightMode).chipTimeDark : styles(nightMode).chipTimeLight]}>
-            <Text style={[styles(nightMode).chipText, nightMode ? styles(nightMode).chipTimeTextDark : styles(nightMode).chipTimeTextLight]}>
-              {meta.time}
-            </Text>
-          </View>
+          {meta?.time ? (
+            <View style={[styles(nightMode, themeColors).chip, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: themeColors.border }]}>
+              <Text style={[styles(nightMode, themeColors).chipText, { color: themeColors.text }]}>Time: {meta.time}</Text>
+            </View>
+          ) : null}
         </View>
-        <View style={[styles(nightMode).metaStack, nightMode ? styles(nightMode).metaStackDark : styles(nightMode).metaStackLight]}>
-          <View style={styles(nightMode).metaItem}>
-            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Surah</Text>
-            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{item.surah}</Text>
+
+        <Text style={[styles(nightMode, themeColors).surahName, { color: themeColors.text, borderLeftColor: themeColors.accent }]}>
+          {meta?.name || `Surah ${item.surah}`}
+        </Text>
+
+        <View style={[styles(nightMode, themeColors).metaStack, { backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: themeColors.border }]}>
+          <View style={styles(nightMode, themeColors).metaItem}>
+            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Surah</Text>
+            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.surah}</Text>
           </View>
-          <View style={styles(nightMode).metaSeparator} />
-          <View style={styles(nightMode).metaItem}>
-            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Ayah</Text>
-            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{item.verse}</Text>
+          <View style={styles(nightMode, themeColors).metaSeparator} />
+          <View style={styles(nightMode, themeColors).metaItem}>
+            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Ayah</Text>
+            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.verse}</Text>
           </View>
-          <View style={styles(nightMode).metaSeparator} />
-          <View style={styles(nightMode).metaItem}>
-            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Juz</Text>
-            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{meta.juz}</Text>
+          <View style={styles(nightMode, themeColors).metaSeparator} />
+          <View style={styles(nightMode, themeColors).metaItem}>
+            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Juz</Text>
+            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{meta?.juz ?? '…'}</Text>
           </View>
-          <View style={styles(nightMode).metaSeparator} />
-          <View style={styles(nightMode).metaItem}>
-            <Text style={[styles(nightMode).metaLabel, { color: '#9aa0b5' }]}>Page</Text>
-            <Text style={[styles(nightMode).metaValue, nightMode ? styles(nightMode).metaValueDark : styles(nightMode).metaValueLight]}>{page !== undefined && page > 0 ? page + 1 : '…'}</Text>
+          <View style={styles(nightMode, themeColors).metaSeparator} />
+          <View style={styles(nightMode, themeColors).metaItem}>
+            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Page</Text>
+            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{page !== undefined ? page : '…'}</Text>
           </View>
         </View>
       </TouchableOpacity>
     );
-  }, [cardMeta, pageMap, nightMode, handleNavigate]);
+  }, [cardMeta, pageMap, handleNavigate, nightMode, themeColors]);
 
   return (
-    <View style={[styles(nightMode).container, nightMode ? styles(nightMode).containerDark : styles(nightMode).containerLight]}>
-      <ScreenHeader title="Bookmarks" subtitle={`${sortedBookmarks.length} saved`} onBack={onClose} />
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg }]}>
+      <ScreenHeader title="Bookmarks" subtitle={`${listData.length} bookmarks`} onBack={onClose} />
       {listData.length === 0 ? (
-        <View style={styles(nightMode).emptyState}>
-          <Text style={styles(nightMode).emptyIcon}>📌</Text>
-          <Text style={styles(nightMode).emptyText}>No bookmarks yet</Text>
-          <Text style={styles(nightMode).emptySub}>Long-press a verse to bookmark it</Text>
+        <View style={styles(nightMode, themeColors).emptyState}>
+          <Text style={styles(nightMode, themeColors).emptyIcon}>📌</Text>
+          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText }]}>No bookmarks yet</Text>
+          <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
         </View>
       ) : (
         <FlatList
           style={{ flex: 1 }}
           data={listData}
           keyExtractor={(i: any, idx: number) => idx.toString()}
-          contentContainerStyle={styles(nightMode).list}
+          contentContainerStyle={styles(nightMode, themeColors).list}
           renderItem={renderBookmark}
         />
       )}
@@ -246,39 +197,22 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
   );
 }
 
-const styles = (nightMode: boolean) => StyleSheet.create({
+const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   container: { flex: 1, padding: 10 },
-  containerDark: { backgroundColor: '#121212' },
-  containerLight: { backgroundColor: '#f5f5f5' },
   list: { paddingBottom: 12 },
   card: { padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  cardDark: { backgroundColor: '#1a1a2e', borderColor: '#2a2a4a' },
-  cardLight: { backgroundColor: '#ffffff', borderColor: '#e5e7f2' },
-  topRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
-  topRowCompact: { alignItems: 'center' },
+  topRow: { flexDirection: 'row', gap: 6, marginBottom: 5, flexWrap: 'wrap', alignItems: 'center' },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
-  chipDateDark: { backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`) },
-  chipDateLight: { backgroundColor: '#e8edf7' },
-  chipTimeDark: { backgroundColor: 'rgba(139,92,246,0.14)' },
-  chipTimeLight: { backgroundColor: '#f1ecfe' },
   chipText: { fontSize: 9, fontWeight: '700' },
-  chipDateTextDark: { color: '#9db9e4' },
-  chipDateTextLight: { color: '#1C3D72' },
-  chipTimeTextDark: { color: '#a78bfa' },
-  chipTimeTextLight: { color: '#7c3aed' },
-  surahName: { color: nightMode ? '#7BA7DB' : '#1C3D72', fontSize: 15, fontWeight: '800', borderLeftWidth: 3, borderLeftColor: nightMode ? '#7BA7DB' : '#1C3D72', paddingLeft: 8, marginBottom: 5 },
-  lastReadTag: { alignSelf: 'flex-start', color: nightMode ? '#7BA7DB' : '#1C3D72', backgroundColor: (nightMode ? `rgba(123,167,219,${0.12})` : `rgba(28,61,114,${0.12})`), fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginBottom: 3 },
+  surahName: { fontSize: 15, fontWeight: '800', borderLeftWidth: 3, paddingLeft: 8, marginBottom: 5 },
+  lastReadTag: { alignSelf: 'flex-start', fontSize: 8, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
-  metaStackDark: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' },
-  metaStackLight: { backgroundColor: '#f4f5fb', borderColor: '#e5e7f2' },
   metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
   metaLabel: { fontSize: 10, fontWeight: '600' },
   metaValue: { fontSize: 10, fontWeight: '700' },
-  metaValueDark: { color: '#ffffff' },
-  metaValueLight: { color: '#1a1a2e' },
   metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5, backgroundColor: '#888' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: '#888', fontSize: 16, fontWeight: '600' },
-  emptySub: { color: '#555', fontSize: 12, marginTop: 4 },
+  emptyText: { fontSize: 16, fontWeight: '600' },
+  emptySub: { fontSize: 12, marginTop: 4 },
 });

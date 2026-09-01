@@ -22,7 +22,7 @@ import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
-import { JUZ_MAP } from '../utils/theme';
+import { JUZ_MAP, getThemeColors } from '../utils/theme';
 
 /**
  * WHAT: Small labeled meta chip for the card info grid (Surah # / Juz / Page / Ayat).
@@ -138,14 +138,17 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
     navigation.navigate('QuranView' as any, { surahId: s, scrollToVerse: v } as any);
   };
 
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+  const themeColors = React.useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
+
   const theme = {
-    screenBg: nightMode ? '#0f0f1e' : '#f4f6fb',
-    cardBg: nightMode ? '#1a1a2e' : '#fff',
-    cardBorder: nightMode ? '#2a2a4a' : '#e2e5f0',
-    text: nightMode ? '#fff' : '#1a1a1a',
-    sub: nightMode ? '#8a8a8a' : '#6b6b76',
-    chipBg: nightMode ? '#232345' : '#f1f4fb',
-    accentSoft: nightMode ? 'rgba(123,167,219,0.16)' : 'rgba(28,61,114,0.10)',
+    screenBg: themeColors.bg,
+    cardBg: themeColors.cardBg,
+    cardBorder: themeColors.border,
+    text: themeColors.text,
+    sub: themeColors.subText,
+    chipBg: nightMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+    accentSoft: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
     dotBorder: nightMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
   };
 

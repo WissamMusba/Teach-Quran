@@ -1,7 +1,7 @@
 /**
  * FILE: src/screens/DashboardScreen.tsx
- * ROLE: Post-login hub — lists students, My Quran Hero card with animated progress ring,
- *       student activity status dots, streak counter, silky smooth rolling FAB (counter-clockwise),
+ * ROLE: Post-login hub — lists students with individual Quran progress rings, My Quran Hero card,
+ *       student activity status dots, streak counter, physical rolling wheel FAB (counter-clockwise on focus),
  *       vector SVG menu icons, and dynamic themes.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -80,6 +80,33 @@ const ProgressCircle = ({ pct, color, bgTrack }: { pct: number; color: string; b
   );
 };
 
+const StudentProgressRing = ({ pct, color, bgTrack }: { pct: number; color: string; bgTrack: string }) => {
+  const r = 13;
+  const stroke = 2.6;
+  const circ = 2 * Math.PI * r;
+  const strokeDashoffset = circ - (pct / 100) * circ;
+  return (
+    <View style={{ width: 34, height: 34, justifyContent: 'center', alignItems: 'center', marginRight: 4 }}>
+      <Svg width={34} height={34} viewBox="0 0 34 34">
+        <Circle cx="17" cy="17" r={r} stroke={bgTrack} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx="17"
+          cy="17"
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${circ} ${circ}`}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          transform="rotate(-90 17 17)"
+        />
+      </Svg>
+      <Text style={{ position: 'absolute', fontSize: 8.5, fontWeight: '800', color }}>{pct}%</Text>
+    </View>
+  );
+};
+
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const statusBarPad = insets.top;
@@ -93,6 +120,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', buttons: undefined as any });
   const [manifests, setManifests] = useState<Record<string, any>>({});
+  const [studentPages, setStudentPages] = useState<Record<string, number>>({});
   const [faces, setFaces] = useState<Record<string, string | null>>({});
   const dispatch = useDispatch();
   const students = useSelector((s: any) => s.student.list);
@@ -101,27 +129,34 @@ export default function DashboardScreen({ navigation }: any) {
   const colorTheme = useSelector((s: any) => s.settings.colorTheme || 'classic');
   const syncStatus = useSelector((s: any) => s.sync.status);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   const adCollapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const prevSyncStatus = useRef<string | null>(null);
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  // Silky smooth rolling FAB animation on mount (counter-clockwise rotation)
+  // Rolling Wheel FAB animation — replays smoothly every time the user is on the Dashboard
   const fabAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(fabAnim, {
-      toValue: 1,
-      duration: 750,
-      delay: 250,
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-      useNativeDriver: false,
-    }).start();
-  }, [fabAnim]);
+  useFocusEffect(
+    useCallback(() => {
+      fabAnim.setValue(0);
+      const timer = setTimeout(() => {
+        Animated.timing(fabAnim, {
+          toValue: 1,
+          duration: 850,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          useNativeDriver: false,
+        }).start();
+      }, 250);
+      return () => clearTimeout(timer);
+    }, [fabAnim])
+  );
 
-  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 148] });
-  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
-  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
-  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [52, 154] });
+  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-540deg'] });
+  const fabPlusTranslateX = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [42, 0] });
+  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0, 1] });
+  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
 
   const isMyQuranStudent = (s: any) => s?.isMyQuran === true || s?.name === 'My Quran';
   const myQuranStudent = useMemo(() => {
@@ -149,16 +184,24 @@ export default function DashboardScreen({ navigation }: any) {
   useEffect(() => {
     let active = true;
     const ids = (students || []).map((s: any) => s?.id).filter(Boolean);
-    if (ids.length === 0) { setManifests({}); return; }
+    if (ids.length === 0) { setManifests({}); setStudentPages({}); return; }
     ids.forEach((id: string) => {
       getManifest(id)
-        .then((res: any) => { if (active) setManifests((prev) => ({ ...prev, [id]: res.data })); })
+        .then(async (res: any) => {
+          if (active && res?.data) {
+            setManifests((prev) => ({ ...prev, [id]: res.data }));
+            const lr = res.data.lastRead;
+            if (lr?.surah && lr?.verse) {
+              const pg = await getVersePage(Number(lr.surah), Number(lr.verse), textStyle).catch(() => 1);
+              if (active) setStudentPages((prev) => ({ ...prev, [id]: pg }));
+            }
+          }
+        })
         .catch(() => {});
     });
     return () => { active = false; };
-  }, [students]);
+  }, [students, textStyle]);
 
-  const textStyle = useSelector((s: any) => s.quran.textStyle);
   const [myQuranResumeInfo, setMyQuranResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
   const [myQuranLastSeenAt, setMyQuranLastSeenAt] = useState<string>('');
   const myQuranLastRead = useMemo(() => {
@@ -365,6 +408,9 @@ export default function DashboardScreen({ navigation }: any) {
     }
     const initial = (item.name || '?').charAt(0).toUpperCase();
 
+    const studentPage = studentPages[item.id] || (lr?.surah ? 1 : 0);
+    const studentPct = studentPage > 0 ? Math.min(100, Math.max(1, Math.round((studentPage / 610) * 100))) : 0;
+
     return (
       <TutorialAnchor id={index === 0 ? 'student-card' : `student-card-${item.id}`}>
       <TouchableOpacity
@@ -402,12 +448,18 @@ export default function DashboardScreen({ navigation }: any) {
             </View>
             {dateLine ? <Text style={[styles(nightMode, themeColors).dateLine, { color: themeColors.subText }]} numberOfLines={1}>{dateLine}</Text> : null}
           </View>
+
+          {/* Student Progress Ring */}
+          {studentPct > 0 ? (
+            <StudentProgressRing pct={studentPct} color={themeColors.accent} bgTrack={nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'} />
+          ) : null}
+
           <Text style={[styles(nightMode, themeColors).chevron, { color: themeColors.subText }]}>›</Text>
         </View>
       </TouchableOpacity>
       </TutorialAnchor>
     );
-  }, [navigation, nightMode, manifests, surahNames, faces, handleLongPress, dispatch, themeColors, getActivityColor]);
+  }, [navigation, nightMode, manifests, studentPages, surahNames, faces, handleLongPress, dispatch, themeColors, getActivityColor]);
 
   const handleMyQuranPress = useCallback(() => {
     if (!myQuranStudent?.id) return;
@@ -535,15 +587,26 @@ export default function DashboardScreen({ navigation }: any) {
         renderItem={renderItem}
       />
 
-      {/* Silky Smooth Rolling Animated FAB */}
-      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 20, bottom: adCollapsed ? 94 : 138 }}>
+      {/* Silky Smooth Rolling Wheel Animated FAB */}
+      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 12, bottom: adCollapsed ? 94 : 138 }}>
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
             style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
             onPress={() => setAddModal(true)}
             activeOpacity={0.85}
           >
-            <Animated.Text style={[styles(nightMode, themeColors).fabPlus, { color: '#FFFFFF', transform: [{ rotate: fabRotate }] }]}>
+            <Animated.Text
+              style={[
+                styles(nightMode, themeColors).fabPlus,
+                {
+                  color: '#FFFFFF',
+                  transform: [
+                    { translateX: fabPlusTranslateX },
+                    { rotate: fabRotate },
+                  ],
+                }
+              ]}
+            >
               +
             </Animated.Text>
             <Animated.Text
@@ -726,7 +789,7 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   studentName: { fontSize: 15.5, fontWeight: '700', letterSpacing: 0.1 },
   readingLine: { fontSize: 12, fontWeight: '600' },
   dateLine: { fontSize: 10.5, marginTop: 2 },
-  chevron: { fontSize: 22, fontWeight: '600', marginLeft: 6 },
+  chevron: { fontSize: 22, fontWeight: '600', marginLeft: 4 },
   heroCard: { padding: 14, borderRadius: 16, marginBottom: 4, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6 },
   heroBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   heroBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
@@ -736,9 +799,9 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   heroPillText: { fontSize: 11, fontWeight: '700' },
   continueBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   continueBtnText: { fontSize: 11.5, fontWeight: '700' },
-  fabContainer: { height: 48, borderRadius: 24, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, overflow: 'hidden' },
-  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  fabPlus: { fontSize: 24, fontWeight: '700', lineHeight: 26, marginRight: 6 },
+  fabContainer: { height: 50, borderRadius: 25, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, overflow: 'hidden' },
+  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
+  fabPlus: { fontSize: 28, fontWeight: '800', lineHeight: 30, marginRight: 6, width: 22, textAlign: 'center' },
   fabTextLabel: { fontSize: 14, fontWeight: '700', letterSpacing: 0.2 },
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   menuDropdown: { position: 'absolute', right: 16, width: 230, borderRadius: 14, borderWidth: 1, paddingVertical: 6, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10 },

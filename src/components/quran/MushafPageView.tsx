@@ -18,6 +18,7 @@ import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import WordHitArea from '../common/WordHitArea';
 import OrnamentalFrame, { frameInsetFor, frameInsetVFor } from './OrnamentalFrame';
 import Svg, { Path } from 'react-native-svg';
+import { getArabicFont, getJuzInfoFromPage, getThemeColors } from '../../utils/theme';
 import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, savePageLayoutCacheMemOnly, preloadPageLayoutCacheRange } from '../../database/localDB';
 import type { PageLayoutCacheRow, PageLayoutCacheFit } from '../../database/localDB';
@@ -31,7 +32,6 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 // new release) never invalidates the cache, so a page is measured ONCE per (page, textStyle,
 // sparse, width) per device and then replayed forever from SQLite. The DB key no longer carries
 // fs (always 0); localDB's layoutVer bump wiped the old fs-keyed rows.
-import { getArabicFont, getJuzInfoFromPage } from '../../utils/theme';
 import { useSelector } from 'react-redux';
 
 // PUA (Private-Use-Area, U+E000-U+F8FF) glyph handling: QPC mushaf fonts encode decorative
@@ -224,6 +224,8 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  */
 const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, isCurrentPage = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+  const themeColors = getThemeColors(colorTheme, nightMode);
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const fontFamily = getArabicFont(textStyle);
@@ -234,8 +236,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
   const juzInfo = pageNum > 0 ? getJuzInfoFromPage(pageNum) : { juz: 0, pagesLeft: 0 };
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
-  const frameC = nightMode ? 'rgba(123,167,219,0.35)' : 'rgba(28,61,114,0.35)';
-  const badgeBg = nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(250,247,238,0.92)';
+  const frameC = themeColors.badgeBorder;
+  const badgeBg = themeColors.badgeBg;
 // v97: fontSizeScale (prop) shrinks the tablet mushaf font — 0.78 in split view, 0.88 for
 // single-page tablets — without touching the phone buckets. 1 (phones) = byte-identical.
 // v98: LANDSCAPE split halves are short — font drops further (0.65 via the caller) and the
@@ -682,7 +684,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         // the ribbon and the top-left corner.
         <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 }}>
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <BookmarkIcon c={nightMode ? '#7BA7DB' : '#1C3D72'} s={20} filled={readingMarkActive} />
+          <BookmarkIcon c={themeColors.accent} s={20} filled={readingMarkActive} />
         </TouchableOpacity>
         </TutorialAnchor>
       )}

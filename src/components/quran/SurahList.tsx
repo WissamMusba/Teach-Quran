@@ -1,15 +1,13 @@
 /**
  * FILE: src/components/quran/SurahList.tsx
- * ROLE: Full-screen modal surah picker with fuzzy search (name/number/juz/page) used from the Quran screen header.
- * DEPENDS ON: SURAH_META (utils/surahMeta.ts — bundled static 114-surah metadata); getStartJuzOfSurah + JUZ_MAP (utils/theme.ts)
- * USED BY: src/screens/QuranViewScreen.tsx, src/screens/SurahIndexScreen.tsx
+ * ROLE: Full-screen modal surah picker with fuzzy search and full theme integration.
  */
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SURAH_META } from '../../utils/surahMeta';
-import { getArabicFont } from '../../utils/theme';
+import { getArabicFont, getThemeColors } from '../../utils/theme';
 
 const normCache: Record<string, string> = {};
 const norm = (s: string): string => {
@@ -58,96 +56,98 @@ const scoreName = (name: string, q: string): number => {
   const nc = n.replace(/\s+/g, '');
   const qc = q.replace(/\s+/g, '');
   const d = levenshtein(nc, qc);
-  if (d <= 2) return 60 - d * 5;
+  if (d <= 2) return 60 - d * 10;
   if (isSubsequence(qc, nc)) return 40;
   return 0;
 };
 
-export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: any) {
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (surahId: number) => void;
+  onSelectPage?: (pageZeroBased: number) => void;
+  onSelectJuz?: (juzNum: number) => void;
+  mode?: 'surah' | 'page' | 'juz';
+}
+
+export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: Props) {
   const insets = useSafeAreaInsets();
-  const nightMode = useSelector((s: any) => s.settings.nightMode);
-  const textStyle = useSelector((s: any) => s.quran.textStyle);
-  const surahNames = useSelector((s: any) => s.quran?.surahNames);
-  const isDark = !!nightMode;
-  const isTablet = useWindowDimensions().width >= 600;
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
   const [query, setQuery] = useState('');
-  const arabicFont = getArabicFont(textStyle);
+  const isDark = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
+  const fontFamily = getArabicFont(textStyle);
+
+  const themeColors = useMemo(() => getThemeColors(colorTheme, isDark), [colorTheme, isDark]);
 
   const data = useMemo(() => {
-    return SURAH_META.map(m => ({
-      id: m.id,
-      name: m.ar,
-      englishName: surahNames?.[m.id] || m.en,
-      verses: m.verses,
-      startJuz: m.startJuz,
-      juzs: m.juzs,
-      pageRange: m.pages,
-    }));
-  }, [surahNames]);
+    if (mode === 'page') {
+      const isIndopak = textStyle === 'alqalam' || textStyle === 'lateef';
+      const maxPages = isIndopak ? 610 : 604;
+      return Array.from({ length: maxPages }, (_, i) => ({ type: 'page', page: i, label: `Page ${i + 1}` }));
+    }
+    if (mode === 'juz') {
+      return Array.from({ length: 30 }, (_, i) => ({ type: 'juz', juz: i + 1, label: `Juz ${i + 1}` }));
+    }
+    return SURAH_META.map((s) => ({ type: 'surah', ...s }));
+  }, [mode, textStyle]);
 
   const results = useMemo(() => {
-    const q = norm(query);
+    const q = query.trim();
     if (!q) return data;
+    const qNorm = norm(q);
     const qNum = parseInt(q, 10);
     const scored: { item: any; score: number }[] = [];
 
-    for (const item of data) {
-      let score = 0;
-      if (item.id === qNum) score = 110;
-      else if (mode === 'juz' && item.juzs.includes(qNum)) score = 105;
-      else if (qNum >= item.pageRange[0] && qNum <= item.pageRange[1]) score = 70;
-      else {
-        const enScore = scoreName(item.englishName, q);
-        const arScore = scoreName(item.name, q);
-        score = Math.max(enScore, arScore);
+    data.forEach((item: any) => {
+      if (item.type === 'page') {
+        const pageNum = item.page + 1;
+        if (pageNum === qNum) scored.push({ item, score: 100 });
+        else if (String(pageNum).startsWith(q)) scored.push({ item, score: 80 });
+      } else if (item.type === 'juz') {
+        if (item.juz === qNum) scored.push({ item, score: 100 });
+        else if (String(item.juz).startsWith(q)) scored.push({ item, score: 80 });
+      } else {
+        if (item.id === qNum) { scored.push({ item, score: 100 }); return; }
+        const sEn = scoreName(item.en, qNorm);
+        const sAr = scoreName(item.ar, qNorm);
+        const sTrans = scoreName(item.translation, qNorm);
+        const best = Math.max(sEn, sAr, sTrans);
+        if (best > 0) scored.push({ item, score: best });
       }
-      if (score > 0) scored.push({ item, score });
-    }
+    });
 
-    scored.sort((a, b) => b.score - a.score || a.item.id - b.item.id);
-
-    const out: any[] = [];
-    if (mode === 'juz' && qNum >= 1 && qNum <= 30) {
-      out.push({ type: 'juz', juz: qNum, englishName: `Juz ${qNum}`, name: '' });
-    }
-    if (mode === 'page' && qNum >= 1 && qNum <= 610) {
-      out.push({ type: 'page', id: qNum, page: Math.max(1, qNum - 1), englishName: `Page ${qNum}`, name: '' });
-    }
-    if (qNum > 0) {
-      const exactIdx = scored.findIndex(x => x.item.id === qNum);
-      if (exactIdx >= 0) out.push(scored[exactIdx].item);
-      if (qNum >= 1 && qNum <= 610) out.push({ type: 'page', id: qNum, page: Math.max(1, qNum - 1), englishName: `Page ${qNum}`, name: '' });
-      scored.forEach((x, i) => { if (i !== exactIdx) out.push(x.item); });
-      return out;
-    }
-    return scored.map(x => x.item);
-  }, [data, query, mode]);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((x) => x.item);
+  }, [data, query]);
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: isDark ? '#10121A' : '#F3EFE4', paddingTop: Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
-        <View style={[styles.header, { backgroundColor: isDark ? '#171A24' : '#FAF7EE', borderBottomColor: isDark ? '#242838' : '#E2DDD0' }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
+        <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#1A1A1A' }]}>
+            <Text style={[styles.title, { color: themeColors.text }]}>
               {mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}
             </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.closeBtn, { color: isDark ? '#7BA7DB' : '#1C3D72' }]}>Close</Text>
+              <Text style={[styles.closeBtn, { color: themeColors.accent }]}>Close</Text>
             </TouchableOpacity>
           </View>
           <TextInput
-            style={[styles.searchInput, { backgroundColor: isDark ? '#1F2433' : '#F0EBE0', color: isDark ? '#FFFFFF' : '#1A1A1A', borderColor: isDark ? '#323B52' : '#CDC4B0' }]}
+            style={[styles.searchInput, { backgroundColor: themeColors.cardBg, color: themeColors.text, borderColor: themeColors.border }]}
             value={query}
             onChangeText={setQuery}
             placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'}
-            placeholderTextColor={isDark ? '#757E9E' : '#999080'}
+            placeholderTextColor={themeColors.subText}
             autoCapitalize="none"
             autoCorrect={false}
           />
         </View>
         {results.length === 0 && query.length > 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyText, { color: isDark ? '#757E9E' : '#999080' }]}>No surahs found</Text>
+            <Text style={[styles.emptyText, { color: themeColors.subText }]}>No surahs found</Text>
           </View>
         ) : (
           <FlatList
@@ -159,8 +159,8 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
                 style={[
                   styles.item,
                   {
-                    backgroundColor: isDark ? '#1C202E' : '#FAF7EE',
-                    borderBottomColor: isDark ? '#2B3145' : '#EAE4D4',
+                    backgroundColor: themeColors.cardBg,
+                    borderBottomColor: themeColors.border,
                     paddingVertical: isTablet ? 14 : 11,
                   }
                 ]}
@@ -173,35 +173,24 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
                 activeOpacity={0.7}
               >
                 <View style={styles.itemLeft}>
-                  <View style={[styles.numBadge, { backgroundColor: isDark ? '#28334E' : '#E8E1CF' }]}>
-                    <Text style={[styles.itemNum, { color: isDark ? '#93BCF0' : '#1C3D72' }]}>
+                  <View style={[styles.numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Text style={[styles.itemNum, { color: themeColors.accent }]}>
                       {item.type === 'page' ? item.page + 1 : item.type === 'juz' ? item.juz : item.id}
                     </Text>
                   </View>
                   <View>
-                    <Text style={[styles.itemText, { color: isDark ? '#FFFFFF' : '#1A1A1A' }]}>{item.englishName}</Text>
-                    {item.type === 'page' ? (
-                      <>
-                        <Text style={[styles.pageTag, { color: isDark ? '#7BA7DB' : '#1C3D72', borderColor: isDark ? '#7BA7DB' : '#1C3D72' }]}>PAGE</Text>
-                        <Text style={[styles.itemJuz, { color: isDark ? '#8E95A8' : '#7D7667' }]}>Go to page {item.page + 1}</Text>
-                      </>
-                    ) : item.type === 'juz' ? (
-                      <>
-                        <Text style={[styles.pageTag, { color: isDark ? '#7BA7DB' : '#1C3D72', borderColor: isDark ? '#7BA7DB' : '#1C3D72' }]}>JUZ</Text>
-                        <Text style={[styles.itemJuz, { color: isDark ? '#8E95A8' : '#7D7667' }]}>Go to juz {item.juz}</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={[styles.itemJuz, { color: isDark ? '#8E95A8' : '#7D7667' }]}>Juz {item.startJuz} · {item.verses} ayahs</Text>
-                        <Text style={[styles.itemPages, { color: isDark ? '#8E95A8' : '#7D7667' }]}>Pages {item.pageRange[0]}–{item.pageRange[1]}</Text>
-                      </>
-                    )}
+                    <Text style={[styles.itemNameEn, { color: themeColors.text }]}>
+                      {item.type === 'page' ? item.label : item.type === 'juz' ? item.label : item.en}
+                    </Text>
+                    {item.type === 'surah' ? (
+                      <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
+                        {item.translation} · {item.verses} verses · Juz {item.startJuz}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
-                {item.name ? (
-                  <Text style={[styles.itemArabic, { color: isDark ? '#E2C275' : '#8C6D15', fontFamily: arabicFont }]}>
-                    {item.name}
-                  </Text>
+                {item.type === 'surah' ? (
+                  <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{item.ar}</Text>
                 ) : null}
               </TouchableOpacity>
             )}
@@ -214,20 +203,18 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 18, borderBottomWidth: 1 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '800' },
+  header: { paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: '800', letterSpacing: 0.2 },
   closeBtn: { fontSize: 16, fontWeight: '700' },
-  searchInput: { marginTop: 14, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, borderWidth: 1 },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 16 },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, borderBottomWidth: 1 },
-  itemLeft: { flexDirection: 'row', alignItems: 'center' },
-  numBadge: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  itemNum: { fontSize: 15, fontWeight: '800' },
-  itemText: { fontSize: 16.5, fontWeight: '700' },
-  itemJuz: { fontSize: 12, marginTop: 2, fontWeight: '500' },
-  itemPages: { fontSize: 12, marginTop: 2, fontWeight: '500' },
-  pageTag: { fontSize: 10, fontWeight: '800', borderWidth: 1, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginTop: 2, alignSelf: 'flex-start' },
-  itemArabic: { fontSize: 22, fontWeight: '700', textAlign: 'right' },
+  searchInput: { height: 42, borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, fontSize: 15 },
+  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  emptyText: { fontSize: 16, fontWeight: '500' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, borderBottomWidth: 1 },
+  itemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  numBadge: { width: 34, height: 34, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  itemNum: { fontSize: 14, fontWeight: '800' },
+  itemNameEn: { fontSize: 15.5, fontWeight: '700' },
+  itemMeta: { fontSize: 12, marginTop: 2 },
+  itemNameAr: { fontSize: 21, fontWeight: 'bold', marginLeft: 10 },
 });

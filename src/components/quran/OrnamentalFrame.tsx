@@ -1,86 +1,22 @@
 /**
  * FILE: src/components/quran/OrnamentalFrame.tsx
- * ROLE: Decorative mushaf border — the classic Quranic blue frame: an outer thin rule, a
- *       repeating geometric pattern band (square tile with an X → interlocking braid), and
- *       four elaborate corner nodes (nested diamonds/knots) covering the band joints.
- *       Colors follow the classic mushaf palette: Quranic blue #1C3D72 lines on white,
- *       band background #F8F9FA (night mode swaps in a lighter steel blue + dark band/corner
- *       fills so the frame stays readable on dark pages).
- * DEPENDS ON: react-native-svg (Svg/Defs/Pattern/Rect/Line/Polygon/G/Use); color/bg/nightMode props
- * USED BY: src/components/quran/MushafPageView.tsx (inside overlayLayer — rendered on EVERY page,
- *          both normal and fallback paths)
- *
- * GEOMETRY (parametric, scales from a 1000×1400 design canvas to the measured container):
- *   paddingOuter = W×0.010   (design: 10px offset of the outer thin border)
- *   gapOuter     = W×0.006   (design: 6px white gap between thin border and main frame)
- *   bandWidth    = W×0.027, min 4px (frameBandFor — the shared band source of truth; ~32% thinner
- *                  than the original W×0.040 design band so the text area reclaims width)
- *   gapInner     = W×0.002, min 1.5px    (inner thin rule sits on the band's inner edge)
- *   tile         = bandWidth/2          → perfect 2× repetition across the band (20px on 40px)
- *   stroke       = max(0.75, W×0.0015)  → 1.5px hairline scaled to the actual page width
- *   outerStroke  = max(1.5, W×0.0035)   → ~2.3× the hairline; the frame's OUTER outline (layers
- *                  1+3) draws with this so the border is clearly visible at a glance
- *   Layers outside→inside: outer thin rect (po) → gap (go) → main frame outer rect (po+go) →
- *   pattern band (po+go .. po+go+band) → main frame inner rect (po+go+band) → thin inner rule
- *   sitting directly on the band's inner edge (gi ≈ 1-2px) → inner text bounding box (po+go+band+gi).
- *   The four bands are drawn as separate rects filled
- *   with the repeating pattern (NO continuous band through the corners), then four corner-node
- *   squares are placed exactly over the band intersections. <Use> carries x/y ONLY (no extra
- *   transform — RN-SVG x/y already translate, adding both would double-offset every node).
- *   The text continuation box inset is exposed via frameInsetFor(W) so MushafPageView can pad
- *   the mushaf text container to keep every glyph strictly inside the light text zone.
- *
- * FIT NOTES:
- *  - Container-measured geometry via onLayout, NOT window Dimensions: MushafPageView renders the
- *    frame on half-width pages in split mode and on tablets, so window-size math would
- *    overflow/clip.
- *  - viewBox == measured pixel size → 1:1 mapping, strokes never distort.
- *  - The pattern's origin follows the SVG user space (0,0) — the tile grid is continuous, so
- *    band placement never shows seams.
+ * ROLE: Decorative mushaf border with dynamic themes (Classic Royal Navy, Madinah Emerald, OLED Obsidian).
  */
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Dimensions, View, StyleSheet } from 'react-native';
+import { useSelector } from 'react-redux';
 import Svg, { Defs, Pattern, Rect, Line, Polygon, G, Use } from 'react-native-svg';
 import { getFrameBox, saveFrameBox } from '../../database/localDB';
 
 interface OrnamentalFrameProps {
-  color: string;        // kept for call-site compat; palette below wins
+  color?: string;
   bg?: string;
-  nightMode?: boolean;  // night swaps blue for a lighter steel blue and dark band/corner fills
+  nightMode?: boolean;
 }
 
-// Classic Quranic frame palette. Night mode: lighter steel blue so the frame reads on dark
-// pages; band/corner fill backgrounds darken to match the page.
-const BLUE = '#1C3D72';
-const BLUE_NIGHT = '#7BA7DB';
-const BAND_BG = '#F5F2E9';
-const BAND_BG_NIGHT = '#1E2532';
-const CORNER_BG = '#FAF7EE';
-const CORNER_BG_NIGHT = '#232A38';
-
-/**
- * WHAT: SINGLE SOURCE OF TRUTH for the decorative pattern band width at a given page width.
- *       Used by BOTH the frame's painted band (component `band`) and frameInsetFor, so the
- *       painted inner edge and the text inset stay in perfect sync. ~32% thinner than the
- *       original W×0.040 (min 6) band; clamped so it never collapses below 4px.
- * CALLS: none. AFFECTS: none (pure).
- */
 const frameBandFor = (W: number) => Math.max(4, W * 0.027);
-
-/**
- * WHAT: VERTICAL band width — the frame's top/bottom decorative bands are TALLER than the side
- *       bands (side bands stay W×0.027 so the text area keeps its full width; the taller top/bottom
- *       bands give the frame the taller classic proportion and the text more visual headroom).
- * CALLS: none. AFFECTS: pure.
- */
 const frameBandVFor = (W: number) => Math.max(5, W * 0.036);
 
-/**
- * WHAT: Exposes the frame's inner text-box inset for a given page width — the distance from
- *       the page edge to the innermost (text continuation) bounding box. MushafPageView uses
- *       this to pad its text container so no glyph ever crosses the frame's inner border.
- * CALLS: none. AFFECTS: none (pure).
- */
 export const frameInsetFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
@@ -89,12 +25,6 @@ export const frameInsetFor = (W: number) => {
   return po + go + band + gi;
 };
 
-/**
- * WHAT: VERTICAL inset — the distance from the page edge to the frame's inner text-box (top and
- *       bottom). Uses the TALLER vertical band (frameBandVFor) so MushafPageView's top/bottom
- *       padding floor stays in sync with the painted inner rule.
- * CALLS: none. AFFECTS: pure.
- */
 export const frameInsetVFor = (W: number) => {
   const po = Math.max(2, W * 0.010);
   const go = Math.max(1, W * 0.006);
@@ -104,7 +34,7 @@ export const frameInsetVFor = (W: number) => {
 };
 
 const SETTLE_MS = 150;
-let SESSION_BOX: { w: number; h: number } | null = null;   // session-wide instant first paint
+let SESSION_BOX: { w: number; h: number } | null = null;
 const initialBox = (): { w: number; h: number } => {
   if (SESSION_BOX) return SESSION_BOX;
   const { width, height } = Dimensions.get('window');
@@ -112,24 +42,29 @@ const initialBox = (): { w: number; h: number } => {
 };
 
 const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
-  const blue = nightMode ? BLUE_NIGHT : BLUE;
-  const bandBg = nightMode ? BAND_BG_NIGHT : BAND_BG;
-  const cornerBg = nightMode ? CORNER_BG_NIGHT : CORNER_BG;
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
+
+  let strokeColor = nightMode ? '#7BA7DB' : '#1C3D72';
+  let bandBg = nightMode ? '#1E2532' : '#F5F2E9';
+  let cornerBg = nightMode ? '#232A38' : '#FAF7EE';
+
+  if (colorTheme === 'emerald') {
+    strokeColor = nightMode ? '#52B788' : '#0F4C3A';
+    bandBg = nightMode ? '#142821' : '#EAF2EC';
+    cornerBg = nightMode ? '#183027' : '#F5F8F5';
+  } else if (colorTheme === 'obsidian') {
+    strokeColor = nightMode ? '#8FA4C4' : '#20242D';
+    bandBg = nightMode ? '#111114' : '#E8E4DC';
+    cornerBg = nightMode ? '#17181F' : '#F2EFE9';
+  }
 
   const [box, setBox] = useState<{ w: number; h: number }>(initialBox);
   const boxRef = useRef(box);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Frame cache key = the CONTAINER width the box was measured at (v2 prefix purges rows the
-  // v71 hidden pre-render harness polluted — hidden pages measured winH-tall boxes under the
-  // window-width key, so cold starts adopted a squashed box and frames flipped between sizes).
-  // Full-width pages all share one stable row; split/half-width pages get their own. Reads
-  // before the first onLayout use the initial box (window dims) — full pages land on the same
-  // row the settle will write, so adoption and save stay consistent.
   const cacheKeyFor = (w: number) => `frame_v2_${w}`;
   const W = box.w;
   const H = box.h;
 
-  // Cold start: adopt the persisted per-device box once (best-effort).
   useEffect(() => {
     let mounted = true;
     getFrameBox(cacheKeyFor(initialBox().w)).then((c) => {
@@ -140,114 +75,80 @@ const OrnamentalFrame = ({ nightMode = false }: OrnamentalFrameProps) => {
   }, []);
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 
-  // --- parametric geometry (scaled from the 1000×1400 design canvas) -------------------------
-  // FIX 5: the pattern band is anchored at the wrapper edge (x0 = 0) — Worker B's wrapper
-  // margins (marginHorizontal 10/6, marginTop 24, marginBottom 22) supply the distance to the
-  // screen edge, so the band starts immediately at the page edge. The inner thin rule (layer 7)
-  // sits flush on the band's inner edge (x1 = band). Text placement still uses frameInsetFor.
-  // FIX 6: the band comes from the SHARED frameBandFor(W) (W×0.027, min 4 — ~32% thinner than the
-  // old W×0.040, min 6). frameInsetFor uses the same function, so the painted inner edge and the
-  // text inset stay in perfect sync and the reclaimed width flows into lineW automatically (via
-  // MushafPageView's framePad = textInsetFor = frameInsetFor + 10). The tile (band/2) and the
-  // corner nodes scale off `band`, so the braided pattern look is unchanged, just smaller.
-  // v97 — TABLET FRAME SCALE GUARD: every ornament thickness below derives from a phone-like
-  // reference width on tablets (window >= 600dp), so split halves, portrait singles and wide
-  // landscape pages all wear the same compact frame a phone gets instead of width-scaled
-  // giant stretched bands (the v96 vertical-band boost made tall/narrow halves worse — it is
-  // fully reverted here). Phones (window < 600) use the raw width: pixel-identical to before.
-  // The text-inset contract is unaffected: textInsetFor's 6.7%-of-width floor always exceeds
-  // frameInsetFor, so padding never shrinks from this cap.
   const winW = Dimensions.get('window').width;
   const geoRef = winW >= 600 ? Math.min(W, 430) : W;
-  const po = Math.max(2, geoRef * 0.010);   // layer 1: outer thin border offset
-  const band = frameBandFor(geoRef);        // layer 4: decorative band width (shared with frameInsetFor)
-  const bandV = frameBandVFor(geoRef);      // vertical bands — taller than the side bands
-  const sw = Math.max(0.75, geoRef * 0.0015);   // hairline stroke — pattern tiles, corner knots, inner rules
-  const outSw = Math.max(1.5, geoRef * 0.0035); // BOLDER outer border stroke (layers 1+3) so the frame outline reads clearly
-  const tile = Math.max(3, band / 2);       // pattern tile = half the band → 2× vertical repetition
-  const vScale = bandV / band;              // corner-node vertical stretch so nodes cover the taller top/bottom bands
+  const po = Math.max(2, geoRef * 0.010);
+  const band = frameBandFor(geoRef);
+  const bandV = frameBandVFor(geoRef);
+  const sw = Math.max(0.75, geoRef * 0.0015);
+  const outSw = Math.max(1.5, geoRef * 0.0035);
+  const tile = Math.max(3, band / 2);
+  const vScale = bandV / band;
 
-  const x0 = 0;                             // main frame outer edge — flush to the wrapper edge
-  const x1 = band;                          // main frame inner edge (band inner edge)
-  const mainW = Math.max(0, W - 2 * x0);    // main frame outer rect size
-  const innerW = Math.max(0, W - 2 * x1);   // main frame inner rect size
+  const x0 = 0;
+  const x1 = band;
+  const mainW = Math.max(0, W - 2 * x0);
+  const innerW = Math.max(0, W - 2 * x1);
 
   const onLayout = (e: any) => {
     const w = Math.round(e.nativeEvent.layout.width);
     const h = Math.round(e.nativeEvent.layout.height);
     if (w <= 0 || h <= 0) return;
-    if (w === boxRef.current.w && h === boxRef.current.h) return;      // no-op frames
+    if (w === boxRef.current.w && h === boxRef.current.h) return;
     if (settleTimer.current) clearTimeout(settleTimer.current);
     settleTimer.current = setTimeout(() => {
       settleTimer.current = null;
       const next = { w, h };
       boxRef.current = next;
       SESSION_BOX = next;
-      setBox(next);                                                     // ONE re-render, after layout settles
+      setBox(next);
       saveFrameBox(cacheKeyFor(w), w, h).catch(() => {});
     }, SETTLE_MS);
   };
 
   return (
-    <View
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
-      onLayout={onLayout}
-    >
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" onLayout={onLayout}>
       {W > 0 && H > 0 && (
         <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        <Defs>
-          {/* Repeating geometric tile: a square box with an X inside. Tiling it horizontally and
-              vertically creates the interlocking braided look of classic mushaf frames. */}
-          <Pattern id="framePattern" width={tile} height={tile} patternUnits="userSpaceOnUse">
-            <Rect x={0} y={0} width={tile} height={tile} fill={bandBg} stroke={blue} strokeWidth={sw} />
-            <Line x1={0} y1={0} x2={tile} y2={tile} stroke={blue} strokeWidth={sw} />
-            <Line x1={tile} y1={0} x2={0} y2={tile} stroke={blue} strokeWidth={sw} />
-          </Pattern>
+          <Defs>
+            <Pattern id="framePattern" width={tile} height={tile} patternUnits="userSpaceOnUse">
+              <Rect x={0} y={0} width={tile} height={tile} fill={bandBg} stroke={strokeColor} strokeWidth={sw} />
+              <Line x1={0} y1={0} x2={tile} y2={tile} stroke={strokeColor} strokeWidth={sw} />
+              <Line x1={tile} y1={0} x2={0} y2={tile} stroke={strokeColor} strokeWidth={sw} />
+            </Pattern>
 
-          {/* Modular corner node (bandWidth × bandWidth): solid base covering the pattern joints,
-              then three nested diamonds — the elaborate knot finish. Local coords 0..band. */}
-          <G id="cornerNode">
-            <Rect x={0} y={0} width={band} height={band} fill={cornerBg} stroke={blue} strokeWidth={sw} />
-            <Polygon points={`${band / 2},0 ${band},${band / 2} ${band / 2},${band} 0,${band / 2}`}
-              fill="none" stroke={blue} strokeWidth={sw} />
-            <Polygon points={`${band / 2},${band * 0.175} ${band * 0.825},${band / 2} ${band / 2},${band * 0.825} ${band * 0.175},${band / 2}`}
-              fill="none" stroke={blue} strokeWidth={sw} />
-            <Polygon points={`${band / 2},${band * 0.3} ${band * 0.7},${band / 2} ${band / 2},${band * 0.7} ${band * 0.3},${band / 2}`}
-              fill="none" stroke={blue} strokeWidth={sw} />
-          </G>
-        </Defs>
+            <G id="cornerNode">
+              <Rect x={0} y={0} width={band} height={band} fill={cornerBg} stroke={strokeColor} strokeWidth={sw} />
+              <Polygon points={`${band / 2},0 ${band},${band / 2} ${band / 2},${band} 0,${band / 2}`} fill="none" stroke={strokeColor} strokeWidth={sw} />
+              <Polygon points={`${band / 2},${band * 0.175} ${band * 0.825},${band / 2} ${band / 2},${band * 0.825} ${band * 0.175},${band / 2}`} fill="none" stroke={strokeColor} strokeWidth={sw} />
+              <Polygon points={`${band / 2},${band * 0.3} ${band * 0.7},${band / 2} ${band / 2},${band * 0.7} ${band * 0.3},${band / 2}`} fill="none" stroke={strokeColor} strokeWidth={sw} />
+            </G>
+          </Defs>
 
-        {/* Layer 1: outer thin border (BOLD — outSw) */}
-        <Rect x={po} y={po} width={W - 2 * po} height={H - 2 * po}
-          fill="none" stroke={blue} strokeWidth={outSw} />
+          {/* Layer 1: outer thin border */}
+          <Rect x={po} y={po} width={W - 2 * po} height={H - 2 * po} fill="none" stroke={strokeColor} strokeWidth={outSw} />
 
-        {/* Layer 3: main frame outer border — defines the pattern band's outer edge (BOLD — outSw) */}
-        <Rect x={x0} y={x0} width={mainW} height={H - 2 * x0}
-          fill="none" stroke={blue} strokeWidth={outSw} />
+          {/* Layer 3: main frame outer border */}
+          <Rect x={x0} y={x0} width={mainW} height={H - 2 * x0} fill="none" stroke={strokeColor} strokeWidth={outSw} />
 
-        {/* Layer 5: main frame inner border (closes the pattern band) */}
-        <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          {/* Layer 5: main frame inner border */}
+          <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)} fill="none" stroke={strokeColor} strokeWidth={sw} />
 
-        {/* Layer 4: the four pattern bands (separate rects so corners stay clean) */}
-        <Rect x={x0} y={x0} width={mainW} height={bandV} fill="url(#framePattern)" />
-        <Rect x={x0} y={H - x0 - bandV} width={mainW} height={bandV} fill="url(#framePattern)" />
-        <Rect x={x0} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
-        <Rect x={W - x0 - band} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
+          {/* Layer 4: the four pattern bands */}
+          <Rect x={x0} y={x0} width={mainW} height={bandV} fill="url(#framePattern)" />
+          <Rect x={x0} y={H - x0 - bandV} width={mainW} height={bandV} fill="url(#framePattern)" />
+          <Rect x={x0} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
+          <Rect x={W - x0 - band} y={bandV} width={band} height={Math.max(0, H - 2 * bandV)} fill="url(#framePattern)" />
 
-        {/* Layer 7: inner text area bounding box — the mushaf text lives strictly inside */}
-        <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)}
-          fill="none" stroke={blue} strokeWidth={sw} />
+          {/* Layer 7: inner text area bounding box */}
+          <Rect x={x1} y={bandV} width={innerW} height={Math.max(0, H - 2 * bandV)} fill="none" stroke={strokeColor} strokeWidth={sw} />
 
-        {/* The four corner nodes — placed exactly over the band intersections. The wrapping G
-            translate/scale (vertical stretch bandV/band) makes the nodes cover the taller
-            top/bottom bands; the Use carries x/y 0 so nothing double-offsets. */}
-        <G transform={`translate(${x0} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
-        <G transform={`translate(${W - x0 - band} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
-        <G transform={`translate(${x0} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
-        <G transform={`translate(${W - x0 - band} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
-      </Svg>
+          {/* Corner nodes */}
+          <G transform={`translate(${x0} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+          <G transform={`translate(${W - x0 - band} ${x0}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+          <G transform={`translate(${x0} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+          <G transform={`translate(${W - x0 - band} ${H - x0 - bandV}) scale(1 ${vScale})`}><Use href="#cornerNode" x={0} y={0} /></G>
+        </Svg>
       )}
     </View>
   );

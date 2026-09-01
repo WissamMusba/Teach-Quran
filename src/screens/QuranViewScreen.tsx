@@ -52,7 +52,7 @@ import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
 import { pushDrawings, pullDrawings } from '../api/sync';
 import { hPadFor } from '../utils/stroke';
-import { getJuzInfoFromPage, getStartJuzOfSurah, JUZ_MAP } from '../utils/theme';
+import { getJuzInfoFromPage, getStartJuzOfSurah, JUZ_MAP, getThemeColors } from '../utils/theme';
 import { getFreshnessSnapshot, studentDataIsCurrent, markStudentDataLoaded } from '../hooks/useStudentDataRefresh';
 import { MISTAKE_COLOR } from '../utils/constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -367,7 +367,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
-  const { nightMode, bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
+  const { nightMode, colorTheme = 'classic', bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
   const safeLoop = loopSettings || {};
   const syncStatus = useSelector((s: any) => s.sync.status);
@@ -375,7 +376,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // P2-H — runAfterInteractions handle for the post-sync refresh below (cancelled in the
   // effect's cleanup so a re-run/mode-switch never fires the previous refresh's work).
   let syncRefreshHandle: { cancel: () => void } | null = null;
-  const bgColor = nightMode ? '#121212' : '#FAF7EE';
+  const bgColor = themeColors.bg;
   const isIndopak = indopakFonts.includes(textStyle);
   // ---- derived: page count (610 indopak vs 604), split-mode geometry ----
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
@@ -2362,33 +2363,34 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
             {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}
             {isCapturing && shareDrawings && capturePaths?.length > 0 && (<StaticDrawingOverlay paths={capturePaths} />)}
+
+            {/* Live Drawing Canvas — co-located inside viewShotRef for 1:1 pixel coordinate alignment in screenshots */}
+            {isDrawing && (
+              <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing}
+                initialPaths={composeSpreadPaths()}
+                onSave={(paths: any) => {
+                  emitTutorialEvent('stroke_saved');
+                  if (!studentData) return;
+                  const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
+                  if (!splitOn) {
+                    updateData({ drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } });
+                    pushDrawings(currentStudent.id, drawingKey.startsWith('page_') ? rangeKeyForPage(currentPageNum) : drawingKey, [drawingKey], geo);
+                    return;
+                  }
+                  const even: any[] = []; const odd: any[] = [];
+                  for (const p of paths) { if (midXOf(p) >= splitMidX) even.push(p); else odd.push(p); }
+                  updateData({ drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
+                  pushDrawings(currentStudent.id, rangeKeyForPage(currentPageNum), [spreadOddKey!, spreadEvenKey!], geo);
+                }}
+                onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
+                onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />
+            )}
           </View>
         </PanGestureHandler></GestureHandlerRootView>
       </View>
       </TutorialAnchor>
 
       {/* ================= drawing wiring: canvas + toolbar (error-boundary wrapped) ================= */}
-      {isDrawing && (
-        <DrawingCanvas ref={canvasRef} visible={isDrawing && !isCapturing}
-          initialPaths={composeSpreadPaths()}
-          onSave={(paths: any) => {
-            emitTutorialEvent('stroke_saved');
-            if (!studentData) return;
-            const geo = { canvasW: splitOn ? pageW : winW, canvasH: winH, padX: hPadFor(splitOn ? pageW : winW) };
-            if (!splitOn) {
-              updateData({ drawings: { ...(studentData.drawings || {}), [drawingKey]: { paths, updatedAt: new Date() } } });
-              pushDrawings(currentStudent.id, drawingKey.startsWith('page_') ? rangeKeyForPage(currentPageNum) : drawingKey, [drawingKey], geo);
-              return;
-            }
-            const even: any[] = []; const odd: any[] = [];
-            for (const p of paths) { if (midXOf(p) >= splitMidX) even.push(p); else odd.push(p); }
-            updateData({ drawings: { ...(studentData.drawings || {}), [spreadEvenKey!]: { paths: translatePaths(even, -halfOrigin), updatedAt: new Date() }, [spreadOddKey!]: { paths: odd, updatedAt: new Date() } } });
-            pushDrawings(currentStudent.id, rangeKeyForPage(currentPageNum), [spreadOddKey!, spreadEvenKey!], geo);
-          }}
-          onStateChange={(u: boolean, r: boolean) => setCanvasUndoState({ canUndo: u, canRedo: r })}
-          onGestureStart={() => setDrawingGestureActive(true)} onGestureEnd={() => setDrawingGestureActive(false)} />
-      )}
-
       {/* ---- AnnotationToolbar: undo/redo/clear/exit + activate-draw; the header is already
            hidden by the expand watcher (v96), so onActivateDraw only guards + setIsDrawing(true) ---- */}
       <ToolbarBoundary>
