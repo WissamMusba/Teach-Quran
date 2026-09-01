@@ -173,7 +173,6 @@ export default function DashboardScreen({ navigation }: any) {
 
   const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 114] });
   const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
-  const fabPlusTranslateX = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [32, 0] });
   const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
   const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
 
@@ -622,7 +621,6 @@ export default function DashboardScreen({ navigation }: any) {
                 {
                   color: '#FFFFFF',
                   transform: [
-                    { translateX: fabPlusTranslateX },
                     { rotate: fabRotate },
                   ],
                 }

@@ -71,10 +71,10 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
     rTitle: resolveTokens(step.compare.rTitle), rBody: resolveTokens(step.compare.rBody),
   } : null;
 
-  const handPos = zone
-    ? { left: zone.x + zone.w / 2 - TIP_X, top: zone.y + zone.h / 2 - TIP_Y }
-    : step.handPos
-      ? { left: step.handPos.fx * winW - TIP_X, top: step.handPos.fy * winH - TIP_Y }
+  const handPos = step.handPos
+    ? { left: step.handPos.fx * winW - TIP_X, top: step.handPos.fy * winH - TIP_Y }
+    : zone
+      ? { left: zone.x + zone.w / 2 - TIP_X, top: zone.y + zone.h / 2 - TIP_Y }
       : null;
 
   const dimRects = zone

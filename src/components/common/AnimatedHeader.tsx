@@ -127,45 +127,46 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           onLayout={onContentLayout}
         >
           <View style={s.topRow}>
+            {/* Left Aligned Back Button & Action Icons + Hamburger Menu */}
             <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
               <IconBack c={primaryAccent} />
             </TouchableOpacity>
 
-            <TutorialAnchor id="hdr-list">
-              <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
-                <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
-                <Text style={[s.surahSub, { color: subColor }]} numberOfLines={1}>
-                  {`Surah ${p.surahId} ▾`}
-                </Text>
+            <TutorialAnchor id="hdr-menu">
+              <TouchableOpacity
+                style={s.hamburgerBtn}
+                onPress={() => setMenuOpen(true)}
+                activeOpacity={0.6}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <IconHamburger c={primaryAccent} />
               </TouchableOpacity>
             </TutorialAnchor>
 
-            {/* Right Aligned Action Icons + Hamburger Corner Menu */}
             <View style={s.iconsRow}>
               <TutorialAnchor id="hdr-share">
                 <Btn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} />
               </TutorialAnchor>
               <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
-
-              <TutorialAnchor id="hdr-menu">
-                <TouchableOpacity
-                  style={s.hamburgerBtn}
-                  onPress={() => setMenuOpen(true)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <IconHamburger c={primaryAccent} />
-                </TouchableOpacity>
-              </TutorialAnchor>
             </View>
+
+            {/* Right Aligned Title Block */}
+            <TutorialAnchor id="hdr-list" style={{ flex: 1 }}>
+              <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
+                <Text style={[s.surahName, { color: titleColor, textAlign: 'right' }]} numberOfLines={1}>{p.surahName}</Text>
+                <Text style={[s.surahSub, { color: subColor, textAlign: 'right' }]} numberOfLines={1}>
+                  {`Surah ${p.surahId} ▾`}
+                </Text>
+              </TouchableOpacity>
+            </TutorialAnchor>
           </View>
         </Animated.View>
       </Animated.View>
 
-      {/* Top-Right Hamburger Dropdown Menu Modal */}
+      {/* Left-Aligned Hamburger Dropdown Menu Modal */}
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)}>
-          <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48 }]}>
+          <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, left: 44 }]}>
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onNotes(); }}
@@ -202,16 +203,16 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4 },
-  backBtn: { minHeight: 42, minWidth: 40, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
-  titleBlock: { flex: 1, paddingVertical: 1, paddingLeft: 2 },
-  surahName: { fontSize: 16, fontWeight: 'bold' },
-  surahSub: { fontSize: 10.5, marginTop: 1, fontWeight: '500' },
-  iconsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  backBtn: { minHeight: 42, minWidth: 38, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  hamburgerBtn: { minWidth: 38, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, marginRight: 4 },
+  iconsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: { minWidth: 44, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
   iconLab: { fontSize: 8.5, fontWeight: '700', marginTop: 2, letterSpacing: 0.2 },
-  hamburgerBtn: { minWidth: 40, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, marginRight: 2 },
+  titleBlock: { flex: 1, paddingVertical: 1, paddingRight: 6, paddingLeft: 8 },
+  surahName: { fontSize: 16, fontWeight: 'bold' },
+  surahSub: { fontSize: 10.5, marginTop: 1, fontWeight: '500' },
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  menuPopup: { position: 'absolute', right: 10, width: 165, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10, overflow: 'hidden' },
+  menuPopup: { position: 'absolute', width: 165, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10, overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
   menuText: { fontSize: 14.5, fontWeight: '600' },
 });

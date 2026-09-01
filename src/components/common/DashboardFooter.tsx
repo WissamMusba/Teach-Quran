@@ -8,12 +8,13 @@
  * DEPENDS ON: src/database/localDB.ts (no — purely nav), src/store/studentSlice.ts,
  *             react-native-safe-area-context (insets), react-native-svg (arrow).
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { setCurrentStudent } from '../../store/studentSlice';
+import { getThemeColors } from '../../utils/theme';
 
 const ArrowRight = ({ c }: { c: string }) => (
   <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="M5 12h14M13 6l6 6-6 6" /></Svg>
@@ -23,6 +24,8 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings.colorTheme || 'classic');
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   const [pageInput, setPageInput] = useState('');
   const n = pageInput !== '' ? parseInt(pageInput, 10) : 0;
   const pageValid = pageInput !== '' && n >= 1 && n <= 610;
@@ -49,9 +52,9 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
     navigation.navigate('Bookmarks' as any);
   }, [ensureMyQuran, navigation]);
 
-  const bg = nightMode ? '#1e1e1e' : '#F3EFE6';
-  const border = nightMode ? '#2a2a4a' : '#e0e0e0';
-  const titleC = nightMode ? '#fff' : '#1a1a1a';
+  const bg = themeColors.cardBg;
+  const border = themeColors.border;
+  const titleC = themeColors.text;
   const isTablet = useWindowDimensions().width >= 600;
 
   return (
@@ -70,14 +73,14 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
           onChangeText={(t) => setPageInput(t.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
           placeholder="1–610"
-          placeholderTextColor={nightMode ? '#8a8a9a' : '#9aa0b0'}
+          placeholderTextColor={themeColors.subText}
           maxLength={3}
           returnKeyType="go"
           onSubmitEditing={handlePageSubmit}
-          style={[styles.pageInput, { color: titleC, borderColor: border, backgroundColor: nightMode ? '#121212' : '#f2f2f7' }]}
+          style={[styles.pageInput, { color: titleC, borderColor: border, backgroundColor: nightMode ? '#121520' : '#F0EBE0' }]}
         />
-        <TouchableOpacity style={[styles.goBtn, { backgroundColor: nightMode ? '#7BA7DB' : '#1C3D72', opacity: pageValid ? 1 : 0.35 }]} onPress={handlePageSubmit} disabled={!pageValid} activeOpacity={0.7}>
-          <ArrowRight c="#121212" />
+        <TouchableOpacity style={[styles.goBtn, { backgroundColor: themeColors.primary, opacity: pageValid ? 1 : 0.35 }]} onPress={handlePageSubmit} disabled={!pageValid} activeOpacity={0.7}>
+          <ArrowRight c="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>

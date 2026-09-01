@@ -119,12 +119,10 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
   } catch { /* best-effort */ }
 };
 
-// Reading-mark bookmark glyph — small outline bookmark; filled when the reading mark is set.
-// Defined HERE (module level) on purpose: MushafPageView must not import from QuranViewScreen
-// (that would be a circular import), so its icon cannot come from the parent.
-const BookmarkIcon = ({ c, s = 24, filled = false }: { c: string; s?: number; filled?: boolean }) => (
-  <Svg width={s} height={s} viewBox="0 0 24 24" fill={filled ? c : 'none'} stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+// Reading-mark bookmark ribbon — classic sleek ribbon bookmark; filled when reading mark is set.
+const BookmarkRibbon = ({ c, width = 18, height = 26, filled = false }: { c: string; width?: number; height?: number; filled?: boolean }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 32" fill={filled ? c : 'none'} stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 2h16a1 1 0 0 1 1 1v27l-9-5.5L3 30V3a1 1 0 0 1 1-1z" />
   </Svg>
 );
 
@@ -691,9 +689,9 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         // pages mounted — only the CURRENT page may register 'reading-ribbon', otherwise the
         // neighbours' offscreen measures race this page's and the spotlight flashes between
         // the ribbon and the top-left corner.
-        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -30 : -26, right: -4, zIndex: 20, elevation: 20 }}>
+        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -24 : -20, right: 2, zIndex: 20, elevation: 20 }}>
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <BookmarkIcon c={themeColors.accent} s={isTablet ? 38 : 30} filled={readingMarkActive} />
+          <BookmarkRibbon c={themeColors.accent} width={isTablet ? 23 : 18} height={isTablet ? 33 : 26} filled={readingMarkActive} />
         </TouchableOpacity>
         </TutorialAnchor>
       )}
@@ -921,7 +919,15 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
                   {isVerseBoundary && (
                     <View style={styles(nightMode).verseBadgeContainer}>
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
-                        <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#EAE6D8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+                        <View style={[
+                          styles(nightMode).verseBadge,
+                          {
+                            backgroundColor: nightMode ? '#1e1e1e' : '#EAE6D8',
+                            borderColor: themeColors.badgeBorder || themeColors.accent,
+                          },
+                          isBookmarked && styles(nightMode).bookmarkedBadge,
+                          isReadingMark && styles(nightMode).readingMarkBadge,
+                        ]}>
                           <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                         </View>
                       </TouchableOpacity>

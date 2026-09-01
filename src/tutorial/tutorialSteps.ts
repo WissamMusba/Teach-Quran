@@ -147,7 +147,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'draw', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Draw on the page',
     body: 'Underline a word or circle it — your drawing is saved with the page. Color and pen size are on the right of the toolbar; UNDO/REDO/CLEAR too.',
-    waitEvent: 'stroke_saved', passThrough: true, hand: true, anchorId: 'reading-area', skipLabel: 'Skip this',
+    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.44 }, skipLabel: 'Skip this',
   },
   {
     id: 'draw-exit', screen: 'QuranView', kind: 'info', chapter: 'Annotate',
