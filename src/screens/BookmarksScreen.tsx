@@ -1,12 +1,13 @@
 /**
  * FILE: src/screens/BookmarksScreen.tsx
  * ROLE: Lists the current student's bookmarks (newest first) with the reading mark (lastRead)
- *       as the FIRST row with full theme integration (Classic, Emerald, Obsidian).
+ *       as the FIRST row with pure vector SVG icons and theme integration.
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
@@ -16,6 +17,12 @@ import { getThemeColors } from '../utils/theme';
 
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
 const sessionPageCache: Record<string, number> = {};
+
+const IconBookmark = ({ c, size = 20 }: { c: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+  </Svg>
+);
 
 export default function BookmarksScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   const navigation = navProp || useNavigation<any>();
@@ -179,8 +186,8 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
       <ScreenHeader title="Bookmarks" subtitle={`${listData.length} bookmarks`} onBack={onClose} />
       {listData.length === 0 ? (
         <View style={styles(nightMode, themeColors).emptyState}>
-          <Text style={styles(nightMode, themeColors).emptyIcon}>📌</Text>
-          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText }]}>No bookmarks yet</Text>
+          <IconBookmark c={themeColors.accent} size={44} />
+          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No bookmarks yet</Text>
           <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
         </View>
       ) : (
@@ -212,7 +219,6 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   metaValue: { fontSize: 10, fontWeight: '700' },
   metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5, backgroundColor: '#888' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
 });

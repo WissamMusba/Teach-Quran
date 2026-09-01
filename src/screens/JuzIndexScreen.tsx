@@ -50,7 +50,7 @@ export default function JuzIndexScreen({ navigation }: any) {
         <View style={styles(isDark, themeColors).rowBody}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={[styles(isDark, themeColors).rowLabel, { color: themeColors.text }]}>
-              Para {item.j}
+              Juz {item.j}
             </Text>
             {juzInfo.en ? (
               <Text style={[styles(isDark, themeColors).rowTranslit, { color: themeColors.subText }]}>
@@ -79,8 +79,8 @@ export default function JuzIndexScreen({ navigation }: any) {
           <ChevronLeft c={themeColors.accent} />
         </TouchableOpacity>
         <View style={styles(isDark, themeColors).headerTextWrap}>
-          <Text style={[styles(isDark, themeColors).headerTitle, { color: themeColors.text }]}>Juz / Para Index</Text>
-          <Text style={[styles(isDark, themeColors).headerSubtitle, { color: themeColors.subText }]}>{studentName || 'All 30 Paras'}</Text>
+          <Text style={[styles(isDark, themeColors).headerTitle, { color: themeColors.text }]}>Juz Index</Text>
+          <Text style={[styles(isDark, themeColors).headerSubtitle, { color: themeColors.subText }]}>{studentName || 'All 30 Ajza (Juz)'}</Text>
         </View>
       </View>
 

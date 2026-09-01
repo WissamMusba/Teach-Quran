@@ -1,11 +1,12 @@
 /**
  * FILE: src/screens/NotesScreen.tsx
- * ROLE: Lists the student's text + voice notes per verse with complete theme integration.
+ * ROLE: Lists the student's text + voice notes per verse with pure vector SVG icons and theme integration.
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ListRenderItem, Modal, TextInput, Pressable } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { playAudioNote } from '../api/audioNotes';
 import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah } from '../database/localDB';
@@ -19,6 +20,25 @@ import { getThemeColors } from '../utils/theme';
 
 const audioPlayer = new AudioRecorderPlayer();
 let notesHydratedSig: string | null = null;
+
+const IconNotes = ({ c, size = 20 }: { c: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </Svg>
+);
+
+const IconPlay = ({ c, size = 14 }: { c: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={c} style={{ marginRight: 6 }}>
+    <Path d="M8 5v14l11-7z" />
+  </Svg>
+);
+
+const IconPause = ({ c, size = 14 }: { c: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={c} style={{ marginRight: 6 }}>
+    <Path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+  </Svg>
+);
 
 interface NoteRow {
   verseKey: string;
@@ -79,7 +99,7 @@ const NoteCard = React.memo(({
             onPress={() => onToggleAudio(audioKey, p.value)}
             activeOpacity={0.7}
           >
-            <Text style={[styles(nightMode, themeColors).playBtn, { color: themeColors.accent }]}>{isThisPlaying ? '⏸' : '▶'}</Text>
+            {isThisPlaying ? <IconPause c={themeColors.accent} size={14} /> : <IconPlay c={themeColors.accent} size={14} />}
             <Text style={[styles(nightMode, themeColors).audioLabel, { color: themeColors.accent }]}>{isThisPlaying ? 'Playing voice note...' : 'Voice note'}</Text>
           </TouchableOpacity>
         );
@@ -221,8 +241,8 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       <ScreenHeader title="Notes" subtitle={`${notes.length} notes`} onBack={onClose} />
       {notes.length === 0 ? (
         <View style={styles(nightMode, themeColors).emptyState}>
-          <Text style={styles(nightMode, themeColors).emptyIcon}>📝</Text>
-          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText }]}>No notes yet</Text>
+          <IconNotes c={themeColors.accent} size={44} />
+          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No notes yet</Text>
           <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to add a note</Text>
         </View>
       ) : (
@@ -275,10 +295,8 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   accentLine: { height: 2, width: 34, borderRadius: 1, marginTop: 5, marginBottom: 6 },
   noteText: { fontFamily: 'sans-serif', fontSize: 14, lineHeight: 19, marginBottom: 1 },
   audioRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, marginTop: 6 },
-  playBtn: { fontSize: 14, marginRight: 8 },
   audioLabel: { fontSize: 13, fontWeight: '700' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
   noteOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)' },

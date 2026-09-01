@@ -191,16 +191,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     waitEvent: 'share_opened', passThrough: true, allowZone: { fx: 0.06, fy: 0.2, fw: 0.88, fh: 0.6 }, skipLabel: 'Skip this',
   },
   {
-    id: 'mistakes', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',
-    title: 'Every mistake, collected',
-    body: 'MISTAKES gathers all the red-highlighted words for this student in one list — perfect for revision before the next lesson.',
-    anchorId: 'hdr-mistakes', hand: true,
-  },
-  {
-    id: 'settings-night', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',
-    title: 'Settings & Night mode',
-    body: 'SETTINGS holds Night mode for comfortable night-time reading, translation, script style and the split-view switch for tablets.',
-    anchorId: 'hdr-settings', hand: true,
+    id: 'header-menu', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',
+    title: 'Menu: Mistakes, Notes & Settings',
+    body: 'Tap the ☰ menu in the top corner to open Mistakes (all red highlights collected for revision), Notes, and Settings (Night mode, script style, theme palettes, offline audio).',
+    anchorId: 'hdr-menu', hand: true,
   },
   {
     id: 'index-nav', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',

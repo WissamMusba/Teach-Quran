@@ -682,9 +682,9 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         // pages mounted — only the CURRENT page may register 'reading-ribbon', otherwise the
         // neighbours' offscreen measures race this page's and the spotlight flashes between
         // the ribbon and the top-left corner.
-        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: -22, right: -4, zIndex: 20, elevation: 20 }}>
-        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <BookmarkIcon c={themeColors.accent} s={20} filled={readingMarkActive} />
+        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: -24, right: -4, zIndex: 20, elevation: 20 }}>
+        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <BookmarkIcon c={themeColors.accent} s={24} filled={readingMarkActive} />
         </TouchableOpacity>
         </TutorialAnchor>
       )}

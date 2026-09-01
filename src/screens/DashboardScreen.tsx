@@ -53,6 +53,12 @@ const IconMenuLogout = ({ c }: { c: string }) => (
   </Svg>
 );
 
+const ArrowRightSmall = ({ c = '#FFFFFF', size = 13 }: { c?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}>
+    <Path d="M5 12h14M12 5l7 7-7 7" />
+  </Svg>
+);
+
 const ProgressCircle = ({ pct, color, bgTrack }: { pct: number; color: string; bgTrack: string }) => {
   const r = 16;
   const stroke = 3.2;
@@ -508,8 +514,17 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </View>
 
-      {/* Featured "My Quran" Hero Card */}
-      <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 }}>
+      {/* Student Cards List */}
+      <FlatList
+        style={{ flex: 1 }}
+        data={sortedStudents}
+        keyExtractor={(item: any) => item.id}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 }}
+        renderItem={renderItem}
+      />
+
+      {/* Featured "My Quran" Hero Card — Pinned at the bottom */}
+      <View style={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 4 }}>
         {myQuranStudent ? (
           <TutorialAnchor id="my-quran-resume">
             <TouchableOpacity
@@ -519,6 +534,7 @@ export default function DashboardScreen({ navigation }: any) {
                 {
                   backgroundColor: themeColors.heroBg,
                   borderColor: themeColors.heroBorder,
+                  marginBottom: 0,
                 }
               ]}
               onPress={handleMyQuranPress}
@@ -539,8 +555,9 @@ export default function DashboardScreen({ navigation }: any) {
                 {/* Progress Ring & Continue Button */}
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <ProgressCircle pct={progressPct} color={themeColors.accent} bgTrack={nightMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'} />
-                  <View style={[styles(nightMode, themeColors).continueBtn, { backgroundColor: themeColors.primary, marginLeft: 10 }]}>
-                    <Text style={[styles(nightMode, themeColors).continueBtnText, { color: '#FFFFFF' }]}>Continue ➔</Text>
+                  <View style={[styles(nightMode, themeColors).continueBtn, { backgroundColor: themeColors.primary, marginLeft: 10, flexDirection: 'row', alignItems: 'center' }]}>
+                    <Text style={[styles(nightMode, themeColors).continueBtnText, { color: '#FFFFFF' }]}>Continue</Text>
+                    <ArrowRightSmall c="#FFFFFF" size={13} />
                   </View>
                 </View>
               </View>
@@ -572,23 +589,14 @@ export default function DashboardScreen({ navigation }: any) {
             </TouchableOpacity>
           </TutorialAnchor>
         ) : (
-          <View style={[styles(nightMode, themeColors).card, { backgroundColor: themeColors.heroBg, borderColor: themeColors.heroBorder, opacity: 0.7 }]}>
+          <View style={[styles(nightMode, themeColors).card, { backgroundColor: themeColors.heroBg, borderColor: themeColors.heroBorder, opacity: 0.7, marginBottom: 0 }]}>
             <Text style={[styles(nightMode, themeColors).readingLine, { textAlign: 'center', paddingVertical: 12, color: themeColors.accent }]}>Setting up My Quran…</Text>
           </View>
         )}
       </View>
 
-      {/* Student Cards List */}
-      <FlatList
-        style={{ flex: 1 }}
-        data={sortedStudents}
-        keyExtractor={(item: any) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: 85 }}
-        renderItem={renderItem}
-      />
-
       {/* Silky Smooth Rolling Wheel Animated FAB */}
-      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 12, bottom: adCollapsed ? 94 : 138 }}>
+      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 12, bottom: (adCollapsed ? 94 : 138) + 128 }}>
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
             style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
