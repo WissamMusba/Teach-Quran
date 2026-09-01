@@ -1,38 +1,32 @@
 /**
  * FILE: src/screens/StudentHubScreen.tsx
- * ROLE: Per-student hub screen — shows live counts + the student's reading position
- *       with modern lowkey typography, vector SVG icons, and theme integration.
+ * ROLE: Per-student hub screen with full theme integration, clean title case, vector SVG icons, and smooth navigation.
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Keyboard, Image } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image } from 'react-native';
+import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
-import Svg, { Path } from 'react-native-svg';
-import { getVersePage } from '../database/quranData';
-import { JUZ_MAP, getThemeColors } from '../utils/theme';
-import { getLastPageSeenLocal, getStudentFace, getManifest } from '../database/localDB';
-import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
-import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
+import { useFocusEffect } from '@react-navigation/native';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
-
-const getJuzForVerse = (surahId: number, verseNum: number): number => {
-  let juz = 1;
-  for (const entry of JUZ_MAP) {
-    if (entry.s < surahId || (entry.s === surahId && entry.v <= verseNum)) juz = entry.j;
-  }
-  return juz;
-};
+import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
+import { getManifest, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
+import Svg, { Path } from 'react-native-svg';
+import { getThemeColors } from '../utils/theme';
 
 const ChevronLeft = ({ c }: { c: string }) => (
-  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 18l-6-6 6-6" /></Svg>
+  <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M15 18l-6-6 6-6" />
+  </Svg>
 );
 
-const ArrowRight = ({ c }: { c: string }) => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="M5 12h14M13 6l6 6-6 6" /></Svg>
+const ArrowRight = ({ c = '#FFFFFF' }: { c?: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 18l6-6-6-6" />
+  </Svg>
 );
 
-const IconBookOpen = ({ c, size = 18 }: { c: string; size?: number }) => (
+const IconBookOpen = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10 }}>
     <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
     <Path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -40,132 +34,185 @@ const IconBookOpen = ({ c, size = 18 }: { c: string; size?: number }) => (
 );
 
 const IconBookmark = ({ c, size = 18 }: { c: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
     <Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
   </Svg>
 );
 
 const IconNotes = ({ c, size = 18 }: { c: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
-    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+    <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <Path d="M14 2v6h6" />
+    <Path d="M16 13H8" />
+    <Path d="M16 17H8" />
+    <Path d="M10 9H8" />
   </Svg>
 );
 
-const IconSparkle = ({ c, size = 18 }: { c: string; size?: number }) => (
+const IconSparkle = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10 }}>
     <Path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
   </Svg>
 );
 
-const IconLayers = ({ c, size = 18 }: { c: string; size?: number }) => (
+const IconLayers = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10 }}>
-    <Path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    <Path d="M12 2L2 7l10 5 10-5-10-5z" />
+    <Path d="M2 17l10 5 10-5" />
+    <Path d="M2 12l10 5 10-5" />
   </Svg>
 );
 
-const IconList = ({ c, size = 18 }: { c: string; size?: number }) => (
+const IconList = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10 }}>
     <Path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
   </Svg>
 );
 
-const IconHash = ({ c, size = 18 }: { c: string; size?: number }) => (
+const IconHash = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10 }}>
     <Path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
   </Svg>
 );
 
+const JUZ_PAGE_STARTS = [
+  1, 22, 42, 62, 82, 102, 122, 142, 162, 182,
+  202, 222, 242, 262, 282, 302, 322, 342, 362, 382,
+  402, 422, 442, 462, 482, 502, 522, 542, 562, 582,
+];
+
+function pageToJuz(p: number): number {
+  for (let i = JUZ_PAGE_STARTS.length - 1; i >= 0; i--) {
+    if (p >= JUZ_PAGE_STARTS[i]) return i + 1;
+  }
+  return 1;
+}
+
+const SURAH_JUZ_APPROX: Record<number, number> = {
+  1: 1, 2: 1, 3: 3, 4: 4, 5: 6, 6: 7, 7: 8, 8: 9, 9: 10, 10: 11,
+  11: 11, 12: 12, 13: 13, 14: 13, 15: 14, 16: 14, 17: 15, 18: 15, 19: 16, 20: 16,
+  21: 17, 22: 17, 23: 18, 24: 18, 25: 18, 26: 19, 27: 19, 28: 20, 29: 20, 30: 21,
+  31: 21, 32: 21, 33: 21, 34: 22, 35: 22, 36: 22, 37: 23, 38: 23, 39: 23, 40: 24,
+  41: 24, 42: 25, 43: 25, 44: 25, 45: 25, 46: 26, 47: 26, 48: 26, 49: 26, 50: 26,
+  51: 26, 52: 27, 53: 27, 54: 27, 55: 27, 56: 27, 57: 27, 58: 28, 59: 28, 60: 28,
+  61: 28, 62: 28, 63: 28, 64: 28, 65: 28, 66: 28, 67: 29, 68: 29, 69: 29, 70: 29,
+  71: 29, 72: 29, 73: 29, 74: 29, 75: 29, 76: 29, 77: 29, 78: 30,
+};
+
+function getJuzForVerse(surah: number, verse: number): number {
+  if (surah === 2) {
+    if (verse < 142) return 1;
+    if (verse < 253) return 2;
+    return 3;
+  }
+  if (surah === 3) {
+    if (verse < 93) return 3;
+    return 4;
+  }
+  if (surah === 4) {
+    if (verse < 24) return 4;
+    if (verse < 148) return 5;
+    return 6;
+  }
+  if (surah === 5) {
+    if (verse < 82) return 6;
+    return 7;
+  }
+  return SURAH_JUZ_APPROX[surah] || 30;
+}
+
 export default function StudentHubScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const dispatch = useDispatch();
-  const currentStudent = useSelector((s: any) => s.student.currentStudent);
-  React.useEffect(() => { if (!currentStudent) navigation.replace('Dashboard'); }, [currentStudent, navigation]);
-  
-  const [facePath, setFacePath] = useState<string | null>(null);
-  useEffect(() => {
-    const sid = currentStudent?.id;
-    if (!sid) { setFacePath(null); return; }
-    let active = true;
-    getStudentFace(sid).then((p) => { if (active) setFacePath(p); }).catch(() => {});
-    return () => { active = false; };
-  }, [currentStudent?.id]);
-
-  const studentData = useSelector((s: any) => s.student.studentData);
-  const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const currentStudent = useSelector((s: any) => s.student?.currentStudent);
+  const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
-  const textStyle = useSelector((s: any) => s.quran.textStyle);
-  const surahNames = useSelector((s: any) => s.quran.surahNames);
-  const [pageInput, setPageInput] = useState('');
+  const surahNames = useSelector((s: any) => s.quran?.surahNames);
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  useStudentDataRefresh();
+  const [studentData, setStudentData] = useState<any>(null);
+  const [facePath, setFacePath] = useState<string | null>(null);
+  const [lastSeenPage, setLastSeenPage] = useState<number | null>(null);
+  const [dailyPage, setDailyPage] = useState<number>(0);
+  const [dailyPageFor, setDailyPageFor] = useState<string>('');
+  const [pageInput, setPageInput] = useState('');
 
-  const [manifestLastRead, setManifestLastRead] = useState<any>(undefined);
-  const lastRead = manifestLastRead === undefined ? studentData?.lastRead : manifestLastRead;
-  const lrSurah = lastRead ? Number(lastRead.surah) : 0;
-  const lrVerse = lastRead ? Number(lastRead.verse) : 0;
+  const loadData = useCallback(async () => {
+    if (!currentStudent?.id) return;
+    try {
+      const m = await getManifest(currentStudent.id);
+      setStudentData(m);
+      const fp = await getStudentFace(currentStudent.id);
+      setFacePath(fp);
+      const seen = await getLastPageSeenLocal(currentStudent.id);
+      if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) {
+        const pages = await getVersePagesDB([[Number(seen.surah), Number(seen.verse)]]);
+        const p = pages[`${seen.surah}:${seen.verse}`];
+        setLastSeenPage(typeof p === 'number' ? p - 1 : null);
+      } else {
+        setLastSeenPage(null);
+      }
+    } catch {}
+  }, [currentStudent?.id]);
 
-  const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
-  const [lastSeenAt, setLastSeenAt] = useState<string>('');
-  useFocusEffect(useCallback(() => {
-    let cancelled = false;
-    const choose = (seen: any) => {
-      setLastSeenAt(seen?.at ? String(seen.at) : '');
-      if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) return { surah: Number(seen.surah), verse: Number(seen.verse) };
-      if (lrSurah > 0 && lrVerse > 0) return { surah: lrSurah, verse: lrVerse };
-      return null;
-    };
-    const apply = (src: any) => {
-      if (cancelled) return;
-      if (!src) { setResumeInfo({ page: 1, juz: 1, surah: 1, verse: 1 }); return; }
-      getVersePage(src.surah, src.verse, textStyle).then((pg) => {
-        if (!cancelled) setResumeInfo({ page: pg, juz: getJuzForVerse(src.surah, src.verse), surah: src.surah, verse: src.verse });
-      }).catch(() => {
-        if (!cancelled) setResumeInfo({ page: 1, juz: getJuzForVerse(src.surah, src.verse), surah: src.surah, verse: src.verse });
-      });
-    };
-    if (currentStudent?.id) {
-      getLastPageSeenLocal(currentStudent.id).then((seen) => apply(choose(seen))).catch(() => apply(choose(null)));
-      getManifest(currentStudent.id).then((res: any) => {
-        if (!cancelled && res?.data?.lastRead !== undefined) {
-          const fresh = res.data.lastRead;
-          setManifestLastRead((prev: any) => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
-        }
-      }).catch(() => {});
-    }
-    return () => { cancelled = true; };
-  }, [currentStudent?.id, lrSurah, lrVerse, textStyle]));
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const lrSurah = studentData?.lastRead?.surah || 0;
+  const lrVerse = studentData?.lastRead?.verse || 0;
 
   useEffect(() => {
-    if (resumeInfo?.page) setTutorialContext('resumePage', String(resumeInfo.page));
-  }, [resumeInfo?.page]);
-
-  const [dailyPage, setDailyPage] = useState(0);
-  const [dailyPageFor, setDailyPageFor] = useState('');
-  useEffect(() => {
-    if (lrSurah > 0 && lrVerse > 0) {
-      const key = `${lrSurah}:${lrVerse}`;
-      getVersePage(lrSurah, lrVerse, textStyle).then((pg) => {
-        setDailyPage(pg);
-        setDailyPageFor(key);
-      }).catch(() => { setDailyPage(0); setDailyPageFor(''); });
-    } else {
+    if (!lrSurah || !lrVerse) {
       setDailyPage(0);
       setDailyPageFor('');
+      return;
     }
-  }, [lrSurah, lrVerse, textStyle]);
+    const key = `${lrSurah}:${lrVerse}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const pages = await getVersePagesDB([[lrSurah, lrVerse]]);
+        const p = pages[key];
+        if (!cancelled && typeof p === 'number' && p > 0) {
+          setDailyPage(p);
+          setDailyPageFor(key);
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lrSurah, lrVerse]);
 
-  const bookmarkCount = useMemo(() => Object.keys(studentData?.bookmarks || {}).length, [studentData?.bookmarks]);
-  const noteCount = useMemo(() => Object.keys(studentData?.notes || {}).length, [studentData?.notes]);
+  const resumeInfo = useMemo(() => {
+    if (typeof lastSeenPage === 'number' && lastSeenPage >= 0) {
+      const displayPage = lastSeenPage + 1;
+      return { page: lastSeenPage, displayPage, juz: pageToJuz(displayPage), surah: 1 };
+    }
+    if (dailyPage > 0) {
+      return { page: dailyPage - 1, displayPage: dailyPage, juz: pageToJuz(dailyPage), surah: lrSurah || 1 };
+    }
+    if (lrSurah > 0 && lrVerse > 0) {
+      return { page: 0, displayPage: 1, juz: getJuzForVerse(lrSurah, lrVerse), surah: lrSurah };
+    }
+    return { page: 0, displayPage: 1, juz: 1, surah: 1 };
+  }, [lastSeenPage, dailyPage, lrSurah, lrVerse]);
+
+  useEffect(() => {
+    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.displayPage));
+  }, [resumeInfo]);
 
   const resumeSubtitle = useMemo(() => {
-    if (!resumeInfo) return 'Loading…';
+    if (!resumeInfo) return 'Page 1 · Juz 1';
     const sName = surahNames?.[resumeInfo.surah] || `Surah ${resumeInfo.surah}`;
-    const seenPart = lastSeenAt ? ` · ${lastSeenAt}` : '';
-    return `Page ${resumeInfo.page} · Juz ${resumeInfo.juz} · ${sName}${seenPart}`;
-  }, [resumeInfo, surahNames, lastSeenAt]);
+    return `Page ${resumeInfo.displayPage} · Juz ${resumeInfo.juz} · ${sName}`;
+  }, [resumeInfo, surahNames]);
+
+  const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
+  const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
 
   const dailyTarget = useMemo(() => (lrSurah > 0 && lrVerse > 0 ? { surah: lrSurah, verse: lrVerse } : null), [lrSurah, lrVerse]);
   const dailySubtitle = useMemo(() => {
@@ -199,15 +246,14 @@ export default function StudentHubScreen({ navigation }: any) {
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg }]}>
-      {/* Top Header */}
+      {/* Top Header showing the Student's Name directly */}
       <View style={[styles(nightMode, themeColors).header, { backgroundColor: rowBg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode, themeColors).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={chevronC} />
         </TouchableOpacity>
         {facePath ? <Image source={{ uri: `file://${facePath}` }} style={styles(nightMode, themeColors).faceAvatar} resizeMode="cover" /> : null}
         <View style={styles(nightMode, themeColors).headerTextWrap}>
-          <Text style={[styles(nightMode, themeColors).headerTitle, { color: titleC }]}>Teach Quran</Text>
-          <Text style={[styles(nightMode, themeColors).headerSubtitle, { color: subC }]} numberOfLines={1}>{currentStudent?.name || ''}</Text>
+          <Text style={[styles(nightMode, themeColors).headerTitle, { color: titleC }]} numberOfLines={1}>{currentStudent?.name || 'Student Hub'}</Text>
         </View>
       </View>
 
@@ -321,6 +367,7 @@ export default function StudentHubScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <CollapsibleBannerAd />
     </View>
   );
 }
@@ -328,25 +375,24 @@ export default function StudentHubScreen({ navigation }: any) {
 const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
-  backBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
-  faceAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 8 },
-  headerTextWrap: { flex: 1, marginLeft: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: 0.2 },
-  headerSubtitle: { fontSize: 13, marginTop: 1, fontWeight: '500' },
-  scrollContent: { padding: 14 },
-  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  row: { paddingVertical: 14, paddingHorizontal: 16 },
-  rowBorder: { borderBottomWidth: 1 },
-  rowDisabled: { opacity: 0.4 },
-  rowLabel: { fontSize: 15, fontWeight: '700', letterSpacing: 0.1 },
-  rowSub: { fontSize: 12.5, marginTop: 4, lineHeight: 17 },
-  rowChevron: { fontSize: 20, fontWeight: '600', marginLeft: 6 },
-  half: { flex: 1, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  halfLabel: { fontSize: 14, fontWeight: '700', letterSpacing: 0.1 },
-  halfCount: { fontSize: 22, fontWeight: '800', marginTop: 2 },
-  vDivider: { width: 1, height: '70%', alignSelf: 'center' },
-  pageInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  pageInput: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, fontSize: 15, fontWeight: '600' },
-  pageGoBtn: { width: 42, height: 42, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  backBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', marginRight: 4 },
+  faceAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
+  headerTextWrap: { flex: 1, justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  scrollContent: { padding: 16 },
+  card: { borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+  row: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center' },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
+  rowDisabled: { opacity: 0.45 },
+  rowLabel: { fontSize: 16, fontWeight: '600', letterSpacing: 0.1 },
+  rowSub: { fontSize: 12.5, marginTop: 4, paddingLeft: 30 },
+  rowChevron: { fontSize: 20, fontWeight: '300' },
+  half: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  halfLabel: { fontSize: 13, fontWeight: '600' },
+  halfCount: { fontSize: 20, fontWeight: '700', marginTop: 2 },
+  vDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
+  pageInputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingLeft: 28 },
+  pageInput: { width: 90, height: 38, borderRadius: 10, borderWidth: 1, textAlign: 'center', fontSize: 14, fontWeight: '600', paddingHorizontal: 6 },
+  pageGoBtn: { width: 38, height: 38, borderRadius: 10, marginLeft: 8, alignItems: 'center', justifyContent: 'center' },
   pageGoDisabled: { opacity: 0.4 },
 });

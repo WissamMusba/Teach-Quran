@@ -32,7 +32,7 @@ const IconShare = ({ c }: any) => (
 );
 
 const IconHamburger = ({ c }: { c: string }) => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M3 12h18M3 6h18M3 18h18" />
   </Svg>
 );
@@ -110,7 +110,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const primaryAccent = themeColors.accent;
 
   const Btn = ({ icon, label, onPress, labelStyle }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any }) => (
-    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
       {icon}
       <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
     </TouchableOpacity>
@@ -140,6 +140,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               </TouchableOpacity>
             </TutorialAnchor>
 
+            {/* Right Aligned Action Icons + Hamburger Corner Menu */}
             <View style={s.iconsRow}>
               <TutorialAnchor id="hdr-share">
                 <Btn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} />
@@ -201,18 +202,18 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4 },
-  backBtn: { minHeight: 42, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
-  titleBlock: { flex: 1, paddingVertical: 1 },
+  backBtn: { minHeight: 42, minWidth: 40, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  titleBlock: { flex: 1, paddingVertical: 1, paddingLeft: 2 },
   surahName: { fontSize: 16, fontWeight: 'bold' },
   surahSub: { fontSize: 10.5, marginTop: 1, fontWeight: '500' },
-  iconsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  iconBtn: { minWidth: 46, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  iconsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  iconBtn: { minWidth: 44, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
   iconLab: { fontSize: 8.5, fontWeight: '700', marginTop: 2, letterSpacing: 0.2 },
-  hamburgerBtn: { minWidth: 42, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  menuPopup: { position: 'absolute', right: 12, width: 160, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8, overflow: 'hidden' },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  menuText: { fontSize: 14, fontWeight: '600' },
+  hamburgerBtn: { minWidth: 40, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, marginRight: 2 },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  menuPopup: { position: 'absolute', right: 10, width: 165, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10, overflow: 'hidden' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
+  menuText: { fontSize: 14.5, fontWeight: '600' },
 });
 
 export default AnimatedHeader;

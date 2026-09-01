@@ -59,6 +59,19 @@ const ArrowRightSmall = ({ c = '#FFFFFF', size = 13 }: { c?: string; size?: numb
   </Svg>
 );
 
+const IconGallery = ({ c = '#FFFFFF', size = 14 }: { c?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+    <Path d="M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2l1.586-1.586a2 2 0 0 1 2.828 0L20 14m-6-6h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+  </Svg>
+);
+
+const IconCamera = ({ c = '#FFFFFF', size = 14 }: { c?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+    <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <Circle cx="12" cy="13" r="4" />
+  </Svg>
+);
+
 const ProgressCircle = ({ pct, color, bgTrack }: { pct: number; color: string; bgTrack: string }) => {
   const r = 16;
   const stroke = 3.2;
@@ -141,7 +154,7 @@ export default function DashboardScreen({ navigation }: any) {
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  // Rolling Wheel FAB animation — replays smoothly every time the user is on the Dashboard
+  // Rolling Wheel FAB animation — shows + circle for 3 seconds, then rolls out smoothly to pill
   const fabAnim = useRef(new Animated.Value(0)).current;
   useFocusEffect(
     useCallback(() => {
@@ -149,20 +162,20 @@ export default function DashboardScreen({ navigation }: any) {
       const timer = setTimeout(() => {
         Animated.timing(fabAnim, {
           toValue: 1,
-          duration: 850,
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          duration: 650,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: false,
         }).start();
-      }, 250);
+      }, 3000);
       return () => clearTimeout(timer);
     }, [fabAnim])
   );
 
-  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [52, 154] });
-  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-540deg'] });
-  const fabPlusTranslateX = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [42, 0] });
-  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0, 1] });
-  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
+  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 114] });
+  const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
+  const fabPlusTranslateX = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [32, 0] });
+  const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
+  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
 
   const isMyQuranStudent = (s: any) => s?.isMyQuran === true || s?.name === 'My Quran';
   const myQuranStudent = useMemo(() => {
@@ -617,19 +630,18 @@ export default function DashboardScreen({ navigation }: any) {
             >
               +
             </Animated.Text>
-            <Animated.Text
-              numberOfLines={1}
+            <Animated.View
               style={[
-                styles(nightMode, themeColors).fabTextLabel,
+                styles(nightMode, themeColors).fabTextWrap,
                 {
-                  color: '#FFFFFF',
                   opacity: fabTextOpacity,
                   transform: [{ translateX: fabTextTranslate }],
                 }
               ]}
             >
-              Add Student
-            </Animated.Text>
+              <Text style={styles(nightMode, themeColors).fabTextLine}>New</Text>
+              <Text style={styles(nightMode, themeColors).fabTextLine}>Student</Text>
+            </Animated.View>
           </TouchableOpacity>
         </Animated.View>
       </TutorialAnchor>
@@ -662,16 +674,12 @@ export default function DashboardScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <IconMenuCloud c={themeColors.accent} />
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>
-                  {isSyncing ? 'Syncing...' : 'Save to Cloud (Sync)'}
-                </Text>
-                {pendingChanges > 0 && (
-                  <View style={styles(nightMode, themeColors).badgePill}>
-                    <Text style={styles(nightMode, themeColors).badgePillText}>{pendingChanges}</Text>
-                  </View>
-                )}
-              </View>
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>Sync with Cloud</Text>
+              {pendingChanges > 0 && (
+                <View style={[styles(nightMode, themeColors).badgePill, { marginLeft: 'auto', backgroundColor: themeColors.primary }]}>
+                  <Text style={styles(nightMode, themeColors).badgePillText}>{pendingChanges}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <View style={[styles(nightMode, themeColors).menuDivider, { backgroundColor: themeColors.border }]} />
@@ -686,14 +694,14 @@ export default function DashboardScreen({ navigation }: any) {
               }}
               activeOpacity={0.7}
             >
-              <IconMenuLogout c="#FF5252" />
-              <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF5252', fontWeight: '700' }]}>Logout</Text>
+              <IconMenuLogout c="#FF4444" />
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF4444' }]}>Sign Out</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
 
-      {/* Settings Modal */}
+      {/* Settings Screen Modal */}
       {settingsModalVisible && (
         <Modal visible={settingsModalVisible} animationType="slide" onRequestClose={() => setSettingsModalVisible(false)}>
           <View style={{ flex: 1 }}>
@@ -747,10 +755,12 @@ export default function DashboardScreen({ navigation }: any) {
                   <Text style={{ fontSize: 20, fontWeight: '700', color: themeColors.accent }}>{(editName || '?').charAt(0).toUpperCase()}</Text>
                 </View>
               )}
-              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary }]} onPress={() => pickPhoto(false)}>
+              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary, flexDirection: 'row', alignItems: 'center' }]} onPress={() => pickPhoto(false)}>
+                <IconGallery c="#FFFFFF" size={14} />
                 <Text style={[styles(nightMode, themeColors).photoBtnText, { color: '#FFFFFF' }]}>Gallery</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary }]} onPress={() => pickPhoto(true)}>
+              <TouchableOpacity style={[styles(nightMode, themeColors).photoBtn, { backgroundColor: themeColors.primary, flexDirection: 'row', alignItems: 'center' }]} onPress={() => pickPhoto(true)}>
+                <IconCamera c="#FFFFFF" size={14} />
                 <Text style={[styles(nightMode, themeColors).photoBtnText, { color: '#FFFFFF' }]}>Camera</Text>
               </TouchableOpacity>
               {faces[editId] ? (
@@ -771,7 +781,7 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
+      <AlertModal visible={alertModal.visible} title={alertModal.title} message={alertModal.message} buttons={alertModal.buttons} nightMode={nightMode} onClose={() => setAlertModal({ ...alertModal, visible: false })} />
       <DashboardFooter myQuran={myQuranStudent} navigation={navigation} />
       <CollapsibleBannerAd />
     </View>
@@ -808,9 +818,10 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   continueBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   continueBtnText: { fontSize: 11.5, fontWeight: '700' },
   fabContainer: { height: 50, borderRadius: 25, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, overflow: 'hidden' },
-  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
-  fabPlus: { fontSize: 28, fontWeight: '800', lineHeight: 30, marginRight: 6, width: 22, textAlign: 'center' },
-  fabTextLabel: { fontSize: 14, fontWeight: '700', letterSpacing: 0.2 },
+  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  fabPlus: { fontSize: 26, fontWeight: '300', lineHeight: 28, width: 22, textAlign: 'center' },
+  fabTextWrap: { marginLeft: 6, justifyContent: 'center' },
+  fabTextLine: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '700', lineHeight: 12.5 },
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   menuDropdown: { position: 'absolute', right: 16, width: 230, borderRadius: 14, borderWidth: 1, paddingVertical: 6, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },

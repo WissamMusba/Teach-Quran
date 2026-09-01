@@ -37,10 +37,10 @@ interface AlertModalProps {
  */
 const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = true }: AlertModalProps) => {
   const isDark = nightMode;
-  const bg = isDark ? '#1e1e1e' : '#fff';
-  const text = isDark ? '#fff' : '#121212';
-  const muted = isDark ? '#888' : '#666';
-  const border = isDark ? '#2a2a2a' : '#ddd';
+  const bg = isDark ? '#1e1e24' : '#FAF7EE';
+  const text = isDark ? '#FFFFFF' : '#1C1C1E';
+  const muted = isDark ? '#9A9EB0' : '#6E6E73';
+  const border = isDark ? '#2C3040' : '#E2DDD0';
 
   const defaultButtons: AlertButton[] = onClose ? [{ text: 'OK', onPress: onClose }] : [];
 
@@ -62,7 +62,7 @@ const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = tru
                   style={[
                     styles(nightMode).btn,
                     isDestructive && styles(nightMode).destructiveBtn,
-                    isCancel && styles(nightMode).cancelBtn,
+                    isCancel && [styles(nightMode).cancelBtn, { backgroundColor: isDark ? '#2C3040' : '#E5E0D5' }],
                     isLast && !isCancel && !isDestructive && styles(nightMode).primaryBtn,
                     !isLast && { marginRight: 8 },
                   ]}
@@ -72,7 +72,7 @@ const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = tru
                   <Text style={[
                     styles(nightMode).btnText,
                     isDestructive && styles(nightMode).destructiveText,
-                    isCancel && styles(nightMode).cancelText,
+                    isCancel && [styles(nightMode).cancelText, { color: text }],
                     isLast && !isCancel && !isDestructive && styles(nightMode).primaryText,
                   ]}>{btn.text}</Text>
                 </TouchableOpacity>
@@ -87,19 +87,19 @@ const AlertModal = ({ visible, title, message, onClose, buttons, nightMode = tru
 };
 
 const styles = (nightMode: boolean) => StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
-  box: { width: '82%', borderRadius: 16, padding: 24, borderWidth: 1, elevation: 10 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)' },
+  box: { width: '82%', borderRadius: 16, padding: 22, borderWidth: 1, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   message: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
   row: { flexDirection: 'row', justifyContent: 'flex-end' },
-  btn: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, alignItems: 'center', minWidth: 80 },
+  btn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', minWidth: 76 },
   primaryBtn: { backgroundColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
   cancelBtn: { backgroundColor: '#333' },
-  destructiveBtn: { backgroundColor: '#ff4444' },
-  btnText: { fontSize: 15, fontWeight: '600' },
-  primaryText: { color: '#121212' },
-  cancelText: { color: '#fff' },
-  destructiveText: { color: '#fff' },
+  destructiveBtn: { backgroundColor: '#FF3B30' },
+  btnText: { fontSize: 14.5, fontWeight: '600' },
+  primaryText: { color: '#FFFFFF' },
+  cancelText: { color: '#FFFFFF' },
+  destructiveText: { color: '#FFFFFF' },
 });
 
 export default AlertModal;

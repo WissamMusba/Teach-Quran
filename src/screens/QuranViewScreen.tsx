@@ -2474,13 +2474,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
       </Modal>
 
       {/* ---- note modal (menu Note) ---- */}
-      <Modal visible={showNoteModal} transparent animationType="fade">
+      <Modal visible={showNoteModal} transparent animationType="fade" onRequestClose={() => setShowNoteModal(false)}>
         <View style={styles(nightMode).noteOverlay}>
-          <View style={styles(nightMode).noteContainer}>
-            <TextInput style={styles(nightMode).noteInput} value={noteText} onChangeText={setNoteText} multiline placeholder="Note..." placeholderTextColor="#666" />
+          <View style={[styles(nightMode).noteContainer, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, borderWidth: 1 }]}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: themeColors.text, marginBottom: 10 }}>Verse Note</Text>
+            <TextInput
+              style={[styles(nightMode).noteInput, { color: themeColors.text, borderColor: themeColors.border, backgroundColor: nightMode ? '#121520' : '#F0EBE0' }]}
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              placeholder="Write note here…"
+              placeholderTextColor={themeColors.subText}
+            />
             <View style={styles(nightMode).noteActions}>
-              <TouchableOpacity onPress={() => setShowNoteModal(false)} style={styles(nightMode).noteCancelBtn}><Text style={{color:'#fff'}}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={saveNote} style={styles(nightMode).noteSaveBtn}><Text style={{color:'#000'}}>Save</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowNoteModal(false)} style={[styles(nightMode).noteCancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]}>
+                <Text style={{ color: themeColors.text, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveNote} style={[styles(nightMode).noteSaveBtn, { backgroundColor: themeColors.primary }]}>
+                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -2494,18 +2506,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* share menu: include toggles + big Share button; capture runs via runShare */}
       <Modal visible={showShareMenu} transparent animationType="fade" onRequestClose={() => { emitTutorialEvent('share_opened'); setShowShareMenu(false); }}>
         <Pressable style={styles(nightMode).shareMenuBackdrop} onPress={() => { emitTutorialEvent('share_opened'); setShowShareMenu(false); }}>
-          <Pressable style={styles(nightMode).shareMenuCard} onPress={() => {}}>
-            <Text style={styles(nightMode).shareMenuTitle}>Share page</Text>
+          <Pressable style={[styles(nightMode).shareMenuCard, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]} onPress={() => {}}>
+            <Text style={[styles(nightMode).shareMenuTitle, { color: themeColors.text }]}>Share Page</Text>
             <View style={styles(nightMode).shareMenuRow}>
-              <Text style={styles(nightMode).shareMenuLabel}>Include drawings</Text>
-              <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
+              <Text style={[styles(nightMode).shareMenuLabel, { color: themeColors.text }]}>Include drawings</Text>
+              <Switch value={shareDrawings} onValueChange={setShareDrawings} trackColor={{ false: nightMode ? '#333' : '#ddd', true: themeColors.accent }} />
             </View>
             <View style={styles(nightMode).shareMenuRow}>
-              <Text style={styles(nightMode).shareMenuLabel}>Include mistakes</Text>
-              <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: '#333', true: (nightMode ? '#7BA7DB' : '#1C3D72') }} />
+              <Text style={[styles(nightMode).shareMenuLabel, { color: themeColors.text }]}>Include mistakes</Text>
+              <Switch value={shareMistakes} onValueChange={setShareMistakes} trackColor={{ false: nightMode ? '#333' : '#ddd', true: themeColors.accent }} />
             </View>
-            <TouchableOpacity style={styles(nightMode).shareMenuButton} onPress={runShare} activeOpacity={0.75}>
-              <Text style={styles(nightMode).shareMenuButtonText}>Share</Text>
+            <TouchableOpacity style={[styles(nightMode).shareMenuButton, { backgroundColor: themeColors.primary, shadowColor: themeColors.accent }]} onPress={runShare} activeOpacity={0.75}>
+              <Text style={[styles(nightMode).shareMenuButtonText, { color: '#FFFFFF' }]}>Share</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
