@@ -16,6 +16,7 @@ import { setUser } from '../store/authSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { store } from '../store';
 import AlertModal from '../components/common/AlertModal';
+import Svg, { Path, Circle } from 'react-native-svg';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function LoginScreen({ navigation }: any) {
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
@@ -73,10 +74,9 @@ export default function LoginScreen({ navigation }: any) {
         <View style={[styles.pwRow, isDark && dark.pwRow]}>
           <TextInput style={[styles.pwInput, isDark && dark.pwInput]} placeholder="Password" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setP} secureTextEntry={!showP} />
           <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
-            <View style={styles.eyeIconWrap}>
-              <Text style={[styles.eyeIcon, isDark && dark.eyeIcon]}>👁</Text>
-              {!showP && <View style={styles.eyeSlash} />}
-            </View>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={isDark ? '#9aa0b6' : '#5a6380'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              {showP ? (<><Path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><Circle cx={12} cy={12} r={3.2} /></>) : (<><Path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><Circle cx={12} cy={12} r={3.2} /><Path d="M3 3l18 18" /></>)}
+            </Svg>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading} activeOpacity={0.7}>

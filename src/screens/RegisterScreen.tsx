@@ -8,11 +8,16 @@
  */
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useSelector } from 'react-redux';
 import { registerUser } from '../api/auth';
+import { useDispatch, useSelector } from 'react-redux';
+import { setUser } from '../store/authSlice';
+import { startTutorial } from '../tutorial/tutorialRuntime';
+import { store } from '../store';
 import AlertModal from '../components/common/AlertModal';
+import Svg, { Path, Circle } from 'react-native-svg';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 export default function RegisterScreen({ navigation }: any) {
+  const dispatch = useDispatch();
   const [u, setU] = useState(''); const [p, setP] = useState(''); const [showP, setShowP] = useState(false); const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ visible: false, title: '', message: '', isSuccess: false });
   const nightMode = useSelector((s: any) => s.settings.nightMode);
@@ -57,8 +62,11 @@ export default function RegisterScreen({ navigation }: any) {
     setLoading(true);
     const res = await registerUser(u.trim(), p);
     setLoading(false);
-    if (res.success) { setAlert({ visible: true, title: 'Success', message: 'Account created! You can now log in.', isSuccess: true }); }
-    else setAlert({ visible: true, title: 'Registration Failed', message: res.error, isSuccess: false });
+    if (res.success) {
+      dispatch(setUser({ id: res.user.uid, username: u.trim() }));
+      if (!store.getState().settings.tutorialDone) dispatch(startTutorial());
+      navigation.replace('Dashboard');
+    } else setAlert({ visible: true, title: 'Registration Failed', message: res.error, isSuccess: false });
   }, [u, p, navigation]);
   return (
     <View style={[styles.root, isDark && dark.root]}>
@@ -68,10 +76,9 @@ export default function RegisterScreen({ navigation }: any) {
         <View style={[styles.pwRow, isDark && dark.pwRow]}>
           <TextInput style={[styles.pwInput, isDark && dark.pwInput]} placeholder="Password (6+ chars)" placeholderTextColor={isDark ? '#8a8a8a' : '#9a9a9a'} onChangeText={setP} secureTextEntry={!showP} />
           <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowP(!showP)} activeOpacity={0.6}>
-            <View style={styles.eyeIconWrap}>
-              <Text style={[styles.eyeIcon, isDark && dark.eyeIcon]}>👁</Text>
-              {!showP && <View style={styles.eyeSlash} />}
-            </View>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={isDark ? '#9aa0b6' : '#5a6380'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              {showP ? (<><Path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><Circle cx={12} cy={12} r={3.2} /></>) : (<><Path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><Circle cx={12} cy={12} r={3.2} /><Path d="M3 3l18 18" /></>)}
+            </Svg>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.btn} onPress={handleReg} disabled={loading} activeOpacity={0.7}>

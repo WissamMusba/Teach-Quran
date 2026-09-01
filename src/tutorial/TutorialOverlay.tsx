@@ -61,16 +61,12 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
     && anchorRect.x + anchorRect.w > 0 && anchorRect.y + anchorRect.h > 0
     && anchorRect.x < winW && anchorRect.y < winH
     ? anchorRect : null;
-  // Phones (S10 + others) were landing too high across all steps — nudge every
-  // spotlight down so the ring/hand sit centered on the target (24px total after the
-  // previous 16; emulator stays correct, larger shifts would clip on small screens).
-  const NUDGE_Y = 24;
   const zone: TutorialAnchorRect | null = validAnchor
     ? {
         x: Math.max(4, validAnchor.x),
-        y: Math.max(4, validAnchor.y + NUDGE_Y),
+        y: Math.max(4, validAnchor.y),
         w: Math.max(24, Math.min(validAnchor.w, winW - 8 - Math.max(4, validAnchor.x))),
-        h: Math.max(24, Math.min(validAnchor.h, winH - 8 - Math.max(4, validAnchor.y + NUDGE_Y))),
+        h: Math.max(24, Math.min(validAnchor.h, winH - 8 - Math.max(4, validAnchor.y))),
       }
     : step.allowZone
       ? { x: step.allowZone.fx * winW, y: step.allowZone.fy * winH, w: step.allowZone.fw * winW, h: step.allowZone.fh * winH }

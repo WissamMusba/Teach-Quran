@@ -9,7 +9,7 @@
  *             react-native-safe-area-context (insets), react-native-svg (arrow).
  */
 import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -49,18 +49,19 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
     navigation.navigate('Bookmarks' as any);
   }, [ensureMyQuran, navigation]);
 
-  const bg = nightMode ? '#1e1e1e' : '#ffffff';
+  const bg = nightMode ? '#1e1e1e' : '#F3EFE6';
   const border = nightMode ? '#2a2a4a' : '#e0e0e0';
   const titleC = nightMode ? '#fff' : '#1a1a1a';
+  const isTablet = useWindowDimensions().width >= 600;
 
   return (
-    <View style={[styles.wrap, { backgroundColor: bg, borderTopColor: border, paddingBottom: Math.max(10, insets.bottom + 6), paddingTop: 4 }]}> 
+    <View style={[styles.wrap, { backgroundColor: bg, borderTopColor: border, paddingBottom: Math.max(14, insets.bottom + 10), paddingTop: isTablet ? 8 : 4, minHeight: isTablet ? 64 : 54 }]}> 
       <TouchableOpacity style={styles.btn} onPress={goSurah} activeOpacity={0.7}>
-        <Text style={[styles.label, { color: titleC }]} numberOfLines={1}>Surah Index</Text>
+        <Text style={[styles.label, { color: titleC, fontSize: isTablet ? 14 : 13 }]} numberOfLines={1}>Surah Index</Text>
       </TouchableOpacity>
       <View style={[styles.divider, { backgroundColor: border }]} />
       <TouchableOpacity style={styles.btn} onPress={goBookmarks} activeOpacity={0.7}>
-        <Text style={[styles.label, { color: titleC }]} numberOfLines={1}>Bookmarks</Text>
+        <Text style={[styles.label, { color: titleC, fontSize: isTablet ? 14 : 13 }]} numberOfLines={1}>Bookmarks</Text>
       </TouchableOpacity>
       <View style={[styles.divider, { backgroundColor: border }]} />
       <View style={styles.pageCell}>

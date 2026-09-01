@@ -8,7 +8,7 @@ import React, { memo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone, toggleLegacySmooth } from '../store/settingsSlice';
+import { toggleNightMode, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont } from '../utils/theme';
@@ -23,16 +23,15 @@ const SCRIPT_WORD = 'بِسْمِ';
 
 const SCRIPT_OPTIONS = [
   { key: 'uthmani', label: 'Uthmani' },
-  { key: 'alqalam', label: 'Indopak 1' },
-  { key: 'saleem', label: 'Indopak 2' },
-  { key: 'lateef', label: 'Indopak 3' },
+  { key: 'alqalam', label: 'Indopak' },
+  { key: 'lateef', label: 'Tajweed' },
 ];
 
 const scriptLabel = (key: string) => SCRIPT_OPTIONS.find((o) => o.key === key)?.label || key;
 
 /**
  * WHAT: Screen component: three cards of settings controls that dispatch Redux actions on change, topped by the fixed ScreenHeader. Wrapped in memo() (bottom of file).
- * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, mushafSplit, playBasmala. 2) "Reading Settings" card: Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Quran Script preview box (Basmala in getArabicFont(textStyle)) + dropdown row that opens a bottom-sheet Modal listing Uthmani=uthmani / Indopak 1=alqalam / Indopak 2=saleem / Indopak 3=lateef (each sample word in its own font, ✓ on the current pick) -> setTextStyle(style). 3) "Appearance" card: Dark mode Switch -> toggleNightMode(). 4) "Reading Preferences" card: Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v); Bismillah play Switch -> togglePlayBasmala().
+ * FLOW: 1) useSelector: from state.quran -> showTranslation, fontSize, readingMode, textStyle; from state.settings -> nightMode, mushafSplit, playBasmala. 2) "Reading Settings" card: Show Translation Switch -> toggleTranslation(); Reading Mode segmented ['ayah'|'continuous'|'page'] -> setReadingMode(mode); Arabic Font Size ['small'|'medium'|'large'|'xl'] -> setFontSize(size); Quran Script preview box (Basmala in getArabicFont(textStyle)) + dropdown row that opens a bottom-sheet Modal listing Uthmani=uthmani / Indopak=alqalam / Tajweed=lateef (each sample word in its own font, ✓ on the current pick) -> setTextStyle(style). 3) "Appearance" card: Dark mode Switch -> toggleNightMode(). 4) "Reading Preferences" card: Spread view (two pages) Switch rendered ONLY when width >= SPLIT_MIN_WIDTH (768) -> setMushafSplit(v); Bismillah play Switch -> togglePlayBasmala().
  * CALLS: toggleTranslation / setFontSize / setReadingMode / setTextStyle (quranSlice); toggleNightMode / setMushafSplit / togglePlayBasmala (settingsSlice).
  * CALLED BY: React Navigation; via QuranViewScreen.tsx:510.
  * AFFECTS: Redux state.quran (showTranslation, fontSize, readingMode, textStyle) â€” NOT persisted (quranSlice not in persist whitelist); Redux state.settings (nightMode, mushafSplit, playBasmala) â€” PERSISTED to AsyncStorage via redux-persist. Downstream readers: quran values in QuranViewScreen.tsx:108 (page-layout cache key includes textStyle/headerVisible/fs, localDB.ts:20-24); settings in QuranViewScreen.tsx:110/117, VerseDisplay.tsx:11-12, MushafPageView.tsx:50-52, FlowingText.tsx:11-12, AnnotationToolbar.tsx:88, DashboardScreen.tsx:28.

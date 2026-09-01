@@ -484,8 +484,8 @@ export default function DashboardScreen({ navigation }: any) {
   }, [myQuranStudent, myQuranResumeInfo, dispatch, navigation]);
 
   return (
-    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#F4F1EA' }]}>
-      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#FBF9F4', borderBottomColor: nightMode ? '#2a2a2a' : '#e0e0e0', paddingTop: 16 + statusBarPad }]}>
+    <View style={[styles(nightMode).container, { backgroundColor: nightMode ? '#121212' : '#EDEBE1' }]}>
+      <View style={[styles(nightMode).header, { backgroundColor: nightMode ? '#1e1e1e' : '#F3EFE6', borderBottomColor: nightMode ? '#2a2a2a' : '#d9d3c4', paddingTop: 16 + statusBarPad }]}>
         <View style={styles(nightMode).titleRow}><View style={styles(nightMode).titleDot} /><Text style={[styles(nightMode).title, { color: nightMode ? '#fff' : '#1a1a1a' }]}>Students</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TutorialAnchor id="sync-pill"><SyncStatus /></TutorialAnchor>

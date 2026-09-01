@@ -32,3 +32,6 @@ my-upload-key.keystore
 *.zip
 *.log
 *.apk
+
+# Removed Indopak 2 sqlite (manual delete after close)
+qudratullah-indopak-15-lines.db

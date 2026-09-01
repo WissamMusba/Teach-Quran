@@ -12,6 +12,7 @@
  */
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Keyboard, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
@@ -84,8 +85,11 @@ const ArrowRight = ({ c }: { c: string }) => (
  *        greys out only when the student has no reading mark (lastRead) at all.
  */
 export default function StudentHubScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const currentStudent = useSelector((s: any) => s.student.currentStudent);
+  // My Quran shouldn't show empty hub — if no currentStudent, bounce to Dashboard.
+  React.useEffect(() => { if (!currentStudent) navigation.replace('Dashboard'); }, [currentStudent, navigation]);
   // v97: device-only student photo (never synced) — shown beside the student name.
   const [facePath, setFacePath] = useState<string | null>(null);
   useEffect(() => {
@@ -207,18 +211,18 @@ export default function StudentHubScreen({ navigation }: any) {
   const openVerse = (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
 
   const isDark = nightMode;
-  const bg = isDark ? '#1a1a2e' : '#f5f5f5';
-  const rowBg = isDark ? '#22223a' : '#ffffff';
+  const bg = isDark ? '#1a1a2e' : '#EDEBE1';
+  const rowBg = isDark ? '#22223a' : '#F3EFE6';
   const border = isDark ? '#2a2a4a' : '#e0e0e4';
   const titleC = isDark ? '#ffffff' : '#1a1a1a';
   const subC = isDark ? '#8a8a8a' : '#777777';
-  const cardBorder = isDark ? '#2a2a4a' : '#e0e0e4';
+  const cardBorder = isDark ? '#2a2a4a' : '#d9d3c4';
   const inputBg = isDark ? '#1a1a2e' : '#f5f5f5';
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bg }]}>
       {/* inline header (back + title + student name), consistent with the Juz/Surah index screens */}
-      <View style={[styles(nightMode).header, { backgroundColor: rowBg, borderBottomColor: border }]}>
+      <View style={[styles(nightMode).header, { backgroundColor: rowBg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={(nightMode ? '#7BA7DB' : '#1C3D72')} />
         </TouchableOpacity>
