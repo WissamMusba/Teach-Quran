@@ -99,8 +99,8 @@ android {
         applicationId "com.teachquran.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.1.0"
+        versionCode 7
+        versionName "1.1.1"
         ndk {
             abiFilters(*reactNativeArchitectures)
             debugSymbolLevel 'SYMBOL_TABLE'
@@ -129,7 +129,8 @@ android {
         release {
             signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
-            shrinkResources enableProguardInReleaseBuilds
+            // shrinkResources disabled — caused 100% device exclusion in v107 when combined
+            // with useLegacyPackaging. R8 code shrinking (minifyEnabled) is sufficient.
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
