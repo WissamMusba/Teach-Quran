@@ -104,13 +104,32 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     data.forEach((item: any) => {
       if (item.type === 'page') {
         const pageNum = item.page + 1;
-        if (pageNum === qNum) scored.push({ item, score: 100 });
-        else if (String(pageNum).startsWith(q)) scored.push({ item, score: 80 });
+        if (pageNum === qNum) {
+          scored.push({ item, score: 100 });
+        } else if (String(pageNum).startsWith(q)) {
+          scored.push({ item, score: 85 - (String(pageNum).length - q.length) });
+        } else if (String(pageNum).includes(q)) {
+          scored.push({ item, score: 60 });
+        }
       } else if (item.type === 'juz') {
-        if (item.juz === qNum) scored.push({ item, score: 100 });
-        else if (String(item.juz).startsWith(q)) scored.push({ item, score: 80 });
+        if (item.juz === qNum) {
+          scored.push({ item, score: 100 });
+        } else if (String(item.juz).startsWith(q)) {
+          scored.push({ item, score: 85 - (String(item.juz).length - q.length) });
+        } else if (String(item.juz).includes(q)) {
+          scored.push({ item, score: 60 });
+        }
       } else {
-        if (item.id === qNum) { scored.push({ item, score: 100 }); return; }
+        if (!isNaN(qNum) && qNum > 0) {
+          if (item.id === qNum) {
+            scored.push({ item, score: 100 });
+            return;
+          }
+          if (String(item.id).startsWith(q)) {
+            scored.push({ item, score: 85 - (String(item.id).length - q.length) });
+            return;
+          }
+        }
         const sEn = scoreName(item.en, qNorm);
         const sAr = scoreName(item.ar, qNorm);
         const sTrans = scoreName(item.translation, qNorm);
