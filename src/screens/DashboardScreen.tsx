@@ -26,6 +26,7 @@ import { getManifest, purgeLocalStudent, getStudentFace, saveStudentFace, clearS
 import ImagePicker from 'react-native-image-crop-picker';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
+import { formatDate, formatTime, toMillis } from '../utils/format';
 import { startStartupPrefetch } from '../utils/startupPrefetch';
 import { emitTutorialEvent, startTutorial } from '../tutorial/tutorialRuntime';
 import { setTutorialDone } from '../store/settingsSlice';
