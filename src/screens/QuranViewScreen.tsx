@@ -586,18 +586,21 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const warmedPagesRef = useRef<Set<string>>(new Set());
   const hiddenFocus = useIsFocused();
 
+  // B2 fix — the mobile header name + audio bar follow the SETTLED page, not stale redux
+  // (RESUME / GO TO PAGE / index jumps never ran the momentum-scroll surah derivation).
+  // v99.1: currentSurahId REMOVED from the deps (read from the render closure instead).
+  // With it as a dep, a fresh SurahList selection (redux surah flips while the settled
+  // page still shows the OLD surah) re-ran this effect instantly and REVERTED redux to
+  // the old surah — the selection's async landing then aborted on its stale-guard, so
+  // picking Al-Fatiha left the reader on the current surah's start page.
   useEffect(() => {
     if (readingMode !== 'page' || !settledPage) return;
     const pData = pageCache[settledPage];
     const firstWord = pData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
     const sId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
-    const vId = firstWord?.location ? parseInt(firstWord.location.split(':')[1], 10) : 1;
     if (sId && sId !== currentSurahId) { pageScrollSurahChangeRef.current = sId; dispatch(setSurah({ surahId: sId, verses: [] })); }
-    const sid = currentStudentIdRef.current;
-    if (sid && sId > 0) {
-      saveLastPageSeenLocal(sid, { surah: sId, verse: vId, at: new Date().toISOString() }).catch(() => {});
-    }
-  }, [settledPage, pageCache, readingMode, currentSurahId, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledPage, pageCache, readingMode]);
 
   const handleVisibleMeasured = useCallback((pg: number) => {
     const keyW = Math.round(splitOn ? pageW : winW);

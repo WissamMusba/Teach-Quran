@@ -10,6 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { setCurrentStudent } from '../store/studentSlice';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
+import { getVersePage } from '../database/quranData';
 import { getManifest, getStudentData, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import Svg, { Path } from 'react-native-svg';
@@ -172,9 +173,11 @@ export default function StudentHubScreen({ navigation }: any) {
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
+  const textStyle = useSelector((s: any) => s.quran?.textStyle);
   const [studentData, setStudentData] = useState<any>(null);
   const [facePath, setFacePath] = useState<string | null>(null);
-  const [lastSeenPage, setLastSeenPage] = useState<number | null>(null);
+  const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
+  const [lastSeenAt, setLastSeenAt] = useState<string>('');
   const [dailyPage, setDailyPage] = useState<number>(0);
   const [dailyPageFor, setDailyPageFor] = useState<string>('');
   const [pageInput, setPageInput] = useState('');
@@ -196,15 +199,44 @@ export default function StudentHubScreen({ navigation }: any) {
       };
       setStudentData(mergedData);
       setFacePath(fp);
+
+      const lr = mergedData.lastRead;
+      const lrSurah = lr ? Number(lr.surah) : 0;
+      const lrVerse = lr ? Number(lr.verse) : 0;
+
+      let target: { surah: number; verse: number } | null = null;
+      if (seen?.at) setLastSeenAt(String(seen.at));
+      else if (lr?.updatedAt) setLastSeenAt(String(lr.updatedAt));
+      else setLastSeenAt('');
+
       if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) {
-        const pages = await getVersePagesDB([[Number(seen.surah), Number(seen.verse)]]);
-        const p = pages[`${seen.surah}:${seen.verse}`];
-        setLastSeenPage(typeof p === 'number' ? p : null);
+        target = { surah: Number(seen.surah), verse: Number(seen.verse) };
+      } else if (lrSurah > 0 && lrVerse > 0) {
+        target = { surah: lrSurah, verse: lrVerse };
+      }
+
+      if (target) {
+        try {
+          const pg = await getVersePage(target.surah, target.verse, textStyle);
+          setResumeInfo({ page: pg, juz: getJuzForVerse(target.surah, target.verse), surah: target.surah, verse: target.verse });
+        } catch {
+          setResumeInfo({ page: 1, juz: getJuzForVerse(target.surah, target.verse), surah: target.surah, verse: target.verse });
+        }
       } else {
-        setLastSeenPage(null);
+        setResumeInfo({ page: 1, juz: 1, surah: 1, verse: 1 });
+      }
+
+      if (lrSurah > 0 && lrVerse > 0) {
+        getVersePage(lrSurah, lrVerse, textStyle).then((pg) => {
+          setDailyPage(pg);
+          setDailyPageFor(`${lrSurah}:${lrVerse}`);
+        }).catch(() => {});
+      } else {
+        setDailyPage(0);
+        setDailyPageFor('');
       }
     } catch {}
-  }, [currentStudent?.id]);
+  }, [currentStudent?.id, textStyle]);
 
   useFocusEffect(
     useCallback(() => {
@@ -216,52 +248,16 @@ export default function StudentHubScreen({ navigation }: any) {
   const lrVerse = studentData?.lastRead?.verse || 0;
 
   useEffect(() => {
-    if (!lrSurah || !lrVerse) {
-      setDailyPage(0);
-      setDailyPageFor('');
-      return;
-    }
-    const key = `${lrSurah}:${lrVerse}`;
-    let cancelled = false;
-    (async () => {
-      try {
-        const pages = await getVersePagesDB([[lrSurah, lrVerse]]);
-        const p = pages[key];
-        if (!cancelled && typeof p === 'number' && p > 0) {
-          setDailyPage(p);
-          setDailyPageFor(key);
-        }
-      } catch {}
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [lrSurah, lrVerse]);
-
-  const resumeInfo = useMemo(() => {
-    if (typeof lastSeenPage === 'number' && lastSeenPage >= 1) {
-      const displayPage = lastSeenPage + 1;
-      return { page: lastSeenPage, displayPage, juz: pageToJuz(displayPage), surah: 1 };
-    }
-    if (dailyPage > 0) {
-      const displayPage = dailyPage + 1;
-      return { page: dailyPage, displayPage, juz: pageToJuz(displayPage), surah: lrSurah || 1 };
-    }
-    if (lrSurah > 0 && lrVerse > 0) {
-      return { page: 1, displayPage: 2, juz: getJuzForVerse(lrSurah, lrVerse), surah: lrSurah };
-    }
-    return { page: 1, displayPage: 2, juz: 1, surah: 1 };
-  }, [lastSeenPage, dailyPage, lrSurah, lrVerse]);
-
-  useEffect(() => {
-    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.displayPage));
+    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.page + 1));
   }, [resumeInfo]);
 
   const resumeSubtitle = useMemo(() => {
     if (!resumeInfo) return 'Page 1 · Juz 1';
     const sName = surahNames?.[resumeInfo.surah] || `Surah ${resumeInfo.surah}`;
-    return `Page ${resumeInfo.displayPage} · Juz ${resumeInfo.juz} · ${sName}`;
-  }, [resumeInfo, surahNames]);
+    const ago = formatTimeAgo(lastSeenAt || studentData?.lastRead?.updatedAt);
+    const agoPart = ago ? ` · ${ago}` : '';
+    return `Reading Page ${resumeInfo.page + 1} · Juz ${resumeInfo.juz} · ${sName}${agoPart}`;
+  }, [resumeInfo, surahNames, lastSeenAt, studentData?.lastRead?.updatedAt]);
 
   const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
   const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
