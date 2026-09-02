@@ -267,7 +267,7 @@ export default function StudentHubScreen({ navigation }: any) {
     if (!dailyTarget) return 'No mark set yet — bookmark a verse while reading';
     const sName = surahNames?.[dailyTarget.surah] || `Surah ${dailyTarget.surah}`;
     const j = getJuzForVerse(dailyTarget.surah, dailyTarget.verse);
-    const pgPart = dailyPage > 0 ? ` · Page ${dailyPage}` : '';
+    const pgPart = dailyPage > 0 ? ` · Page ${dailyPage + 1}` : '';
     const timeAgoStr = formatTimeAgo(studentData?.lastRead?.updatedAt);
     const timePart = timeAgoStr ? ` (${timeAgoStr})` : '';
     return `${sName} · Ayat ${dailyTarget.verse} · Juz ${j}${pgPart}${timePart}`;

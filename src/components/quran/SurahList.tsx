@@ -188,7 +188,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
                   if (item.type === 'page') { onSelectPage?.(item.page); }
                   else if (item.type === 'juz') { onSelectJuz?.(item.juz); }
                   else { onSelect(item.id); }
-                  onClose();
+                  onClose?.();
                 }}
                 activeOpacity={0.7}
               >
