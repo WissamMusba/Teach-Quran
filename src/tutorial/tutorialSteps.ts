@@ -109,7 +109,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'highlight', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Mark a mistake',
     body: 'Press any word — it gets highlighted in RED. That\'s how you track a mistake. Try it now on any word.',
-    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.3 }, anchorId: 'reading-area', skipLabel: 'Skip this',
+    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, skipLabel: 'Skip this',
   },
   {
     id: 'verse-menu', screen: 'QuranView', kind: 'action', chapter: 'Annotate',

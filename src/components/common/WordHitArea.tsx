@@ -49,16 +49,20 @@ const WordHitArea = ({ tapFraction = 0.5, onWordPress, onDeadTap, onLongPress, o
     onMeasured?.(e.nativeEvent.layout.width);
   }, [onMeasured]);
 
-  // Classify the tap: center tapFraction band → onWordPress; outer margins → onDeadTap (no args); unmeasured word → optimistic onWordPress.
+  // Classify the tap: instant synchronous execution for zero lag on word taps across all devices.
   const handlePress = useCallback((e: GestureResponderEvent) => {
+    const localX = e.nativeEvent?.locationX;
     const w = widthRef.current;
-    if (w <= 0) { onWordPress?.(); return; }
-    ref.current?.measureInWindow((x) => {
-      const localX = e.nativeEvent.pageX - x;
+    if (typeof localX === 'number' && w > 0 && tapFraction < 1) {
       const margin = (w * (1 - tapFraction)) / 2;
-      if (localX >= margin && localX <= w - margin) onWordPress?.();
-      else onDeadTap?.();
-    });
+      if (localX >= margin && localX <= w - margin) {
+        onWordPress?.();
+      } else {
+        onDeadTap?.();
+      }
+    } else {
+      onWordPress?.();
+    }
   }, [tapFraction, onWordPress, onDeadTap]);
 
   return (

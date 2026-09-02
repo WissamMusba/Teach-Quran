@@ -352,9 +352,14 @@ const VoiceNoteRecorder = ({
           )}
 
           {phase === 'done' && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={deleteNote} activeOpacity={0.8}>
-              <Text style={styles.deleteText}>Delete</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: themeColors.primary, width: 'auto', paddingHorizontal: 14, borderRadius: 16 }]} onPress={cancel} activeOpacity={0.8}>
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>Done</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={deleteNote} activeOpacity={0.8}>
+                <Text style={styles.deleteText}>Delete</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {phase !== 'done' && (

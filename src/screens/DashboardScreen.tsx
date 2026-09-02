@@ -171,10 +171,10 @@ export default function DashboardScreen({ navigation }: any) {
     }, [fabAnim])
   );
 
-  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 114] });
+  const fabWidth = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [48, 102] });
   const fabRotate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
   const fabTextOpacity = fabAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
-  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+  const fabTextTranslate = fabAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
 
   const isMyQuranStudent = (s: any) => s?.isMyQuran === true || s?.name === 'My Quran';
   const myQuranStudent = useMemo(() => {
@@ -410,24 +410,25 @@ export default function DashboardScreen({ navigation }: any) {
   const renderItem = useCallback(({ item, index }: any) => {
     const manifest = manifests[item.id];
     const lr = manifest?.lastRead;
+    const studentPage = studentPages[item.id] || (lr?.surah ? 1 : 0);
+    // Real Quran display page: Surah Fatiha starts on Page 2 (+1 offset)
+    const displayPage = studentPage > 0 ? studentPage + 1 : 0;
+    const studentPct = studentPage > 0 ? Math.min(100, Math.max(1, Math.round((studentPage / 610) * 100))) : 0;
+
     let readingLine: string;
     let dateLine: string | null = null;
     let activityColor = '#8E95A8';
 
     if (manifest && lr?.surah) {
       const ls = Number(lr.surah);
-      const lv = Number(lr.verse);
       const nm = surahNames?.[ls] || `Surah ${ls}`;
-      readingLine = `${nm} · Ayat ${lv}`;
+      readingLine = displayPage > 0 ? `${nm} · Page ${displayPage}` : `${nm}`;
       dateLine = lr.updatedAt ? `${formatDate(lr.updatedAt)} · ${formatTime(lr.updatedAt)}` : '';
       activityColor = getActivityColor(lr.updatedAt);
     } else {
       readingLine = manifest ? 'Not read yet' : '…';
     }
     const initial = (item.name || '?').charAt(0).toUpperCase();
-
-    const studentPage = studentPages[item.id] || (lr?.surah ? 1 : 0);
-    const studentPct = studentPage > 0 ? Math.min(100, Math.max(1, Math.round((studentPage / 610) * 100))) : 0;
 
     return (
       <TutorialAnchor id={index === 0 ? 'student-card' : `student-card-${item.id}`}>
@@ -815,11 +816,11 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   heroPillText: { fontSize: 11, fontWeight: '700' },
   continueBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   continueBtnText: { fontSize: 11.5, fontWeight: '700' },
-  fabContainer: { height: 50, borderRadius: 25, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, overflow: 'hidden' },
-  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
-  fabPlus: { fontSize: 26, fontWeight: '300', lineHeight: 28, width: 22, textAlign: 'center' },
-  fabTextWrap: { marginLeft: 6, justifyContent: 'center' },
-  fabTextLine: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '700', lineHeight: 12.5 },
+  fabContainer: { height: 48, borderRadius: 24, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, overflow: 'hidden' },
+  fabTouchable: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 12, paddingRight: 10, opacity: 0.82 },
+  fabPlus: { fontSize: 24, fontWeight: '400', lineHeight: 26, width: 24, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
+  fabTextWrap: { marginLeft: 5, justifyContent: 'center' },
+  fabTextLine: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', lineHeight: 12 },
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   menuDropdown: { position: 'absolute', right: 16, width: 230, borderRadius: 14, borderWidth: 1, paddingVertical: 6, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },

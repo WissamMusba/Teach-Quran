@@ -1659,8 +1659,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
         // Also collapse the toolbar: since v100 the tutorial opens it itself (draw-open step),
         // so leaving drawing mode must restore the pre-draw UI (grip only). The expand watcher
         // restores the header on the same transition; the ref-set below is the same value.
-        if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); }
+        if (isDrawing) { setIsDrawing(false); }
+        setIsHeaderVisible(true);
         dispatch(setToolbarExpanded(false));
+        setRecordingVerseKey(null);
       },
       cleanup: () => {
         try {

@@ -119,10 +119,13 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
   } catch { /* best-effort */ }
 };
 
-// Reading-mark bookmark ribbon — classic sleek ribbon bookmark; filled when reading mark is set.
-const BookmarkRibbon = ({ c, width = 18, height = 26, filled = false }: { c: string; width?: number; height?: number; filled?: boolean }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 32" fill={filled ? c : 'none'} stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M4 2h16a1 1 0 0 1 1 1v27l-9-5.5L3 30V3a1 1 0 0 1 1-1z" />
+// Reading-mark bookmark ribbon — solid pill badge with bookmark icon; distinct from page frame.
+const BookmarkRibbon = ({ c, width = 20, height = 26, filled = false }: { c: string; width?: number; height?: number; filled?: boolean }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 32" fill="none">
+    {/* Ribbon background tab with border */}
+    <Path d="M2 2h20v28l-10-6L2 30V2z" fill={filled ? c : '#1E2333'} stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    {/* Inner decorative bookmark icon */}
+    <Path d="M7 7h10v14l-5-3.5L7 21V7z" fill={filled ? '#FFFFFF' : c} stroke={filled ? '#FFFFFF' : c} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -689,9 +692,9 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
         // pages mounted — only the CURRENT page may register 'reading-ribbon', otherwise the
         // neighbours' offscreen measures race this page's and the spotlight flashes between
         // the ribbon and the top-left corner.
-        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -24 : -20, right: 2, zIndex: 20, elevation: 20 }}>
+        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -24 : -20, right: -5, zIndex: 20, elevation: 20 }}>
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <BookmarkRibbon c={themeColors.accent} width={isTablet ? 23 : 18} height={isTablet ? 33 : 26} filled={readingMarkActive} />
+          <BookmarkRibbon c={themeColors.accent} width={isTablet ? 24 : 20} height={isTablet ? 33 : 26} filled={readingMarkActive} />
         </TouchableOpacity>
         </TutorialAnchor>
       )}

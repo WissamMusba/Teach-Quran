@@ -99,8 +99,8 @@ android {
         applicationId "com.teachquran.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "1.1.2"
+        versionCode 9
+        versionName "1.1.3"
         ndk {
             abiFilters(*reactNativeArchitectures)
             debugSymbolLevel 'SYMBOL_TABLE'

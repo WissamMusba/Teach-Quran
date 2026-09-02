@@ -127,46 +127,49 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           onLayout={onContentLayout}
         >
           <View style={s.topRow}>
-            {/* Left Aligned Back Button & Action Icons + Hamburger Menu */}
+            {/* Left: Back Button & Surah Picker Title Block */}
             <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
               <IconBack c={primaryAccent} />
             </TouchableOpacity>
 
-            <TutorialAnchor id="hdr-menu">
-              <TouchableOpacity
-                style={s.hamburgerBtn}
-                onPress={() => setMenuOpen(true)}
-                activeOpacity={0.6}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <IconHamburger c={primaryAccent} />
+            <TutorialAnchor id="hdr-list" style={{ flexShrink: 1 }}>
+              <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
+                <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
+                <Text style={[s.surahSub, { color: subColor }]} numberOfLines={1}>
+                  {`Surah ${p.surahId} ▾`}
+                </Text>
               </TouchableOpacity>
             </TutorialAnchor>
 
+            {/* Middle Spacer */}
+            <View style={{ flex: 1 }} />
+
+            {/* Right: Share, Bookmarks, and Hamburger Menu at the rightmost corner */}
             <View style={s.iconsRow}>
               <TutorialAnchor id="hdr-share">
                 <Btn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} />
               </TutorialAnchor>
               <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
+              
+              <TutorialAnchor id="hdr-menu">
+                <TouchableOpacity
+                  style={s.hamburgerBtn}
+                  onPress={() => setMenuOpen(true)}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <IconHamburger c={primaryAccent} />
+                </TouchableOpacity>
+              </TutorialAnchor>
             </View>
-
-            {/* Right Aligned Title Block */}
-            <TutorialAnchor id="hdr-list" style={{ flex: 1 }}>
-              <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
-                <Text style={[s.surahName, { color: titleColor, textAlign: 'right' }]} numberOfLines={1}>{p.surahName}</Text>
-                <Text style={[s.surahSub, { color: subColor, textAlign: 'right' }]} numberOfLines={1}>
-                  {`Surah ${p.surahId} ▾`}
-                </Text>
-              </TouchableOpacity>
-            </TutorialAnchor>
           </View>
         </Animated.View>
       </Animated.View>
 
-      {/* Left-Aligned Hamburger Dropdown Menu Modal */}
+      {/* Right-Aligned Hamburger Dropdown Menu Modal */}
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
         <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)}>
-          <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, left: 44 }]}>
+          <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, right: 10 }]}>
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onNotes(); }}

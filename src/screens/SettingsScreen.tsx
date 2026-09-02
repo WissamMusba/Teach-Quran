@@ -162,12 +162,23 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
       <ScreenHeader title="Settings" subtitle="Reading & themes" onBack={onClose} />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode, themeColors).content}>
         {/* Reading Settings */}
+        {/* Reading Settings */}
         <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode, themeColors).sectionTitle}>Reading Settings</Text>
 
-          <View style={styles(nightMode, themeColors).row}>
-            <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Show Translation</Text>
-            <Switch value={showTranslation} onValueChange={() => { dispatch(toggleTranslation()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+          <View style={[styles(nightMode, themeColors).row, readingMode === 'page' && { opacity: 0.5 }]}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={[styles(nightMode, themeColors).label, { color: labelColor, marginBottom: 2 }]}>Show Translation</Text>
+              {readingMode === 'page' && (
+                <Text style={{ fontSize: 11, color: themeColors.accent, fontWeight: '600', marginTop: 2 }}>Only available in Ayah List and Continuous modes</Text>
+              )}
+            </View>
+            <Switch
+              value={readingMode === 'page' ? false : showTranslation}
+              disabled={readingMode === 'page'}
+              onValueChange={() => { dispatch(toggleTranslation()); }}
+              trackColor={{ false: switchFalse, true: themeColors.accent }}
+            />
           </View>
 
           <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Reading Mode</Text>
@@ -204,20 +215,16 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           </TouchableOpacity>
         </View>
 
-        {/* Reading Preferences */}
-        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-          <Text style={styles(nightMode, themeColors).sectionTitle}>Reading Preferences</Text>
-          {width >= SPLIT_MIN_WIDTH && (
+        {/* Reading Preferences (Spread View on Tablets) */}
+        {width >= SPLIT_MIN_WIDTH && (
+          <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <Text style={styles(nightMode, themeColors).sectionTitle}>Reading Preferences</Text>
             <View style={styles(nightMode, themeColors).row}>
               <View style={styles(nightMode, themeColors).settingInfo}><Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Spread view (two pages side by side)</Text><Text style={styles(nightMode, themeColors).settingDesc}>Show two mushaf pages side by side on tablets</Text></View>
               <Switch value={mushafSplit} onValueChange={(v) => { dispatch(setMushafSplit(v)); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
             </View>
-          )}
-          <View style={styles(nightMode, themeColors).row}>
-            <View style={styles(nightMode, themeColors).settingInfo}><Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Bismillah before verse 1</Text><Text style={styles(nightMode, themeColors).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text></View>
-            <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
           </View>
-        </View>
+        )}
 
         {/* Tutorial */}
         <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -352,6 +359,18 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
               Clear all offline audio downloads
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Audio Playback & Recitation Options (Bottom Last Option) */}
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Audio Recitation Options</Text>
+          <View style={[styles(nightMode, themeColors).row, { marginBottom: 0 }]}>
+            <View style={styles(nightMode, themeColors).settingInfo}>
+              <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Bismillah before verse 1</Text>
+              <Text style={styles(nightMode, themeColors).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text>
+            </View>
+            <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+          </View>
         </View>
       </ScrollView>
 

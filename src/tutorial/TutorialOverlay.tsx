@@ -53,9 +53,9 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
   const zone: TutorialAnchorRect | null = validAnchor
     ? {
         x: Math.max(4, validAnchor.x),
-        y: Math.max(4, validAnchor.y + STATUSBAR_OFFSET),
+        y: Math.max(4, validAnchor.y),
         w: Math.max(24, Math.min(validAnchor.w, winW - 8 - Math.max(4, validAnchor.x))),
-        h: Math.max(24, Math.min(validAnchor.h, winH - 8 - Math.max(4, validAnchor.y + STATUSBAR_OFFSET))),
+        h: Math.max(24, Math.min(validAnchor.h, winH - 8 - Math.max(4, validAnchor.y))),
       }
     : step.allowZone
       ? { x: step.allowZone.fx * winW, y: step.allowZone.fy * winH, w: step.allowZone.fw * winW, h: step.allowZone.fh * winH }
