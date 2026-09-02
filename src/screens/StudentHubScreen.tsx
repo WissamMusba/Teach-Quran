@@ -274,12 +274,12 @@ export default function StudentHubScreen({ navigation }: any) {
             </TouchableOpacity>
           </TutorialAnchor>
 
-          {/* 2 — Bookmarks & Notes (Split Row) */}
-          <View style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border, paddingVertical: 0, paddingHorizontal: 0 }]}>
+          {/* 2 — Bookmarks & Notes (Side-by-Side Row: Bookmarks | Notes) */}
+          <View style={[styles(nightMode, themeColors).splitRow, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}>
             <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                 <IconBookmark c={themeColors.accent} size={17} />
-                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC }]}>Bookmarks</Text>
+                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Bookmarks</Text>
               </View>
               <Text style={[styles(nightMode, themeColors).halfCount, { color: themeColors.accent }]}>{bookmarkCount}</Text>
             </TouchableOpacity>
@@ -287,9 +287,9 @@ export default function StudentHubScreen({ navigation }: any) {
             <View style={[styles(nightMode, themeColors).vDivider, { backgroundColor: border }]} />
 
             <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('Notes')} activeOpacity={0.7}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                 <IconNotes c={themeColors.accent} size={17} />
-                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC }]}>Notes</Text>
+                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Notes</Text>
               </View>
               <Text style={[styles(nightMode, themeColors).halfCount, { color: themeColors.accent }]}>{noteCount}</Text>
             </TouchableOpacity>
@@ -382,6 +382,7 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   scrollContent: { padding: 16 },
   card: { borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
   row: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'center' },
+  splitRow: { flexDirection: 'row', alignItems: 'center', minHeight: 68 },
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth },
   rowDisabled: { opacity: 0.45 },
   rowLabel: { fontSize: 16, fontWeight: '600', letterSpacing: 0.1 },

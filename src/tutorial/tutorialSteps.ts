@@ -206,7 +206,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'audio', screen: 'QuranView', kind: 'spotlight', chapter: 'Review & Sync',
     title: 'Audio & loop practice',
     body: 'The player bar plays the whole surah — press ▶ to listen, ◀ ▶ to step verses, LOOP START/END to repeat a range for hifdh practice, and CHANGE to pick a different reciter.',
-    anchorId: 'audio-bar', hand: true,
+    anchorId: 'audio-bar', hand: true, exitDraw: true,
   },
   {
     id: 'final', screen: 'Dashboard', kind: 'info', chapter: 'Review & Sync',
