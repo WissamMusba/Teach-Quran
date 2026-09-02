@@ -6,6 +6,9 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
         <!-- Support high refresh rate and hole-punch displays without layout thrashing -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <!-- Hardware window acceleration for Samsung One UI & modern Android -->
+        <item name="android:hardwareAccelerated">true</item>
+        <item name="android:windowHardwareAccelerated">true</item>
     </style>
 
 </resources>
