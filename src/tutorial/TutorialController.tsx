@@ -22,8 +22,8 @@ import {
   getTutorialAnchor, getTutorialBridge, setTutorialMeasuringActive, onTutorialContextChanged,
 } from './tutorialRuntime';
 import { setTutorialDone } from '../store/settingsSlice';
-import { removeStudent } from '../store/studentSlice';
-import { deleteStudent } from '../api/student';
+import { addStudent, removeStudent } from '../store/studentSlice';
+import { createStudent, deleteStudent } from '../api/student';
 import { purgeLocalStudent } from '../database/localDB';
 import TutorialOverlay from './TutorialOverlay';
 
@@ -110,6 +110,17 @@ export default function TutorialController() {
     if (stepIndex + 1 >= TUTORIAL_STEPS.length) finish();
     else dispatch(setTutorialStep(stepIndex + 1));
   };
+  const handleNext = async () => {
+    if (step?.id === 'create-student' && studentCount === 0) {
+      try {
+        const res = await createStudent('Tutorial Student');
+        if (res?.success && res?.studentId) {
+          dispatch(addStudent({ id: res.studentId, name: 'Tutorial Student' }));
+        }
+      } catch {}
+    }
+    advance();
+  };
   const back = () => {
     if (stepIndex > 0) dispatch(setTutorialStep(stepIndex - 1));
   };
@@ -138,7 +149,7 @@ export default function TutorialController() {
       total={TUTORIAL_STEPS.length}
       anchorRect={anchorRect}
       flash={flash}
-      onNext={advance}
+      onNext={handleNext}
       onBack={back}
       onSkip={finish}
     />

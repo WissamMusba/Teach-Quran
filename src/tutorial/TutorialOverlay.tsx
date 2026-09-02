@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, StyleSheet, Animated, Easing, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import TutorialHand from './TutorialHand';
 import type { TutorialStep } from './tutorialSteps';
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export default function TutorialOverlay({ step, stepIndex, total, anchorRect, flash, onNext, onBack, onSkip }: Props) {
+  const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -102,7 +104,16 @@ export default function TutorialOverlay({ step, stepIndex, total, anchorRect, fl
       </View>
 
       {/* card */}
-      <Animated.View style={[styles.cardWrap, { bottom: CARD_BOTTOM, opacity: fade }]} pointerEvents="box-none">
+      <Animated.View
+        style={[
+          styles.cardWrap,
+          step.cardPosition === 'top'
+            ? { top: Math.max(16, insets.top + 16) }
+            : { bottom: CARD_BOTTOM },
+          { opacity: fade }
+        ]}
+        pointerEvents="box-none"
+      >
         <View style={styles.card}>
           <View style={styles.topRow}>
             <Text style={[styles.chapter, { color: ACCENT }]}>{step.chapter?.toUpperCase() || 'WALKTHROUGH'}</Text>

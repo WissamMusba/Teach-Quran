@@ -42,6 +42,7 @@ export interface TutorialStep {
   skipLabel?: string;
   allowZone?: { fx: number; fy: number; fw: number; fh: number };
   chapter?: string;
+  cardPosition?: 'top' | 'bottom';
   onEnter?: 'enter-draw';
   exitDraw?: boolean;
 }
@@ -60,6 +61,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Add a student',
     body: 'Tap the + button, type your first student\'s name, and press Save to get started.',
     anchorId: 'dashboard-fab', waitEvent: 'student_created', passThrough: true, hand: true,
+    cardPosition: 'top',
+    skipLabel: 'Skip this',
   },
   {
     id: 'card-anatomy', screen: 'Dashboard', kind: 'spotlight', chapter: 'Setup',
