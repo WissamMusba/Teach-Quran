@@ -100,6 +100,33 @@ const SURAH_JUZ_APPROX: Record<number, number> = {
   71: 29, 72: 29, 73: 29, 74: 29, 75: 29, 76: 29, 77: 29, 78: 30,
 };
 
+function toMillis(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts === 'string') {
+    const p = Date.parse(ts);
+    return isNaN(p) ? 0 : p;
+  }
+  if (ts instanceof Date) return ts.getTime();
+  if (typeof ts?.toMillis === 'function') return ts.toMillis();
+  if (typeof ts?.toDate === 'function') return ts.toDate().getTime();
+  if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
+  return 0;
+}
+
+function formatTimeAgo(ts: any): string {
+  const ms = toMillis(ts);
+  if (!ms) return '';
+  const diffMs = Math.max(0, Date.now() - ms);
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
 function getJuzForVerse(surah: number, verse: number): number {
   if (surah === 2) {
     if (verse < 142) return 1;
@@ -245,8 +272,10 @@ export default function StudentHubScreen({ navigation }: any) {
     const sName = surahNames?.[dailyTarget.surah] || `Surah ${dailyTarget.surah}`;
     const j = getJuzForVerse(dailyTarget.surah, dailyTarget.verse);
     const pgPart = dailyPage > 0 ? ` · Page ${dailyPage}` : '';
-    return `${sName} · Ayat ${dailyTarget.verse} · Juz ${j}${pgPart}`;
-  }, [dailyTarget, surahNames, dailyPage]);
+    const timeAgoStr = formatTimeAgo(studentData?.lastRead?.updatedAt);
+    const timePart = timeAgoStr ? ` (${timeAgoStr})` : '';
+    return `${sName} · Ayat ${dailyTarget.verse} · Juz ${j}${pgPart}${timePart}`;
+  }, [dailyTarget, surahNames, dailyPage, studentData?.lastRead?.updatedAt]);
 
   const pageNum = pageInput !== '' ? parseInt(pageInput, 10) : 0;
   const pageValid = pageInput !== '' && pageNum >= 1 && pageNum <= 610;

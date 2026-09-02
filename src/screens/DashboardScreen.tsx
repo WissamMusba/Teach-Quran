@@ -604,7 +604,7 @@ export default function DashboardScreen({ navigation }: any) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, flexWrap: 'wrap' }}>
                   <View style={[styles(nightMode, themeColors).heroPill, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
                     <Text style={[styles(nightMode, themeColors).heroPillText, { color: themeColors.accent }]}>
-                      Page {myQuranResumeInfo ? myQuranResumeInfo.page : 1}
+                      Page {myQuranResumeInfo ? myQuranResumeInfo.page + 1 : 2}
                     </Text>
                   </View>
                   <View style={[styles(nightMode, themeColors).heroPill, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', marginLeft: 6 }]}>
