@@ -7,6 +7,7 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate;
 
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.view.WindowManager;
 
 public class MainActivity extends ReactActivity {
 
@@ -18,6 +19,10 @@ public class MainActivity extends ReactActivity {
     if (getResources().getConfiguration().smallestScreenWidthDp < 600) {
       setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
+    getWindow().setFlags(
+      WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+      WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+    );
     super.onCreate(null);
   }
 
