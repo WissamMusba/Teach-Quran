@@ -4,12 +4,13 @@
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { setCurrentStudent } from '../store/studentSlice';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
-import { getManifest, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
+import { getManifest, getStudentData, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../utils/theme';
@@ -123,7 +124,21 @@ function getJuzForVerse(surah: number, verse: number): number {
 
 export default function StudentHubScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const currentStudent = useSelector((s: any) => s.student?.currentStudent);
+  const dispatch = useDispatch();
+  const rawCurrentStudent = useSelector((s: any) => s.student?.currentStudent);
+  const studentList = useSelector((s: any) => s.student?.list || []);
+  const currentStudent = useMemo(() => {
+    if (rawCurrentStudent?.id) return rawCurrentStudent;
+    const nonMyQuran = studentList.filter((st: any) => !st?.isMyQuran && st?.name !== 'My Quran');
+    return nonMyQuran[0] || studentList[0] || null;
+  }, [rawCurrentStudent, studentList]);
+
+  useEffect(() => {
+    if (!rawCurrentStudent?.id && currentStudent?.id) {
+      dispatch(setCurrentStudent(currentStudent));
+    }
+  }, [rawCurrentStudent, currentStudent, dispatch]);
+
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const surahNames = useSelector((s: any) => s.quran?.surahNames);
@@ -140,15 +155,24 @@ export default function StudentHubScreen({ navigation }: any) {
   const loadData = useCallback(async () => {
     if (!currentStudent?.id) return;
     try {
-      const m = await getManifest(currentStudent.id);
-      setStudentData(m);
-      const fp = await getStudentFace(currentStudent.id);
+      const [blob, m, fp, seen] = await Promise.all([
+        getStudentData(currentStudent.id).catch(() => null),
+        getManifest(currentStudent.id).catch(() => null),
+        getStudentFace(currentStudent.id).catch(() => null),
+        getLastPageSeenLocal(currentStudent.id).catch(() => null),
+      ]);
+      const mergedData = {
+        ...(blob || {}),
+        bookmarks: blob?.bookmarks || m?.data?.bookmarks || {},
+        notes: blob?.notes || {},
+        lastRead: blob?.lastRead || m?.data?.lastRead || null,
+      };
+      setStudentData(mergedData);
       setFacePath(fp);
-      const seen = await getLastPageSeenLocal(currentStudent.id);
       if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) {
         const pages = await getVersePagesDB([[Number(seen.surah), Number(seen.verse)]]);
         const p = pages[`${seen.surah}:${seen.verse}`];
-        setLastSeenPage(typeof p === 'number' ? p - 1 : null);
+        setLastSeenPage(typeof p === 'number' ? p : null);
       } else {
         setLastSeenPage(null);
       }
@@ -188,17 +212,18 @@ export default function StudentHubScreen({ navigation }: any) {
   }, [lrSurah, lrVerse]);
 
   const resumeInfo = useMemo(() => {
-    if (typeof lastSeenPage === 'number' && lastSeenPage >= 0) {
+    if (typeof lastSeenPage === 'number' && lastSeenPage >= 1) {
       const displayPage = lastSeenPage + 1;
       return { page: lastSeenPage, displayPage, juz: pageToJuz(displayPage), surah: 1 };
     }
     if (dailyPage > 0) {
-      return { page: dailyPage - 1, displayPage: dailyPage, juz: pageToJuz(dailyPage), surah: lrSurah || 1 };
+      const displayPage = dailyPage + 1;
+      return { page: dailyPage, displayPage, juz: pageToJuz(displayPage), surah: lrSurah || 1 };
     }
     if (lrSurah > 0 && lrVerse > 0) {
-      return { page: 0, displayPage: 1, juz: getJuzForVerse(lrSurah, lrVerse), surah: lrSurah };
+      return { page: 1, displayPage: 2, juz: getJuzForVerse(lrSurah, lrVerse), surah: lrSurah };
     }
-    return { page: 0, displayPage: 1, juz: 1, surah: 1 };
+    return { page: 1, displayPage: 2, juz: 1, surah: 1 };
   }, [lastSeenPage, dailyPage, lrSurah, lrVerse]);
 
   useEffect(() => {
