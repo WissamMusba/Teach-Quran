@@ -1867,8 +1867,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const runShare = async () => {
     emitTutorialEvent('share_opened');
     setShowShareMenu(false);
-    try { setIsCapturing(true); await new Promise<void>(r => setTimeout(() => r(), 150)); const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 }); await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' }); }
-    catch (e: any) { console.warn('Share failed:', e?.message || e); } finally { setIsCapturing(false); }
+    const wasHeaderVisible = isHeaderVisible;
+    try {
+      // 1. First remove the header so the capture is completely clean and full-screen
+      if (wasHeaderVisible) {
+        setIsHeaderVisible(false);
+        // Allow layout to settle after header collapses
+        await new Promise<void>(r => setTimeout(() => r(), 300));
+      }
+      setIsCapturing(true);
+      // 2. Allow mistakes & drawing layers to mount and settle
+      await new Promise<void>(r => setTimeout(() => r(), 250));
+      // 3. Take the screenshot
+      const uri = await captureRef(viewShotRef, { format: 'jpg', quality: 0.95 });
+      await Share.open({ url: Platform.OS === 'android' ? `file://${uri}` : uri, type: 'image/jpeg', title: 'Quran Page' });
+    }
+    catch (e: any) { console.warn('Share failed:', e?.message || e); }
+    finally {
+      setIsCapturing(false);
+      if (wasHeaderVisible) {
+        setIsHeaderVisible(true);
+      }
+    }
   };
 
   // ---- v96: PRE-HIDE the header the moment the drawing TOOLBAR expands (not when a tool

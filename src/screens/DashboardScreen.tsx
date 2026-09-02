@@ -27,8 +27,8 @@ import ImagePicker from 'react-native-image-crop-picker';
 import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 import { formatDate, formatTime, toMillis } from '../utils/format';
-import { startStartupPrefetch } from '../utils/startupPrefetch';
-import { emitTutorialEvent } from '../tutorial/tutorialRuntime';
+import { emitTutorialEvent, startTutorial } from '../tutorial/tutorialRuntime';
+import { setTutorialDone } from '../store/settingsSlice';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import SettingsScreen from './SettingsScreen';
 
@@ -50,6 +50,14 @@ const IconMenuLogout = ({ c }: { c: string }) => (
     <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
     <Path d="M16 17l5-5-5-5" />
     <Path d="M21 12H9" />
+  </Svg>
+);
+
+const IconMenuHelp = ({ c }: { c: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 12 }}>
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <Path d="M12 17h.01" />
   </Svg>
 );
 
@@ -134,6 +142,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [name, setName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const [editName, setEditName] = useState('');
   const [editId, setEditId] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -328,10 +337,22 @@ export default function DashboardScreen({ navigation }: any) {
   }, []);
 
   const handleCreate = useCallback(async () => {
-    const res = await createStudent(name);
-    if (res.success) { dispatch(addStudent({ id: res.studentId, name })); setAddModal(false); setName(''); emitTutorialEvent('student_created', res.studentId); }
-    else showAlert('Error', res.error);
-  }, [name, showAlert, dispatch]);
+    if (isCreating || !name.trim()) return;
+    setIsCreating(true);
+    try {
+      const res = await createStudent(name.trim());
+      if (res.success) {
+        dispatch(addStudent({ id: res.studentId, name: name.trim() }));
+        setAddModal(false);
+        setName('');
+        emitTutorialEvent('student_created', res.studentId);
+      } else {
+        showAlert('Error', res.error);
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  }, [name, isCreating, showAlert, dispatch]);
 
   const handleManualSync = useCallback(async () => {
     dispatch(setSyncing()); setIsSyncing(true);
@@ -685,6 +706,21 @@ export default function DashboardScreen({ navigation }: any) {
 
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
+              onPress={() => {
+                setMenuModalVisible(false);
+                dispatch(setTutorialDone(false));
+                dispatch(startTutorial());
+              }}
+              activeOpacity={0.7}
+            >
+              <IconMenuHelp c={themeColors.accent} />
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: themeColors.text }]}>Tutorial Walkthrough</Text>
+            </TouchableOpacity>
+
+            <View style={[styles(nightMode, themeColors).menuDivider, { backgroundColor: themeColors.border }]} />
+
+            <TouchableOpacity
+              style={styles(nightMode, themeColors).menuItem}
               onPress={async () => {
                 setMenuModalVisible(false);
                 await logoutUser();
@@ -725,8 +761,12 @@ export default function DashboardScreen({ navigation }: any) {
               <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setAddModal(false)}>
                 <Text style={[styles(nightMode, themeColors).cancelText, { color: themeColors.text }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary }]} onPress={handleCreate}>
-                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>Save</Text>
+              <TouchableOpacity
+                style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary, opacity: isCreating || !name.trim() ? 0.6 : 1 }]}
+                onPress={handleCreate}
+                disabled={isCreating || !name.trim()}
+              >
+                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>{isCreating ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>

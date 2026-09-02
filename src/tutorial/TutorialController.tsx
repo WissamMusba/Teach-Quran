@@ -32,7 +32,7 @@ export default function TutorialController() {
   const navigation = useNavigation();
   const { active, stepIndex } = useSelector((s: any) => s.tutorial);
   const tutorialDone = useSelector((s: any) => s.settings?.tutorialDone === true);
-  const studentCount = useSelector((s: any) => (s.student?.list || []).length);
+  const studentCount = useSelector((s: any) => (s.student?.list || []).filter((st: any) => !st?.isMyQuran && st?.name !== 'My Quran').length);
   const step = active ? TUTORIAL_STEPS[stepIndex] : null;
   const [anchorRect, setAnchorRect] = useState<any>(null);
   const [flash, setFlash] = useState(false);
@@ -102,15 +102,7 @@ export default function TutorialController() {
   const finish = () => {
     try { getTutorialBridge().cleanup?.(); } catch {}
     try { getTutorialBridge().exitDraw?.(); } catch {}
-    // Remove the PRACTICE student this walkthrough created on a fresh account.
-    const pid = practiceStudentIdRef.current;
-    if (pid) {
-      practiceStudentIdRef.current = null;
-      deleteStudent(pid).catch(() => {});
-      purgeLocalStudent(pid).catch(() => {});
-      dispatch(removeStudent(pid));
-      try { (navigation as any).navigate('Dashboard' as never); } catch {}
-    }
+    practiceStudentIdRef.current = null;
     dispatch(endTutorial());
     dispatch(setTutorialDone(true));
   };

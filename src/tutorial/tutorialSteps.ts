@@ -58,7 +58,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'create-student', screen: 'Dashboard', kind: 'action', chapter: 'Setup',
     title: 'Add a student',
-    body: 'Tap the + button, type the student\'s name, press Save. No students yet? Just make a practice one — it is removed automatically when the walkthrough ends. If you cancel, this step stays until a student exists.',
+    body: 'Tap the + button, type your first student\'s name, and press Save to get started.',
     anchorId: 'dashboard-fab', waitEvent: 'student_created', passThrough: true, hand: true,
   },
   {
