@@ -109,7 +109,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'highlight', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Mark a mistake',
     body: 'Press any word — it gets highlighted in RED. That\'s how you track a mistake. Try it now on any word.',
-    waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, skipLabel: 'Skip this',
+    anchorId: 'reading-area', waitEvent: 'highlight_made', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.42 }, skipLabel: 'Skip this',
   },
   {
     id: 'verse-menu', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
@@ -147,7 +147,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'draw', screen: 'QuranView', kind: 'action', chapter: 'Annotate',
     title: 'Draw on the page',
     body: 'Underline a word or circle it — your drawing is saved with the page. Color and pen size are on the right of the toolbar; UNDO/REDO/CLEAR too.',
-    waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.44 }, skipLabel: 'Skip this',
+    anchorId: 'reading-area', waitEvent: 'stroke_saved', passThrough: true, hand: true, handPos: { fx: 0.5, fy: 0.44 }, skipLabel: 'Skip this',
   },
   {
     id: 'draw-exit', screen: 'QuranView', kind: 'info', chapter: 'Annotate',
