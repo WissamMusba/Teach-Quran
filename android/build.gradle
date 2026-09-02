@@ -41,8 +41,8 @@ allprojects {
             force "androidx.appcompat:appcompat-resources:1.6.1"
             force "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22"
-            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
         }
+        exclude group: 'com.google.android.gms', module: 'play-services-safetynet'
     }
     afterEvaluate { project ->
         project.tasks.each { task ->
