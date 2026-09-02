@@ -8,12 +8,12 @@
  * USED BY: QuranViewScreen.tsx — ayah-mode FlatList renderItem
  */
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { useSelector } from 'react-redux';
 import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
-import { getArabicFont } from '../../utils/theme';
+import { getArabicFont, getThemeColors } from '../../utils/theme';
 import WordHitArea from '../common/WordHitArea';
 
 /**
@@ -42,7 +42,9 @@ import WordHitArea from '../common/WordHitArea';
 const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPress, onBookmarkToggle, onVerseLongPress, showTranslation, fontSize, flashingVerse, onDeadTap, onBadgeTap }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   // Indopak-derived text styles render the Indopak orthography when the verse carries it.
   const isIndopakStyle = textStyle === 'saleem' || textStyle === 'indopak' || textStyle === 'alqalam' || textStyle === 'lateef';
   const displayText = isIndopakStyle ? (verse.textIndopak || verse.textArabic) : verse.textArabic;
@@ -79,7 +81,7 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
         {/* v96: badge TAP sets/clears the reading mark (long-press menu's Reading button removed). */}
         <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
             <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
         </TouchableOpacity>

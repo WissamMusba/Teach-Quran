@@ -10,7 +10,8 @@ import { SURAH_META } from '../../utils/surahMeta';
 import { getArabicFont, getThemeColors } from '../../utils/theme';
 
 const normCache: Record<string, string> = {};
-const norm = (s: string): string => {
+const norm = (s?: string | null): string => {
+  if (!s || typeof s !== 'string') return '';
   if (normCache[s] !== undefined) return normCache[s];
   const out = s.toLowerCase()
     .normalize('NFD')

@@ -9,18 +9,18 @@
  * USED BY: QuranViewScreen.tsx — continuous-mode ScrollView
  */
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { useSelector } from 'react-redux';
 import { FONT_SIZES, WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT, cleanQuranWord } from '../../utils/constants';
 import { scaleFont } from '../../utils/responsive';
-import { getArabicFont } from '../../utils/theme';
+import { getArabicFont, getThemeColors } from '../../utils/theme';
 import WordHitArea from '../common/WordHitArea';
 
 /**
  * FlowingText — continuous reading mode: one continuous RTL flow of every loaded verse's words
  * (lineHeight tighter than the per-verse blocks, so it reads like a scrollable mushaf column),
- * with an inline verse-number badge after each verse (verse 1 = Bismillah gets NO badge),
+ * with an inline verse-number badge (small circle) after each verse (verse 1 = Bismillah gets NO badge),
  * bookmark/note glyphs beside the badge, and the reading-mark rendered inside the badge.
  * Props: verses, highlights (map "surah_verse" → {highlights:[{wordIndex}]}),
  *        onWordPress(verseNum, wIdx) — DIRECT (parent passes handleWordFlow),
@@ -48,7 +48,9 @@ import WordHitArea from '../common/WordHitArea';
 const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTranslation, fontSize, bookmarks, notes, flashingVerse, readingMarkVerse, onDeadTap, onBadgeTap }: any) => {
   const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
+  const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const textBrightness = useSelector((s: any) => s.settings.textBrightness);
+  const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   const textColor = nightMode ? `rgba(255,255,255,${textBrightness / 255})` : `rgba(0,0,0,${textBrightness / 255})`;
   const fontFamily = getArabicFont(textStyle);
   // Font sizing: device-scaled base (scaleFont over FONT_SIZES) + per-font boost; lineHeight =
@@ -91,7 +93,7 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
             Reading button was removed); long-press still opens the verse menu. */}
         <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
             <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
           </View>
         </TouchableOpacity>

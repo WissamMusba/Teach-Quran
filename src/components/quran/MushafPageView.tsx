@@ -895,7 +895,15 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
                 const badgeEl = (
                       <View style={styles(nightMode).verseBadgeContainer}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
-                          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8' }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
+                          <View style={[
+                            styles(nightMode).verseBadge,
+                            {
+                              backgroundColor: nightMode ? '#1e1e1e' : '#EAE6D8',
+                              borderColor: themeColors.accent,
+                            },
+                            isBookmarked && styles(nightMode).bookmarkedBadge,
+                            isReadingMark && styles(nightMode).readingMarkBadge,
+                          ]}>
                             <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
                           </View>
                         </TouchableOpacity>
