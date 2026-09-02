@@ -16,8 +16,14 @@ export default function TutorialAnchor({ id, children, style, active = true }: {
   const measure = () => {
     if (!active) return;
     try {
-      ref.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) setTutorialAnchor(id, { x, y, w, h });
+      ref.current?.measure((_x, _y, w, h, pageX, pageY) => {
+        if (w > 0 && h > 0 && Number.isFinite(pageX) && Number.isFinite(pageY)) {
+          setTutorialAnchor(id, { x: pageX, y: pageY, w, h });
+        } else {
+          ref.current?.measureInWindow((x, y, winW, winH) => {
+            if (winW > 0 && winH > 0) setTutorialAnchor(id, { x, y, w: winW, h: winH });
+          });
+        }
       });
     } catch {}
   };
