@@ -4,6 +4,7 @@
  */
 import React, { memo, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
@@ -79,6 +80,7 @@ const AudioPlayerBar = ({
   nightMode,
   surahId,
 }: any) => {
+  const insets = useSafeAreaInsets();
   const { currentQari } = useSelector((s: any) => s.audio);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
@@ -88,7 +90,7 @@ const AudioPlayerBar = ({
   const accentColor = themeColors.accent;
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.headerBg, borderTopColor: themeColors.headerBorder }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.headerBg, borderTopColor: themeColors.headerBorder, paddingBottom: Math.max(8, insets.bottom) }]}>
       <View style={styles.qariRow}>
         <TouchableOpacity style={styles.qariInfo} onPress={onOpenQari} activeOpacity={0.7}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>

@@ -609,7 +609,7 @@ export default function DashboardScreen({ navigation }: any) {
       </View>
 
       {/* Silky Smooth Rolling Wheel Animated FAB */}
-      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 12, bottom: (adCollapsed ? 94 : 138) + 128 }}>
+      <TutorialAnchor id="dashboard-fab" style={{ position: 'absolute', right: 14, bottom: (myQuranStudent ? 120 : 64) + (adCollapsed ? 60 : 100) + Math.max(0, insets.bottom) }}>
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
             style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
