@@ -259,7 +259,13 @@ export default function StudentHubScreen({ navigation }: any) {
     return `Reading Page ${resumeInfo.page + 1} · Juz ${resumeInfo.juz} · ${sName}${agoPart}`;
   }, [resumeInfo, surahNames, lastSeenAt, studentData?.lastRead?.updatedAt]);
 
-  const bookmarkCount = Object.keys(studentData?.bookmarks || {}).length;
+  const bookmarkCount = useMemo(() => {
+    const raw = studentData?.bookmarks || {};
+    const rawCount = Object.keys(raw).length;
+    const hasDaily = lrSurah > 0 && lrVerse > 0;
+    const isDailyInBookmarks = hasDaily && !!raw[`${lrSurah}_${lrVerse}`];
+    return rawCount + (hasDaily && !isDailyInBookmarks ? 1 : 0);
+  }, [studentData?.bookmarks, lrSurah, lrVerse]);
   const noteCount = Object.values(studentData?.notes || {}).filter(Boolean).length;
 
   const dailyTarget = useMemo(() => (lrSurah > 0 && lrVerse > 0 ? { surah: lrSurah, verse: lrVerse } : null), [lrSurah, lrVerse]);
@@ -361,21 +367,27 @@ export default function StudentHubScreen({ navigation }: any) {
             <Text style={[styles(nightMode, themeColors).rowSub, { color: subC }]} numberOfLines={1}>{dailySubtitle}</Text>
           </TouchableOpacity>
 
-          {/* 4 — Juz Index */}
-          <TouchableOpacity
-            style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-            onPress={() => navigation.navigate('JuzIndex')}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <IconLayers c={themeColors.accent} size={19} />
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: titleC }]}>Juz Index</Text>
-            </View>
-            <Text style={[styles(nightMode, themeColors).rowChevron, { color: subC }]}>›</Text>
-          </TouchableOpacity>
+          {/* 4 — Surah Index & Juz Index (Side-by-Side Row: Surah Index | Juz Index) */}
+          <View style={[styles(nightMode, themeColors).splitRow, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}>
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('SurahIndex')} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <IconList c={themeColors.accent} size={17} />
+                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Surah Index</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={[styles(nightMode, themeColors).vDivider, { backgroundColor: border }]} />
+
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('JuzIndex')} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <IconLayers c={themeColors.accent} size={17} />
+                <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Juz Index</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
           {/* 5 — Go to Page # */}
-          <View style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}>
+          <View style={[styles(nightMode, themeColors).row, { borderBottomWidth: 0 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <IconHash c={themeColors.accent} size={19} />
               <Text style={[styles(nightMode, themeColors).rowLabel, { color: titleC }]}>Go to Page</Text>
@@ -402,19 +414,6 @@ export default function StudentHubScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* 6 — Surah Index */}
-          <TouchableOpacity
-            style={[styles(nightMode, themeColors).row, { borderBottomWidth: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-            onPress={() => navigation.navigate('SurahIndex')}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <IconList c={themeColors.accent} size={19} />
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: titleC }]}>Surah Index</Text>
-            </View>
-            <Text style={[styles(nightMode, themeColors).rowChevron, { color: subC }]}>›</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
       <CollapsibleBannerAd />

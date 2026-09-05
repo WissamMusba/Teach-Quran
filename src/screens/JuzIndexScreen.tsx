@@ -1,17 +1,9 @@
-/**
- * FILE: src/screens/JuzIndexScreen.tsx
- * ROLE: Standalone juz/para index (30 entries) with full theme palette support.
- */
 import React, { useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
-import { JUZ_MAP, JUZ_NAMES, getArabicFont, getThemeColors } from '../utils/theme';
-
-const ChevronLeft = ({ c }: { c: string }) => (
-  <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 18l-6-6 6-6" /></Svg>
-);
+import ScreenHeader from '../components/common/ScreenHeader';
+import { JUZ_MAP, JUZ_NAMES, JUZ_PAGE_START, getArabicFont, getThemeColors } from '../utils/theme';
 
 export default function JuzIndexScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -29,6 +21,7 @@ export default function JuzIndexScreen({ navigation }: any) {
   const renderItem = ({ item }: any) => {
     const juzInfo = JUZ_NAMES[item.j - 1] || { ur: '', en: '' };
     const surahName = surahNames?.[item.s] || `Surah ${item.s}`;
+    const startPg = JUZ_PAGE_START[item.j - 1] || 1;
 
     return (
       <TouchableOpacity
@@ -40,7 +33,7 @@ export default function JuzIndexScreen({ navigation }: any) {
             paddingVertical: isTablet ? 14 : 10,
           }
         ]}
-        onPress={() => navigation.navigate('QuranView' as any, { surahId: item.s, scrollToVerse: item.v } as any)}
+        onPress={() => navigation.navigate('QuranView' as any, { page: startPg } as any)}
         activeOpacity={0.7}
       >
         <View style={[styles(isDark, themeColors).numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
@@ -74,15 +67,10 @@ export default function JuzIndexScreen({ navigation }: any) {
 
   return (
     <View style={[styles(isDark, themeColors).container, { backgroundColor: themeColors.bg }]}>
-      <View style={[styles(isDark, themeColors).header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder, paddingTop: Math.max(10, insets.top + 8) }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles(isDark, themeColors).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft c={themeColors.accent} />
-        </TouchableOpacity>
-        <View style={styles(isDark, themeColors).headerTextWrap}>
-          <Text style={[styles(isDark, themeColors).headerTitle, { color: themeColors.text }]}>Juz Index</Text>
-          <Text style={[styles(isDark, themeColors).headerSubtitle, { color: themeColors.subText }]}>{studentName || 'All 30 Ajza (Juz)'}</Text>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Juz Index"
+        subtitle={studentName || 'All 30 Ajza (Juz)'}
+      />
 
       <FlatList
         data={JUZ_MAP}

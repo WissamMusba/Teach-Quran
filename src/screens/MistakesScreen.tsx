@@ -193,8 +193,8 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 10 },
-  list: { paddingBottom: 12 },
+  container: { flex: 1 },
+  list: { padding: 10, paddingBottom: 12 },
   card: { padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   chipsRow: { flexDirection: 'row', gap: 6, marginBottom: 5, flexWrap: 'wrap' },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },

@@ -21,7 +21,10 @@ export const SPLIT_FONT_SCALE = 0.78;
 export const SPLIT_FONT_SCALE_LANDSCAPE = 0.65; // v98: landscape halves are SHORT — 0.78 still clipped the top line
 export const TABLET_SINGLE_FONT_SCALE = 0.88;
 export const layoutFontScaleFor = (winW: number, splitOn: boolean, winH?: number): number => {
-  if (!splitOn) return winW >= 600 ? TABLET_SINGLE_FONT_SCALE : 1;
+  if (!splitOn) {
+    if (winW < 700) return 1;
+    return TABLET_SINGLE_FONT_SCALE;
+  }
   return winH != null && winH > winW ? SPLIT_FONT_SCALE_LANDSCAPE : SPLIT_FONT_SCALE;
 };
 

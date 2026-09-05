@@ -253,8 +253,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
 // v98: LANDSCAPE split halves are short — font drops further (0.65 via the caller) and the
 // line box tightens 18% so the first line stops clipping under the top band.
 const isLandscapeSplit = spread === true && Dimensions.get('window').width > Dimensions.get('window').height;
-const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
-  const mushafLineHeight = getMushafLineHeight(headerVisible) * fontSizeScale * (isLandscapeSplit ? 0.82 : 1);
+const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeScale;
+  const mushafLineHeight = getMushafLineHeight(headerVisible, pageWidth) * fontSizeScale * (isLandscapeSplit ? 0.82 : 1);
   /**
    * getFontAdj (module-level) — see above; adj.y feeds the translateY transform below.
    */
@@ -266,6 +266,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   // way — pure visual transform).
   const wordLiftY = adj.y + (headerVisible ? 2 : 0);
   const compact = pageWidth < 600;
+  const [innerH, setInnerH] = useState(0);
 
   // User-specified padding (percent-based): top/bottom = 1.0% of the SCREEN HEIGHT (was 2.5% —
   // the dead gap between the frame's inner rule and the first/last line is slimmed so the text
@@ -275,7 +276,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   // box (never under the pattern band or its rules).
   // v98: landscape split — text sits ~10px from the frame's inner rule (matches the 8px
   // seam between the two frames); the frame itself does not move.
-  const padTop = isLandscapeSplit ? Math.max(8, frameInsetVFor(pageWidth) - 12) : Math.max(0.010 * SCREEN_HEIGHT, frameInsetVFor(pageWidth));
+  const padTop = isLandscapeSplit ? Math.max(8, frameInsetVFor(pageWidth) - 12) : Math.max(0.010 * (innerH > 0 ? innerH : SCREEN_HEIGHT), frameInsetVFor(pageWidth));
   const padBottom = padTop;
   // v97 — TRUE CONTENT WIDTH: lines were laid out against the NOMINAL pageWidth prop while the
   // real container is narrower by the wrapper margins (up to ~37px in tablet split), so full
@@ -297,7 +298,7 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   const sparse = totalWords < SPARSE_WORD_THRESHOLD;
   // fs (base rendered size WITHOUT the per-line scale) — used for the ta'awwud line only; the
   // layout cache no longer keys on it (normalized sums are font-size-independent).
-  const fs = Math.round(getMushafFontSize(headerVisible) * fontSizeScale + adj.size);
+  const fs = Math.round(getMushafFontSize(headerVisible, pageWidth) * fontSizeScale + adj.size);
 
   // Measurement + cache state. Refs survive re-renders so measurement progress is never lost:
   //   lineScale (state)      — per-line font multiplier from the measured pass (cache-miss path)
@@ -337,7 +338,6 @@ const mushafFontSize = getMushafFontSize(headerVisible) * fontSizeScale;
   const passNormFontSizeRef = useRef(0);
   const [cacheState, setCacheState] = useState<'loading' | 'miss' | 'hit'>('loading');
   const [fontReady, setFontReady] = useState(fontLoadedOnce);
-  const [innerH, setInnerH] = useState(0);
   // Vertical box height measurement. CRITICAL: this must fire on the VERY FIRST layout of the
   // mounted view — which happens while the 'loading' GATE is rendered (cache-hit pages swap the
   // gate for the full mushaf at the SAME size, so the full container's own onLayout would never

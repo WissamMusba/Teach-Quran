@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
 
@@ -23,6 +24,7 @@ interface Props {
 }
 
 const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
@@ -36,7 +38,7 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
   const accent = themeColors.accent;
 
   return (
-    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border }]}>
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
       <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles(nightMode, themeColors).backBtn}>
         <IconBack c={accent} />
       </TouchableOpacity>
@@ -50,7 +52,7 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
 };
 
 const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, borderBottomWidth: 1 },
+  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 10, borderBottomWidth: 1 },
   backBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
   textWrap: { flex: 1 },
   title: { fontSize: 19, fontWeight: '800', letterSpacing: 0.3 },

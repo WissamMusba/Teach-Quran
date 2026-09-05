@@ -6,7 +6,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SURAH_META } from '../../utils/surahMeta';
+import { SURAH_META, SURAH_PAGE_RANGE } from '../../utils/surahMeta';
 import { getArabicFont, getThemeColors } from '../../utils/theme';
 
 const normCache: Record<string, string> = {};
@@ -69,9 +69,10 @@ interface Props {
   onSelectPage?: (pageZeroBased: number) => void;
   onSelectJuz?: (juzNum: number) => void;
   mode?: 'surah' | 'page' | 'juz';
+  inline?: boolean;
 }
 
-export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah' }: Props) {
+export default function SurahList({ visible, onClose, onSelect, onSelectPage, onSelectJuz, mode = 'surah', inline = false }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
@@ -143,10 +144,10 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     return scored.map((x) => x.item);
   }, [data, query]);
 
-  return (
-    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
-        <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
+  const content = (
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
+      <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
+        {!inline ? (
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: themeColors.text }]}>
               {mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}
@@ -155,68 +156,87 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
               <Text style={[styles.closeBtn, { color: themeColors.accent }]}>Close</Text>
             </TouchableOpacity>
           </View>
-          <TextInput
-            style={[styles.searchInput, { backgroundColor: themeColors.cardBg, color: themeColors.text, borderColor: themeColors.border }]}
-            value={query}
-            onChangeText={setQuery}
-            placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'}
-            placeholderTextColor={themeColors.subText}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        {results.length === 0 && query.length > 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyText, { color: themeColors.subText }]}>No surahs found</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={results}
-            keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }: any) => (
-              <TouchableOpacity
-                style={[
-                  styles.item,
-                  {
-                    backgroundColor: themeColors.cardBg,
-                    borderBottomColor: themeColors.border,
-                    paddingVertical: isTablet ? 14 : 11,
-                  }
-                ]}
-                onPress={() => {
-                  if (item.type === 'page') { onSelectPage?.(item.page); }
-                  else if (item.type === 'juz') { onSelectJuz?.(item.juz); }
-                  else { onSelect(item.id); }
-                  onClose?.();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.itemLeft}>
-                  <View style={[styles.numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                    <Text style={[styles.itemNum, { color: themeColors.accent }]}>
-                      {item.type === 'page' ? item.page + 1 : item.type === 'juz' ? item.juz : item.id}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.itemNameEn, { color: themeColors.text }]}>
-                      {item.type === 'page' ? item.label : item.type === 'juz' ? item.label : item.en}
-                    </Text>
-                    {item.type === 'surah' ? (
-                      <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
-                        {item.translation} · {item.verses} verses · Juz {item.startJuz}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-                {item.type === 'surah' ? (
-                  <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{item.ar}</Text>
-                ) : null}
-              </TouchableOpacity>
-            )}
-          />
-        )}
+        ) : null}
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: themeColors.cardBg, color: themeColors.text, borderColor: themeColors.border, marginTop: inline ? 8 : 0 }]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'}
+          placeholderTextColor={themeColors.subText}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
       </View>
+      {results.length === 0 && query.length > 0 ? (
+        <View style={styles.emptyWrap}>
+          <Text style={[styles.emptyText, { color: themeColors.subText }]}>No surahs found</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={results}
+          keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }: any) => (
+            <TouchableOpacity
+              style={[
+                styles.item,
+                {
+                  backgroundColor: themeColors.cardBg,
+                  borderBottomColor: themeColors.border,
+                  paddingVertical: isTablet ? 14 : 11,
+                }
+              ]}
+              onPress={() => {
+                if (item.type === 'page') {
+                  onSelectPage?.(item.page);
+                } else if (item.type === 'juz') {
+                  onSelectJuz?.(item.juz);
+                } else {
+                  const startPage = SURAH_PAGE_RANGE[item.id - 1]?.[0] || 1;
+                  if (onSelectPage) {
+                    onSelectPage(startPage);
+                  } else {
+                    onSelect(item.id);
+                  }
+                }
+                onClose?.();
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.itemLeft}>
+                <View style={[styles.numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                  <Text style={[styles.itemNum, { color: themeColors.accent }]}>
+                    {item.type === 'page' ? item.page + 1 : item.type === 'juz' ? item.juz : item.id}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={[styles.itemNameEn, { color: themeColors.text }]}>
+                    {item.type === 'page' ? item.label : item.type === 'juz' ? item.label : item.en}
+                  </Text>
+                  {item.type === 'surah' ? (
+                    <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
+                      {item.verses} verses · Juz {item.startJuz}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              {item.type === 'surah' ? (
+                <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{item.ar}</Text>
+              ) : null}
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </View>
+  );
+
+  if (inline) {
+    return content;
+  }
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
+      {content}
     </Modal>
   );
 }
