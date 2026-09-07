@@ -9,7 +9,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { playAudioNote } from '../api/audioNotes';
-import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah } from '../database/localDB';
+import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getVersePagesDB } from '../database/localDB';
 import { getVersePage } from '../database/quranData';
 import { setStudentData } from '../store/studentSlice';
 import { addPendingChange } from '../store/syncSlice';
@@ -56,14 +56,15 @@ const parseParts = (value: string): { type: 'text' | 'audio'; value: string }[] 
 };
 
 const NoteCard = React.memo(({
-  row, surahName, nightMode, themeColors, playingKey, onOpen, onToggleAudio, onLongPress
+  row, surahName, page, nightMode, themeColors, playingKey, onOpen, onToggleAudio, onLongPress
 }: {
   row: NoteRow;
   surahName?: string;
+  page?: number;
   nightMode: boolean;
   themeColors: any;
   playingKey: string | null;
-  onOpen: (s: number, v: number) => void;
+  onOpen: (s: number, v: number, p?: number) => void;
   onToggleAudio: (audioKey: string, path: string) => void;
   onLongPress: (vKey: string) => void;
 }) => {
@@ -77,12 +78,14 @@ const NoteCard = React.memo(({
           borderColor: themeColors.border,
         }
       ]}
-      onPress={() => onOpen(surah, ayah)}
+      onPress={() => onOpen(surah, ayah, page)}
       onLongPress={() => onLongPress(verseKey)}
       activeOpacity={0.8}
     >
       <View style={styles(nightMode, themeColors).cardHeader}>
-        <Text style={[styles(nightMode, themeColors).surahLabel, { color: themeColors.accent }]}>SURAH {surah} · AYAH {ayah}</Text>
+        <Text style={[styles(nightMode, themeColors).surahLabel, { color: themeColors.accent }]}>
+          SURAH {surah} · AYAH {ayah}{page ? ` · PAGE ${page}` : ''}
+        </Text>
         <Text style={[styles(nightMode, themeColors).surahName, { color: themeColors.text }]}>{surahName || `Surah ${surah}`}</Text>
         <View style={[styles(nightMode, themeColors).accentLine, { backgroundColor: themeColors.accent }]} />
       </View>
@@ -114,6 +117,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
   const studentData = useSelector((s: any) => s.student.studentData);
   const currentStudentId = useSelector((s: any) => s.student.currentStudent?.id);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
+  const textStyle = useSelector((s: any) => s.quran.textStyle);
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
 
@@ -146,10 +150,32 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     });
   }, [notes]);
 
+  const [pages, setPages] = useState<Record<string, number>>({});
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [chooserVerseKey, setChooserVerseKey] = useState<string | null>(null);
   const [editVerseKey, setEditVerseKey] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const entries: [number, number][] = rows.map((r) => [r.surah, r.ayah]);
+    if (entries.length === 0) return;
+
+    getVersePagesDB(entries).then((res) => {
+      if (active && res) {
+        setPages((prev) => ({ ...prev, ...res }));
+      }
+    }).catch(() => {});
+
+    // Script-aware / indopak fallback
+    for (const r of rows) {
+      getVersePage(r.surah, r.ayah, textStyle).then((pg) => {
+        if (active && pg > 0) setPages((prev) => (prev[r.verseKey] === pg ? prev : { ...prev, [r.verseKey]: pg }));
+      }).catch(() => {});
+    }
+
+    return () => { active = false; };
+  }, [rows, textStyle]);
 
   useEffect(() => () => { try { audioPlayer.stopPlayer(); audioPlayer.removePlayBackListener(); } catch {} }, []);
 
@@ -180,9 +206,22 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     }
   }, [playingKey]);
 
-  const handleNavigate = useCallback((surah: number, verse: number) => {
-    navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
-  }, [navigation]);
+  const handleNavigate = useCallback(async (surah: number, verse: number, page?: number) => {
+    let targetPage = page || pages[`${surah}_${verse}`];
+    if (!targetPage) {
+      try {
+        targetPage = await getVersePage(surah, verse, textStyle);
+      } catch {
+        targetPage = 1;
+      }
+    }
+    navigation.navigate('QuranView' as any, {
+      page: targetPage,
+      surahId: surah,
+      scrollToVerse: verse,
+      t: Date.now(),
+    } as any);
+  }, [navigation, pages, textStyle]);
 
   const onToggleAudio = useCallback((audioKey: string, path: string) => {
     togglePlay(audioKey, path);
@@ -227,6 +266,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     <NoteCard
       row={item}
       surahName={surahNames[item.surah]}
+      page={pages[item.verseKey]}
       nightMode={nightMode}
       themeColors={themeColors}
       playingKey={playingKey}
@@ -234,7 +274,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       onToggleAudio={onToggleAudio}
       onLongPress={handleRowLongPress}
     />
-  ), [surahNames, nightMode, themeColors, playingKey, handleNavigate, onToggleAudio, handleRowLongPress]);
+  ), [surahNames, pages, nightMode, themeColors, playingKey, handleNavigate, onToggleAudio, handleRowLongPress]);
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg }]}>

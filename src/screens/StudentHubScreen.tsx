@@ -284,12 +284,19 @@ export default function StudentHubScreen({ navigation }: any) {
 
   const handlePageSubmit = () => {
     if (!pageValid) return;
-    navigation.navigate('QuranView' as any, { page: Math.max(1, pageNum - 1) } as any);
+    navigation.navigate('QuranView' as any, { page: Math.max(1, pageNum), t: Date.now() } as any);
     setPageInput('');
     Keyboard.dismiss();
   };
 
-  const openVerse = (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any);
+  const openVerse = async (surah: number, verse: number) => {
+    try {
+      const pg = await getVersePage(surah, verse, textStyle);
+      navigation.navigate('QuranView' as any, { page: pg || 1, surahId: surah, scrollToVerse: verse, t: Date.now() } as any);
+    } catch {
+      navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse, t: Date.now() } as any);
+    }
+  };
 
   const bg = themeColors.bg;
   const rowBg = themeColors.cardBg;
@@ -319,7 +326,7 @@ export default function StudentHubScreen({ navigation }: any) {
           <TutorialAnchor id="hub-resume">
             <TouchableOpacity
               style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}
-              onPress={() => { emitTutorialEvent('quran_opened'); resumeInfo && navigation.navigate('QuranView' as any, { page: resumeInfo.page } as any); }}
+              onPress={() => { emitTutorialEvent('quran_opened'); resumeInfo && navigation.navigate('QuranView' as any, { page: resumeInfo.page, t: Date.now() } as any); }}
               activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -355,7 +362,7 @@ export default function StudentHubScreen({ navigation }: any) {
           <TouchableOpacity
             style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }, !dailyTarget && styles(nightMode, themeColors).rowDisabled]}
             onPress={() => dailyTarget && (dailyPage > 0 && dailyPageFor === `${dailyTarget.surah}:${dailyTarget.verse}`
-              ? navigation.navigate('QuranView' as any, { page: dailyPage } as any)
+              ? navigation.navigate('QuranView' as any, { page: dailyPage, t: Date.now() } as any)
               : openVerse(dailyTarget.surah, dailyTarget.verse))}
             disabled={!dailyTarget}
             activeOpacity={0.7}

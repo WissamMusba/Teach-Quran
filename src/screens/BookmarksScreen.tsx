@@ -7,6 +7,7 @@ import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, getJuzForVerse, toMillis } from '../utils/format';
 import { getVersePagesDB, getManifest, saveManifestLocal, saveStudentData } from '../database/localDB';
+import { getVersePage } from '../database/quranData';
 import { setStudentData } from '../store/studentSlice';
 import { addPendingChange } from '../store/syncSlice';
 import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
@@ -99,8 +100,23 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
   }, [sortedBookmarks, lrSurah, lrVerse, textStyle]);
 
   const handleNavigate = React.useCallback(
-    (surah: number, verse: number) => navigation.navigate('QuranView' as any, { surahId: surah, scrollToVerse: verse } as any),
-    [navigation],
+    async (surah: number, verse: number, page?: number) => {
+      let targetPage = page || pageMap[pageKey(surah, verse)];
+      if (!targetPage) {
+        try {
+          targetPage = await getVersePage(surah, verse, textStyle);
+        } catch {
+          targetPage = 1;
+        }
+      }
+      navigation.navigate('QuranView' as any, {
+        page: targetPage,
+        surahId: surah,
+        scrollToVerse: verse,
+        t: Date.now(),
+      } as any);
+    },
+    [navigation, pageMap, textStyle],
   );
 
   const handleDelete = useCallback((surah: number, verse: number) => {
@@ -203,7 +219,7 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
             borderColor: themeColors.border,
           }
         ]}
-        onPress={() => handleNavigate(item.surah, item.verse)}
+        onPress={() => handleNavigate(item.surah, item.verse, page)}
         activeOpacity={0.8}
       >
         <View style={styles(nightMode, themeColors).topRow}>

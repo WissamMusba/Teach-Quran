@@ -37,7 +37,7 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
   const handlePageSubmit = useCallback(() => {
     if (!pageValid) return;
     ensureMyQuran();
-    navigation.navigate('QuranView' as any, { page: Math.max(1, n - 1) } as any);
+    navigation.navigate('QuranView' as any, { page: Math.max(1, n), t: Date.now() } as any);
     setPageInput('');
     Keyboard.dismiss();
   }, [pageValid, n, ensureMyQuran, navigation]);

@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import ScreenHeader from '../components/common/ScreenHeader';
 import SurahList from '../components/quran/SurahList';
 import { SURAH_PAGE_RANGE } from '../utils/surahMeta';
-import { getThemeColors } from '../utils/theme';
+import { getThemeColors, JUZ_PAGE_START } from '../utils/theme';
 
 export default function SurahIndexScreen({ navigation }: any) {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
@@ -18,7 +18,7 @@ export default function SurahIndexScreen({ navigation }: any) {
   const pickedRef = useRef(false);
   const pick = (params: any) => { 
     pickedRef.current = true; 
-    navigation.navigate('QuranView' as any, params as any); 
+    navigation.navigate('QuranView' as any, { ...params, t: Date.now() } as any); 
   };
 
   const handleBack = useCallback(() => {
@@ -50,9 +50,13 @@ export default function SurahIndexScreen({ navigation }: any) {
         onClose={handleBack}
         onSelect={(id) => {
           const startPage = SURAH_PAGE_RANGE[id - 1]?.[0] || 1;
-          pick({ page: startPage });
+          pick({ page: startPage, surahId: id });
         }}
         onSelectPage={(page) => pick({ page })}
+        onSelectJuz={(juz) => {
+          const startPage = JUZ_PAGE_START[juz - 1] || 1;
+          pick({ page: startPage });
+        }}
       />
     </View>
   );

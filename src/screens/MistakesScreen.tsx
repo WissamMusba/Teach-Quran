@@ -12,6 +12,7 @@ import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
+import { getVersePagesDB } from '../database/localDB';
 import { JUZ_MAP, getThemeColors } from '../utils/theme';
 
 const IconPen = ({ c, size = 20 }: { c: string; size?: number }) => (
@@ -69,19 +70,47 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
 
   React.useEffect(() => {
     let active = true;
+    const entries: [number, number][] = [];
+    for (const item of sortedVerses) {
+      const [s, v] = item.verseKey.split('_').map(Number);
+      if (s > 0 && v > 0) entries.push([s, v]);
+    }
+    if (entries.length === 0) return;
+
+    getVersePagesDB(entries).then((res) => {
+      if (active && res) {
+        setPages((prev) => ({ ...prev, ...res }));
+      }
+    }).catch(() => {});
+
+    // Script-aware / indopak fallback
     for (const item of sortedVerses) {
       const verseKey = item.verseKey;
       const [s, v] = verseKey.split('_').map(Number);
       getVersePage(s, v, textStyle).then((pg) => {
-        if (active && pg > 0) setPages((prev) => ({ ...prev, [verseKey]: pg }));
-      });
+        if (active && pg > 0) setPages((prev) => (prev[verseKey] === pg ? prev : { ...prev, [verseKey]: pg }));
+      }).catch(() => {});
     }
+
     return () => { active = false; };
   }, [sortedVerses, textStyle]);
 
-  const handleNavigate = (vKey: string) => {
+  const handleNavigate = async (vKey: string, page?: number) => {
     const [s, v] = vKey.split('_').map(Number);
-    navigation.navigate('QuranView' as any, { surahId: s, scrollToVerse: v } as any);
+    let targetPage = page || pages[vKey];
+    if (!targetPage) {
+      try {
+        targetPage = await getVersePage(s, v, textStyle);
+      } catch {
+        targetPage = 1;
+      }
+    }
+    navigation.navigate('QuranView' as any, {
+      page: targetPage,
+      surahId: s,
+      scrollToVerse: v,
+      t: Date.now(),
+    } as any);
   };
 
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
@@ -111,7 +140,7 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
     return (
       <TouchableOpacity
         style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, shadowOpacity: nightMode ? 0.4 : 0.08 }]}
-        onPress={() => handleNavigate(item.verseKey)}
+        onPress={() => handleNavigate(item.verseKey, page)}
         activeOpacity={0.85}
       >
         {(date || time) ? (

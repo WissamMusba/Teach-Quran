@@ -7,7 +7,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, u
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SURAH_META, SURAH_PAGE_RANGE } from '../../utils/surahMeta';
-import { getArabicFont, getThemeColors } from '../../utils/theme';
+import { getArabicFont, getThemeColors, JUZ_MAP, JUZ_NAMES, JUZ_PAGE_START } from '../../utils/theme';
 
 const normCache: Record<string, string> = {};
 const norm = (s?: string | null): string => {
@@ -66,7 +66,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSelect: (surahId: number) => void;
-  onSelectPage?: (pageZeroBased: number) => void;
+  onSelectPage?: (page: number) => void;
   onSelectJuz?: (juzNum: number) => void;
   mode?: 'surah' | 'page' | 'juz';
   inline?: boolean;
@@ -84,28 +84,61 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, isDark), [colorTheme, isDark]);
 
+  const isIndopak = textStyle === 'alqalam' || textStyle === 'lateef';
+  const maxPages = isIndopak ? 610 : 604;
+
   const data = useMemo(() => {
     if (mode === 'page') {
-      const isIndopak = textStyle === 'alqalam' || textStyle === 'lateef';
-      const maxPages = isIndopak ? 610 : 604;
-      return Array.from({ length: maxPages }, (_, i) => ({ type: 'page', page: i, label: `Page ${i + 1}` }));
+      return Array.from({ length: maxPages }, (_, i) => ({ type: 'page', page: i + 1, label: `Page ${i + 1}` }));
     }
     if (mode === 'juz') {
-      return Array.from({ length: 30 }, (_, i) => ({ type: 'juz', juz: i + 1, label: `Juz ${i + 1}` }));
+      return Array.from({ length: 30 }, (_, i) => ({ type: 'juz', juz: i + 1, label: `Juz ${i + 1}`, ar: JUZ_NAMES[i]?.ur || '' }));
     }
     return SURAH_META.map((s) => ({ type: 'surah', ...s }));
-  }, [mode, textStyle]);
+  }, [mode, maxPages]);
 
   const results = useMemo(() => {
     const q = query.trim();
     if (!q) return data;
     const qNorm = norm(q);
-    const qNum = parseInt(q, 10);
+    const numMatch = q.match(/\d+/);
+    const qNum = numMatch ? parseInt(numMatch[0], 10) : NaN;
+    const isExactNumber = /^\d+$/.test(q);
+    const isPageSearch = /^(?:page|p)\s*\d+$/i.test(q);
+    const isJuzSearch = /^(?:juz|j|para)\s*\d+$/i.test(q);
+
     const scored: { item: any; score: number }[] = [];
+
+    // If in surah mode, allow searching/jumping to Surah, Page, and Juz directly when a number is entered
+    if (mode === 'surah' && !isNaN(qNum) && qNum > 0) {
+      if (isPageSearch) {
+        if (qNum <= maxPages) {
+          scored.push({ item: { type: 'page', page: qNum, label: `Page ${qNum}` }, score: 1000 });
+        }
+      } else if (isJuzSearch) {
+        if (qNum <= 30) {
+          scored.push({ item: { type: 'juz', juz: qNum, label: `Juz ${qNum}`, ar: JUZ_NAMES[qNum - 1]?.ur || '' }, score: 1000 });
+        }
+      } else if (isExactNumber) {
+        // 1st Priority: Surah qNum (1..114)
+        const matchedSurah = SURAH_META.find((s) => s.id === qNum);
+        if (matchedSurah) {
+          scored.push({ item: { type: 'surah', ...matchedSurah }, score: 1000 });
+        }
+        // 2nd Priority: Page qNum (1..maxPages)
+        if (qNum <= maxPages) {
+          scored.push({ item: { type: 'page', page: qNum, label: `Page ${qNum}` }, score: 900 });
+        }
+        // 3rd Priority: Juz qNum (1..30)
+        if (qNum <= 30) {
+          scored.push({ item: { type: 'juz', juz: qNum, label: `Juz ${qNum}`, ar: JUZ_NAMES[qNum - 1]?.ur || '' }, score: 800 });
+        }
+      }
+    }
 
     data.forEach((item: any) => {
       if (item.type === 'page') {
-        const pageNum = item.page + 1;
+        const pageNum = item.page;
         if (pageNum === qNum) {
           scored.push({ item, score: 100 });
         } else if (String(pageNum).startsWith(q)) {
@@ -122,19 +155,17 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
           scored.push({ item, score: 60 });
         }
       } else {
-        if (!isNaN(qNum) && qNum > 0) {
-          if (item.id === qNum) {
-            scored.push({ item, score: 100 });
-            return;
-          }
-          if (String(item.id).startsWith(q)) {
-            scored.push({ item, score: 85 - (String(item.id).length - q.length) });
-            return;
-          }
+        // Skip duplicate exact surah added above
+        if (isExactNumber && item.id === qNum) {
+          return;
+        }
+        if (!isNaN(qNum) && qNum > 0 && String(item.id).startsWith(q)) {
+          scored.push({ item, score: 700 - (String(item.id).length - q.length) * 10 });
+          return;
         }
         const sEn = scoreName(item.en, qNorm);
         const sAr = scoreName(item.ar, qNorm);
-        const sTrans = scoreName(item.translation, qNorm);
+        const sTrans = item.translation ? scoreName(item.translation, qNorm) : 0;
         const best = Math.max(sEn, sAr, sTrans);
         if (best > 0) scored.push({ item, score: best });
       }
@@ -142,7 +173,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
 
     scored.sort((a, b) => b.score - a.score);
     return scored.map((x) => x.item);
-  }, [data, query]);
+  }, [data, query, mode, maxPages]);
 
   const content = (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
@@ -161,7 +192,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
           style={[styles.searchInput, { backgroundColor: themeColors.cardBg, color: themeColors.text, borderColor: themeColors.border, marginTop: inline ? 8 : 0 }]}
           value={query}
           onChangeText={setQuery}
-          placeholder={mode === 'page' ? 'Type a page number (1–610)...' : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, or juz...'}
+          placeholder={mode === 'page' ? `Type a page number (1–${maxPages})...` : mode === 'juz' ? 'Type a juz number (1–30)...' : 'Search surah, number, page, or juz...'}
           placeholderTextColor={themeColors.subText}
           autoCapitalize="none"
           autoCorrect={false}
@@ -169,62 +200,94 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
       </View>
       {results.length === 0 && query.length > 0 ? (
         <View style={styles.emptyWrap}>
-          <Text style={[styles.emptyText, { color: themeColors.subText }]}>No surahs found</Text>
+          <Text style={[styles.emptyText, { color: themeColors.subText }]}>No results found</Text>
         </View>
       ) : (
         <FlatList
           data={results}
           keyExtractor={(item: any) => (item.type === 'page' ? `page-${item.page}` : item.type === 'juz' ? `juz-${item.juz}` : `surah-${item.id}`)}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }: any) => (
-            <TouchableOpacity
-              style={[
-                styles.item,
-                {
-                  backgroundColor: themeColors.cardBg,
-                  borderBottomColor: themeColors.border,
-                  paddingVertical: isTablet ? 14 : 11,
-                }
-              ]}
-              onPress={() => {
-                if (item.type === 'page') {
-                  onSelectPage?.(item.page);
-                } else if (item.type === 'juz') {
-                  onSelectJuz?.(item.juz);
-                } else {
-                  const startPage = SURAH_PAGE_RANGE[item.id - 1]?.[0] || 1;
-                  if (onSelectPage) {
-                    onSelectPage(startPage);
-                  } else {
-                    onSelect(item.id);
+          renderItem={({ item }: any) => {
+            const isPage = item.type === 'page';
+            const isJuz = item.type === 'juz';
+            const isSurah = item.type === 'surah';
+            const itemNum = isPage ? item.page : isJuz ? item.juz : item.id;
+            const surahStartPage = isSurah ? (SURAH_PAGE_RANGE[item.id - 1]?.[0] || 1) : null;
+            const juzArabic = isJuz ? (item.ar || JUZ_NAMES[item.juz - 1]?.ur || '') : null;
+
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.item,
+                  {
+                    backgroundColor: themeColors.cardBg,
+                    borderBottomColor: themeColors.border,
+                    paddingVertical: isTablet ? 14 : 11,
                   }
-                }
-                onClose?.();
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.itemLeft}>
-                <View style={[styles.numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                  <Text style={[styles.itemNum, { color: themeColors.accent }]}>
-                    {item.type === 'page' ? item.page + 1 : item.type === 'juz' ? item.juz : item.id}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={[styles.itemNameEn, { color: themeColors.text }]}>
-                    {item.type === 'page' ? item.label : item.type === 'juz' ? item.label : item.en}
-                  </Text>
-                  {item.type === 'surah' ? (
-                    <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
-                      {item.verses} verses · Juz {item.startJuz}
+                ]}
+                onPress={() => {
+                  if (isPage) {
+                    onSelectPage ? onSelectPage(item.page) : onSelect(item.page);
+                  } else if (isJuz) {
+                    const startPage = JUZ_PAGE_START[item.juz - 1] || 1;
+                    if (onSelectJuz) {
+                      onSelectJuz(item.juz);
+                    } else if (onSelectPage) {
+                      onSelectPage(startPage);
+                    } else {
+                      onSelect(item.juz);
+                    }
+                  } else {
+                    const startPage = SURAH_PAGE_RANGE[item.id - 1]?.[0] || 1;
+                    if (onSelectPage) {
+                      onSelectPage(startPage);
+                    } else {
+                      onSelect(item.id);
+                    }
+                  }
+                  if (!inline) {
+                    onClose?.();
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.itemLeft}>
+                  <View style={[styles.numBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Text style={[styles.itemNum, { color: themeColors.accent }]}>
+                      {itemNum}
                     </Text>
-                  ) : null}
+                  </View>
+                  <View>
+                    <Text style={[styles.itemNameEn, { color: themeColors.text }]}>
+                      {isPage ? item.label : isJuz ? item.label : item.en}
+                    </Text>
+                    {isSurah ? (
+                      <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
+                        {item.verses} verses · Juz {item.startJuz} · Page {surahStartPage}
+                      </Text>
+                    ) : isPage ? (
+                      <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
+                        Go to Page {item.page}
+                      </Text>
+                    ) : isJuz ? (
+                      <Text style={[styles.itemMeta, { color: themeColors.subText }]}>
+                        {JUZ_NAMES[item.juz - 1]?.en ? `${JUZ_NAMES[item.juz - 1].en} · ` : ''}Starts at Page {JUZ_PAGE_START[item.juz - 1] || 1}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-              {item.type === 'surah' ? (
-                <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{item.ar}</Text>
-              ) : null}
-            </TouchableOpacity>
-          )}
+                {isSurah ? (
+                  <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{item.ar}</Text>
+                ) : isJuz && juzArabic ? (
+                  <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold }]}>{juzArabic}</Text>
+                ) : isPage ? (
+                  <Text style={[styles.itemNameAr, { fontFamily, color: themeColors.gold, fontSize: 16 }]}>
+                    {`الصفحة ${item.page}`}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>

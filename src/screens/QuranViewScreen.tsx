@@ -936,8 +936,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (p >= 1 && p <= 610) {
       paramsHandledRef.current = true;
       if (readingMode !== 'page') dispatch(setReadingMode('page'));
+      if (surahId) {
+        setHeaderSurahId(surahId);
+        setFlashingSurah(surahId);
+      }
       setCurrentPageNum(p); setHeaderPage(p); ensurePageLoaded(p); prefetchPartner(p);
-      getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
+      getVersesByPage(p, textStyle).then(vs => { const f = vs?.[0]; if (f?.surahId && !surahId) setHeaderSurahId(f.surahId); }).catch(() => {});
+      if (scrollToVerse) {
+        dispatch(setFlashingVerse(scrollToVerse));
+        setTimeout(() => dispatch(setFlashingVerse(null)), 2000);
+      }
       landOnPage(p).finally(() => { paramsHandledRef.current = false; });
     } else if (surahId) {
       paramsHandledRef.current = true;
