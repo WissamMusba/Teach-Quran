@@ -239,7 +239,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const fontFamily = getArabicFont(textStyle);
   const textColor = nightMode ? `rgba(255, 255, 255, ${textBrightness/255})` : `rgba(0, 0, 0, ${textBrightness/255})`;
   const { width: winWidth } = useWindowDimensions();
-  const isTablet = winWidth >= 600;
+  const isTablet = Math.min(Dimensions.get('screen').width, Dimensions.get('screen').height) >= 600 || winWidth >= 600;
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
   
   const firstWord = pageData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
@@ -642,8 +642,23 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     if (layoutContentRef.current) {
       const lineW = layoutW - 2 * padSide;
       const live = (widthsRef.current[lineIdx] || []).reduce((a, b) => a + (b || 0), 0);
+      const wordsCount = pageData?.lines?.[lineIdx]?.words?.length || 0;
+      const extraMargins = isTablet ? (wordsCount * 2) : 0;
       // Cached sums are normalized units — multiply back by the CURRENT base size.
-      const total = Math.max(layoutContentRef.current[lineIdx] || 0, live) * normFontSize + (lineExtraRef.current[lineIdx] || 0);
+      const rawWordsTotal = Math.max(layoutContentRef.current[lineIdx] || 0, live) * normFontSize;
+      const total = rawWordsTotal + (lineExtraRef.current[lineIdx] || 0) + extraMargins;
+
+      if (isTablet) {
+        if (wordsCount >= 2 && total > 0) {
+          // On tablets, scale each line dynamically so that words fill lineW from edge to edge:
+          // every line starts at the exact same right spot and ends at the exact same left spot!
+          // Upper bound 1.28x prevents short lines from becoming overly large.
+          const fitScale = (lineW - 8) / total;
+          return Math.max(0.5, Math.min(1.28, fitScale));
+        }
+        return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
+      }
+
       return total > lineW + 2 ? Math.max(0.5, (lineW - 12) / total) : 1;
     }
     return lineScale[lineIdx] || 1;
@@ -841,7 +856,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
         return (
           <React.Fragment key={lineIdx}>
             {taawud}
-            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
+            <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }, isTablet && (line.words?.length || 0) <= 4 && { justifyContent: 'center' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
               return line.words?.map((word: any, wordIdx: number) => {
@@ -893,7 +908,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               // but still allow verse boundary badge to appear
               if (isVerseEndMarker) {
                 const badgeEl = (
-                      <View style={styles(nightMode).verseBadgeContainer}>
+                      <View style={[styles(nightMode).verseBadgeContainer, isTablet && { marginHorizontal: 1 }]}>
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[
                             styles(nightMode).verseBadge,
@@ -919,16 +934,16 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
 
               return (
                 <React.Fragment key={wordIdx}>
-                  <WordHitArea tapFraction={WORD_TAP_FRACTION} style={styles(nightMode).wordBox}
+                  <WordHitArea tapFraction={WORD_TAP_FRACTION} style={[styles(nightMode).wordBox, isTablet && { marginHorizontal: 1 }]}
                     onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
                     <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
-                      {displayText}{' '}
+                      {displayText}{isTablet ? '' : ' '}
                     </Text>
                   </WordHitArea>
                   {isVerseBoundary && (
-                    <View style={styles(nightMode).verseBadgeContainer}>
+                    <View style={[styles(nightMode).verseBadgeContainer, isTablet && { marginHorizontal: 1 }]}>
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[
                           styles(nightMode).verseBadge,

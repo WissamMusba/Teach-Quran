@@ -217,7 +217,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           words past the 0.5 floor). */}
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: 24, marginBottom: 24 }}>
       {pData ? (
-        <MushafPageView headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
+        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}

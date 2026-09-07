@@ -133,6 +133,11 @@ export const initDatabase = async () => {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
     await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','6')`);
   }
+  // layoutVer 7: Tablet font size boost & 2px word spacing update
+  if (ver < 8) {
+    await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','8')`);
+  }
 
   // Migrate V1 to V2 schema if needed
   await migrateV1IfNeeded(dbInstance);
