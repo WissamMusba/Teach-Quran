@@ -10,7 +10,7 @@
  * USED BY: QuranViewScreen.tsx — SpreadItem (split/two-page mode) and single-page renderItem
  */
 
-import React, { memo, useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Pressable, ActivityIndicator, InteractionManager, useWindowDimensions } from 'react-native';
 import { getMushafFontSize, getMushafLineHeight } from '../../utils/responsive';
 import { WORD_TAP_FRACTION, MISTAKE_HIGHLIGHT } from '../../utils/constants';
@@ -119,15 +119,87 @@ export const warmPageLayoutFor = (pageNum: number, pageData: any, textStyle: str
   } catch { /* best-effort */ }
 };
 
-// Reading-mark bookmark ribbon — solid pill badge with bookmark icon; distinct from page frame.
-const BookmarkRibbon = ({ c, width = 20, height = 26, filled = false }: { c: string; width?: number; height?: number; filled?: boolean }) => (
-  <Svg width={width} height={height} viewBox="0 0 24 32" fill="none">
-    {/* Ribbon background tab with border */}
-    <Path d="M2 2h20v28l-10-6L2 30V2z" fill={filled ? c : '#1E2333'} stroke={c} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-    {/* Inner decorative bookmark icon */}
-    <Path d="M7 7h10v14l-5-3.5L7 21V7z" fill={filled ? '#FFFFFF' : c} stroke={filled ? '#FFFFFF' : c} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
+const isLightColor = (hex: string) => {
+  if (!hex || typeof hex !== 'string') return true;
+  const raw = hex.replace('#', '');
+  if (raw.length < 6) return true;
+  const r = parseInt(raw.substring(0, 2), 16);
+  const g = parseInt(raw.substring(2, 4), 16);
+  const b = parseInt(raw.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 140;
+};
+
+// Reading-mark bookmark ribbon — clean outline when unfilled; filled with date/month badge when active.
+const BookmarkRibbon = ({
+  c,
+  width = 24,
+  height = 36,
+  filled = false,
+  day,
+  month,
+  nightMode = false,
+}: {
+  c: string;
+  width?: number;
+  height?: number;
+  filled?: boolean;
+  day?: number | string;
+  month?: string;
+  nightMode?: boolean;
+}) => {
+  const notch = Math.round(height * 0.22);
+  const strokeW = 1.8;
+  const ribbonBg = filled ? c : (nightMode ? 'rgba(16, 18, 26, 0.75)' : 'rgba(250, 247, 238, 0.85)');
+  const textC = isLightColor(c) ? '#0D1B2A' : '#FFFFFF';
+  const isLarge = width >= 28;
+
+  return (
+    <View style={{ width, height, alignItems: 'center', justifyContent: 'flex-start' }}>
+      <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={StyleSheet.absoluteFill}>
+        <Path
+          d={`M 1 0 H ${width - 1} V ${height - 1} L ${width / 2} ${height - 1 - notch} L 1 ${height - 1} Z`}
+          fill={ribbonBg}
+          stroke={c}
+          strokeWidth={strokeW}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+      {filled && day != null && month ? (
+        <View style={{ width: width - 4, paddingTop: isLarge ? 3 : 2, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+          <Text
+            style={{
+              fontSize: isLarge ? 11 : 9.5,
+              fontWeight: '700',
+              color: textC,
+              lineHeight: isLarge ? 13 : 11,
+              textAlign: 'center',
+              includeFontPadding: false,
+            }}
+            numberOfLines={1}
+          >
+            {day}
+          </Text>
+          <Text
+            style={{
+              fontSize: isLarge ? 8.5 : 7.5,
+              fontWeight: '800',
+              color: textC,
+              lineHeight: isLarge ? 10 : 9,
+              textAlign: 'center',
+              textTransform: 'capitalize',
+              letterSpacing: -0.2,
+              includeFontPadding: false,
+            }}
+            numberOfLines={1}
+          >
+            {month}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+};
 
 const IconNoteBadge = ({ c = '#FFD700', size = 12 }: { c?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2 }}>
@@ -230,7 +302,7 @@ const computeLineExtra = (line: any, lineIdx: number, pageData: any, notes: any)
  *   - maxFontSizeMultiplier={1} on word/fallback Text — the app owns font scaling; the OS must
  *     not re-inflate text sizes.
  */
-const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, isCurrentPage = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
+const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_WIDTH, surahNames = {}, versesForPage, pageData, highlights, onWordPress, onVerseLongPress, onBookmarkToggle, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, fixNonce = 0, onSpread, spread, showReadingMarkBtn = false, readingMarkActive = false, readingMarkDate = undefined, isCurrentPage = false, onReadingMarkToggle = undefined, onToggleHeader = undefined, hideBottomChrome = false, hideFrame = false, persistLayout = true, onMeasured = undefined, fontSizeScale = 1 }: any) => {
   const nightMode = useSelector((s: any) => s.settings.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = getThemeColors(colorTheme, nightMode);
@@ -248,6 +320,17 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = themeColors.badgeBorder;
   const badgeBg = themeColors.badgeBg;
+
+  const readingMarkDateObj = useMemo(() => {
+    if (!readingMarkActive) return null;
+    const d = readingMarkDate ? new Date(readingMarkDate) : new Date();
+    const valid = !isNaN(d.getTime());
+    const target = valid ? d : new Date();
+    const day = target.getDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[target.getMonth()];
+    return { day, month };
+  }, [readingMarkActive, readingMarkDate]);
 // v97: fontSizeScale (prop) shrinks the tablet mushaf font — 0.78 in split view, 0.88 for
 // single-page tablets — without touching the phone buckets. 1 (phones) = byte-identical.
 // v98: LANDSCAPE split halves are short — font drops further (0.65 via the caller) and the
@@ -707,9 +790,17 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
         // pages mounted — only the CURRENT page may register 'reading-ribbon', otherwise the
         // neighbours' offscreen measures race this page's and the spotlight flashes between
         // the ribbon and the top-left corner.
-        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -24 : -20, right: -5, zIndex: 20, elevation: 20 }}>
-        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <BookmarkRibbon c={themeColors.accent} width={isTablet ? 24 : 20} height={isTablet ? 33 : 26} filled={readingMarkActive} />
+        <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -20 : -16, right: isTablet && !spread ? -20 : -5, zIndex: 20, elevation: 20 }}>
+        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <BookmarkRibbon
+            c={themeColors.accent}
+            width={isTablet ? 30 : 24}
+            height={isTablet ? 44 : 36}
+            filled={readingMarkActive}
+            day={readingMarkDateObj?.day}
+            month={readingMarkDateObj?.month}
+            nightMode={nightMode}
+          />
         </TouchableOpacity>
         </TutorialAnchor>
       )}

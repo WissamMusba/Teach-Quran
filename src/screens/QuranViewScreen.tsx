@@ -126,7 +126,7 @@ const pageLastVerseFromPageData = (pd: any) => {
 // frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
 const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
 
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE, readingMarkDate }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
@@ -160,7 +160,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
               <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
                 onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
                 onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
             ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
@@ -173,7 +173,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
             <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
               onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
               onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
           ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
@@ -197,7 +197,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
 * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
    * CALLED BY: page-mode FlatList renderItem (splitOn=false).
    */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1 }: any) => {
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate }: any) => {
   useEffect(() => {
     // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
     // directly via ensurePageVersesLoaded (itself single-flight via pageVersesPromiseRef), so
@@ -221,7 +221,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
-          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} isCurrentPage={item === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={item === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(last)}
           onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
           onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
       ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
@@ -2375,7 +2375,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
                     onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
-                    fontSizeScale={layoutFontScaleFor(winW, true, winH)} />
+                    fontSizeScale={layoutFontScaleFor(winW, true, winH)}
+                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
                 ) : ({ item }: any) => (
                   <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
                     highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
@@ -2386,7 +2387,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
                     onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum} />
+                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
+                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
                 )} />
             )}
 
