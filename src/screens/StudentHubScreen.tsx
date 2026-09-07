@@ -35,11 +35,15 @@ const IconBookOpen = ({ c, size = 20 }: { c: string; size?: number }) => (
   </Svg>
 );
 
-const IconBookmark = ({ c, size = 18 }: { c: string; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-    <Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-  </Svg>
-);
+const IconBookmark = ({ c, size = 18 }: { c: string; size?: number }) => {
+  const w = Math.round(size * 1.1);
+  const h = Math.round(size * 1.4);
+  return (
+    <Svg width={w} height={h} viewBox="0 0 24 28" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+      <Path d="M20 26l-8-5.5-8 5.5V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
+    </Svg>
+  );
+};
 
 const IconNotes = ({ c, size = 18 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>

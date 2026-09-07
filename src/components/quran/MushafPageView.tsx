@@ -728,7 +728,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
           )}
           <View pointerEvents="none" style={styles(nightMode).bottomCenterWrap}>
             <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-              <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum + 1}</Text>
+              <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum}</Text>
             </View>
           </View>
           <View pointerEvents="none" style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>

@@ -742,10 +742,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (behind >= 1) queue.push(behind);
       if (splitOn) {
         // Split mode warms whole pairs: each touched page's spread partner too.
-        const mateA = ahead % 2 === 1 ? ahead + 1 : ahead - 1;
-        if (ahead <= pageNumbers.length && mateA >= 1 && mateA <= pageNumbers.length) queue.push(mateA);
-        const mateB = behind % 2 === 1 ? behind + 1 : behind - 1;
-        if (behind >= 1 && mateB >= 1 && mateB <= pageNumbers.length) queue.push(mateB);
+        const mateA = ahead <= 1 ? null : (ahead % 2 === 0 ? ahead + 1 : ahead - 1);
+        if (ahead <= pageNumbers.length && mateA && mateA <= pageNumbers.length) queue.push(mateA);
+        const mateB = behind <= 1 ? null : (behind % 2 === 0 ? behind + 1 : behind - 1);
+        if (behind >= 1 && mateB && mateB <= pageNumbers.length) queue.push(mateB);
       }
     }
     const stepTick = () => {
@@ -1076,8 +1076,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // ---- load canvas chunks into local state ----
   const drawingKey = readingMode === 'page' ? `page_${currentPageNum}` : `surah_${currentSurahId}`;
-  const spreadOddKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum}` : null;
-  const spreadEvenKey = splitOn ? `page_${currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1}` : null;
+  const spreadOddKey = splitOn ? (currentPageNum === 1 || (currentPageNum % 2 === 0 ? currentPageNum + 1 : currentPageNum) > pageNumbers.length ? null : `page_${currentPageNum % 2 === 0 ? currentPageNum + 1 : currentPageNum}`) : null;
+  const spreadEvenKey = splitOn ? `page_${currentPageNum === 1 ? 1 : (currentPageNum % 2 === 0 ? currentPageNum : currentPageNum - 1)}` : null;
 
   /**
    * WHAT: Re-runs the lazy cloud restore for the currently visible range —
@@ -2106,10 +2106,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
     ? (() => {
         const pagesToScan = [currentPageNum];
         if (splitOn) {
-          const left = currentPageNum % 2 === 0 ? currentPageNum - 1 : currentPageNum;
-          const right = currentPageNum % 2 === 0 ? currentPageNum : currentPageNum + 1;
-          pagesToScan[0] = left;
-          if (right >= 1 && right <= pageNumbers.length) pagesToScan.push(right);
+          const right = currentPageNum === 1 ? 1 : (currentPageNum % 2 === 0 ? currentPageNum : currentPageNum - 1);
+          const left = currentPageNum === 1 ? null : (currentPageNum % 2 === 0 ? currentPageNum + 1 : currentPageNum);
+          pagesToScan[0] = right;
+          if (left && left <= pageNumbers.length) pagesToScan.push(left);
         }
         for (const pg of pagesToScan) {
           const found = (pageVersesCache[pg] || []).find((v: any) => v.verseNumber === 1);
