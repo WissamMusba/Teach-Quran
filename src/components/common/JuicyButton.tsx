@@ -23,6 +23,7 @@ export interface JuicyButtonProps extends Omit<PressableProps, 'style'> {
   activeOpacity?: number;
   scaleTo?: number;
   hapticFeedback?: boolean;
+  hapticTrigger?: 'pressIn' | 'press';
   delayPressIn?: number;
   children?: React.ReactNode;
 }
@@ -37,23 +38,37 @@ const JuicyButton: React.FC<JuicyButtonProps> = ({
   activeOpacity,
   scaleTo = 0.96,
   hapticFeedback = true,
+  hapticTrigger = 'pressIn',
   delayPressIn = 0,
   hitSlop = DEFAULT_HIT_SLOP,
   ...rest
 }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
+  const triggerHaptic = useCallback(() => {
+    if (!hapticFeedback) return;
+    try {
+      ReactNativeHapticFeedback.trigger('impactLight', {
+        enableVibrateFallback: false,
+        ignoreAndroidSystemSettings: false,
+      });
+    } catch {}
+  }, [hapticFeedback]);
+
   const handlePressIn = useCallback(
     (e: GestureResponderEvent) => {
       Animated.spring(scale, {
         toValue: scaleTo,
-        speed: 40,
-        bounciness: 3,
+        speed: 50,
+        bounciness: 0,
         useNativeDriver: true,
       }).start();
+      if (hapticTrigger === 'pressIn') {
+        triggerHaptic();
+      }
       onPressIn?.(e);
     },
-    [scale, scaleTo, onPressIn],
+    [scale, scaleTo, hapticTrigger, triggerHaptic, onPressIn],
   );
 
   const handlePressOut = useCallback(
@@ -72,17 +87,12 @@ const JuicyButton: React.FC<JuicyButtonProps> = ({
   const handlePress = useCallback(
     (e: GestureResponderEvent) => {
       if (disabled) return;
-      if (hapticFeedback) {
-        try {
-          ReactNativeHapticFeedback.trigger('impactLight', {
-            enableVibrateFallback: false,
-            ignoreAndroidSystemSettings: false,
-          });
-        } catch {}
+      if (hapticTrigger === 'press') {
+        triggerHaptic();
       }
       onPress?.(e);
     },
-    [disabled, hapticFeedback, onPress],
+    [disabled, hapticTrigger, triggerHaptic, onPress],
   );
 
   const animatedStyle = {

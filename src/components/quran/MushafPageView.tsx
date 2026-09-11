@@ -315,7 +315,8 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   
   const firstWord = pageData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
   const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
-  const juzInfo = pageNum > 0 ? getJuzInfoFromPage(pageNum) : { juz: 0, pagesLeft: 0 };
+  const displayPage = pageNum > 0 ? pageNum + 1 : 0;
+  const juzInfo = displayPage > 0 ? getJuzInfoFromPage(displayPage) : { juz: 0, pagesLeft: 0 };
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = themeColors.badgeBorder;
   const badgeBg = themeColors.badgeBg;
@@ -848,7 +849,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               compact && !isTablet && styles(nightMode).badgePillCompact
             ]}>
               <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: grayC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
-                Page {pageNum}
+                Page {displayPage}
               </Text>
             </View>
           </View>

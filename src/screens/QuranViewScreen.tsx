@@ -19,7 +19,8 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard, Animated, Easing } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard, Animated, Easing, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
@@ -127,7 +128,7 @@ const pageLastVerseFromPageData = (pd: any) => {
 // frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
 const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
 
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE, readingMarkDate }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE, readingMarkDate, topSafeInset = 0 }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
@@ -148,7 +149,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   // Top 24 = pill band above the frame; bottom 24 = pill band below it (v93: the Page N /
   // pages-left pills AND the Hide/Show-Header button hang from each page's frame bottom edge,
   // scrolling together with the page like the top Juz/Surah pills).
-  const spreadMargin = { marginTop: 24, marginBottom: 24 };
+  const spreadMargin = { marginTop: headerVisible ? 24 : Math.max(topSafeInset + 6, 24), marginBottom: 24 };
   const tablet = winW >= 600;
   const leftMargins = tablet ? (odd ? { marginLeft: 0, marginRight: 4 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
   const rightMargins = tablet ? (odd ? { marginLeft: 4, marginRight: 0 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
@@ -198,7 +199,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
 * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
    * CALLED BY: page-mode FlatList renderItem (splitOn=false).
    */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate }: any) => {
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
   useEffect(() => {
     // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
     // directly via ensurePageVersesLoaded (itself single-flight via pageVersesPromiseRef), so
@@ -216,7 +217,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           margin band for the hanging row (mirror of the 24 top margin). marginHorizontal: 18
           tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW and clips end-of-line
           words past the 0.5 floor). */}
-      <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: 24, marginBottom: 24 }}>
+      <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 24 : Math.max(topSafeInset + 6, 24), marginBottom: 24 }}>
       {pData ? (
         <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
@@ -369,6 +370,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
+  const currentSurahIdRef = useRef(currentSurahId);
+  currentSurahIdRef.current = currentSurahId;
   const studentDataRef = useRef(studentData);
   studentDataRef.current = studentData;
   const { nightMode, colorTheme = 'classic', bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
@@ -386,6 +389,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // ---- derived: page count (610 indopak vs 604), split-mode geometry ----
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
   const { width: winW, height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const topSafeInset = insets.top || StatusBar.currentHeight || 0;
   const splitOn = !!(useSelector((s: any) => s.settings)?.mushafSplit && winW >= SPLIT_MIN_WIDTH);
   const splitCapable = winW >= SPLIT_MIN_WIDTH;
   const pageW = Math.round(pageWFor(winW, splitOn));
@@ -649,9 +654,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // band ahead AND behind is warm for instant scroll-back, cached within ~1.1s, no wall.
     const layoutStep = () => {
       clearTimeout(layoutTimerRef.current);
-      const batch = layoutQueueRef.current.splice(0, 2);
-      for (const p of batch) { loadPage(p); warmLayout(p); }
-      if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
+      InteractionManager.runAfterInteractions(() => {
+        if (!hiddenFocus) return;
+        const batch = layoutQueueRef.current.splice(0, 2);
+        for (const p of batch) { loadPage(p); warmLayout(p); }
+        if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
+      });
     };
     // TIER 1 — nearest-first drain: 20-behind arm, then 20-ahead arm (v80.2 ±20 window).
     const queue: number[] = [];
@@ -703,10 +711,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
     };
     const tick = () => {
       clearTimeout(idleTimerRef.current);
-      if (!hiddenFocus) { idleQueueRef.current = []; return; }
-      const batch = idleQueueRef.current.splice(0, 2);
-      for (const p of batch) { ensurePageLoaded(p); ensurePageVersesLoaded(p); }
-      if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
+      InteractionManager.runAfterInteractions(() => {
+        if (!hiddenFocus) { idleQueueRef.current = []; return; }
+        const batch = idleQueueRef.current.splice(0, 2);
+        for (const p of batch) { ensurePageLoaded(p); ensurePageVersesLoaded(p); }
+        if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
+      });
     };
     idleTimerRef.current = setTimeout(() => {
       idleQueueRef.current = buildQueue();
@@ -754,16 +764,18 @@ export default function QuranViewScreen({ navigation, route }: any) {
       }
     }
     const stepTick = () => {
-      const batch = queue.splice(0, 2);
-      for (const p of batch) {
-        if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
-        layoutWarmByPageRef.current.add(warmKey(p));
-        getMushafPageData(p, textStyleRef.current).then(pd => {
-          if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
-        }).catch(() => {});
-      }
-      if (queue.length) warmNearTimerRef.current = setTimeout(stepTick, 150);
-      else warmNearTimerRef.current = null;
+      InteractionManager.runAfterInteractions(() => {
+        const batch = queue.splice(0, 2);
+        for (const p of batch) {
+          if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
+          layoutWarmByPageRef.current.add(warmKey(p));
+          getMushafPageData(p, textStyleRef.current).then(pd => {
+            if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
+          }).catch(() => {});
+        }
+        if (queue.length) warmNearTimerRef.current = setTimeout(stepTick, 150);
+        else warmNearTimerRef.current = null;
+      });
     };
     warmNearTimerRef.current = setTimeout(stepTick, 150);
   }, [splitOn, pageW, winW, pageNumbers.length, textStyle]);
@@ -832,13 +844,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
     if (legacySmoothRef.current) return;
-    if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
-    // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
-    // verifies off-screen halves (the FlatList window renders those anyway when needed).
-    const data = pagePairsFor(pageNumbers.length);
-    const lo = Math.max(0, pairIndexForPage(page) - 2);
-    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
-    for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+    InteractionManager.runAfterInteractions(() => {
+      if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
+      // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
+      // verifies off-screen halves (the FlatList window renders those anyway when needed).
+      const data = pagePairsFor(pageNumbers.length);
+      const lo = Math.max(0, pairIndexForPage(page) - 2);
+      const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
+      for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+    });
   };
 
   /**
@@ -848,8 +862,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const prefetchPartner = (pg: number) => {
     if (!splitOn || pg === 1) return;
-    const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
-    if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
+    InteractionManager.runAfterInteractions(() => {
+      const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
+      if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
+    });
   };
 
   // ---- spread toggle (split mode on/off) ----
@@ -1570,17 +1586,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
       if (lastStudentDataRef.current) {
         dispatch(setStudentData(lastStudentDataRef.current));
       }
+      const sid = currentStudentIdRef.current;
+      if (!sid) return;
+      const curSurah = currentSurahIdRef.current;
       const entriesToSave = { ...pendingHighlightsRef.current };
       pendingHighlightsRef.current = {};
       for (const [key, item] of Object.entries(entriesToSave)) {
         getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
-          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-          saveCanvasEdit(currentStudent.id, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(curSurah);
+          saveCanvasEdit(sid, cKey, 'highlights', { [key]: { highlights: item.highlights } });
           dispatch(addPendingChange());
         });
       }
     }
-  }, [currentStudent, currentSurahId, dispatch]);
+  }, [dispatch]);
 
   useEffect(() => () => {
     if (highlightSaveTimerRef.current) clearTimeout(highlightSaveTimerRef.current);
@@ -2374,7 +2393,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
             readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
             onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
             fontSizeScale={layoutFontScaleFor(winW, true, winH)}
-            readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
+            readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
+            topSafeInset={topSafeInset} />
         );
       }
       return (
@@ -2388,7 +2408,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
           readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
           onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
           nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
-          readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
+          readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
+          topSafeInset={topSafeInset} />
       );
     },
     [
@@ -2398,7 +2419,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
       canvasData.notes, readingMarkVerse, toggleHeader, ensurePageLoaded, ensurePageVersesLoaded,
       splitCapable, handleToggleSpread, readingMode, isCapturing, pageLastVerseFor,
       readingMarkActiveFor, handleReadingMarkToggle, handleVisibleMeasured,
-      currentPageNum, studentData?.lastRead?.updatedAt, studentData?.lastRead?.createdAt, nightMode
+      currentPageNum, studentData?.lastRead?.updatedAt, studentData?.lastRead?.createdAt, nightMode,
+      topSafeInset
     ]
   );
 

@@ -4,7 +4,7 @@
  *       Full dynamic theme palette integration (Classic Royal Navy, Madinah Emerald, OLED Obsidian).
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions, Pressable, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions, Pressable, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
@@ -67,21 +67,36 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuAnim = useRef(new Animated.Value(0)).current;
 
+  // Storing callback references in a ref guarantees that handlers passed to sub-components
+  // are 100% stable references across all renders
+  const callbacksRef = useRef(p);
+  callbacksRef.current = p;
+
+  const handleBack = useCallback(() => { callbacksRef.current.onBack(); }, []);
+  const handleOpenList = useCallback(() => { callbacksRef.current.onOpenList(); }, []);
+  const handleMistakes = useCallback(() => { callbacksRef.current.onMistakes(); }, []);
+  const handleShare = useCallback(() => { callbacksRef.current.onShare(); }, []);
+  const handleNotes = useCallback(() => { callbacksRef.current.onNotes(); }, []);
+  const handleBookmarks = useCallback(() => { callbacksRef.current.onBookmarks(); }, []);
+  const handleSettings = useCallback(() => { callbacksRef.current.onSettings(); }, []);
+  const handleOpenMenu = useCallback(() => { setMenuOpen(true); }, []);
+  const handleCloseMenu = useCallback(() => { setMenuOpen(false); }, []);
+
   useEffect(() => {
     if (menuOpen) {
       menuAnim.setValue(0);
       Animated.spring(menuAnim, {
         toValue: 1,
-        tension: 70,
+        tension: 100,
         friction: 8,
         useNativeDriver: true,
       }).start();
     }
   }, [menuOpen, menuAnim]);
 
-  const menuScale = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.0] }), [menuAnim]);
+  const menuScale = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.0] }), [menuAnim]);
   const menuOpacity = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1.0] }), [menuAnim]);
-  const menuTranslateY = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }), [menuAnim]);
+  const menuTranslateY = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }), [menuAnim]);
 
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = useMemo(() => getThemeColors(colorTheme, p.nightMode), [colorTheme, p.nightMode]);
@@ -154,12 +169,24 @@ const AnimatedHeader: React.FC<Props> = (p) => {
         >
           <View style={s.topRow}>
             {/* Left: Back Button & Surah Picker Title Block */}
-            <JuicyButton onPress={p.onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={s.backBtn}>
+            <JuicyButton
+              onPress={handleBack}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              activeOpacity={0.6}
+              delayPressIn={0}
+              style={s.backBtn}
+            >
               <IconBack c={primaryAccent} />
             </JuicyButton>
 
             <TutorialAnchor id="hdr-list" style={{ flexShrink: 1 }}>
-              <JuicyButton onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
+              <JuicyButton
+                onPress={handleOpenList}
+                style={s.titleBlock}
+                activeOpacity={0.7}
+                delayPressIn={0}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              >
                 <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
                 <Text style={[s.surahSub, { color: subColor }]} numberOfLines={1}>
                   {`Surah ${p.surahId} ▾`}
@@ -173,15 +200,16 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             {/* Right: Share, Bookmarks, and Hamburger Menu at the rightmost corner */}
             <View style={s.iconsRow}>
               <TutorialAnchor id="hdr-share">
-                <HeaderBtn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} subColor={subColor} />
+                <HeaderBtn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={handleShare} subColor={subColor} />
               </TutorialAnchor>
-              <HeaderBtn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} subColor={subColor} />
+              <HeaderBtn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={handleBookmarks} subColor={subColor} />
               
               <TutorialAnchor id="hdr-menu">
                 <JuicyButton
                   style={s.hamburgerBtn}
-                  onPress={() => setMenuOpen(true)}
+                  onPress={handleOpenMenu}
                   activeOpacity={0.6}
+                  delayPressIn={0}
                   hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
                 >
                   <IconHamburger c={primaryAccent} />
@@ -195,7 +223,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
       {/* Right-Aligned Hamburger Dropdown Menu In-Place Overlay */}
       {menuOpen && (
         <View style={[StyleSheet.absoluteFillObject, s.menuContainer]} pointerEvents="box-none">
-          <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)} />
+          <Pressable style={s.menuOverlay} onPress={handleCloseMenu} unstable_pressDelay={0} />
           <Animated.View
             style={[
               s.menuPopup,
@@ -212,35 +240,38 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               },
             ]}
           >
-            <TouchableOpacity
+            <JuicyButton
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
-              onPress={() => { setMenuOpen(false); p.onSettings(); }}
+              onPress={() => { handleCloseMenu(); handleSettings(); }}
               activeOpacity={0.6}
-              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              delayPressIn={0}
+              hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}
             >
               <IconSettings c={themeColors.accent} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Settings</Text>
-            </TouchableOpacity>
+            </JuicyButton>
 
-            <TouchableOpacity
+            <JuicyButton
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
-              onPress={() => { setMenuOpen(false); p.onNotes(); }}
+              onPress={() => { handleCloseMenu(); handleNotes(); }}
               activeOpacity={0.6}
-              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              delayPressIn={0}
+              hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}
             >
               <IconNote c={C_NOTES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Notes</Text>
-            </TouchableOpacity>
+            </JuicyButton>
 
-            <TouchableOpacity
+            <JuicyButton
               style={[s.menuItem, { borderBottomWidth: 0 }]}
-              onPress={() => { setMenuOpen(false); p.onMistakes(); }}
+              onPress={() => { handleCloseMenu(); handleMistakes(); }}
               activeOpacity={0.6}
-              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              delayPressIn={0}
+              hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}
             >
               <IconPen c={C_MISTAKES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Mistakes</Text>
-            </TouchableOpacity>
+            </JuicyButton>
           </Animated.View>
         </View>
       )}
@@ -250,7 +281,13 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
 const HeaderBtn = React.memo(
   ({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
-    <JuicyButton style={s.iconBtn} onPress={onPress} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}>
+    <JuicyButton
+      style={s.iconBtn}
+      onPress={onPress}
+      activeOpacity={0.6}
+      delayPressIn={0}
+      hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+    >
       {icon}
       <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1}>{label}</Text>
     </JuicyButton>
@@ -276,4 +313,18 @@ const s = StyleSheet.create({
   menuText: { fontSize: 14.5, fontWeight: '600' },
 });
 
-export default React.memo(AnimatedHeader);
+export default React.memo(AnimatedHeader, (prev, next) => {
+  return (
+    prev.visible === next.visible &&
+    prev.surahName === next.surahName &&
+    prev.surahId === next.surahId &&
+    prev.nightMode === next.nightMode &&
+    prev.onBack === next.onBack &&
+    prev.onOpenList === next.onOpenList &&
+    prev.onMistakes === next.onMistakes &&
+    prev.onShare === next.onShare &&
+    prev.onNotes === next.onNotes &&
+    prev.onBookmarks === next.onBookmarks &&
+    prev.onSettings === next.onSettings
+  );
+});

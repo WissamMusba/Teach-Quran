@@ -12,6 +12,7 @@ import RNFS from 'react-native-fs';
 import { playAudioNote } from '../api/audioNotes';
 import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getVersePagesDB } from '../database/localDB';
 import { getVersePage } from '../database/quranData';
+import { useStudentDataRefresh } from '../hooks/useStudentDataRefresh';
 import { setStudentData } from '../store/studentSlice';
 import { addPendingChange } from '../store/syncSlice';
 import ScreenHeader from '../components/common/ScreenHeader';
@@ -21,6 +22,7 @@ import { getThemeColors } from '../utils/theme';
 
 const audioPlayer = new AudioRecorderPlayer();
 let notesHydratedSig: string | null = null;
+const sessionPageCache: Record<string, number> = {};
 
 const IconNotes = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -115,6 +117,7 @@ const NoteCard = React.memo(({
 export default function NotesScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   const navigation = navProp || useNavigation<any>();
   const dispatch = useDispatch();
+  useStudentDataRefresh();
   const studentData = useSelector((s: any) => s.student.studentData);
   const currentStudentId = useSelector((s: any) => s.student.currentStudent?.id);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
@@ -162,14 +165,25 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     return effectiveNotes ? (Object.entries(effectiveNotes).filter(([k, v]) => v) as [string, string][]) : [];
   }, [effectiveNotes]);
 
-  const [filteredRows, setFilteredRows] = useState<NoteRow[]>([]);
+  const initialRows = useMemo<NoteRow[]>(() => {
+    return notes.map(([verseKey, value]) => {
+      const [s, v] = verseKey.split('_').map(Number);
+      return { verseKey, surah: s, ayah: v, parts: parseParts(value) };
+    }).filter(r => r.parts.length > 0);
+  }, [notes]);
+
+  const [filteredRows, setFilteredRows] = useState<NoteRow[]>(initialRows);
   const [isValidated, setIsValidated] = useState(false);
+
+  useEffect(() => {
+    setFilteredRows(initialRows);
+  }, [initialRows]);
 
   useEffect(() => {
     let active = true;
 
     const filterValidNotes = async () => {
-      if (notes.length === 0) {
+      if (initialRows.length === 0) {
         if (active) {
           setFilteredRows([]);
           setIsValidated(true);
@@ -177,14 +191,9 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
         return;
       }
 
-      const parsedRows = notes.map(([verseKey, value]) => {
-        const [s, v] = verseKey.split('_').map(Number);
-        return { verseKey, surah: s, ayah: v, parts: parseParts(value) };
-      });
-
       const nextRows: NoteRow[] = [];
 
-      for (const r of parsedRows) {
+      for (const r of initialRows) {
         const validParts: { type: 'text' | 'audio'; value: string }[] = [];
         for (const part of r.parts) {
           if (part.type === 'text') {
@@ -214,9 +223,9 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     return () => {
       active = false;
     };
-  }, [notes]);
+  }, [initialRows]);
 
-  const [pages, setPages] = useState<Record<string, number>>({});
+  const [pages, setPages] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [chooserVerseKey, setChooserVerseKey] = useState<string | null>(null);
   const [editVerseKey, setEditVerseKey] = useState<string | null>(null);
@@ -224,24 +233,19 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
 
   useEffect(() => {
     let active = true;
-    const entries: [number, number][] = filteredRows.map((r) => [r.surah, r.ayah]);
-    if (entries.length === 0) return;
+    const missing = filteredRows.filter((r) => !sessionPageCache[r.verseKey]);
+    if (missing.length === 0) return;
+    const entries: [number, number][] = missing.map((r) => [r.surah, r.ayah]);
 
     getVersePagesDB(entries).then((res) => {
       if (active && res) {
+        Object.assign(sessionPageCache, res);
         setPages((prev) => ({ ...prev, ...res }));
       }
     }).catch(() => {});
 
-    // Script-aware / indopak fallback
-    for (const r of filteredRows) {
-      getVersePage(r.surah, r.ayah, textStyle).then((pg) => {
-        if (active && pg > 0) setPages((prev) => (prev[r.verseKey] === pg ? prev : { ...prev, [r.verseKey]: pg }));
-      }).catch(() => {});
-    }
-
     return () => { active = false; };
-  }, [filteredRows, textStyle]);
+  }, [filteredRows]);
 
   useEffect(() => () => { try { audioPlayer.stopPlayer(); audioPlayer.removePlayBackListener(); } catch {} }, []);
 
@@ -366,6 +370,10 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
           keyExtractor={(i: NoteRow) => i.verseKey}
           contentContainerStyle={styles(nightMode, themeColors).list}
           renderItem={renderItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
       <CollapsibleBannerAd />
