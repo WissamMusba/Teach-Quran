@@ -7,7 +7,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboa
 import { useSelector, useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { setCurrentStudent } from '../store/studentSlice';
+import { setCurrentStudent, setStudentData } from '../store/studentSlice';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
 import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
 import { getVersePage } from '../database/quranData';
@@ -178,7 +178,7 @@ export default function StudentHubScreen({ navigation }: any) {
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
   const textStyle = useSelector((s: any) => s.quran?.textStyle);
-  const [studentData, setStudentData] = useState<any>(null);
+  const studentData = useSelector((s: any) => s.student?.studentData);
   const [facePath, setFacePath] = useState<string | null>(null);
   const [resumeInfo, setResumeInfo] = useState<{ page: number; juz: number; surah: number; verse: number } | null>(null);
   const [lastSeenAt, setLastSeenAt] = useState<string>('');
@@ -201,7 +201,7 @@ export default function StudentHubScreen({ navigation }: any) {
         notes: blob?.notes || {},
         lastRead: blob?.lastRead || m?.data?.lastRead || null,
       };
-      setStudentData(mergedData);
+      dispatch(setStudentData(mergedData));
       setFacePath(fp);
 
       const lr = mergedData.lastRead;
@@ -240,7 +240,7 @@ export default function StudentHubScreen({ navigation }: any) {
         setDailyPageFor('');
       }
     } catch {}
-  }, [currentStudent?.id, textStyle]);
+  }, [currentStudent?.id, textStyle, dispatch]);
 
   useFocusEffect(
     useCallback(() => {

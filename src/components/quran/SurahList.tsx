@@ -2,12 +2,13 @@
  * FILE: src/components/quran/SurahList.tsx
  * ROLE: Full-screen modal surah picker with fuzzy search and full theme integration.
  */
-import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions, Keyboard } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SURAH_META, SURAH_PAGE_RANGE } from '../../utils/surahMeta';
 import { getArabicFont, getThemeColors, JUZ_MAP, JUZ_NAMES, JUZ_PAGE_START } from '../../utils/theme';
+import CollapsibleBannerAd from '../ads/CollapsibleBannerAd';
 
 const normCache: Record<string, string> = {};
 const norm = (s?: string | null): string => {
@@ -175,6 +176,11 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     return scored.map((x) => x.item);
   }, [data, query, mode, maxPages]);
 
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    onClose?.();
+  }, [onClose]);
+
   const content = (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
@@ -183,7 +189,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
             <Text style={[styles.title, { color: themeColors.text }]}>
               {mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}
             </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6}>
               <Text style={[styles.closeBtn, { color: themeColors.accent }]}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -290,6 +296,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
           }}
         />
       )}
+      <CollapsibleBannerAd />
     </View>
   );
 
@@ -298,7 +305,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   }
 
   return (
-    <Modal visible={visible} statusBarTranslucent animationType="fade" transparent={false} onRequestClose={onClose}>
+    <Modal visible={visible} statusBarTranslucent animationType="none" transparent={false} onRequestClose={handleClose}>
       {content}
     </Modal>
   );

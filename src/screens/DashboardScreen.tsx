@@ -559,9 +559,9 @@ export default function DashboardScreen({ navigation }: any) {
   }, [myQuranResumeInfo?.page]);
 
   return (
-    <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg, paddingBottom: insets.bottom }]}>
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg, paddingBottom: 0 }]}>
       {/* Top Header */}
-      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: 14 + statusBarPad }]}>
+      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: Math.max(6, statusBarPad) }]}>
         <View style={styles(nightMode, themeColors).titleRow}>
           <View style={[styles(nightMode, themeColors).titleDot, { backgroundColor: themeColors.accent }]} />
           <Text style={[styles(nightMode, themeColors).title, { color: themeColors.text }]}>Students</Text>

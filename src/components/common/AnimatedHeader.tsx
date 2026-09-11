@@ -4,7 +4,7 @@
  *       Full dynamic theme palette integration (Classic Royal Navy, Madinah Emerald, OLED Obsidian).
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions, Modal, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, LayoutChangeEvent, useWindowDimensions, Pressable, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
@@ -91,6 +91,21 @@ const AnimatedHeader: React.FC<Props> = (p) => {
     ]).start();
   }, [p.visible, native, layout]);
 
+  useEffect(() => {
+    if (!p.visible && menuOpen) {
+      setMenuOpen(false);
+    }
+  }, [p.visible, menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setMenuOpen(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [menuOpen]);
+
   const translateY = useMemo(
     () => (measured > 0 ? native.interpolate({ inputRange: [0, 1], outputRange: [-measured, 0], extrapolate: 'clamp' }) : 0),
     [measured, native],
@@ -159,9 +174,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
         </Animated.View>
       </Animated.View>
 
-      {/* Right-Aligned Hamburger Dropdown Menu Modal */}
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
-        <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)}>
+      {/* Right-Aligned Hamburger Dropdown Menu In-Place Overlay */}
+      {menuOpen && (
+        <View style={[StyleSheet.absoluteFillObject, s.menuContainer]} pointerEvents="box-none">
+          <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)} />
           <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, right: 10 }]}>
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
@@ -193,8 +209,8 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               <Text style={[s.menuText, { color: themeColors.text }]}>Mistakes</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
-      </Modal>
+        </View>
+      )}
     </>
   );
 };
@@ -220,8 +236,9 @@ const s = StyleSheet.create({
   titleBlock: { flex: 1, paddingVertical: 1, paddingRight: 6, paddingLeft: 8 },
   surahName: { fontSize: 16, fontWeight: 'bold' },
   surahSub: { fontSize: 10.5, marginTop: 1, fontWeight: '500' },
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  menuPopup: { position: 'absolute', width: 165, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 10, overflow: 'hidden' },
+  menuContainer: { zIndex: 1000, elevation: 10 },
+  menuOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  menuPopup: { position: 'absolute', width: 165, borderRadius: 14, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 11, overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
   menuText: { fontSize: 14.5, fontWeight: '600' },
 });

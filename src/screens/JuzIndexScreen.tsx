@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/common/ScreenHeader';
+import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { JUZ_MAP, JUZ_NAMES, JUZ_PAGE_START, getArabicFont, getThemeColors } from '../utils/theme';
 
 export default function JuzIndexScreen({ navigation }: any) {
@@ -78,6 +79,7 @@ export default function JuzIndexScreen({ navigation }: any) {
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
       />
+      <CollapsibleBannerAd />
     </View>
   );
 }

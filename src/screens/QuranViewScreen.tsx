@@ -19,7 +19,7 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
@@ -2283,34 +2283,26 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // ---- header-button overlay screens: stable handlers (AnimatedHeader is React.memo'd) that
   // ---- lazily mount each Modal once, then only flip `visible` on re-opens (no re-query). ----
-  const closeModal = useCallback(() => setOpenModal(null), []);
-  const flushBeforeModalOpen = useCallback(() => {
-    try { canvasRef.current?.flush?.(); } catch {}
-    if (lastStudentDataRef.current && lastStudentDataRef.current !== studentDataRef.current) {
-      dispatch(setStudentData(lastStudentDataRef.current));
-    }
-    flushPendingSave();
-  }, [dispatch]);
+  const closeModal = useCallback(() => {
+    Keyboard.dismiss();
+    setOpenModal(null);
+  }, []);
   const openMistakes = useCallback(() => {
-    flushBeforeModalOpen();
     setMountedModals((m) => (m.mistakes ? m : { ...m, mistakes: true }));
     setOpenModal('mistakes');
-  }, [flushBeforeModalOpen]);
+  }, []);
   const openNotes = useCallback(() => {
-    flushBeforeModalOpen();
     setMountedModals((m) => (m.notes ? m : { ...m, notes: true }));
     setOpenModal('notes');
-  }, [flushBeforeModalOpen]);
+  }, []);
   const openBookmarks = useCallback(() => {
-    flushBeforeModalOpen();
     setMountedModals((m) => (m.bookmarks ? m : { ...m, bookmarks: true }));
     setOpenModal('bookmarks');
-  }, [flushBeforeModalOpen]);
+  }, []);
   const openSettings = useCallback(() => {
-    flushBeforeModalOpen();
     setMountedModals((m) => (m.settings ? m : { ...m, settings: true }));
     setOpenModal('settings');
-  }, [flushBeforeModalOpen]);
+  }, []);
   // Navigation shim for the overlay screens: closes the Modal and forwards QuranView
   // deep-links to the real stack (the screens fall back to useNavigation() when unset).
   const modalNav = useMemo(() => ({
@@ -2529,28 +2521,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
       {mountedModals.mistakes && (
-        <Modal visible={openModal === 'mistakes'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'mistakes'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.notes && (
-        <Modal visible={openModal === 'notes'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'notes'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <NotesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.bookmarks && (
-        <Modal visible={openModal === 'bookmarks'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'bookmarks'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.settings && (
-        <Modal visible={openModal === 'settings'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'settings'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <SettingsScreen onClose={closeModal} />
           </View>

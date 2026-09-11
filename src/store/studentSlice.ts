@@ -28,7 +28,7 @@ export const studentSlice = createSlice({
   //       }
   //   setCurrentStudent RESETS studentData to null (QuranView reloads from localDB).
   name: 'student', 
-  initialState: { list: [] as any[], currentStudent: null as any, studentData: null as any },
+  initialState: { list: [] as any[], currentStudent: null as any, studentData: null as any, studentDataByStudentId: {} as Record<string, any> },
   reducers: {
     /**
      * WHAT: Replaces list with fetched students.
@@ -43,16 +43,19 @@ export const studentSlice = createSlice({
      */
     addStudent: (state, action) => { state.list.push(action.payload); },
     /**
-     * WHAT: Sets currentStudent and RESETS studentData to null (QuranViewScreen
-     *       effect then loads it from localDB).
+     * WHAT: Sets currentStudent and restores cached studentData (if available) or null.
      * CALLED BY: DashboardScreen.tsx:66 (student card tap; also resets surah to 1,
      *            closes drawing toolbar, navigates to QuranView).
      * AFFECTS: QuranViewScreen.tsx:109 (currentStudent drives save path :293-297
      *          load effect, :327 flushPendingSave guard).
      */
-    setCurrentStudent: (state, action) => { state.currentStudent = action.payload; state.studentData = null; },
+    setCurrentStudent: (state, action) => {
+      const student = action.payload;
+      state.currentStudent = student;
+      state.studentData = student?.id ? (state.studentDataByStudentId[student.id] || null) : null;
+    },
     /**
-     * WHAT: Replaces the full annotation payload.
+     * WHAT: Replaces the full annotation payload and caches it by student id.
      * CALLED BY: QuranViewScreen.tsx:295 (initial localDB load, or seeds defaults);
      *            QuranViewScreen.tsx:333 (updateData() — optimistic write, then
      *            debounced 400ms flush to SQLite+sync queue :322-337).
@@ -61,15 +64,21 @@ export const studentSlice = createSlice({
      *          (:520/:540/:586), bookmarks (:521/:587), notes, drawings (:608-617),
      *          readingMark (:446), lastRead restore effect (:299-311).
      */
-    setStudentData: (state, action) => { state.studentData = action.payload; },
+    setStudentData: (state, action) => {
+      if (state.currentStudent?.id) {
+        state.studentDataByStudentId[state.currentStudent.id] = action.payload;
+      }
+      state.studentData = action.payload;
+    },
     /**
-     * WHAT: Filters list, and nulls currentStudent+studentData if it was the one.
+     * WHAT: Filters list, deletes cached studentData, and nulls currentStudent+studentData if it was the one.
      * CALLED BY: DashboardScreen.tsx:53 (long-press Delete; also deleteStudent API +
      *            purgeLocalStudent).
      * AFFECTS: List row disappears; if active, QuranView entry state cleared.
      */
     removeStudent: (state, action) => { 
       state.list = state.list.filter((s: any) => s.id !== action.payload); 
+      delete state.studentDataByStudentId[action.payload];
       if (state.currentStudent?.id === action.payload) {
         state.currentStudent = null;
         state.studentData = null;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
@@ -15,6 +15,13 @@ import { getThemeColors } from '../utils/theme';
 
 const pageKey = (surah: number, verse: number) => `${surah}_${verse}`;
 const sessionPageCache: Record<string, number> = {};
+
+// Module-level cache to retain loaded bookmarks, dailyMarkItem, cardMeta across screen re-entries
+const studentBookmarksCache: Record<string, {
+  regularBookmarks: any[];
+  dailyMarkItem: any;
+  cardMeta: Record<string, { name: string; juz: number; date: string; time: string }>;
+}> = {};
 
 const IconBookmark = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -73,10 +80,22 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
   }, [lrSurah, lrVerse, sortedBookmarks]);
 
   // Prevent false empty state while hydrating
-  const isHydrating = !studentData;
-  const prevRegularBookmarksRef = useRef<any[]>([]);
-  const prevDailyMarkRef = useRef<any>(null);
-  const prevCardMetaRef = useRef<Record<string, { name: string; juz: number; date: string; time: string }>>({});
+  const currentStudentId = currentStudent?.id || '';
+  const cached = currentStudentId ? studentBookmarksCache[currentStudentId] : null;
+
+  const isHydrating = !studentData || studentData.bookmarks === undefined;
+  const prevRegularBookmarksRef = useRef<any[]>(cached?.regularBookmarks || []);
+  const prevDailyMarkRef = useRef<any>(cached?.dailyMarkItem || null);
+  const prevCardMetaRef = useRef<Record<string, { name: string; juz: number; date: string; time: string }>>(cached?.cardMeta || {});
+
+  const prevStudentIdRef = useRef<string>(currentStudentId);
+  if (prevStudentIdRef.current !== currentStudentId) {
+    prevStudentIdRef.current = currentStudentId;
+    const c = currentStudentId ? studentBookmarksCache[currentStudentId] : null;
+    prevRegularBookmarksRef.current = c?.regularBookmarks || [];
+    prevDailyMarkRef.current = c?.dailyMarkItem || null;
+    prevCardMetaRef.current = c?.cardMeta || {};
+  }
 
   const cardMeta = React.useMemo(() => {
     const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
@@ -103,6 +122,28 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
     return out;
   }, [sortedBookmarks, surahNames, lastRead, lrSurah, lrVerse]);
 
+  // Retain loaded bookmarks, dailyMarkItem, cardMeta across renders and screen re-entries
+  if (regularBookmarks.length > 0) {
+    prevRegularBookmarksRef.current = regularBookmarks;
+  }
+  if (dailyMarkItem) {
+    prevDailyMarkRef.current = dailyMarkItem;
+  }
+  if (Object.keys(cardMeta).length > 0) {
+    prevCardMetaRef.current = cardMeta;
+  }
+  if (currentStudentId && !isHydrating) {
+    if (regularBookmarks.length > 0 || dailyMarkItem) {
+      studentBookmarksCache[currentStudentId] = {
+        regularBookmarks,
+        dailyMarkItem,
+        cardMeta: Object.keys(cardMeta).length > 0
+          ? cardMeta
+          : (studentBookmarksCache[currentStudentId]?.cardMeta || prevCardMetaRef.current),
+      };
+    }
+  }
+
   useEffect(() => {
     if (!isHydrating) {
       prevRegularBookmarksRef.current = regularBookmarks;
@@ -110,20 +151,43 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
       if (Object.keys(cardMeta).length > 0) {
         prevCardMetaRef.current = cardMeta;
       }
+      if (currentStudentId) {
+        studentBookmarksCache[currentStudentId] = {
+          regularBookmarks,
+          dailyMarkItem,
+          cardMeta: Object.keys(cardMeta).length > 0
+            ? cardMeta
+            : (studentBookmarksCache[currentStudentId]?.cardMeta || prevCardMetaRef.current),
+        };
+      }
     }
-  }, [isHydrating, regularBookmarks, dailyMarkItem, cardMeta]);
+  }, [isHydrating, regularBookmarks, dailyMarkItem, cardMeta, currentStudentId]);
 
-  const effectiveRegularBookmarks = isHydrating && regularBookmarks.length === 0
-    ? prevRegularBookmarksRef.current
-    : regularBookmarks;
+  useEffect(() => {
+    if (!studentData && currentStudentId) {
+      getManifest(currentStudentId).then((m) => {
+        if (m?.data && (m.data.bookmarks || m.data.lastRead)) {
+          dispatch(setStudentData({
+            ...(studentData || {}),
+            bookmarks: m.data.bookmarks || {},
+            lastRead: m.data.lastRead || null,
+          }));
+        }
+      }).catch(() => {});
+    }
+  }, [studentData, currentStudentId, dispatch]);
 
-  const effectiveDailyMark = isHydrating && !dailyMarkItem
-    ? prevDailyMarkRef.current
-    : dailyMarkItem;
+  const effectiveRegularBookmarks = (regularBookmarks.length > 0 || !isHydrating)
+    ? regularBookmarks
+    : prevRegularBookmarksRef.current;
 
-  const effectiveCardMeta = isHydrating && Object.keys(cardMeta).length === 0
-    ? prevCardMetaRef.current
-    : cardMeta;
+  const effectiveDailyMark = (dailyMarkItem || !isHydrating)
+    ? dailyMarkItem
+    : prevDailyMarkRef.current;
+
+  const effectiveCardMeta = Object.keys(cardMeta).length > 0
+    ? cardMeta
+    : prevCardMetaRef.current;
 
   const [pageMap, setPageMap] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
   const [undoItem, setUndoItem] = useState<{ key: string; data: any } | null>(null);
@@ -276,7 +340,7 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
 
   const renderCard = useCallback((item: any, isHeader = false) => {
     const meta = effectiveCardMeta[pageKey(item.surah, item.verse)];
-    const page = pageMap[pageKey(item.surah, item.verse)];
+    const page = pageMap[pageKey(item.surah, item.verse)] ?? sessionPageCache[pageKey(item.surah, item.verse)];
     return (
       <TouchableOpacity
         style={[
@@ -405,17 +469,11 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
       )}
 
       {totalCount === 0 ? (
-        isHydrating ? (
-          <View style={styles(nightMode, themeColors).emptyState}>
-            <ActivityIndicator size="large" color={themeColors.accent} />
-          </View>
-        ) : (
-          <View style={styles(nightMode, themeColors).emptyState}>
-            <IconBookmark c={themeColors.accent} size={44} />
-            <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No bookmarks yet</Text>
-            <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
-          </View>
-        )
+        <View style={styles(nightMode, themeColors).emptyState}>
+          <IconBookmark c={themeColors.accent} size={44} />
+          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No bookmarks yet</Text>
+          <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
+        </View>
       ) : (
         <FlatList
           key={isTablet ? 'tablet-2' : 'phone-1'}

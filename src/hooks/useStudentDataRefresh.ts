@@ -110,16 +110,14 @@ export const useStudentDataRefresh = () => {
         // NEVER dispatch empty highlights/notes/drawings — merge onto existing state to preserve annotations!
         getManifest(currentStudentId).then((m) => {
           if (m?.data?.bookmarks || m?.data?.lastRead) {
-            const cur = store.getState().student?.studentData;
-            if (cur) {
-              dispatch(setStudentData({
-                ...cur,
-                bookmarks: m.data.bookmarks || cur.bookmarks || {},
-                lastRead: m.data.lastRead !== undefined ? m.data.lastRead : (cur.lastRead || null),
-                schemaVersion: m.data.schemaVersion || cur.schemaVersion || 3,
-                v: m.data.v || cur.v || 0,
-              }));
-            }
+            const cur = store.getState().student?.studentData || {};
+            dispatch(setStudentData({
+              ...cur,
+              bookmarks: m.data.bookmarks || cur.bookmarks || {},
+              lastRead: m.data.lastRead !== undefined ? m.data.lastRead : (cur.lastRead || null),
+              schemaVersion: m.data.schemaVersion || cur.schemaVersion || 3,
+              v: m.data.v || cur.v || 0,
+            }));
           }
         }).catch(() => {});
 

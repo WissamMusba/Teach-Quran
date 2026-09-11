@@ -58,7 +58,7 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
   const isTablet = useWindowDimensions().width >= 600;
 
   return (
-    <View style={[styles.wrap, { backgroundColor: bg, borderTopColor: border, paddingBottom: Math.max(14, insets.bottom + 10), paddingTop: isTablet ? 8 : 4, minHeight: isTablet ? 64 : 54 }]}> 
+    <View style={[styles.wrap, { backgroundColor: bg, borderTopColor: border, paddingBottom: isTablet ? 8 : 4, paddingTop: isTablet ? 8 : 4, minHeight: isTablet ? 56 : 48 }]}> 
       <TouchableOpacity style={styles.btn} onPress={goSurah} activeOpacity={0.7}>
         <Text style={[styles.label, { color: titleC, fontSize: isTablet ? 14 : 13 }]} numberOfLines={1}>Surah Index</Text>
       </TouchableOpacity>

@@ -91,6 +91,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 
   const hideDrawingTool = useSelector((state: RootState) => (state.settings as any)?.hideDrawingTool || false);
   const [downloadedSurahs, setDownloadedSurahs] = useState<number[]>([]);
+  const [showDownloadedDropdown, setShowDownloadedDropdown] = useState(false);
 
   const refreshDownloadedList = useCallback(async (qari: string) => {
     const list = await getDownloadedSurahs(qari);
@@ -393,43 +394,57 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             </TouchableOpacity>
           )}
 
-          {/* Downloaded Surahs List */}
+          {/* Downloaded Surahs Collapsible Dropdown */}
           {downloadedSurahs.length > 0 && (
             <View style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: cardBorder, paddingTop: 14 }}>
-              <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 13.5, marginBottom: 8 }]}>
-                Downloaded Surahs ({downloadedSurahs.length})
-              </Text>
-              {downloadedSurahs.map((sId) => {
-                const sMeta = SURAH_META[sId - 1];
-                return (
-                  <View
-                    key={sId}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 8,
-                      borderBottomWidth: 1,
-                      borderBottomColor: cardBorder,
-                    }}
-                  >
-                    <View style={{ flex: 1, marginRight: 10 }}>
-                      <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor, fontSize: 14, marginBottom: 1 }]}>
-                        {sId}. {sMeta?.en || `Surah ${sId}`}
-                      </Text>
-                      <Text style={[styles(nightMode, themeColors).settingDesc, { fontSize: 12 }]}>
-                        {sMeta?.verses ?? '?'} ayahs
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles(nightMode, themeColors).deleteBtn, { backgroundColor: '#FF5252' }]}
-                      onPress={() => handleDeleteSpecificSurah(sId)}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+                onPress={() => setShowDownloadedDropdown((prev) => !prev)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 13.5, marginBottom: 0 }]}>
+                  Downloaded Surahs ({downloadedSurahs.length})
+                </Text>
+                <View style={{ transform: [{ rotate: showDownloadedDropdown ? '180deg' : '0deg' }] }}>
+                  <IconChevronDown c={themeColors.accent} size={20} />
+                </View>
+              </TouchableOpacity>
+
+              {showDownloadedDropdown && (
+                <View style={{ marginTop: 8 }}>
+                  {downloadedSurahs.map((sId) => {
+                    const sMeta = SURAH_META[sId - 1];
+                    return (
+                      <View
+                        key={sId}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingVertical: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: cardBorder,
+                        }}
+                      >
+                        <View style={{ flex: 1, marginRight: 10 }}>
+                          <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor, fontSize: 14, marginBottom: 1 }]}>
+                            {sId}. {sMeta?.en || `Surah ${sId}`}
+                          </Text>
+                          <Text style={[styles(nightMode, themeColors).settingDesc, { fontSize: 12 }]}>
+                            {sMeta?.verses ?? '?'} ayahs
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles(nightMode, themeColors).deleteBtn, { backgroundColor: '#FF5252' }]}
+                          onPress={() => handleDeleteSpecificSurah(sId)}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           )}
 
