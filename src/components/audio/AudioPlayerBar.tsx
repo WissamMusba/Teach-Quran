@@ -3,7 +3,7 @@
  * ROLE: Bottom playback bar with small non-bold typography, reciter info, animated dancing equalizer bars, and dynamic theme support.
  */
 import React, { memo, useRef, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
@@ -22,7 +22,7 @@ const IconNextTrack = ({ c, s = 13 }: { c: string; s?: number }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24"><Path fill={c} d="M16 4h2.5v16H16zM4.5 5.5l8.5 5.75-8.5 5.75z" /></Svg>
 );
 
-const AudioEqualizer = ({ active, color }: { active: boolean; color: string }) => {
+const AudioEqualizer = ({ active, color, isTablet }: { active: boolean; color: string; isTablet?: boolean }) => {
   const bars = [
     useRef(new Animated.Value(4)).current,
     useRef(new Animated.Value(8)).current,
@@ -36,24 +36,24 @@ const AudioEqualizer = ({ active, color }: { active: boolean; color: string }) =
       bars.forEach((b, i) => {
         const loop = Animated.loop(
           Animated.sequence([
-            Animated.timing(b, { toValue: 4 + ((i * 3 + 7) % 11), duration: 240 + i * 40, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-            Animated.timing(b, { toValue: 2, duration: 200 + i * 35, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-            Animated.timing(b, { toValue: 6 + ((i * 4 + 5) % 10), duration: 260 + i * 30, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(b, { toValue: (isTablet ? 6 : 4) + ((i * 3 + 7) % 11), duration: 240 + i * 40, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(b, { toValue: isTablet ? 3 : 2, duration: 200 + i * 35, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+            Animated.timing(b, { toValue: (isTablet ? 8 : 6) + ((i * 4 + 5) % 10), duration: 260 + i * 30, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
           ])
         );
         loops.push(loop);
         loop.start();
       });
     } else {
-      bars.forEach((b) => b.setValue(3));
+      bars.forEach((b) => b.setValue(isTablet ? 4 : 3));
     }
     return () => loops.forEach((l) => l.stop());
-  }, [active, bars]);
+  }, [active, bars, isTablet]);
 
   return (
-    <View style={eqStyles.wrap}>
+    <View style={[eqStyles.wrap, isTablet && { height: 18, gap: 3.5, marginRight: 8 }]}>
       {bars.map((b, idx) => (
-        <Animated.View key={idx} style={[eqStyles.bar, { height: b, backgroundColor: color }]} />
+        <Animated.View key={idx} style={[eqStyles.bar, isTablet && { width: 3.5, borderRadius: 2 }, { height: b, backgroundColor: color }]} />
       ))}
     </View>
   );
@@ -81,6 +81,9 @@ const AudioPlayerBar = ({
   surahId,
 }: any) => {
   const insets = useSafeAreaInsets();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const isTablet = Math.min(winWidth, winHeight) >= 600 || winWidth >= 600;
+
   const { currentQari } = useSelector((s: any) => s.audio);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
@@ -89,38 +92,118 @@ const AudioPlayerBar = ({
   const showPlay = !isPlaying && !canResume;
   const accentColor = themeColors.accent;
 
+  const iconStepSize = isTablet ? 17 : 13;
+  const iconPlaySize = isTablet ? 20 : 16;
+
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.headerBg, borderTopColor: themeColors.headerBorder, paddingBottom: Math.max(8, insets.bottom) }]}>
-      <View style={styles.qariRow}>
+    <View style={[
+      styles.container,
+      { backgroundColor: themeColors.headerBg, borderTopColor: themeColors.headerBorder, paddingBottom: Math.max(8, insets.bottom) },
+      isTablet && { paddingHorizontal: 18, paddingVertical: 6 }
+    ]}>
+      <View style={[styles.qariRow, isTablet && { marginBottom: 4 }]}>
         <TouchableOpacity style={styles.qariInfo} onPress={onOpenQari} activeOpacity={0.7}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isPlaying && <AudioEqualizer active={isPlaying} color={accentColor} />}
-            <Text style={[styles.qariName, { color: themeColors.text }]} numberOfLines={1}>{currentQari}</Text>
+            {isPlaying && <AudioEqualizer active={isPlaying} color={accentColor} isTablet={isTablet} />}
+            <Text style={[styles.qariName, { color: themeColors.text }, isTablet && { fontSize: 13.5 }]} numberOfLines={1}>{currentQari}</Text>
           </View>
-          <Text style={[styles.surahName, { color: themeColors.subText }]}>Surah {surahId}</Text>
+          <Text style={[styles.surahName, { color: themeColors.subText }, isTablet && { fontSize: 11.5, marginTop: 1 }]}>Surah {surahId}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.changeBtn, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={onOpenLoopSettings} activeOpacity={0.7}>
-          <Text style={[styles.changeText, { color: themeColors.subText }]}>Loop settings</Text>
+        <TouchableOpacity
+          style={[
+            styles.changeBtn,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            isTablet && { paddingHorizontal: 12, paddingVertical: 4.5, borderRadius: 12, marginLeft: 8 }
+          ]}
+          onPress={onOpenLoopSettings}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.changeText, { color: themeColors.subText }, isTablet && { fontSize: 11.5 }]}>Loop settings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.changeBtn, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} onPress={onOpenQari} activeOpacity={0.7}>
-          <Text style={[styles.changeText, { color: themeColors.accent }]}>▾ Reciter</Text>
+        <TouchableOpacity
+          style={[
+            styles.changeBtn,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            isTablet && { paddingHorizontal: 12, paddingVertical: 4.5, borderRadius: 12, marginLeft: 8 }
+          ]}
+          onPress={onOpenQari}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.changeText, { color: themeColors.accent }, isTablet && { fontSize: 11.5 }]}>▾ Reciter</Text>
         </TouchableOpacity>
       </View>
-      <View style={styles.ctrlRow}>
-        <TouchableOpacity style={[styles.circle, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }, !canStep && styles.disabled]} onPress={onPrevVerse} disabled={!canStep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <IconPrevTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
+      <View style={[styles.ctrlRow, isTablet && { gap: 10 }]}>
+        <TouchableOpacity
+          style={[
+            styles.circle,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            !canStep && styles.disabled,
+            isTablet && { width: 34, height: 34, borderRadius: 17 }
+          ]}
+          onPress={onPrevVerse}
+          disabled={!canStep}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <IconPrevTrack s={iconStepSize} c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.playCircle, { backgroundColor: themeColors.primary }]} onPress={showPlay ? onPlayPageStart : onResume} activeOpacity={0.85} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          {isPlaying ? <IconPause c="#FFFFFF" s={16} /> : <IconPlay c="#FFFFFF" s={16} />}
+        <TouchableOpacity
+          style={[
+            styles.playCircle,
+            { backgroundColor: themeColors.primary },
+            isTablet && { width: 38, height: 38, borderRadius: 19 }
+          ]}
+          onPress={showPlay ? onPlayPageStart : onResume}
+          activeOpacity={0.85}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {isPlaying ? <IconPause c="#FFFFFF" s={iconPlaySize} /> : <IconPlay c="#FFFFFF" s={iconPlaySize} />}
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.circle, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }, !canStep && styles.disabled]} onPress={onNextVerse} disabled={!canStep} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <IconNextTrack c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
+        <TouchableOpacity
+          style={[
+            styles.circle,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            !canStep && styles.disabled,
+            isTablet && { width: 34, height: 34, borderRadius: 17 }
+          ]}
+          onPress={onNextVerse}
+          disabled={!canStep}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <IconNextTrack s={iconStepSize} c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.action, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }, loopEnabled ? null : styles.disabled]} onPress={onPlayPageStart} disabled={!loopEnabled} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8 }}>
-          <Text style={[styles.actionText, { color: loopEnabled ? themeColors.text : disC }]}>{loopEnabled && isPlaying ? 'Loop end' : 'Loop start'}</Text>
+        <TouchableOpacity
+          style={[
+            styles.action,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            loopEnabled ? null : styles.disabled,
+            isTablet && { minHeight: 32, borderRadius: 10 }
+          ]}
+          onPress={onPlayPageStart}
+          disabled={!loopEnabled}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8 }}
+        >
+          <Text style={[styles.actionText, { color: loopEnabled ? themeColors.text : disC }, isTablet && { fontSize: 11.5 }]}>
+            {loopEnabled && isPlaying ? 'Loop end' : 'Loop start'}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.action, { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }, canPlayNewSurah ? null : styles.disabled]} onPress={onPlayNewSurah} disabled={!canPlayNewSurah} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8 }}>
-          <Text style={[styles.actionText, { color: canPlayNewSurah ? themeColors.text : disC }]}>Surah start</Text>
+        <TouchableOpacity
+          style={[
+            styles.action,
+            { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+            canPlayNewSurah ? null : styles.disabled,
+            isTablet && { minHeight: 32, borderRadius: 10 }
+          ]}
+          onPress={onPlayNewSurah}
+          disabled={!canPlayNewSurah}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8 }}
+        >
+          <Text style={[styles.actionText, { color: canPlayNewSurah ? themeColors.text : disC }, isTablet && { fontSize: 11.5 }]}>
+            Surah start
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -94,13 +94,19 @@ const VoiceNoteRecorder = ({
   const glowOpacity = useRef(new Animated.Value(0.4)).current;
   const waveAnims = useRef([
     new Animated.Value(6),
-    new Animated.Value(12),
+    new Animated.Value(10),
+    new Animated.Value(14),
     new Animated.Value(18),
     new Animated.Value(24),
     new Animated.Value(16),
     new Animated.Value(20),
+    new Animated.Value(12),
+    new Animated.Value(22),
+    new Animated.Value(16),
     new Animated.Value(10),
+    new Animated.Value(18),
     new Animated.Value(14),
+    new Animated.Value(8),
   ]).current;
 
   // Pulse & Waveform loop while recording
@@ -129,8 +135,8 @@ const VoiceNoteRecorder = ({
         const h2 = 14 + ((idx * 7) % 14);
         const loop = Animated.loop(
           Animated.sequence([
-            Animated.timing(val, { toValue: h2, duration: 180 + idx * 30, easing: Easing.linear, useNativeDriver: false }),
-            Animated.timing(val, { toValue: h1, duration: 180 + idx * 30, easing: Easing.linear, useNativeDriver: false }),
+            Animated.timing(val, { toValue: h2, duration: 180 + (idx % 6) * 30, easing: Easing.linear, useNativeDriver: false }),
+            Animated.timing(val, { toValue: h1, duration: 180 + (idx % 6) * 30, easing: Easing.linear, useNativeDriver: false }),
           ])
         );
         loop.start();
@@ -201,6 +207,7 @@ const VoiceNoteRecorder = ({
   };
 
   const pause = async () => {
+    if (phase !== 'recording') return;
     try {
       await recorder.pauseRecorder();
       setPhase('paused');
@@ -208,6 +215,7 @@ const VoiceNoteRecorder = ({
   };
 
   const resume = async () => {
+    if (phase !== 'paused') return;
     try {
       await recorder.resumeRecorder();
       setPhase('recording');
@@ -215,48 +223,45 @@ const VoiceNoteRecorder = ({
   };
 
   const stop = async (auto = false) => {
+    if (phase === 'idle' || phase === 'done') return;
     liveRef.current = false;
     try {
-      await recorder.stopRecorder();
+      const res = await recorder.stopRecorder();
       recorder.removeRecordBackListener();
-    } catch {}
-    const p = pathRef.current;
-    const d = durRef.current;
-    if (p && d > 500) {
-      setPhase('done');
-      onSaved(p, d);
-    } else {
+      const p = (typeof res === 'string' && res) ? res : pathRef.current;
       if (p) {
-        try {
-          await RNFS.unlink(p);
-        } catch {}
+        setPhase('done');
+        onSaved(p, durRef.current);
+      } else {
+        setPhase('idle');
       }
+    } catch {
       setPhase('idle');
-      if (!auto) Alert.alert('Too short', 'Hold or record for at least 1 second to save a note.');
     }
   };
 
   const cancel = async () => {
     liveRef.current = false;
-    try {
-      await recorder.stopRecorder();
-      recorder.removeRecordBackListener();
-    } catch {}
-    const p = pathRef.current;
-    if (p) {
+    if (phase === 'recording' || phase === 'paused') {
       try {
-        await RNFS.unlink(p);
+        await recorder.stopRecorder();
+        recorder.removeRecordBackListener();
       } catch {}
+      if (pathRef.current) {
+        try {
+          await RNFS.unlink(pathRef.current);
+        } catch {}
+      }
     }
     setPhase('idle');
     onCancel();
   };
 
   const deleteNote = async () => {
-    const p = pathRef.current;
-    if (p) {
+    liveRef.current = false;
+    if (pathRef.current) {
       try {
-        await RNFS.unlink(p);
+        await RNFS.unlink(pathRef.current);
       } catch {}
     }
     setPhase('idle');
@@ -285,25 +290,6 @@ const VoiceNoteRecorder = ({
 
       {/* Main Visualizer & Action Bar */}
       <View style={styles.visualizerRow}>
-        {/* Pulsing Mic Halo */}
-        <View style={styles.micHaloWrap}>
-          {phase === 'recording' && (
-            <Animated.View
-              style={[
-                styles.glowingHalo,
-                {
-                  backgroundColor: `${themeColors.accent}55`,
-                  transform: [{ scale: pulseAnim }],
-                  opacity: glowOpacity,
-                },
-              ]}
-            />
-          )}
-          <View style={[styles.micIconCircle, { backgroundColor: nightMode ? '#1A1E2C' : '#EFEBE0', borderColor: themeColors.border }, phase === 'recording' && [styles.micIconRecording, { backgroundColor: themeColors.primary, borderColor: themeColors.accent }]]}>
-            <IconMic c={phase === 'recording' ? '#FFFFFF' : themeColors.accent} />
-          </View>
-        </View>
-
         {/* Dynamic Animated Waveform */}
         <View style={styles.waveformContainer}>
           {waveAnims.map((animH, i) => (

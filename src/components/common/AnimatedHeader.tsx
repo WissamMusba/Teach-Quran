@@ -109,13 +109,6 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const subColor = themeColors.subText;
   const primaryAccent = themeColors.accent;
 
-  const Btn = ({ icon, label, onPress, labelStyle }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any }) => (
-    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
-      {icon}
-      <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
-    </TouchableOpacity>
-  );
-
   return (
     <>
       <Animated.View
@@ -147,9 +140,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             {/* Right: Share, Bookmarks, and Hamburger Menu at the rightmost corner */}
             <View style={s.iconsRow}>
               <TutorialAnchor id="hdr-share">
-                <Btn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} />
+                <HeaderBtn label="SHARE" icon={<IconShare c={primaryAccent} />} onPress={p.onShare} subColor={subColor} />
               </TutorialAnchor>
-              <Btn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} />
+              <HeaderBtn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} subColor={subColor} />
               
               <TutorialAnchor id="hdr-menu">
                 <TouchableOpacity
@@ -172,6 +165,15 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, right: 10 }]}>
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
+              onPress={() => { setMenuOpen(false); p.onSettings(); }}
+              activeOpacity={0.7}
+            >
+              <IconSettings c={themeColors.accent} />
+              <Text style={[s.menuText, { color: themeColors.text }]}>Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onNotes(); }}
               activeOpacity={0.7}
             >
@@ -180,21 +182,12 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.menuItem, { borderBottomColor: themeColors.border }]}
+              style={[s.menuItem, { borderBottomWidth: 0 }]}
               onPress={() => { setMenuOpen(false); p.onMistakes(); }}
               activeOpacity={0.7}
             >
               <IconPen c={C_MISTAKES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Mistakes</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.menuItem, { borderBottomWidth: 0 }]}
-              onPress={() => { setMenuOpen(false); p.onSettings(); }}
-              activeOpacity={0.7}
-            >
-              <IconSettings c={themeColors.accent} />
-              <Text style={[s.menuText, { color: themeColors.text }]}>Settings</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -202,6 +195,13 @@ const AnimatedHeader: React.FC<Props> = (p) => {
     </>
   );
 };
+
+const HeaderBtn = React.memo(({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
+  <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
+    {icon}
+    <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+  </TouchableOpacity>
+));
 
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
@@ -220,4 +220,4 @@ const s = StyleSheet.create({
   menuText: { fontSize: 14.5, fontWeight: '600' },
 });
 
-export default AnimatedHeader;
+export default React.memo(AnimatedHeader);

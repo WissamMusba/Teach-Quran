@@ -13,20 +13,29 @@
  *        (QuranView/JuzIndex/SurahIndex/Splash) deliberately have NO ad.
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { useDispatch, useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import { setAdCollapsed } from '../../store/settingsSlice';
 
 // TODO(ADMOB): replace with your REAL banner unit id from the AdMob console before release.
 const PROD_BANNER_ID = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
-const BANNER_ID = __DEV__ ? TestIds.BANNER : PROD_BANNER_ID;
+const isPlaceholder = !PROD_BANNER_ID || PROD_BANNER_ID.includes('XXXX') || PROD_BANNER_ID.includes('YYYY');
+const BANNER_ID = (__DEV__ || isPlaceholder) ? TestIds.BANNER : PROD_BANNER_ID;
 
 const CollapsibleBannerAd = () => {
   const dispatch = useDispatch();
   const collapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const [failed, setFailed] = useState(false);
+
+  // When navigating between screens (or returning back), automatically show the ad again
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(setAdCollapsed(false));
+    }, [dispatch])
+  );
 
   if (failed) return null;
 
@@ -43,7 +52,15 @@ const CollapsibleBannerAd = () => {
       <TouchableOpacity style={styles.collapseBtn} onPress={() => dispatch(setAdCollapsed(true))} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Text style={styles.arrow}>{'▾'}</Text>
       </TouchableOpacity>
-      <BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} onAdFailedToLoad={() => setFailed(true)} />
+      <BannerAd
+        unitId={BANNER_ID}
+        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+        requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        onAdFailedToLoad={(err) => {
+          console.warn('[AdMob] Banner ad failed to load:', err);
+          setFailed(true);
+        }}
+      />
     </View>
   );
 };

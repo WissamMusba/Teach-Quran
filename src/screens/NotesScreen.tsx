@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import RNFS from 'react-native-fs';
 import { playAudioNote } from '../api/audioNotes';
 import { getStudentData, getLastPullAt, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getVersePagesDB } from '../database/localDB';
 import { getVersePage } from '../database/quranData';
@@ -187,10 +188,49 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       return;
     }
     try {
-      if (playingKey) await audioPlayer.stopPlayer();
+      if (playingKey) {
+        try { await audioPlayer.stopPlayer(); } catch {}
+      }
       const isLocalPath = path.startsWith('/') || path.startsWith('file://');
-      const local = isLocalPath ? path.replace(/^file:\/\//, '') : await playAudioNote(path);
-      if (!local) { Alert.alert('Playback error', 'Could not download voice note.'); return; }
+      let local: string | null = null;
+      if (isLocalPath) {
+        const clean = path.replace(/^file:\/\//, '');
+        if (await RNFS.exists(clean)) {
+          local = clean;
+        } else if (await RNFS.exists(path)) {
+          local = path;
+        } else {
+          const fname = path.split('/').pop();
+          const alt1 = `${RNFS.DocumentDirectoryPath}/voicenotes/${fname}`;
+          const alt2 = `${RNFS.DocumentDirectoryPath}/audio_cache/${fname}`;
+          if (fname && (await RNFS.exists(alt1))) {
+            local = alt1;
+          } else if (fname && (await RNFS.exists(alt2))) {
+            local = alt2;
+          } else {
+            local = clean;
+          }
+        }
+      } else {
+        const fname = path.split('/').pop();
+        const alt1 = `${RNFS.DocumentDirectoryPath}/voicenotes/${fname}`;
+        const alt2 = `${RNFS.DocumentDirectoryPath}/audio_cache/${fname}`;
+        if (fname && (await RNFS.exists(alt1))) {
+          local = alt1;
+        } else if (fname && (await RNFS.exists(alt2))) {
+          local = alt2;
+        } else {
+          try {
+            local = await playAudioNote(path);
+          } catch {
+            local = null;
+          }
+        }
+      }
+      if (!local) {
+        Alert.alert('Playback error', 'Could not locate or play voice note file.');
+        return;
+      }
       await audioPlayer.startPlayer(local);
       audioPlayer.addPlayBackListener((e: any) => {
         if (e.currentPosition >= e.duration - 100) {

@@ -66,7 +66,14 @@ const WordHitArea = ({ tapFraction = 0.5, onWordPress, onDeadTap, onLongPress, o
   }, [tapFraction, onWordPress, onDeadTap]);
 
   return (
-    <Pressable ref={ref} onLayout={handleLayout} onPress={handlePress} onLongPress={onLongPress} style={style} {...rest}>
+    <Pressable
+      ref={ref}
+      onLayout={handleLayout}
+      onPress={handlePress}
+      onLongPress={onLongPress}
+      style={style}
+      {...rest}
+    >
       {children}
     </Pressable>
   );

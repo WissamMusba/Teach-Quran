@@ -1572,21 +1572,26 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (!currentStudent) return;
     const tapSurah = surahOverride || currentSurahId;
     const vKey = `${tapSurah}_${verseNum}`;
-    const cHigh = canvasData.highlights || {};
+    const cHigh = lastStudentDataRef.current?.highlights || canvasData.highlights || {};
     const vHighs = cHigh[vKey]?.highlights || [];
     const exists = vHighs.find((h: any) => h.wordIndex === wordIndex);
-    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: uuidv4(), wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
+    const highlightId = `hl_${Date.now()}_${wordIndex}_${Math.random().toString(36).slice(2, 7)}`;
+    const newHighs = exists ? vHighs.filter((h: any) => h.wordIndex !== wordIndex) : [...vHighs, { id: highlightId, wordIndex, color: MISTAKE_COLOR, createdAt: new Date().toISOString() }];
+    // 0ms instant local state update and haptic feedback
     setCanvasData((prev: any) => ({ ...prev, highlights: { ...prev.highlights, [vKey]: { highlights: newHighs } } }));
-    const base = lastStudentDataRef.current || studentData || {};
-    lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
-    dispatch(setStudentData(lastStudentDataRef.current));
-    emitTutorialEvent('highlight_made');
     ReactNativeHapticFeedback.trigger('impactLight');
-    getVersePage(tapSurah, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
-      const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-      saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
-      dispatch(addPendingChange());
-    });
+    // Defer heavy Redux dispatch, SQLite write, and tutorial events to the next microtask so the highlight paints with zero delay
+    setTimeout(() => {
+      const base = lastStudentDataRef.current || studentData || {};
+      lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
+      dispatch(setStudentData(lastStudentDataRef.current));
+      emitTutorialEvent('highlight_made');
+      getVersePage(tapSurah, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+        const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
+        saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
+        dispatch(addPendingChange());
+      });
+    }, 0);
   }, [canvasData, currentStudent, currentSurahId, studentData, dispatch]);
 
   /**

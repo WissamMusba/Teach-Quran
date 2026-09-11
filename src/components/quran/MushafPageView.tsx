@@ -132,8 +132,8 @@ const isLightColor = (hex: string) => {
 // Reading-mark bookmark ribbon — clean outline when unfilled; filled with date/month badge when active.
 const BookmarkRibbon = ({
   c,
-  width = 24,
-  height = 36,
+  width = 20,
+  height = 28,
   filled = false,
   day,
   month,
@@ -148,10 +148,9 @@ const BookmarkRibbon = ({
   nightMode?: boolean;
 }) => {
   const notch = Math.round(height * 0.22);
-  const strokeW = 1.8;
+  const strokeW = 1.6;
   const ribbonBg = filled ? c : (nightMode ? 'rgba(16, 18, 26, 0.75)' : 'rgba(250, 247, 238, 0.85)');
   const textC = isLightColor(c) ? '#0D1B2A' : '#FFFFFF';
-  const isLarge = width >= 28;
 
   return (
     <View style={{ width, height, alignItems: 'center', justifyContent: 'flex-start' }}>
@@ -166,13 +165,13 @@ const BookmarkRibbon = ({
         />
       </Svg>
       {filled && day != null && month ? (
-        <View style={{ width: width - 4, paddingTop: isLarge ? 3 : 2, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+        <View style={{ width: width - 2, paddingTop: 1.5, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
           <Text
             style={{
-              fontSize: isLarge ? 11 : 9.5,
+              fontSize: width >= 22 ? 9.5 : 8.5,
               fontWeight: '700',
               color: textC,
-              lineHeight: isLarge ? 13 : 11,
+              lineHeight: width >= 22 ? 11 : 10,
               textAlign: 'center',
               includeFontPadding: false,
             }}
@@ -182,13 +181,13 @@ const BookmarkRibbon = ({
           </Text>
           <Text
             style={{
-              fontSize: isLarge ? 8.5 : 7.5,
+              fontSize: width >= 22 ? 7.5 : 6.5,
               fontWeight: '800',
               color: textC,
-              lineHeight: isLarge ? 10 : 9,
+              lineHeight: width >= 22 ? 9 : 8,
               textAlign: 'center',
               textTransform: 'capitalize',
-              letterSpacing: -0.2,
+              letterSpacing: -0.3,
               includeFontPadding: false,
             }}
             numberOfLines={1}
@@ -525,8 +524,47 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     return () => { mounted = false; clearTimeout(t); };
   }, [fontFamily, fixNonce]);
 
+  // Optimistic local highlights for 0ms instantaneous tap response:
+  const [localHighlights, setLocalHighlights] = useState<any>(highlights);
+  useEffect(() => {
+    setLocalHighlights(highlights);
+  }, [highlights]);
+
+  const activeHighlights = localHighlights || highlights;
+  const highlightedWordKeys = useMemo(() => {
+    const set = new Set<string>();
+    if (activeHighlights) {
+      for (const [vKey, val] of Object.entries(activeHighlights)) {
+        const arr = (val as any)?.highlights;
+        if (Array.isArray(arr)) {
+          for (let i = 0; i < arr.length; i++) {
+            set.add(`${vKey}_${arr[i].wordIndex}`);
+          }
+        }
+      }
+    }
+    return set;
+  }, [activeHighlights]);
+
+  const handleWordPressLocal = useCallback((verseNum: number, wordIndex: number, surahId: number) => {
+    const vKey = `${surahId}_${verseNum}`;
+    setLocalHighlights((prev: any) => {
+      const base = prev || highlights || {};
+      const vEntry = base[vKey] || {};
+      const list = vEntry.highlights || [];
+      const exists = list.some((h: any) => h.wordIndex === wordIndex);
+      const updated = exists
+        ? list.filter((h: any) => h.wordIndex !== wordIndex)
+        : [...list, { id: `hl_${Date.now()}_${wordIndex}`, wordIndex, color: '#FF3B30' }];
+      return {
+        ...base,
+        [vKey]: { ...vEntry, highlights: updated },
+      };
+    });
+    onWordPress?.(verseNum, wordIndex, surahId);
+  }, [onWordPress, highlights]);
+
   // DEAD CODE: verseByKey is built from versesForPage but never referenced below.
-  // hlMap indexes highlights by "surahId_verseNumber" for per-word mistake lookups.
   const verseByKey = new Map<string, any>();
   if (versesForPage) {
     for (const v of versesForPage) {
@@ -534,7 +572,6 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
       if (!verseByKey.has(key)) verseByKey.set(key, v);
     }
   }
-  const hlMap = new Map<string, any>(Object.entries(highlights || {}));
 
   // Ta'awwud line placement: a surah begins exactly where a 'surah-header' or 'basmala'
   // marker line appears; Fallback for headerless pages (e.g. At-Tawba): the first line's
@@ -794,8 +831,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
         <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <BookmarkRibbon
             c={themeColors.accent}
-            width={isTablet ? 30 : 24}
-            height={isTablet ? 44 : 36}
+            width={isTablet ? 22 : 20}
+            height={isTablet ? 32 : 28}
             filled={readingMarkActive}
             day={readingMarkDateObj?.day}
             month={readingMarkDateObj?.month}
@@ -811,19 +848,44 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
           centered, pages-left pill right. Same badgePill/badgeText chip styling. Hidden during
           share capture (keeps captured JPGs clean). */}
       {pageNum > 0 && !hideBottomChrome && (
-        <View pointerEvents="box-none" style={styles(nightMode).bottomPillRow}>
+        <View pointerEvents="box-none" style={[styles(nightMode).bottomPillRow, isTablet && { bottom: -26, paddingHorizontal: 12 }]}>
           {onToggleHeader && (
-            <TouchableOpacity style={[styles(nightMode).headerToggleBtn, { backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(250,247,238,0.95)', borderColor: themeColors.border }]} onPress={onToggleHeader} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode).headerToggleText, { color: themeColors.accent }]}>{headerVisible ? 'Hide Header' : 'Show Header'}</Text>
+            <TouchableOpacity
+              style={[
+                styles(nightMode).headerToggleBtn,
+                isTablet && { paddingHorizontal: 14, paddingVertical: 6 },
+                { backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(250,247,238,0.95)', borderColor: themeColors.border }
+              ]}
+              onPress={onToggleHeader}
+              activeOpacity={0.75}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[styles(nightMode).headerToggleText, isTablet && { fontSize: 12.5 }, { color: themeColors.accent }]}>
+                {headerVisible ? 'Hide Header' : 'Show Header'}
+              </Text>
             </TouchableOpacity>
           )}
           <View pointerEvents="none" style={styles(nightMode).bottomCenterWrap}>
-            <View style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-              <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Page {pageNum}</Text>
+            <View style={[
+              styles(nightMode).badgePill,
+              isTablet && { paddingHorizontal: 12, paddingVertical: 5 },
+              { borderColor: frameC, backgroundColor: badgeBg },
+              compact && !isTablet && styles(nightMode).badgePillCompact
+            ]}>
+              <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: grayC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
+                Page {pageNum}
+              </Text>
             </View>
           </View>
-          <View pointerEvents="none" style={[styles(nightMode).badgePill, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-            <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{juzInfo.pagesLeft} pages left in Juz</Text>
+          <View pointerEvents="none" style={[
+            styles(nightMode).badgePill,
+            isTablet && { paddingHorizontal: 12, paddingVertical: 5 },
+            { borderColor: frameC, backgroundColor: badgeBg },
+            compact && !isTablet && styles(nightMode).badgePillCompact
+          ]}>
+            <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: grayC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
+              {juzInfo.pagesLeft} pages left in Juz
+            </Text>
           </View>
         </View>
       )}
@@ -970,7 +1032,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               const isVerseEndMarker = !!word.word && !hasArabicLetters(stripped);
 
               let displayText = stripped;
-              const h = hlMap.get(vKey)?.highlights?.find((hl: any) => hl.wordIndex === wordPos - 1);
+              const isHighlighted = highlightedWordKeys.has(`${vKey}_${wordPos - 1}`);
               const isBookmarked = !!bookmarks?.[vKey];
               const isFlashing = flashingVerseKey === vKey;
               const hasNote = !!notes?.[vKey];
@@ -1026,10 +1088,10 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               return (
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={[styles(nightMode).wordBox, isTablet && { marginHorizontal: 1 }]}
-                    onWordPress={() => verseNum > 0 && onWordPress(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
+                    onWordPress={() => verseNum > 0 && handleWordPressLocal(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, h && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{isTablet ? '' : ' '}
                     </Text>
                   </WordHitArea>
