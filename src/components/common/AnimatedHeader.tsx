@@ -174,6 +174,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.6}
               delayPressIn={0}
+              scaleTo={0.86}
               style={s.backBtn}
             >
               <IconBack c={primaryAccent} />
