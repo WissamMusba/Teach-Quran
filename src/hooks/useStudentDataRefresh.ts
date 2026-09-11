@@ -28,6 +28,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { getStudentData, getManifest, getDB } from '../database/localDB';
 import { setStudentData } from '../store/studentSlice';
+import { store } from '../store';
 
 // Freshness snapshot per student:id of the last SUCCESSFUL load. A re-focus that computes
 // the identical snapshot (i.e. nothing in SQLite changed since the load) skips getStudentData.
@@ -64,14 +65,31 @@ const freshnessSnapshot = async (studentId: string): Promise<string | null> => {
   } catch { return null; }
 };
 
+/** Checks whether Redux studentData is missing or empty (e.g. wiped or unhydrated). */
+const isReduxDataMissingOrEmpty = (data: any, chunkCount: number = 0): boolean => {
+  if (!data) return true;
+  const hasHighlights = data.highlights && Object.keys(data.highlights).length > 0;
+  const hasNotes = data.notes && Object.keys(data.notes).length > 0;
+  // If SQLite has chunks but Redux has no highlights and no notes, Redux is incomplete/empty
+  if (chunkCount > 0 && !hasHighlights && !hasNotes) return true;
+  const hasBookmarks = data.bookmarks && Object.keys(data.bookmarks).length > 0;
+  const hasDrawings = data.drawings && Object.keys(data.drawings).length > 0;
+  return !hasHighlights && !hasNotes && !hasBookmarks && !hasDrawings && !data.lastRead && !data.audioNotes;
+};
+
 // P2-I — shared freshness gate for the OTHER getStudentData callers that run for a FIXED
 // current student (QuranViewScreen's sync watcher + canvas-open path, App.tsx post-pull
 // refresh). The same snapshot/map the hook uses, so SQLite-provable-unchanged reads are
 // skipped before the heavy getStudentData chunk read runs — and every participant updates
 // the shared map, so a reload by one never triggers a redundant reload by another.
 export const getFreshnessSnapshot = freshnessSnapshot;
-export const studentDataIsCurrent = (studentId: string, snapshot: string | null) =>
-  snapshot !== null && loadedSnapshotPerStudent.get(studentId) === snapshot;
+export const studentDataIsCurrent = (studentId: string, snapshot: string | null) => {
+  if (snapshot === null) return false;
+  const curData = store.getState().student?.studentData;
+  const chunkCount = parseInt(snapshot.split('|')[2]?.split('/')[0] || '0', 10);
+  if (isReduxDataMissingOrEmpty(curData, chunkCount)) return false;
+  return loadedSnapshotPerStudent.get(studentId) === snapshot;
+};
 export const markStudentDataLoaded = (studentId: string, snapshot: string | null) => {
   loadedSnapshotPerStudent.set(studentId, snapshot === null ? 'loaded' : snapshot);
 };
@@ -88,23 +106,27 @@ export const useStudentDataRefresh = () => {
     if (inFlight && inFlight.studentId === currentStudentId) return inFlight.promise;
     const load = (async () => {
       try {
-        // Fast-seed manifest: instant ~2ms bookmarks and lastRead load while heavy chunks aggregate
+        // Fast-seed manifest: instant ~2ms bookmarks and lastRead load while heavy chunks aggregate.
+        // NEVER dispatch empty highlights/notes/drawings — merge onto existing state to preserve annotations!
         getManifest(currentStudentId).then((m) => {
           if (m?.data?.bookmarks || m?.data?.lastRead) {
-            dispatch(setStudentData({
-              bookmarks: m.data.bookmarks || {},
-              lastRead: m.data.lastRead || null,
-              highlights: {},
-              notes: {},
-              drawings: {},
-              schemaVersion: m.data.schemaVersion || 3,
-              v: m.data.v || 0,
-            }));
+            const cur = store.getState().student?.studentData;
+            if (cur) {
+              dispatch(setStudentData({
+                ...cur,
+                bookmarks: m.data.bookmarks || cur.bookmarks || {},
+                lastRead: m.data.lastRead !== undefined ? m.data.lastRead : (cur.lastRead || null),
+                schemaVersion: m.data.schemaVersion || cur.schemaVersion || 3,
+                v: m.data.v || cur.v || 0,
+              }));
+            }
           }
         }).catch(() => {});
 
         const snapshot = await freshnessSnapshot(currentStudentId);
-        if (snapshot !== null && loadedSnapshotPerStudent.get(currentStudentId) === snapshot) return;
+        const curData = store.getState().student?.studentData;
+        const chunkCount = snapshot ? parseInt(snapshot.split('|')[2]?.split('/')[0] || '0', 10) : 0;
+        if (!isReduxDataMissingOrEmpty(curData, chunkCount) && snapshot !== null && loadedSnapshotPerStudent.get(currentStudentId) === snapshot) return;
         const d = await getStudentData(currentStudentId);
         if (!d) return;
         loadedSnapshotPerStudent.set(currentStudentId, snapshot === null ? 'loaded' : snapshot);

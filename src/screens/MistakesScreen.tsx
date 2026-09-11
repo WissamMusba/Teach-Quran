@@ -3,7 +3,7 @@
  * ROLE: Groups the student's highlighted words into ONE premium card per verse with pure vector SVG icons and theme support.
  */
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
@@ -14,6 +14,8 @@ import { formatDate, formatTime, toMillis } from '../utils/format';
 import { getVersePage } from '../database/quranData';
 import { getVersePagesDB } from '../database/localDB';
 import { JUZ_MAP, getThemeColors } from '../utils/theme';
+
+const sessionPageCache: Record<string, number> = {};
 
 const IconPen = ({ c, size = 20 }: { c: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -39,12 +41,107 @@ const juzForVerse = (surahId: number, verseNum: number): number => {
   return juz;
 };
 
+interface MistakeCardProps {
+  item: any;
+  page?: number;
+  surahName: string;
+  theme: any;
+  themeColors: any;
+  nightMode: boolean;
+  isTablet: boolean;
+  onNavigate: (verseKey: string, page?: number) => void;
+}
+
+const MistakeCard = React.memo(({ item, page, surahName, theme, themeColors, nightMode, isTablet, onNavigate }: MistakeCardProps) => {
+  const [s, v] = item.verseKey.split('_').map(Number);
+  const ts = toMillis(item.latest?.createdAt);
+  const date = formatDate(ts);
+  const time = formatTime(ts);
+  const juz = juzForVerse(s, v);
+  const dots = item.colors.slice(0, 3);
+  const extra = item.colors.length - dots.length;
+  return (
+    <TouchableOpacity
+      style={[
+        styles.card,
+        isTablet ? styles.cardTablet : undefined,
+        { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, shadowOpacity: nightMode ? 0.4 : 0.08 }
+      ]}
+      onPress={() => onNavigate(item.verseKey, page)}
+      activeOpacity={0.85}
+    >
+      {(date || time) ? (
+        <View style={styles.chipsRow}>
+          {date ? (
+            <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
+              <Text style={[styles.chipText, { color: theme.text }]}>Date: {date}</Text>
+            </View>
+          ) : null}
+          {time ? (
+            <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
+              <Text style={[styles.chipText, { color: theme.text }]}>Time: {time}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      <Text style={[styles.surahName, { color: themeColors.text, borderLeftColor: themeColors.accent }]}>{surahName}</Text>
+
+      <View style={[styles.metaGrid, { backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: theme.cardBorder }]}>
+        {/* Row 1: Juz (label left, value right) | Vertical Separator | Page (label left, value right) */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaCell}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Juz</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{juz}</Text>
+          </View>
+          <View style={[styles.metaColSeparator, { backgroundColor: theme.cardBorder }]} />
+          <View style={styles.metaCell}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Page</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{page !== undefined ? page : '…'}</Text>
+          </View>
+        </View>
+
+        {/* Horizontal Separator line */}
+        <View style={[styles.metaRowSeparator, { backgroundColor: theme.cardBorder }]} />
+
+        {/* Row 2: Surah (label left, value right) | Vertical Separator | Ayah (label left, value right) */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaCell}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Surah</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{s}</Text>
+          </View>
+          <View style={[styles.metaColSeparator, { backgroundColor: theme.cardBorder }]} />
+          <View style={styles.metaCell}>
+            <Text style={[styles.metaLabel, { color: theme.sub }]}>Ayah</Text>
+            <Text style={[styles.metaValue, { color: theme.text }]}>{v}</Text>
+          </View>
+        </View>
+      </View>
+
+      {dots.length > 0 && (
+        <View style={styles.dotsRow}>
+          {dots.map((c: string, idx: number) => (
+            <View key={idx} style={[styles.colorDot, { backgroundColor: c, borderColor: theme.dotBorder }]} />
+          ))}
+          {extra > 0 && (
+            <View style={[styles.extraChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.extraText, { color: theme.sub }]}>+{extra}</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function MistakesScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   const navigation = navProp || useNavigation<any>();
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const studentData = useSelector((s: any) => s.student.studentData);
   const surahNames = useSelector((s: any) => s.quran.surahNames);
   const textStyle = useSelector((s: any) => s.quran.textStyle);
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
 
   useStudentDataRefresh();
 
@@ -66,12 +163,19 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
     return list;
   }, [studentData?.highlights]);
 
-  const [pages, setPages] = React.useState<Record<string, number>>({});
+  // Maintain previously rendered cards during background page updates so it never flickers to 'No mistakes highlighted yet'
+  const prevVersesRef = React.useRef<typeof sortedVerses>([]);
+  if (sortedVerses.length > 0) {
+    prevVersesRef.current = sortedVerses;
+  }
+  const displayVerses = sortedVerses.length > 0 ? sortedVerses : prevVersesRef.current;
+
+  const [pages, setPages] = React.useState<Record<string, number>>(() => ({ ...sessionPageCache }));
 
   React.useEffect(() => {
     let active = true;
     const entries: [number, number][] = [];
-    for (const item of sortedVerses) {
+    for (const item of displayVerses) {
       const [s, v] = item.verseKey.split('_').map(Number);
       if (s > 0 && v > 0) entries.push([s, v]);
     }
@@ -79,44 +183,50 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
 
     getVersePagesDB(entries).then((res) => {
       if (active && res) {
+        Object.assign(sessionPageCache, res);
         setPages((prev) => ({ ...prev, ...res }));
       }
     }).catch(() => {});
 
-    // Script-aware / indopak fallback
-    for (const item of sortedVerses) {
-      const verseKey = item.verseKey;
-      const [s, v] = verseKey.split('_').map(Number);
-      getVersePage(s, v, textStyle).then((pg) => {
-        if (active && pg > 0) setPages((prev) => (prev[verseKey] === pg ? prev : { ...prev, [verseKey]: pg }));
-      }).catch(() => {});
-    }
-
     return () => { active = false; };
-  }, [sortedVerses, textStyle]);
+  }, [displayVerses, textStyle]);
 
-  const handleNavigate = async (vKey: string, page?: number) => {
+  const handleNavigate = React.useCallback((vKey: string, page?: number) => {
     const [s, v] = vKey.split('_').map(Number);
-    let targetPage = page || pages[vKey];
-    if (!targetPage) {
-      try {
-        targetPage = await getVersePage(s, v, textStyle);
-      } catch {
-        targetPage = 1;
-      }
+    const targetPage = page || pages[vKey] || sessionPageCache[vKey];
+    if (targetPage) {
+      navigation.navigate('QuranView' as any, {
+        page: targetPage,
+        surahId: s,
+        scrollToVerse: v,
+        t: Date.now(),
+      } as any);
+      return;
     }
-    navigation.navigate('QuranView' as any, {
-      page: targetPage,
-      surahId: s,
-      scrollToVerse: v,
-      t: Date.now(),
-    } as any);
-  };
+    getVersePage(s, v, textStyle)
+      .then((pg) => {
+        if (pg) sessionPageCache[vKey] = pg;
+        navigation.navigate('QuranView' as any, {
+          page: pg || 1,
+          surahId: s,
+          scrollToVerse: v,
+          t: Date.now(),
+        } as any);
+      })
+      .catch(() => {
+        navigation.navigate('QuranView' as any, {
+          page: 1,
+          surahId: s,
+          scrollToVerse: v,
+          t: Date.now(),
+        } as any);
+      });
+  }, [navigation, pages, textStyle]);
 
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = React.useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  const theme = {
+  const theme = React.useMemo(() => ({
     screenBg: themeColors.bg,
     cardBg: themeColors.cardBg,
     cardBorder: themeColors.border,
@@ -125,83 +235,29 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
     chipBg: nightMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
     accentSoft: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
     dotBorder: nightMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
-  };
+  }), [themeColors, nightMode]);
 
-  const renderCard = ({ item }: any) => {
-    const [s, v] = item.verseKey.split('_').map(Number);
-    const ts = toMillis(item.latest?.createdAt);
-    const date = formatDate(ts);
-    const time = formatTime(ts);
-    const page = pages[item.verseKey];
-    const juz = juzForVerse(s, v);
-    const name = surahNames?.[s] || `Surah ${s}`;
-    const dots = item.colors.slice(0, 3);
-    const extra = item.colors.length - dots.length;
+  const renderCard = React.useCallback(({ item }: any) => {
+    const [s] = item.verseKey.split('_').map(Number);
+    const surahName = surahNames?.[s] || `Surah ${s}`;
     return (
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, shadowOpacity: nightMode ? 0.4 : 0.08 }]}
-        onPress={() => handleNavigate(item.verseKey, page)}
-        activeOpacity={0.85}
-      >
-        {(date || time) ? (
-          <View style={styles.chipsRow}>
-            {date ? (
-              <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
-                <Text style={[styles.chipText, { color: theme.text }]}>Date: {date}</Text>
-              </View>
-            ) : null}
-            {time ? (
-              <View style={[styles.chip, { backgroundColor: theme.accentSoft, borderColor: theme.accentSoft }]}>
-                <Text style={[styles.chipText, { color: theme.text }]}>Time: {time}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        <Text style={[styles.surahName, { color: themeColors.text, borderLeftColor: themeColors.accent }]}>{name}</Text>
-
-        <View style={[styles.metaStack, { backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: theme.cardBorder }]}>
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Surah</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{s}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Ayah</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{v}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Juz</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{juz}</Text>
-          </View>
-          <View style={[styles.metaSeparator, { backgroundColor: theme.cardBorder }]} />
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: theme.sub }]}>Page</Text>
-            <Text style={[styles.metaValue, { color: theme.text }]}>{page !== undefined ? page : '…'}</Text>
-          </View>
-        </View>
-
-        {dots.length > 0 && (
-          <View style={styles.dotsRow}>
-            {dots.map((c: string, idx: number) => (
-              <View key={idx} style={[styles.colorDot, { backgroundColor: c, borderColor: theme.dotBorder }]} />
-            ))}
-            {extra > 0 && (
-              <View style={[styles.extraChip, { backgroundColor: theme.chipBg, borderColor: theme.cardBorder }]}>
-                <Text style={[styles.extraText, { color: theme.sub }]}>+{extra}</Text>
-              </View>
-            )}
-          </View>
-        )}
-      </TouchableOpacity>
+      <MistakeCard
+        item={item}
+        page={pages[item.verseKey]}
+        surahName={surahName}
+        theme={theme}
+        themeColors={themeColors}
+        nightMode={nightMode}
+        isTablet={isTablet}
+        onNavigate={handleNavigate}
+      />
     );
-  };
+  }, [surahNames, pages, theme, themeColors, nightMode, isTablet, handleNavigate]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
-      <ScreenHeader title="Mistakes" subtitle={`${sortedVerses.length} highlighted verse${sortedVerses.length === 1 ? '' : 's'} · newest first`} onBack={onClose} />
-      {sortedVerses.length === 0 ? (
+      <ScreenHeader title="Mistakes" subtitle={`${displayVerses.length} highlighted verse${displayVerses.length === 1 ? '' : 's'} · newest first`} onBack={onClose} />
+      {displayVerses.length === 0 ? (
         <View style={styles.emptyState}>
           <IconPen c={themeColors.accent} size={44} />
           <Text style={[styles.emptyText, { color: theme.sub, marginTop: 12 }]}>No mistakes highlighted yet</Text>
@@ -209,11 +265,17 @@ export default function MistakesScreen({ onClose, navigation: navProp }: { onClo
         </View>
       ) : (
         <FlatList
+          key={isTablet ? 'tablet-grid' : 'single-col'}
           style={{ flex: 1 }}
-          data={sortedVerses}
+          data={displayVerses}
           keyExtractor={(item: any) => item.verseKey}
           contentContainerStyle={styles.list}
           renderItem={renderCard}
+          numColumns={isTablet ? 2 : 1}
+          columnWrapperStyle={isTablet ? { gap: 10 } : undefined}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
       <CollapsibleBannerAd />
@@ -225,15 +287,18 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 10, paddingBottom: 12 },
   card: { padding: 10, borderRadius: 12, marginBottom: 8, borderWidth: 1, shadowColor: '#000', shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  cardTablet: { flex: 1 },
   chipsRow: { flexDirection: 'row', gap: 6, marginBottom: 5, flexWrap: 'wrap' },
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 9, fontWeight: '700' },
   surahName: { fontSize: 15, fontWeight: '800', borderLeftWidth: 3, paddingLeft: 8, marginBottom: 5 },
-  metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
-  metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
-  metaLabel: { fontSize: 10, fontWeight: '600' },
-  metaValue: { fontSize: 10, fontWeight: '700' },
-  metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5 },
+  metaGrid: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2 },
+  metaCell: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+  metaColSeparator: { width: StyleSheet.hairlineWidth, height: 16, opacity: 0.5, marginHorizontal: 4 },
+  metaRowSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5 },
+  metaLabel: { fontSize: 11, fontWeight: '600' },
+  metaValue: { fontSize: 12.5, fontWeight: '700' },
   metaChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 6, marginBottom: 6 },
   metaChipDark: { backgroundColor: '#232345' },
   metaChipLight: { backgroundColor: '#f1f4fb' },

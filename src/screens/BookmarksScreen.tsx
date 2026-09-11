@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
@@ -32,6 +32,9 @@ const IconTrash = ({ c, size = 15 }: { c: string; size?: number }) => (
 export default function BookmarksScreen({ onClose, navigation: navProp }: { onClose?: () => void; navigation?: any } = {}) {
   const dispatch = useDispatch();
   const navigation = navProp || useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const currentStudent = useSelector((s: any) => s.student.currentStudent);
   const studentData = useSelector((s: any) => s.student.studentData);
   const bookmarks = studentData?.bookmarks;
@@ -52,6 +55,75 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
     const raw: any[] = bookmarks ? Object.values(bookmarks) : [];
     return raw.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
   }, [bookmarks]);
+
+  const dailyMarkItem = useMemo(() => {
+    if (lrSurah > 0 && lrVerse > 0) {
+      return { surah: lrSurah, verse: lrVerse, __lastRead: true };
+    }
+    return null;
+  }, [lrSurah, lrVerse]);
+
+  const regularBookmarks = useMemo(() => {
+    const out: any[] = [];
+    for (const b of sortedBookmarks as any[]) {
+      if (lrSurah === Number(b.surah) && lrVerse === Number(b.verse)) continue;
+      out.push(b);
+    }
+    return out;
+  }, [lrSurah, lrVerse, sortedBookmarks]);
+
+  // Prevent false empty state while hydrating
+  const isHydrating = !studentData;
+  const prevRegularBookmarksRef = useRef<any[]>([]);
+  const prevDailyMarkRef = useRef<any>(null);
+  const prevCardMetaRef = useRef<Record<string, { name: string; juz: number; date: string; time: string }>>({});
+
+  const cardMeta = React.useMemo(() => {
+    const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
+    const tsOf = (b: any) => toMillis(b.createdAt || b.updatedAt);
+    if (lrSurah > 0 && lastRead) {
+      const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
+      out[pageKey(lrSurah, lrVerse)] = {
+        name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
+        juz: getJuzForVerse(lrSurah, lrVerse),
+        date: ts ? formatDate(ts) : '',
+        time: ts ? formatTime(ts) : '',
+      };
+    }
+    for (const b of sortedBookmarks as any[]) {
+      const key = pageKey(b.surah, b.verse);
+      const ts = tsOf(b);
+      out[key] = {
+        name: surahNames?.[b.surah] || `Surah ${b.surah}`,
+        juz: getJuzForVerse(b.surah, b.verse),
+        date: formatDate(ts),
+        time: formatTime(ts),
+      };
+    }
+    return out;
+  }, [sortedBookmarks, surahNames, lastRead, lrSurah, lrVerse]);
+
+  useEffect(() => {
+    if (!isHydrating) {
+      prevRegularBookmarksRef.current = regularBookmarks;
+      prevDailyMarkRef.current = dailyMarkItem;
+      if (Object.keys(cardMeta).length > 0) {
+        prevCardMetaRef.current = cardMeta;
+      }
+    }
+  }, [isHydrating, regularBookmarks, dailyMarkItem, cardMeta]);
+
+  const effectiveRegularBookmarks = isHydrating && regularBookmarks.length === 0
+    ? prevRegularBookmarksRef.current
+    : regularBookmarks;
+
+  const effectiveDailyMark = isHydrating && !dailyMarkItem
+    ? prevDailyMarkRef.current
+    : dailyMarkItem;
+
+  const effectiveCardMeta = isHydrating && Object.keys(cardMeta).length === 0
+    ? prevCardMetaRef.current
+    : cardMeta;
 
   const [pageMap, setPageMap] = useState<Record<string, number>>(() => ({ ...sessionPageCache }));
   const [undoItem, setUndoItem] = useState<{ key: string; data: any } | null>(null);
@@ -78,8 +150,10 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
       }
     };
 
-    if (lrSurah > 0 && lrVerse > 0) check(lrSurah, lrVerse);
-    for (const b of sortedBookmarks as any[]) {
+    if (effectiveDailyMark?.surah && effectiveDailyMark?.verse) {
+      check(effectiveDailyMark.surah, effectiveDailyMark.verse);
+    }
+    for (const b of effectiveRegularBookmarks as any[]) {
       const s = Number(b.surah); const v = Number(b.verse);
       if (s > 0 && v > 0) check(s, v);
     }
@@ -97,27 +171,48 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
       setPageMap({ ...next });
     });
     return () => { cancelled = true; };
-  }, [sortedBookmarks, lrSurah, lrVerse, textStyle]);
+  }, [effectiveRegularBookmarks, effectiveDailyMark, textStyle]);
 
   const handleNavigate = React.useCallback(
-    async (surah: number, verse: number, page?: number) => {
-      let targetPage = page || pageMap[pageKey(surah, verse)];
-      if (!targetPage) {
-        try {
-          targetPage = await getVersePage(surah, verse, textStyle);
-        } catch {
-          targetPage = 1;
-        }
+    (surah: number, verse: number, page?: number) => {
+      const targetPage = page || pageMap[pageKey(surah, verse)];
+      if (targetPage) {
+        navigation.navigate('QuranView' as any, {
+          page: targetPage,
+          surahId: surah,
+          scrollToVerse: verse,
+          t: Date.now(),
+        } as any);
+        return;
       }
-      navigation.navigate('QuranView' as any, {
-        page: targetPage,
-        surahId: surah,
-        scrollToVerse: verse,
-        t: Date.now(),
-      } as any);
+      getVersePage(surah, verse, textStyle)
+        .then((resolvedPage) => {
+          navigation.navigate('QuranView' as any, {
+            page: resolvedPage || 1,
+            surahId: surah,
+            scrollToVerse: verse,
+            t: Date.now(),
+          } as any);
+        })
+        .catch(() => {
+          navigation.navigate('QuranView' as any, {
+            page: 1,
+            surahId: surah,
+            scrollToVerse: verse,
+            t: Date.now(),
+          } as any);
+        });
     },
     [navigation, pageMap, textStyle],
   );
+
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigation.goBack();
+    }
+  }, [onClose, navigation]);
 
   const handleDelete = useCallback((surah: number, verse: number) => {
     const vKey = `${surah}_${verse}`;
@@ -172,48 +267,21 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
     setUndoItem(null);
   }, [undoItem, bookmarks, studentData, currentStudent?.id, dispatch]);
 
-  const listData = React.useMemo(() => {
-    const out: any[] = [];
-    if (lrSurah > 0) out.push({ surah: lrSurah, verse: lrVerse, __lastRead: true });
-    for (const b of sortedBookmarks as any[]) {
-      if (lrSurah === Number(b.surah) && lrVerse === Number(b.verse)) continue;
-      out.push(b);
+  const displayData = useMemo(() => {
+    if (isTablet && effectiveRegularBookmarks.length % 2 !== 0) {
+      return [...effectiveRegularBookmarks, { __empty: true }];
     }
-    return out;
-  }, [lrSurah, lrVerse, sortedBookmarks]);
+    return effectiveRegularBookmarks;
+  }, [isTablet, effectiveRegularBookmarks]);
 
-  const cardMeta = React.useMemo(() => {
-    const out: Record<string, { name: string; juz: number; date: string; time: string }> = {};
-    const tsOf = (b: any) => toMillis(b.createdAt || b.updatedAt);
-    if (lrSurah > 0 && lastRead) {
-      const ts = toMillis(lastRead.updatedAt || lastRead.createdAt);
-      out[pageKey(lrSurah, lrVerse)] = {
-        name: surahNames?.[lrSurah] || `Surah ${lrSurah}`,
-        juz: getJuzForVerse(lrSurah, lrVerse),
-        date: ts ? formatDate(ts) : '',
-        time: ts ? formatTime(ts) : '',
-      };
-    }
-    for (const b of sortedBookmarks as any[]) {
-      const key = pageKey(b.surah, b.verse);
-      const ts = tsOf(b);
-      out[key] = {
-        name: surahNames?.[b.surah] || `Surah ${b.surah}`,
-        juz: getJuzForVerse(b.surah, b.verse),
-        date: formatDate(ts),
-        time: formatTime(ts),
-      };
-    }
-    return out;
-  }, [sortedBookmarks, surahNames, lastRead, lrSurah, lrVerse]);
-
-  const renderBookmark = React.useCallback(({ item }: any) => {
-    const meta = cardMeta[pageKey(item.surah, item.verse)];
+  const renderCard = useCallback((item: any, isHeader = false) => {
+    const meta = effectiveCardMeta[pageKey(item.surah, item.verse)];
     const page = pageMap[pageKey(item.surah, item.verse)];
     return (
       <TouchableOpacity
         style={[
           styles(nightMode, themeColors).card,
+          isTablet && !isHeader && { flex: 1 },
           {
             backgroundColor: themeColors.cardBg,
             borderColor: themeColors.border,
@@ -260,34 +328,72 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
           {meta?.name || `Surah ${item.surah}`}
         </Text>
 
-        <View style={[styles(nightMode, themeColors).metaStack, { backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: themeColors.border }]}>
-          <View style={styles(nightMode, themeColors).metaItem}>
-            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Surah</Text>
-            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.surah}</Text>
+        <View style={[styles(nightMode, themeColors).metaGrid, { backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: themeColors.border }]}>
+          {/* Row 1: Juz (label left, value right) | Vertical Separator | Page (label left, value right) */}
+          <View style={styles(nightMode, themeColors).metaRow}>
+            <View style={styles(nightMode, themeColors).metaCell}>
+              <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Juz</Text>
+              <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{meta?.juz ?? '…'}</Text>
+            </View>
+            <View style={[styles(nightMode, themeColors).metaVertSeparator, { backgroundColor: themeColors.border }]} />
+            <View style={styles(nightMode, themeColors).metaCell}>
+              <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Page</Text>
+              <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{page !== undefined ? page : '…'}</Text>
+            </View>
           </View>
-          <View style={styles(nightMode, themeColors).metaSeparator} />
-          <View style={styles(nightMode, themeColors).metaItem}>
-            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Ayah</Text>
-            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.verse}</Text>
-          </View>
-          <View style={styles(nightMode, themeColors).metaSeparator} />
-          <View style={styles(nightMode, themeColors).metaItem}>
-            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Juz</Text>
-            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{meta?.juz ?? '…'}</Text>
-          </View>
-          <View style={styles(nightMode, themeColors).metaSeparator} />
-          <View style={styles(nightMode, themeColors).metaItem}>
-            <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Page</Text>
-            <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{page !== undefined ? page : '…'}</Text>
+
+          {/* Horizontal Separator */}
+          <View style={[styles(nightMode, themeColors).metaHorizSeparator, { backgroundColor: themeColors.border }]} />
+
+          {/* Row 2: Surah (label left, value right) | Vertical Separator | Ayah (label left, value right) */}
+          <View style={styles(nightMode, themeColors).metaRow}>
+            <View style={styles(nightMode, themeColors).metaCell}>
+              <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Surah</Text>
+              <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.surah}</Text>
+            </View>
+            <View style={[styles(nightMode, themeColors).metaVertSeparator, { backgroundColor: themeColors.border }]} />
+            <View style={styles(nightMode, themeColors).metaCell}>
+              <Text style={[styles(nightMode, themeColors).metaLabel, { color: themeColors.subText }]}>Ayah</Text>
+              <Text style={[styles(nightMode, themeColors).metaValue, { color: themeColors.text }]}>{item.verse}</Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
     );
-  }, [cardMeta, pageMap, handleNavigate, handleDelete, nightMode, themeColors]);
+  }, [effectiveCardMeta, pageMap, handleNavigate, handleDelete, nightMode, themeColors, isTablet]);
+
+  const renderBookmark = useCallback(({ item }: any) => {
+    if (item.__empty) {
+      return (
+        <View
+          style={[
+            styles(nightMode, themeColors).card,
+            { flex: 1, backgroundColor: 'transparent', borderColor: 'transparent', elevation: 0, shadowOpacity: 0 }
+          ]}
+        />
+      );
+    }
+    return renderCard(item, false);
+  }, [renderCard, nightMode, themeColors]);
+
+  const renderHeader = useCallback(() => {
+    if (!effectiveDailyMark) return null;
+    return (
+      <View style={{ width: '100%' }}>
+        {renderCard(effectiveDailyMark, true)}
+      </View>
+    );
+  }, [effectiveDailyMark, renderCard]);
+
+  const totalCount = effectiveRegularBookmarks.length + (effectiveDailyMark ? 1 : 0);
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg }]}>
-      <ScreenHeader title="Bookmarks" subtitle={`${listData.length} bookmarks`} onBack={onClose} />
+      <ScreenHeader
+        title="Bookmarks"
+        subtitle={totalCount === 1 ? '1 bookmark' : `${totalCount} bookmarks`}
+        onBack={handleBack}
+      />
 
       {undoItem && (
         <View style={[styles(nightMode, themeColors).undoToast, { backgroundColor: themeColors.cardBg, borderColor: themeColors.accent }]}>
@@ -298,19 +404,32 @@ export default function BookmarksScreen({ onClose, navigation: navProp }: { onCl
         </View>
       )}
 
-      {listData.length === 0 ? (
-        <View style={styles(nightMode, themeColors).emptyState}>
-          <IconBookmark c={themeColors.accent} size={44} />
-          <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No bookmarks yet</Text>
-          <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
-        </View>
+      {totalCount === 0 ? (
+        isHydrating ? (
+          <View style={styles(nightMode, themeColors).emptyState}>
+            <ActivityIndicator size="large" color={themeColors.accent} />
+          </View>
+        ) : (
+          <View style={styles(nightMode, themeColors).emptyState}>
+            <IconBookmark c={themeColors.accent} size={44} />
+            <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No bookmarks yet</Text>
+            <Text style={[styles(nightMode, themeColors).emptySub, { color: themeColors.subText }]}>Long-press a verse to bookmark it</Text>
+          </View>
+        )
       ) : (
         <FlatList
+          key={isTablet ? 'tablet-2' : 'phone-1'}
           style={{ flex: 1 }}
-          data={listData}
-          keyExtractor={(i: any, idx: number) => idx.toString()}
+          data={displayData}
+          numColumns={isTablet ? 2 : 1}
+          columnWrapperStyle={isTablet ? { gap: 10 } : undefined}
+          keyExtractor={(i: any, idx: number) => (i.__empty ? `__empty_${idx}` : `${i.surah}_${i.verse}_${i.__lastRead ? 'lr' : 'bm'}`)}
           contentContainerStyle={styles(nightMode, themeColors).list}
+          ListHeaderComponent={renderHeader}
           renderItem={renderBookmark}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
       <CollapsibleBannerAd />
@@ -350,12 +469,22 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   undoText: { fontSize: 13, fontWeight: '600' },
   undoBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   undoBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
-  metaStack: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10 },
-  metaItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
-  metaLabel: { fontSize: 10, fontWeight: '600' },
-  metaValue: { fontSize: 10, fontWeight: '700' },
-  metaSeparator: { height: StyleSheet.hairlineWidth, opacity: 0.5, backgroundColor: '#888' },
+  metaGrid: { borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  metaCell: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+  },
+  metaLabel: { fontSize: 11, fontWeight: '600' },
+  metaValue: { fontSize: 12.5, fontWeight: '700' },
+  metaVertSeparator: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', opacity: 0.6 },
+  metaHorizSeparator: { height: StyleSheet.hairlineWidth, width: '100%', opacity: 0.6 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 16, fontWeight: '600' },
   emptySub: { fontSize: 12, marginTop: 4 },
 });
+

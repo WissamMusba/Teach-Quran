@@ -121,7 +121,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
         >
           <View style={s.topRow}>
             {/* Left: Back Button & Surah Picker Title Block */}
-            <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
+            <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={s.backBtn}>
               <IconBack c={primaryAccent} />
             </TouchableOpacity>
 
@@ -149,7 +149,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
                   style={s.hamburgerBtn}
                   onPress={() => setMenuOpen(true)}
                   activeOpacity={0.6}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
                 >
                   <IconHamburger c={primaryAccent} />
                 </TouchableOpacity>
@@ -166,7 +166,8 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onSettings(); }}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
+              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
             >
               <IconSettings c={themeColors.accent} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Settings</Text>
@@ -175,7 +176,8 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onNotes(); }}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
+              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
             >
               <IconNote c={C_NOTES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Notes</Text>
@@ -184,7 +186,8 @@ const AnimatedHeader: React.FC<Props> = (p) => {
             <TouchableOpacity
               style={[s.menuItem, { borderBottomWidth: 0 }]}
               onPress={() => { setMenuOpen(false); p.onMistakes(); }}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
+              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
             >
               <IconPen c={C_MISTAKES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Mistakes</Text>
@@ -196,12 +199,15 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   );
 };
 
-const HeaderBtn = React.memo(({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
-  <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.5} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
-    {icon}
-    <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
-  </TouchableOpacity>
-));
+const HeaderBtn = React.memo(
+  ({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
+    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}>
+      {icon}
+      <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
+  ),
+  (prev, next) => prev.label === next.label && prev.subColor === next.subColor && prev.onPress === next.onPress
+);
 
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },

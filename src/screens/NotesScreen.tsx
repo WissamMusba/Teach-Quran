@@ -124,6 +124,19 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
+  const prevStudentIdRef = useRef(currentStudentId);
+  const retainedNotesRef = useRef<Record<string, string>>({});
+
+  if (prevStudentIdRef.current !== currentStudentId) {
+    prevStudentIdRef.current = currentStudentId;
+    retainedNotesRef.current = {};
+    notesHydratedSig = null;
+  }
+
+  if (studentData?.notes && Object.keys(studentData.notes).length > 0) {
+    retainedNotesRef.current = studentData.notes;
+  }
+
   const hydrateNotes = useCallback(async () => {
     if (!currentStudentId) return;
     try {
@@ -131,18 +144,23 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       const sig = `${currentStudentId}:${pullAt ?? '0'}`;
       if (notesHydratedSig === sig) return;
       const res = await getStudentData(currentStudentId);
-      if (res?.data) {
+      if (res && res.notes) {
         notesHydratedSig = sig;
-        dispatch(setStudentData(res.data));
+        retainedNotesRef.current = res.notes;
+        dispatch(setStudentData(res));
       }
     } catch {}
   }, [currentStudentId, dispatch]);
 
   useFocusEffect(useCallback(() => { hydrateNotes(); }, [hydrateNotes]));
 
+  const effectiveNotes = (studentData?.notes && Object.keys(studentData.notes).length > 0)
+    ? studentData.notes
+    : retainedNotesRef.current;
+
   const notes = useMemo<[string, string][]>(() => {
-    return studentData?.notes ? (Object.entries(studentData.notes).filter(([k, v]) => v) as [string, string][]) : [];
-  }, [studentData?.notes]);
+    return effectiveNotes ? (Object.entries(effectiveNotes).filter(([k, v]) => v) as [string, string][]) : [];
+  }, [effectiveNotes]);
 
   const rows: NoteRow[] = useMemo(() => {
     return notes.map(([verseKey, value]) => {
@@ -274,7 +292,9 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
   const saveEditedNote = useCallback(() => {
     if (!editVerseKey || !currentStudentId) return;
     const vKey = editVerseKey;
-    dispatch(setStudentData({ ...(studentData || {}), notes: { ...(studentData?.notes || {}), [vKey]: editText } }));
+    const nextNotes = { ...(studentData?.notes || retainedNotesRef.current || {}), [vKey]: editText };
+    retainedNotesRef.current = nextNotes;
+    dispatch(setStudentData({ ...(studentData || {}), notes: nextNotes }));
     setEditVerseKey(null);
     setEditText('');
     getVersePage(parseInt(vKey.split('_')[0], 10), parseInt(vKey.split('_')[1], 10)).catch(() => 0).then((page: number) => {
@@ -285,8 +305,9 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
   }, [editVerseKey, editText, studentData, currentStudentId, dispatch]);
 
   const deleteNote = useCallback((vKey: string) => {
-    const nextNotes = { ...(studentData?.notes || {}) };
+    const nextNotes = { ...(studentData?.notes || retainedNotesRef.current || {}) };
     delete nextNotes[vKey];
+    retainedNotesRef.current = nextNotes;
     dispatch(setStudentData({ ...(studentData || {}), notes: nextNotes }));
     setChooserVerseKey(null);
     if (!currentStudentId) return;
@@ -298,7 +319,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
   }, [studentData, currentStudentId, dispatch]);
 
   const openEditFor = useCallback((vKey: string) => {
-    setEditText(studentData?.notes?.[vKey] || '');
+    setEditText(studentData?.notes?.[vKey] || retainedNotesRef.current[vKey] || '');
     setEditVerseKey(vKey);
   }, [studentData]);
 

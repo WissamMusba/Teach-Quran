@@ -39,7 +39,7 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
-      <TouchableOpacity onPress={goBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles(nightMode, themeColors).backBtn}>
+      <TouchableOpacity onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={styles(nightMode, themeColors).backBtn}>
         <IconBack c={accent} />
       </TouchableOpacity>
       <View style={styles(nightMode, themeColors).textWrap}>

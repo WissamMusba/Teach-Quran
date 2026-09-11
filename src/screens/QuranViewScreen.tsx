@@ -23,6 +23,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, 
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
 import { setSurah, toggleTranslation, setFlashingVerse, setReadingMode } from '../store/quranSlice';
 import { setToolbarExpanded, setTool } from '../store/drawingSlice';
 import { emitTutorialEvent, registerTutorialBridge } from '../tutorial/tutorialRuntime';
@@ -291,6 +292,32 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Modals so re-opens are instant visible flips. mountedModals lazily mounts each once.
   const [openModal, setOpenModal] = useState<'mistakes' | 'notes' | 'bookmarks' | 'settings' | null>(null);
   const [mountedModals, setMountedModals] = useState<Record<'mistakes' | 'notes' | 'bookmarks' | 'settings', boolean>>({ mistakes: false, notes: false, bookmarks: false, settings: false });
+
+  // Pre-mount overlay screens (Mistakes, Notes, Bookmarks, Settings) once reader layout settles and JS thread is idle.
+  // When tapped, the modal is already mounted in the native dialog tree and opens INSTANTLY with 0ms delay.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const preMount = () => {
+      if (cancelled) return;
+      setMountedModals((prev) => {
+        if (prev.mistakes && prev.notes && prev.bookmarks && prev.settings) return prev;
+        return { mistakes: true, notes: true, bookmarks: true, settings: true };
+      });
+    };
+    const task = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(preMount, 250);
+    });
+    // Fallback in case interactions remain active: ensure modals pre-mount after 1000ms regardless
+    fallbackTimer = setTimeout(preMount, 1000);
+    return () => {
+      cancelled = true;
+      task.cancel();
+      if (timer) clearTimeout(timer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
+  }, []);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -367,7 +394,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // wrong student after a student switch.
   const currentStudentIdRef = useRef(currentStudent?.id);
   currentStudentIdRef.current = currentStudent?.id;
+  const studentDataRef = useRef(studentData);
+  studentDataRef.current = studentData;
   const { nightMode, colorTheme = 'classic', bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
+  const hideDrawingTool = useSelector((state: RootState) => (state.settings as any)?.hideDrawingTool || false);
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   const { isPlaying, currentQari, loop: loopSettings } = useSelector((s: any) => s.audio);
   const safeLoop = loopSettings || {};
@@ -1461,7 +1491,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const flushPendingSave = () => {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-    const dataToSave = pendingSaveRef.current;
+    const dataToSave = pendingSaveRef.current || lastStudentDataRef.current;
     pendingSaveRef.current = null;
     const sid = currentStudentIdRef.current;
     if (dataToSave && sid) {
@@ -2254,10 +2284,33 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // ---- header-button overlay screens: stable handlers (AnimatedHeader is React.memo'd) that
   // ---- lazily mount each Modal once, then only flip `visible` on re-opens (no re-query). ----
   const closeModal = useCallback(() => setOpenModal(null), []);
-  const openMistakes = useCallback(() => { setMountedModals((m) => ({ ...m, mistakes: true })); setOpenModal('mistakes'); }, []);
-  const openNotes = useCallback(() => { setMountedModals((m) => ({ ...m, notes: true })); setOpenModal('notes'); }, []);
-  const openBookmarks = useCallback(() => { setMountedModals((m) => ({ ...m, bookmarks: true })); setOpenModal('bookmarks'); }, []);
-  const openSettings = useCallback(() => { setMountedModals((m) => ({ ...m, settings: true })); setOpenModal('settings'); }, []);
+  const flushBeforeModalOpen = useCallback(() => {
+    try { canvasRef.current?.flush?.(); } catch {}
+    if (lastStudentDataRef.current && lastStudentDataRef.current !== studentDataRef.current) {
+      dispatch(setStudentData(lastStudentDataRef.current));
+    }
+    flushPendingSave();
+  }, [dispatch]);
+  const openMistakes = useCallback(() => {
+    flushBeforeModalOpen();
+    setMountedModals((m) => (m.mistakes ? m : { ...m, mistakes: true }));
+    setOpenModal('mistakes');
+  }, [flushBeforeModalOpen]);
+  const openNotes = useCallback(() => {
+    flushBeforeModalOpen();
+    setMountedModals((m) => (m.notes ? m : { ...m, notes: true }));
+    setOpenModal('notes');
+  }, [flushBeforeModalOpen]);
+  const openBookmarks = useCallback(() => {
+    flushBeforeModalOpen();
+    setMountedModals((m) => (m.bookmarks ? m : { ...m, bookmarks: true }));
+    setOpenModal('bookmarks');
+  }, [flushBeforeModalOpen]);
+  const openSettings = useCallback(() => {
+    flushBeforeModalOpen();
+    setMountedModals((m) => (m.settings ? m : { ...m, settings: true }));
+    setOpenModal('settings');
+  }, [flushBeforeModalOpen]);
   // Navigation shim for the overlay screens: closes the Modal and forwards QuranView
   // deep-links to the real stack (the screens fall back to useNavigation() when unset).
   const modalNav = useMemo(() => ({
@@ -2269,6 +2322,48 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // header only re-renders when its real inputs change, never on every parent commit.
   const onBack = useCallback(() => navigation.goBack(), [navigation]);
   const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
+
+  const renderPageItem = useCallback(
+    ({ item }: any) => {
+      if (splitOn) {
+        return (
+          <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+            highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
+            bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+            notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
+            ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+            onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+            readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+            readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+            onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
+            fontSizeScale={layoutFontScaleFor(winW, true, winH)}
+            readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
+        );
+      }
+      return (
+        <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+          highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
+          bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+          notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
+          ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+          readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+          readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+          onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
+          nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
+          readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
+      );
+    },
+    [
+      splitOn, winW, pageW, winH, isHeaderVisible, surahNames, pageCache, pageVersesCache,
+      captureHighlights, handleWordFlow, handleBookmarkFlow, handleVerseLongPress,
+      captureBookmarks, flashingVerse, flashingSurah, currentSurahId,
+      canvasData.notes, readingMarkVerse, toggleHeader, ensurePageLoaded, ensurePageVersesLoaded,
+      splitCapable, handleToggleSpread, readingMode, isCapturing, pageLastVerseFor,
+      readingMarkActiveFor, handleReadingMarkToggle, handleVisibleMeasured,
+      currentPageNum, studentData?.lastRead?.updatedAt, studentData?.lastRead?.createdAt, nightMode
+    ]
+  );
 
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
@@ -2370,31 +2465,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     }
                   }
                 }}
-                renderItem={splitOn ? ({ item }: any) => (
-                  <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
-                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
-                    notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
-                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
-                    fontSizeScale={layoutFontScaleFor(winW, true, winH)}
-                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
-                ) : ({ item }: any) => (
-                  <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
-                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
-                    notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
-                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
-                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null} />
-                )} />
+                renderItem={renderPageItem} />
             )}
 
             {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}
@@ -2430,7 +2501,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       {/* ---- AnnotationToolbar: undo/redo/clear/exit + activate-draw; the header is already
            hidden by the expand watcher (v96), so onActivateDraw only guards + setIsDrawing(true) ---- */}
       <ToolbarBoundary>
-        <AnnotationToolbar visible={!isCapturing} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
+        <AnnotationToolbar visible={!isCapturing && !hideDrawingTool} drawingGestureActive={drawingGestureActive} onUndo={() => canvasRef.current?.undo()} onRedo={() => canvasRef.current?.redo()}
           onClear={() => canvasRef.current?.clear()} onExit={() => { if (isDrawing) { setIsDrawing(false); setIsHeaderVisible(headerVisibleBeforeDrawRef.current); } else { dispatch(setToolbarExpanded(false)); } }}
           canUndo={canvasUndoState.canUndo} canRedo={canvasUndoState.canRedo} tutorialActive={tutorialActive}
           onActivateDraw={() => { if (!isDrawing) { if (isHeaderVisible) { headerVisibleBeforeDrawRef.current = true; setIsHeaderVisible(false); } setIsDrawing(true); } }} />
@@ -2458,28 +2529,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
       {mountedModals.mistakes && (
-        <Modal visible={openModal === 'mistakes'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'mistakes'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.notes && (
-        <Modal visible={openModal === 'notes'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'notes'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <NotesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.bookmarks && (
-        <Modal visible={openModal === 'bookmarks'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'bookmarks'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.settings && (
-        <Modal visible={openModal === 'settings'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'settings'} statusBarTranslucent animationType="slide" onRequestClose={closeModal}>
           <View style={{ flex: 1 }}>
             <SettingsScreen onClose={closeModal} />
           </View>

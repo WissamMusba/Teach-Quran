@@ -6,7 +6,7 @@ import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setColorTheme, setMushafSplit, togglePlayBasmala, setTutorialDone } from '../store/settingsSlice';
+import { toggleNightMode, setColorTheme, setMushafSplit, togglePlayBasmala, setTutorialDone, setHideDrawingTool } from '../store/settingsSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont, getThemeColors } from '../utils/theme';
@@ -14,7 +14,7 @@ import { RootState } from '../store';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { SURAH_META } from '../utils/surahMeta';
-import { downloadSurahAudio, isSurahDownloaded, deleteSurahAudio, clearAllAudioDownloads, cancelSurahDownload } from '../utils/audioDownloader';
+import { downloadSurahAudio, isSurahDownloaded, deleteSurahAudio, clearAllAudioDownloads, cancelSurahDownload, getDownloadedSurahs } from '../utils/audioDownloader';
 import Svg, { Path } from 'react-native-svg';
 
 const IconCheck = ({ c, size = 16 }: { c: string; size?: number }) => (
@@ -89,6 +89,14 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const inactiveText = themeColors.subText;
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
+  const hideDrawingTool = useSelector((state: RootState) => (state.settings as any)?.hideDrawingTool || false);
+  const [downloadedSurahs, setDownloadedSurahs] = useState<number[]>([]);
+
+  const refreshDownloadedList = useCallback(async (qari: string) => {
+    const list = await getDownloadedSurahs(qari);
+    setDownloadedSurahs(list);
+  }, []);
+
   const checkDownloadStatus = useCallback(async (qari: string, surah: number) => {
     const downloaded = await isSurahDownloaded(qari, surah);
     setIsCurrentDownloaded(downloaded);
@@ -96,7 +104,8 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 
   useEffect(() => {
     checkDownloadStatus(selectedQari, selectedSurah);
-  }, [selectedQari, selectedSurah, checkDownloadStatus]);
+    refreshDownloadedList(selectedQari);
+  }, [selectedQari, selectedSurah, checkDownloadStatus, refreshDownloadedList]);
 
   const handleStartDownload = async () => {
     if (isDownloading) return;
@@ -112,6 +121,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
 
     if (result.success) {
       setIsCurrentDownloaded(true);
+      refreshDownloadedList(selectedQari);
       Alert.alert('Download Complete', `Surah ${SURAH_META[selectedSurah - 1]?.en || selectedSurah} is ready for offline playback.`);
     } else if (result.error !== 'Download cancelled') {
       Alert.alert('Download Error', result.error || 'Failed to download audio files.');
@@ -130,6 +140,27 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           onPress: async () => {
             await deleteSurahAudio(selectedQari, selectedSurah);
             setIsCurrentDownloaded(false);
+            refreshDownloadedList(selectedQari);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteSpecificSurah = async (sId: number) => {
+    const meta = SURAH_META[sId - 1];
+    Alert.alert(
+      'Delete Audio',
+      `Delete downloaded audio for Surah ${meta?.en || sId}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteSurahAudio(selectedQari, sId);
+            if (selectedSurah === sId) setIsCurrentDownloaded(false);
+            refreshDownloadedList(selectedQari);
           },
         },
       ]
@@ -148,6 +179,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           onPress: async () => {
             await clearAllAudioDownloads();
             setIsCurrentDownloaded(false);
+            setDownloadedSurahs([]);
             Alert.alert('Success', 'Offline audio cache cleared.');
           },
         },
@@ -191,9 +223,17 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           </View>
 
           <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Arabic Font Size</Text>
-          <View style={styles(nightMode, themeColors).sizeContainer}>
+          {readingMode === 'page' && (
+            <Text style={{ fontSize: 11, color: themeColors.accent, fontWeight: '600', marginTop: -2, marginBottom: 6 }}>Only available in Ayah List and Continuous modes</Text>
+          )}
+          <View style={[styles(nightMode, themeColors).sizeContainer, readingMode === 'page' && { opacity: 0.5 }]}>
             {['small', 'medium', 'large', 'xl'].map((size) => (
-              <TouchableOpacity key={size} style={[styles(nightMode, themeColors).sizeBtn, { borderColor: btnBorder }, fontSize === size && styles(nightMode, themeColors).activeBtn]} onPress={() => dispatch(setFontSize(size))}>
+              <TouchableOpacity
+                key={size}
+                disabled={readingMode === 'page'}
+                style={[styles(nightMode, themeColors).sizeBtn, { borderColor: btnBorder }, fontSize === size && styles(nightMode, themeColors).activeBtn]}
+                onPress={() => dispatch(setFontSize(size))}
+              >
                 <Text style={fontSize === size ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>{size.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
@@ -353,6 +393,46 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             </TouchableOpacity>
           )}
 
+          {/* Downloaded Surahs List */}
+          {downloadedSurahs.length > 0 && (
+            <View style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: cardBorder, paddingTop: 14 }}>
+              <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 13.5, marginBottom: 8 }]}>
+                Downloaded Surahs ({downloadedSurahs.length})
+              </Text>
+              {downloadedSurahs.map((sId) => {
+                const sMeta = SURAH_META[sId - 1];
+                return (
+                  <View
+                    key={sId}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 8,
+                      borderBottomWidth: 1,
+                      borderBottomColor: cardBorder,
+                    }}
+                  >
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor, fontSize: 14, marginBottom: 1 }]}>
+                        {sId}. {sMeta?.en || `Surah ${sId}`}
+                      </Text>
+                      <Text style={[styles(nightMode, themeColors).settingDesc, { fontSize: 12 }]}>
+                        {sMeta?.verses ?? '?'} ayahs
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles(nightMode, themeColors).deleteBtn, { backgroundColor: '#FF5252' }]}
+                      onPress={() => handleDeleteSpecificSurah(sId)}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Clear Storage */}
           <TouchableOpacity style={{ marginTop: 18, alignSelf: 'center' }} onPress={handleClearAll}>
             <Text style={{ color: '#888', fontSize: 12.5, textDecorationLine: 'underline' }}>
@@ -370,6 +450,22 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
               <Text style={styles(nightMode, themeColors).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text>
             </View>
             <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+          </View>
+        </View>
+
+        {/* Drawing & Tools */}
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          <Text style={styles(nightMode, themeColors).sectionTitle}>Drawing & Tools</Text>
+          <View style={[styles(nightMode, themeColors).row, { marginBottom: 0 }]}>
+            <View style={styles(nightMode, themeColors).settingInfo}>
+              <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Hide Drawing Tool</Text>
+              <Text style={styles(nightMode, themeColors).settingDesc}>Hide floating pen and drawing tools while reading</Text>
+            </View>
+            <Switch
+              value={hideDrawingTool}
+              onValueChange={(val) => { dispatch(setHideDrawingTool(val)); }}
+              trackColor={{ false: switchFalse, true: themeColors.accent }}
+            />
           </View>
         </View>
       </ScrollView>

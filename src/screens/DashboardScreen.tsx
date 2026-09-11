@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { getStudents, createStudent, deleteStudent, updateStudent, ensureMyQuranStudent } from '../api/student';
-import { setStudents, addStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
+import { setStudents, addStudent, replaceStudent, removeStudent, updateStudent as updateStudentSlice, setCurrentStudent } from '../store/studentSlice';
 import { logoutUser } from '../api/auth';
 import { logout } from '../store/authSlice';
 import { setSurah } from '../store/quranSlice';
@@ -143,7 +143,6 @@ export default function DashboardScreen({ navigation }: any) {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [name, setName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
   const [editName, setEditName] = useState('');
   const [editId, setEditId] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -337,23 +336,60 @@ export default function DashboardScreen({ navigation }: any) {
     setAlertModal({ visible: true, title, message, buttons });
   }, []);
 
-  const handleCreate = useCallback(async () => {
-    if (isCreating || !name.trim()) return;
-    setIsCreating(true);
-    try {
-      const res = await createStudent(name.trim());
-      if (res.success) {
-        dispatch(addStudent({ id: res.studentId, name: name.trim() }));
-        setAddModal(false);
-        setName('');
-        emitTutorialEvent('student_created', res.studentId);
-      } else {
-        showAlert('Error', res.error);
+  const handleCreate = useCallback(() => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    // Immediately close modal and reset input field
+    setAddModal(false);
+    setName('');
+
+    // Optimistically update local students list so the student appears immediately
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const optimisticStudent = {
+      id: tempId,
+      name: trimmedName,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch(addStudent(optimisticStudent));
+    setManifests((prev) => ({ ...prev, [tempId]: { bookmarks: {}, highlights: {}, drawings: {}, notes: {}, lastRead: null } }));
+
+    // Run createStudent and database insertion in the background
+    (async () => {
+      try {
+        const res = await createStudent(trimmedName);
+        if (res?.success && res.studentId) {
+          dispatch(replaceStudent({
+            oldId: tempId,
+            newStudent: { id: res.studentId, name: trimmedName, createdAt: optimisticStudent.createdAt },
+          }));
+          setManifests((prev) => {
+            if (!prev[tempId]) return prev;
+            const updated = { ...prev, [res.studentId]: prev[tempId] };
+            delete updated[tempId];
+            return updated;
+          });
+          emitTutorialEvent('student_created', res.studentId);
+        } else {
+          dispatch(removeStudent(tempId));
+          setManifests((prev) => {
+            const next = { ...prev };
+            delete next[tempId];
+            return next;
+          });
+          showAlert('Error', res?.error || 'Failed to create student');
+        }
+      } catch (err: any) {
+        dispatch(removeStudent(tempId));
+        setManifests((prev) => {
+          const next = { ...prev };
+          delete next[tempId];
+          return next;
+        });
+        showAlert('Error', err?.message || 'Failed to create student');
       }
-    } finally {
-      setIsCreating(false);
-    }
-  }, [name, isCreating, showAlert, dispatch]);
+    })();
+  }, [name, showAlert, dispatch]);
 
   const handleManualSync = useCallback(async () => {
     dispatch(setSyncing()); setIsSyncing(true);
@@ -635,7 +671,7 @@ export default function DashboardScreen({ navigation }: any) {
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
             style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
-            onPress={() => setAddModal(true)}
+            onPress={() => { setName(''); setAddModal(true); }}
             activeOpacity={0.85}
           >
             <Animated.Text
@@ -739,7 +775,7 @@ export default function DashboardScreen({ navigation }: any) {
 
       {/* Settings Screen Modal */}
       {settingsModalVisible && (
-        <Modal visible={settingsModalVisible} animationType="slide" onRequestClose={() => setSettingsModalVisible(false)}>
+        <Modal visible={settingsModalVisible} statusBarTranslucent animationType="slide" onRequestClose={() => setSettingsModalVisible(false)}>
           <View style={{ flex: 1 }}>
             <SettingsScreen onClose={() => setSettingsModalVisible(false)} />
           </View>
@@ -747,27 +783,28 @@ export default function DashboardScreen({ navigation }: any) {
       )}
 
       {/* Add Student Modal */}
-      <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
+      <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => { setAddModal(false); setName(''); }}>
         <View style={styles(nightMode, themeColors).modalOverlay}>
           <View style={[styles(nightMode, themeColors).modalContent, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]}>
             <Text style={[styles(nightMode, themeColors).modalTitle, { color: themeColors.text }]}>Add Student</Text>
             <TextInput
               style={[styles(nightMode, themeColors).input, { color: themeColors.text, backgroundColor: nightMode ? '#121520' : '#F0EBE0', borderColor: themeColors.border }]}
+              value={name}
               placeholder="Student name"
               placeholderTextColor={nightMode ? '#757E9E' : '#999080'}
               onChangeText={setName}
               autoFocus
             />
             <View style={{ flexDirection: 'row', marginTop: 14 }}>
-              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => setAddModal(false)}>
+              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => { setAddModal(false); setName(''); }}>
                 <Text style={[styles(nightMode, themeColors).cancelText, { color: themeColors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary, opacity: isCreating || !name.trim() ? 0.6 : 1 }]}
+                style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary, opacity: !name.trim() ? 0.6 : 1 }]}
                 onPress={handleCreate}
-                disabled={isCreating || !name.trim()}
+                disabled={!name.trim()}
               >
-                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>{isCreating ? 'Saving…' : 'Save'}</Text>
+                <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>

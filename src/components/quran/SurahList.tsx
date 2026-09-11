@@ -298,7 +298,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   }
 
   return (
-    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
+    <Modal visible={visible} statusBarTranslucent animationType="fade" transparent={false} onRequestClose={onClose}>
       {content}
     </Modal>
   );

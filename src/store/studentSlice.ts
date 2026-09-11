@@ -85,8 +85,19 @@ export const studentSlice = createSlice({
       const idx = state.list.findIndex((s: any) => s.id === id);
       if (idx !== -1) state.list[idx] = { ...state.list[idx], name };
       if (state.currentStudent?.id === id) state.currentStudent = { ...state.currentStudent, name };
+    },
+    /**
+     * WHAT: Replaces an optimistic temp student in list with real server student.
+     * CALLED BY: DashboardScreen.tsx (handleCreate after background createStudent() succeeds).
+     * AFFECTS: Student list row keeps state but updates id/fields.
+     */
+    replaceStudent: (state, action) => {
+      const { oldId, newStudent } = action.payload;
+      const idx = state.list.findIndex((s: any) => s.id === oldId);
+      if (idx !== -1) state.list[idx] = { ...state.list[idx], ...newStudent };
+      if (state.currentStudent?.id === oldId) state.currentStudent = { ...state.currentStudent, ...newStudent };
     }
   }
 });
-export const { setStudents, addStudent, setCurrentStudent, setStudentData, removeStudent, updateStudent } = studentSlice.actions;
+export const { setStudents, addStudent, replaceStudent, setCurrentStudent, setStudentData, removeStudent, updateStudent } = studentSlice.actions;
 export default studentSlice.reducer;

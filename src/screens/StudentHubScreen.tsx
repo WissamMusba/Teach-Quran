@@ -3,7 +3,7 @@
  * ROLE: Per-student hub screen with full theme integration, clean title case, vector SVG icons, and smooth navigation.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image, InteractionManager } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -244,7 +244,10 @@ export default function StudentHubScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadData();
+      });
+      return () => task.cancel();
     }, [loadData])
   );
 

@@ -15,6 +15,7 @@ const initialState = {
   adCollapsed: false,         // CollapsibleBannerAd user preference
   tutorialDone: false,        // interactive walkthrough finished once
   legacySmooth: false,        // legacy smooth scroll flag
+  hideDrawingTool: false,     // hide floating pen and drawing tools while reading
 };
 
 export const settingsSlice = createSlice({
@@ -30,6 +31,7 @@ export const settingsSlice = createSlice({
     setMushafSplit: (state, action) => { state.mushafSplit = action.payload; },
     togglePlayBasmala: (state) => { state.playBasmala = !state.playBasmala; },
     setAdCollapsed: (state, action) => { state.adCollapsed = action.payload === true; },
+    setHideDrawingTool: (state, action) => { state.hideDrawingTool = action.payload === true; },
   }
 });
 
@@ -43,6 +45,7 @@ export const {
   setAdCollapsed,
   setTutorialDone,
   toggleLegacySmooth,
+  setHideDrawingTool,
 } = settingsSlice.actions;
 
 export default settingsSlice.reducer;

@@ -148,3 +148,37 @@ export const clearAllAudioDownloads = async (): Promise<void> => {
     }
   } catch {}
 };
+
+export const getDownloadedSurahs = async (qariId: string): Promise<number[]> => {
+  if (!fsOk) return [];
+  try {
+    const dir = cacheDir();
+    const exists = await RNFS.exists(dir).catch(() => false);
+    if (!exists) return [];
+    const files = await RNFS.readDir(dir);
+    const prefix = `${qariId.replace(/[^a-zA-Z0-9]/g, '_')}_`;
+    const verseCounts: Record<number, number> = {};
+    for (const f of files) {
+      if (!f.name.startsWith(prefix) || !f.name.endsWith('.mp3')) continue;
+      const rest = f.name.slice(prefix.length, -4);
+      const parts = rest.split('_');
+      if (parts.length === 2) {
+        const sId = parseInt(parts[0], 10);
+        if (sId >= 1 && sId <= 114) {
+          verseCounts[sId] = (verseCounts[sId] || 0) + 1;
+        }
+      }
+    }
+    const downloaded: number[] = [];
+    for (let sId = 1; sId <= 114; sId++) {
+      const required = SURAH_VERSE_COUNTS[sId - 1] || 1;
+      if (verseCounts[sId] && verseCounts[sId] >= required) {
+        downloaded.push(sId);
+      }
+    }
+    return downloaded;
+  } catch {
+    return [];
+  }
+};
+

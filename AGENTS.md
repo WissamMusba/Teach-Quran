@@ -1,6 +1,6 @@
-# Search Policy — MANDATORY (applies to this repo, all sub-agents, and every Agent tool call)
-All code discovery MUST use Codebase Memory MCP only: search_graph / query_graph to find, get_code_snippet to read. Do NOT use grep, cat, Glob, ripgrep, or generic Explore/sub-agents for searching. Direct Read is only allowed after MCP has given you the exact file_path and line range. This overrides any other search habit.
-Rule for sub-agents: Every Agent prompt you send that involves code discovery MUST include the sentence "MANDATORY: Use Codebase Memory MCP only (search_graph / query_graph / get_code_snippet) — do not use grep/cat/Glob/Explore." and MUST specify subagent_type "general-purpose" (the only type with MCP tools). Any Agent launched without that sentence is a violation.
+# Code Exploration Guidelines
+
+Explore and search the codebase using standard project tools (grep, ripgrep, file viewing, and symbol search) or MCP tools as appropriate. Inspect files directly to understand implementation details, patterns, and state flow before making changes.
 
 # Release Workflow (TeachQuran APK)
 
