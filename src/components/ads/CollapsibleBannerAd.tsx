@@ -20,12 +20,17 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import { setAdCollapsed } from '../../store/settingsSlice';
 
+// Feature flag: set to false for AAB release so no ads appear to users
+export const ENABLE_ADS = false;
+
 // TODO(ADMOB): replace with your REAL banner unit id from the AdMob console before release.
 const PROD_BANNER_ID = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
 const isPlaceholder = !PROD_BANNER_ID || PROD_BANNER_ID.includes('XXXX') || PROD_BANNER_ID.includes('YYYY');
 const BANNER_ID = (__DEV__ || isPlaceholder) ? TestIds.BANNER : PROD_BANNER_ID;
 
 const CollapsibleBannerAd = () => {
+  if (!ENABLE_ADS) return null;
+
   const dispatch = useDispatch();
   const collapsed = useSelector((s: any) => s.settings?.adCollapsed === true);
   const [failed, setFailed] = useState(false);

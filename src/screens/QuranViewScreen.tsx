@@ -19,7 +19,7 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard, Animated, Easing, StatusBar } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard, Animated, Easing, StatusBar, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -374,6 +374,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   currentSurahIdRef.current = currentSurahId;
   const studentDataRef = useRef(studentData);
   studentDataRef.current = studentData;
+  const isExitingRef = useRef(false);
   const { nightMode, colorTheme = 'classic', bgBrightness, playBasmala, legacySmooth } = useSelector((s: any) => s.settings);
   const hideDrawingTool = useSelector((state: RootState) => (state.settings as any)?.hideDrawingTool || false);
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
@@ -530,6 +531,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: pageCache (one commit per entry), pageCacheOrderRef.
    */
   const stagePageData = (pageNum: number, data: any) => {
+    if (isExitingRef.current) return;
     setPageCache(prev => {
       const next = { ...prev };
       const order = pageCacheOrderRef.current.slice();
@@ -557,6 +559,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: pageVersesCache (one commit per entry), pageVersesOrderRef.
    */
   const stagePageVerses = (pageNum: number, verses: any[]) => {
+    if (isExitingRef.current) return;
     setPageVersesCache(prev => {
       const next = { ...prev };
       const order = pageVersesOrderRef.current.slice();
@@ -2374,9 +2377,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Stable AnimatedHeader handlers (AnimatedHeader is React.memo'd): recreated once so the
   // header only re-renders when its real inputs change, never on every parent commit.
   const onBack = useCallback(() => {
+    if (isExitingRef.current) return;
+    isExitingRef.current = true;
+    if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current);
+    layoutQueueRef.current = [];
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleQueueRef.current = [];
+    if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
     flushPendingHighlights();
     navigation.goBack();
   }, [navigation, flushPendingHighlights]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+
   const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
 
   const renderPageItem = useCallback(

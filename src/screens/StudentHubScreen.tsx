@@ -12,6 +12,7 @@ import TutorialAnchor from '../tutorial/TutorialAnchor';
 import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRuntime';
 import { getVersePage } from '../database/quranData';
 import { getManifest, getStudentData, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
+import { cleanupLegacyAudioNotesForStudent } from '../utils/studentNotesMigration';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../utils/theme';
@@ -201,6 +202,10 @@ export default function StudentHubScreen({ navigation }: any) {
         notes: blob?.notes || {},
         lastRead: blob?.lastRead || m?.data?.lastRead || null,
       };
+      const cleanedNotes = await cleanupLegacyAudioNotesForStudent(currentStudent.id, mergedData.notes);
+      if (cleanedNotes) {
+        mergedData.notes = cleanedNotes;
+      }
       dispatch(setStudentData(mergedData));
       setFacePath(fp);
 
