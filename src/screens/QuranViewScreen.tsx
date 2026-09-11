@@ -19,7 +19,7 @@
  *      (navigate {surahId, scrollToVerse} deep links).
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Modal, TextInput, Alert, Platform, AppState, Pressable, useWindowDimensions, Switch, InteractionManager, Keyboard, Animated, Easing } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useDispatch, useSelector } from 'react-redux';
@@ -293,31 +293,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [openModal, setOpenModal] = useState<'mistakes' | 'notes' | 'bookmarks' | 'settings' | null>(null);
   const [mountedModals, setMountedModals] = useState<Record<'mistakes' | 'notes' | 'bookmarks' | 'settings', boolean>>({ mistakes: false, notes: false, bookmarks: false, settings: false });
 
-  // Pre-mount overlay screens (Mistakes, Notes, Bookmarks, Settings) once reader layout settles and JS thread is idle.
-  // When tapped, the modal is already mounted in the native dialog tree and opens INSTANTLY with 0ms delay.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-    const preMount = () => {
-      if (cancelled) return;
-      setMountedModals((prev) => {
-        if (prev.mistakes && prev.notes && prev.bookmarks && prev.settings) return prev;
-        return { mistakes: true, notes: true, bookmarks: true, settings: true };
-      });
-    };
-    const task = InteractionManager.runAfterInteractions(() => {
-      timer = setTimeout(preMount, 250);
-    });
-    // Fallback in case interactions remain active: ensure modals pre-mount after 1000ms regardless
-    fallbackTimer = setTimeout(preMount, 1000);
-    return () => {
-      cancelled = true;
-      task.cancel();
-      if (timer) clearTimeout(timer);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-    };
-  }, []);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -1585,6 +1560,32 @@ export default function QuranViewScreen({ navigation, route }: any) {
     }
   }, [flashingVerse, isPlaying, readingMode, flashingSurah, currentSurahId, textStyle]);
 
+  const highlightSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHighlightsRef = useRef<Record<string, { highlights: any[]; tapSurah: number; verseNum: number }>>({});
+
+  const flushPendingHighlights = useCallback(() => {
+    if (highlightSaveTimerRef.current) {
+      clearTimeout(highlightSaveTimerRef.current);
+      highlightSaveTimerRef.current = null;
+      if (lastStudentDataRef.current) {
+        dispatch(setStudentData(lastStudentDataRef.current));
+      }
+      const entriesToSave = { ...pendingHighlightsRef.current };
+      pendingHighlightsRef.current = {};
+      for (const [key, item] of Object.entries(entriesToSave)) {
+        getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
+          saveCanvasEdit(currentStudent.id, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+          dispatch(addPendingChange());
+        });
+      }
+    }
+  }, [currentStudent, currentSurahId, dispatch]);
+
+  useEffect(() => () => {
+    if (highlightSaveTimerRef.current) clearTimeout(highlightSaveTimerRef.current);
+  }, []);
+
   /**
    * WHAT: Toggles a MISTAKE_COLOR word-highlight for `{surah}_{verse}`.
    * FLOW: exists? filter it out : append {id: uuidv4(), wordIndex, color:
@@ -1610,18 +1611,32 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // 0ms instant local state update and haptic feedback
     setCanvasData((prev: any) => ({ ...prev, highlights: { ...prev.highlights, [vKey]: { highlights: newHighs } } }));
     ReactNativeHapticFeedback.trigger('impactLight');
-    // Defer heavy Redux dispatch, SQLite write, and tutorial events to the next microtask so the highlight paints with zero delay
-    setTimeout(() => {
-      const base = lastStudentDataRef.current || studentData || {};
-      lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
-      dispatch(setStudentData(lastStudentDataRef.current));
+
+    // Synchronously update lastStudentDataRef so subsequent reads are always fresh
+    const base = lastStudentDataRef.current || studentData || {};
+    lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
+    pendingHighlightsRef.current[vKey] = { highlights: newHighs, tapSurah, verseNum };
+
+    // Debounce heavy Redux dispatch, SQLite writes, and tutorial events by 250ms so rapid word taps paint at 60fps with zero lag
+    if (highlightSaveTimerRef.current) {
+      clearTimeout(highlightSaveTimerRef.current);
+    }
+    highlightSaveTimerRef.current = setTimeout(() => {
+      highlightSaveTimerRef.current = null;
+      if (lastStudentDataRef.current) {
+        dispatch(setStudentData(lastStudentDataRef.current));
+      }
       emitTutorialEvent('highlight_made');
-      getVersePage(tapSurah, verseNum, textStyleRef.current).catch(() => 0).then((page) => {
-        const key = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-        saveCanvasEdit(currentStudent.id, key, 'highlights', { [vKey]: { highlights: newHighs } });
-        dispatch(addPendingChange());
-      });
-    }, 0);
+      const entriesToSave = { ...pendingHighlightsRef.current };
+      pendingHighlightsRef.current = {};
+      for (const [key, item] of Object.entries(entriesToSave)) {
+        getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
+          saveCanvasEdit(currentStudent.id, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+          dispatch(addPendingChange());
+        });
+      }
+    }, 250);
   }, [canvasData, currentStudent, currentSurahId, studentData, dispatch]);
 
   /**
@@ -2282,27 +2297,54 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [menuY]);
 
   // ---- header-button overlay screens: stable handlers (AnimatedHeader is React.memo'd) that
-  // ---- lazily mount each Modal once, then only flip `visible` on re-opens (no re-query). ----
+  // ---- lazily mount each Modal once, then animate translateY with GPU native driver. ----
+  const overlayTranslateY = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const isClosingModalRef = useRef(false);
+
   const closeModal = useCallback(() => {
+    if (isClosingModalRef.current) return;
+    isClosingModalRef.current = true;
     Keyboard.dismiss();
-    setOpenModal(null);
-  }, []);
+    const winH = Dimensions.get('window').height;
+    Animated.timing(overlayTranslateY, {
+      toValue: winH,
+      duration: 160,
+      easing: Easing.bezier(0.2, 0.9, 0.3, 1.0),
+      useNativeDriver: true,
+    }).start(() => {
+      setOpenModal(null);
+      isClosingModalRef.current = false;
+    });
+  }, [overlayTranslateY]);
+
+  const openOverlayModal = useCallback((name: 'mistakes' | 'notes' | 'bookmarks' | 'settings') => {
+    flushPendingHighlights();
+    isClosingModalRef.current = false;
+    overlayTranslateY.stopAnimation();
+    const winH = Dimensions.get('window').height;
+    overlayTranslateY.setValue(winH);
+    setMountedModals((m) => (m[name] ? m : { ...m, [name]: true }));
+    setOpenModal(name);
+    Animated.timing(overlayTranslateY, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.bezier(0.2, 0.9, 0.3, 1.0),
+      useNativeDriver: true,
+    }).start();
+  }, [flushPendingHighlights, overlayTranslateY]);
+
   const openMistakes = useCallback(() => {
-    setMountedModals((m) => (m.mistakes ? m : { ...m, mistakes: true }));
-    setOpenModal('mistakes');
-  }, []);
+    openOverlayModal('mistakes');
+  }, [openOverlayModal]);
   const openNotes = useCallback(() => {
-    setMountedModals((m) => (m.notes ? m : { ...m, notes: true }));
-    setOpenModal('notes');
-  }, []);
+    openOverlayModal('notes');
+  }, [openOverlayModal]);
   const openBookmarks = useCallback(() => {
-    setMountedModals((m) => (m.bookmarks ? m : { ...m, bookmarks: true }));
-    setOpenModal('bookmarks');
-  }, []);
+    openOverlayModal('bookmarks');
+  }, [openOverlayModal]);
   const openSettings = useCallback(() => {
-    setMountedModals((m) => (m.settings ? m : { ...m, settings: true }));
-    setOpenModal('settings');
-  }, []);
+    openOverlayModal('settings');
+  }, [openOverlayModal]);
   // Navigation shim for the overlay screens: closes the Modal and forwards QuranView
   // deep-links to the real stack (the screens fall back to useNavigation() when unset).
   const modalNav = useMemo(() => ({
@@ -2312,7 +2354,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // Stable AnimatedHeader handlers (AnimatedHeader is React.memo'd): recreated once so the
   // header only re-renders when its real inputs change, never on every parent commit.
-  const onBack = useCallback(() => navigation.goBack(), [navigation]);
+  const onBack = useCallback(() => {
+    flushPendingHighlights();
+    navigation.goBack();
+  }, [navigation, flushPendingHighlights]);
   const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
 
   const renderPageItem = useCallback(
@@ -2521,31 +2566,31 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
       {mountedModals.mistakes && (
-        <Modal visible={openModal === 'mistakes'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <View style={{ flex: 1 }}>
+        <Modal visible={openModal === 'mistakes'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
+          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
             <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
-          </View>
+          </Animated.View>
         </Modal>
       )}
       {mountedModals.notes && (
-        <Modal visible={openModal === 'notes'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <View style={{ flex: 1 }}>
+        <Modal visible={openModal === 'notes'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
+          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
             <NotesScreen onClose={closeModal} navigation={modalNav as any} />
-          </View>
+          </Animated.View>
         </Modal>
       )}
       {mountedModals.bookmarks && (
-        <Modal visible={openModal === 'bookmarks'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <View style={{ flex: 1 }}>
+        <Modal visible={openModal === 'bookmarks'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
+          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
             <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
-          </View>
+          </Animated.View>
         </Modal>
       )}
       {mountedModals.settings && (
-        <Modal visible={openModal === 'settings'} statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <View style={{ flex: 1 }}>
+        <Modal visible={openModal === 'settings'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
+          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
             <SettingsScreen onClose={closeModal} />
-          </View>
+          </Animated.View>
         </Modal>
       )}
 

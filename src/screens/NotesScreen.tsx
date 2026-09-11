@@ -162,11 +162,58 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     return effectiveNotes ? (Object.entries(effectiveNotes).filter(([k, v]) => v) as [string, string][]) : [];
   }, [effectiveNotes]);
 
-  const rows: NoteRow[] = useMemo(() => {
-    return notes.map(([verseKey, value]) => {
-      const [s, v] = verseKey.split('_').map(Number);
-      return { verseKey, surah: s, ayah: v, parts: parseParts(value) };
-    });
+  const [filteredRows, setFilteredRows] = useState<NoteRow[]>([]);
+  const [isValidated, setIsValidated] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const filterValidNotes = async () => {
+      if (notes.length === 0) {
+        if (active) {
+          setFilteredRows([]);
+          setIsValidated(true);
+        }
+        return;
+      }
+
+      const parsedRows = notes.map(([verseKey, value]) => {
+        const [s, v] = verseKey.split('_').map(Number);
+        return { verseKey, surah: s, ayah: v, parts: parseParts(value) };
+      });
+
+      const nextRows: NoteRow[] = [];
+
+      for (const r of parsedRows) {
+        const validParts: { type: 'text' | 'audio'; value: string }[] = [];
+        for (const part of r.parts) {
+          if (part.type === 'text') {
+            validParts.push(part);
+          } else if (part.type === 'audio') {
+            const localPath = await playAudioNote(part.value);
+            if (localPath) {
+              validParts.push({ type: 'audio', value: localPath });
+            }
+          }
+        }
+        // If a note row only had an unplayable audio note (and no text),
+        // validParts will be empty and the entire note card is filtered out!
+        if (validParts.length > 0) {
+          nextRows.push({ ...r, parts: validParts });
+        }
+      }
+
+      if (active) {
+        setFilteredRows(nextRows);
+        setIsValidated(true);
+      }
+    };
+
+    filterValidNotes();
+
+    return () => {
+      active = false;
+    };
   }, [notes]);
 
   const [pages, setPages] = useState<Record<string, number>>({});
@@ -177,7 +224,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
 
   useEffect(() => {
     let active = true;
-    const entries: [number, number][] = rows.map((r) => [r.surah, r.ayah]);
+    const entries: [number, number][] = filteredRows.map((r) => [r.surah, r.ayah]);
     if (entries.length === 0) return;
 
     getVersePagesDB(entries).then((res) => {
@@ -187,14 +234,14 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
     }).catch(() => {});
 
     // Script-aware / indopak fallback
-    for (const r of rows) {
+    for (const r of filteredRows) {
       getVersePage(r.surah, r.ayah, textStyle).then((pg) => {
         if (active && pg > 0) setPages((prev) => (prev[r.verseKey] === pg ? prev : { ...prev, [r.verseKey]: pg }));
       }).catch(() => {});
     }
 
     return () => { active = false; };
-  }, [rows, textStyle]);
+  }, [filteredRows, textStyle]);
 
   useEffect(() => () => { try { audioPlayer.stopPlayer(); audioPlayer.removePlayBackListener(); } catch {} }, []);
 
@@ -209,42 +256,8 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       if (playingKey) {
         try { await audioPlayer.stopPlayer(); } catch {}
       }
-      const isLocalPath = path.startsWith('/') || path.startsWith('file://');
-      let local: string | null = null;
-      if (isLocalPath) {
-        const clean = path.replace(/^file:\/\//, '');
-        if (await RNFS.exists(clean)) {
-          local = clean;
-        } else if (await RNFS.exists(path)) {
-          local = path;
-        } else {
-          const fname = path.split('/').pop();
-          const alt1 = `${RNFS.DocumentDirectoryPath}/voicenotes/${fname}`;
-          const alt2 = `${RNFS.DocumentDirectoryPath}/audio_cache/${fname}`;
-          if (fname && (await RNFS.exists(alt1))) {
-            local = alt1;
-          } else if (fname && (await RNFS.exists(alt2))) {
-            local = alt2;
-          } else {
-            local = clean;
-          }
-        }
-      } else {
-        const fname = path.split('/').pop();
-        const alt1 = `${RNFS.DocumentDirectoryPath}/voicenotes/${fname}`;
-        const alt2 = `${RNFS.DocumentDirectoryPath}/audio_cache/${fname}`;
-        if (fname && (await RNFS.exists(alt1))) {
-          local = alt1;
-        } else if (fname && (await RNFS.exists(alt2))) {
-          local = alt2;
-        } else {
-          try {
-            local = await playAudioNote(path);
-          } catch {
-            local = null;
-          }
-        }
-      }
+      // Use the resolved local path directly without touching cloud
+      const local = await playAudioNote(path);
       if (!local) {
         Alert.alert('Playback error', 'Could not locate or play voice note file.');
         return;
@@ -339,8 +352,8 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg }]}>
-      <ScreenHeader title="Notes" subtitle={`${notes.length} notes`} onBack={onClose} />
-      {notes.length === 0 ? (
+      <ScreenHeader title="Notes" subtitle={`${filteredRows.length} notes`} onBack={onClose} />
+      {notes.length === 0 || (isValidated && filteredRows.length === 0) ? (
         <View style={styles(nightMode, themeColors).emptyState}>
           <IconNotes c={themeColors.accent} size={44} />
           <Text style={[styles(nightMode, themeColors).emptyText, { color: themeColors.subText, marginTop: 12 }]}>No notes yet</Text>
@@ -349,7 +362,7 @@ export default function NotesScreen({ onClose, navigation: navProp }: { onClose?
       ) : (
         <FlatList
           style={{ flex: 1 }}
-          data={rows}
+          data={filteredRows}
           keyExtractor={(i: NoteRow) => i.verseKey}
           contentContainerStyle={styles(nightMode, themeColors).list}
           renderItem={renderItem}

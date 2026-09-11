@@ -34,28 +34,76 @@ export const registerAudioNote = async (studentId: string, verseKey: string, fil
   await saveAudioNotesRange(studentId, rangeKey, entries, cur.v + 1, true);
 };
 
-export const playAudioNote = async (fileId: string): Promise<string | null> => {
+/**
+ * Resolves an audio note path strictly locally on device.
+ * NEVER makes network calls to Firebase Storage.
+ * Checks local directories: voicenotes, audio_cache, and raw paths.
+ * If file exists locally, returns resolved path; otherwise returns null immediately.
+ */
+export const resolveLocalAudioNotePath = async (fileId: string): Promise<string | null> => {
+  if (!fileId) return null;
   const RNFS = require('react-native-fs').default || require('react-native-fs');
-  const cachePath = `${RNFS.DocumentDirectoryPath}/audio_cache/${fileId}.m4a`;
-  if (await RNFS.exists(cachePath)) return cachePath;
-  // Owner-scoped path first; legacy flat path as fallback for recordings made
-  // before the uid-segment layout (storage.rules no longer serve that path, so
-  // this only helps if the rules are ever widened again).
-  try {
-    const url = await storage().ref(noteRef(fileId)).getDownloadURL();
-    return await downloadToCache(RNFS, url, cachePath);
-  } catch {
+
+  // 1. Raw path if fileId is an absolute path or URI
+  if (fileId.startsWith('/') || fileId.startsWith('file://')) {
+    const clean = fileId.replace(/^file:\/\//, '');
     try {
-      const url = await storage().ref(`audio_notes/${fileId}.m4a`).getDownloadURL();
-      return await downloadToCache(RNFS, url, cachePath);
-    } catch { return null; }
+      if (await RNFS.exists(clean)) return clean;
+      if (await RNFS.exists(fileId)) return fileId;
+    } catch {}
   }
-};
-const downloadToCache = async (RNFS: any, url: string, cachePath: string): Promise<string> => {
-  const dir = `${RNFS.DocumentDirectoryPath}/audio_cache`;
-  if (!(await RNFS.exists(dir))) {
-    await RNFS.mkdir(dir);
+
+  const fname = fileId.split('/').pop() || fileId;
+  const baseName = fname.replace(/\.(m4a|mp4)$/i, '');
+  const baseWithoutNote = baseName.replace(/^note_/, '');
+
+  const candidatePaths: string[] = [
+    // Raw paths
+    fileId,
+    fileId.replace(/^file:\/\//, ''),
+
+    // ${RNFS.DocumentDirectoryPath}/voicenotes/${fileId} (with or without .mp4 / .m4a extension)
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${fname}`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${baseName}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${baseName}.mp4`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${baseName}`,
+
+    // ${RNFS.DocumentDirectoryPath}/voicenotes/note_${fileId}
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${fname}`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${baseName}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${baseName}.mp4`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${baseName}`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${baseWithoutNote}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/note_${baseWithoutNote}.mp4`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${baseWithoutNote}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/voicenotes/${baseWithoutNote}.mp4`,
+
+    // ${RNFS.DocumentDirectoryPath}/audio_cache/${fileId} (with or without extension)
+    `${RNFS.DocumentDirectoryPath}/audio_cache/${fname}`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/${baseName}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/${baseName}.mp4`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/${baseName}`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/note_${fname}`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/note_${baseName}.m4a`,
+    `${RNFS.DocumentDirectoryPath}/audio_cache/note_${baseName}.mp4`,
+  ];
+
+  const checked = new Set<string>();
+  for (const p of candidatePaths) {
+    if (!p || checked.has(p)) continue;
+    checked.add(p);
+    try {
+      if (await RNFS.exists(p)) {
+        return p;
+      }
+    } catch {}
   }
-  await RNFS.downloadFile({ fromUrl: url, toFile: cachePath }).promise;
-  return cachePath;
+
+  // File does not exist locally — return null immediately without attempting cloud access
+  return null;
 };
+
+export const playAudioNote = async (fileId: string): Promise<string | null> => {
+  return resolveLocalAudioNotePath(fileId);
+};
+

@@ -81,8 +81,8 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
         {/* v96: badge TAP sets/clears the reading mark (long-press menu's Reading button removed). */}
         <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge, isReadingMark && styles(nightMode).readingMarkBadge]}>
-            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verse.verseNumber}</Text>
+          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge]}>
+            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verse.verseNumber}</Text>
           </View>
         </TouchableOpacity>
       </Pressable>

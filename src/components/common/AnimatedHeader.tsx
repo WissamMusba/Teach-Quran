@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
+import JuicyButton from './JuicyButton';
 
 const C_MISTAKES = '#FF3B30';
 const C_NOTES = '#FF9F0A';
@@ -64,6 +65,23 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const native = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
   const layout = useRef(new Animated.Value(p.visible ? 1 : 0)).current;
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (menuOpen) {
+      menuAnim.setValue(0);
+      Animated.spring(menuAnim, {
+        toValue: 1,
+        tension: 70,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [menuOpen, menuAnim]);
+
+  const menuScale = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.0] }), [menuAnim]);
+  const menuOpacity = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1.0] }), [menuAnim]);
+  const menuTranslateY = useMemo(() => menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }), [menuAnim]);
 
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const themeColors = useMemo(() => getThemeColors(colorTheme, p.nightMode), [colorTheme, p.nightMode]);
@@ -136,17 +154,17 @@ const AnimatedHeader: React.FC<Props> = (p) => {
         >
           <View style={s.topRow}>
             {/* Left: Back Button & Surah Picker Title Block */}
-            <TouchableOpacity onPress={p.onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={s.backBtn}>
+            <JuicyButton onPress={p.onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={s.backBtn}>
               <IconBack c={primaryAccent} />
-            </TouchableOpacity>
+            </JuicyButton>
 
             <TutorialAnchor id="hdr-list" style={{ flexShrink: 1 }}>
-              <TouchableOpacity onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
+              <JuicyButton onPress={p.onOpenList} style={s.titleBlock} activeOpacity={0.7}>
                 <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
                 <Text style={[s.surahSub, { color: subColor }]} numberOfLines={1}>
                   {`Surah ${p.surahId} ▾`}
                 </Text>
-              </TouchableOpacity>
+              </JuicyButton>
             </TutorialAnchor>
 
             {/* Middle Spacer */}
@@ -160,14 +178,14 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               <HeaderBtn label="BOOKMARKS" icon={<BookmarkIcon c={C_BOOKMARKS} size={20} />} onPress={p.onBookmarks} subColor={subColor} />
               
               <TutorialAnchor id="hdr-menu">
-                <TouchableOpacity
+                <JuicyButton
                   style={s.hamburgerBtn}
                   onPress={() => setMenuOpen(true)}
                   activeOpacity={0.6}
                   hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
                 >
                   <IconHamburger c={primaryAccent} />
-                </TouchableOpacity>
+                </JuicyButton>
               </TutorialAnchor>
             </View>
           </View>
@@ -178,7 +196,22 @@ const AnimatedHeader: React.FC<Props> = (p) => {
       {menuOpen && (
         <View style={[StyleSheet.absoluteFillObject, s.menuContainer]} pointerEvents="box-none">
           <Pressable style={s.menuOverlay} onPress={() => setMenuOpen(false)} />
-          <View style={[s.menuPopup, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 48, right: 10 }]}>
+          <Animated.View
+            style={[
+              s.menuPopup,
+              {
+                backgroundColor: themeColors.cardBg,
+                borderColor: themeColors.border,
+                top: statusBarPad + 48,
+                right: 10,
+                opacity: menuOpacity,
+                transform: [
+                  { scale: menuScale },
+                  { translateY: menuTranslateY },
+                ],
+              },
+            ]}
+          >
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
               onPress={() => { setMenuOpen(false); p.onSettings(); }}
@@ -208,7 +241,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               <IconPen c={C_MISTAKES} />
               <Text style={[s.menuText, { color: themeColors.text }]}>Mistakes</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       )}
     </>
@@ -217,10 +250,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
 const HeaderBtn = React.memo(
   ({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
-    <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}>
+    <JuicyButton style={s.iconBtn} onPress={onPress} activeOpacity={0.6} hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}>
       {icon}
       <Text style={[s.iconLab, labelStyle, { color: subColor }]} numberOfLines={1}>{label}</Text>
-    </TouchableOpacity>
+    </JuicyButton>
   ),
   (prev, next) => prev.label === next.label && prev.subColor === next.subColor && prev.onPress === next.onPress
 );

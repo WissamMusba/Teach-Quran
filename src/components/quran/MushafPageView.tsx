@@ -524,17 +524,10 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     return () => { mounted = false; clearTimeout(t); };
   }, [fontFamily, fixNonce]);
 
-  // Optimistic local highlights for 0ms instantaneous tap response:
-  const [localHighlights, setLocalHighlights] = useState<any>(highlights);
-  useEffect(() => {
-    setLocalHighlights(highlights);
-  }, [highlights]);
-
-  const activeHighlights = localHighlights || highlights;
   const highlightedWordKeys = useMemo(() => {
     const set = new Set<string>();
-    if (activeHighlights) {
-      for (const [vKey, val] of Object.entries(activeHighlights)) {
+    if (highlights) {
+      for (const [vKey, val] of Object.entries(highlights)) {
         const arr = (val as any)?.highlights;
         if (Array.isArray(arr)) {
           for (let i = 0; i < arr.length; i++) {
@@ -544,25 +537,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
       }
     }
     return set;
-  }, [activeHighlights]);
-
-  const handleWordPressLocal = useCallback((verseNum: number, wordIndex: number, surahId: number) => {
-    const vKey = `${surahId}_${verseNum}`;
-    setLocalHighlights((prev: any) => {
-      const base = prev || highlights || {};
-      const vEntry = base[vKey] || {};
-      const list = vEntry.highlights || [];
-      const exists = list.some((h: any) => h.wordIndex === wordIndex);
-      const updated = exists
-        ? list.filter((h: any) => h.wordIndex !== wordIndex)
-        : [...list, { id: `hl_${Date.now()}_${wordIndex}`, wordIndex, color: '#FF3B30' }];
-      return {
-        ...base,
-        [vKey]: { ...vEntry, highlights: updated },
-      };
-    });
-    onWordPress?.(verseNum, wordIndex, surahId);
-  }, [onWordPress, highlights]);
+  }, [highlights]);
 
   // DEAD CODE: verseByKey is built from versesForPage but never referenced below.
   const verseByKey = new Map<string, any>();
@@ -945,8 +920,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                 </Pressable>
                 <View style={styles(nightMode).verseBadgeContainer}>
                   <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
-                    <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, fBookmarked && styles(nightMode).bookmarkedBadge, fReadingMark && styles(nightMode).readingMarkBadge]}>
-                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{fReadingMark ? '📍' : v.verseNumber}</Text>
+                    <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, fBookmarked && styles(nightMode).bookmarkedBadge]}>
+                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{v.verseNumber}</Text>
                     </View>
                   </TouchableOpacity>
                   {fHasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
@@ -1070,9 +1045,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                               borderColor: themeColors.accent,
                             },
                             isBookmarked && styles(nightMode).bookmarkedBadge,
-                            isReadingMark && styles(nightMode).readingMarkBadge,
                           ]}>
-                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verseNum}</Text>
                           </View>
                         </TouchableOpacity>
                         {hasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
@@ -1088,7 +1062,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               return (
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={[styles(nightMode).wordBox, isTablet && { marginHorizontal: 1 }]}
-                    onWordPress={() => verseNum > 0 && handleWordPressLocal(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
+                    onWordPress={() => verseNum > 0 && onWordPress?.(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
                     <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
@@ -1105,9 +1079,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                             borderColor: themeColors.badgeBorder || themeColors.accent,
                           },
                           isBookmarked && styles(nightMode).bookmarkedBadge,
-                          isReadingMark && styles(nightMode).readingMarkBadge,
                         ]}>
-                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{isReadingMark ? '📍' : verseNum}</Text>
+                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verseNum}</Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
