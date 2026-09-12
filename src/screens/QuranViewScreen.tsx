@@ -813,65 +813,59 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   The currentPageNumRef stale-guard keeps a fast swipe/surah change mid-flight
    *   from yanking the reader back to pg.
    */
-  /**
-   * WHAT: Prefetches 3 pages ahead and 3 pages behind (±1 immediately, ±2/±3 idle).
-   *   Loads BOTH page structure (ensurePageLoaded) and database verses (ensurePageVersesLoaded).
-   */
-  const prefetchAround = useCallback((pageMode: 'single' | 'split', page: number) => {
-    if (legacySmoothRef.current) return;
-    // Priority 1: immediate neighbors (±1) — load BOTH data and verses immediately
-    if (page > 1) {
-      ensurePageLoaded(page - 1);
-      ensurePageVersesLoaded(page - 1);
-    }
-    if (page < pageNumbers.length) {
-      ensurePageLoaded(page + 1);
-      ensurePageVersesLoaded(page + 1);
-    }
-
-    // Priority 2: 2 and 3 pages ahead and behind (±2, ±3) in idle interaction
-    InteractionManager.runAfterInteractions(() => {
-      if (pageMode === 'single') {
-        for (let d = 2; d <= 3; d++) {
-          const nextP = page + d;
-          const prevP = page - d;
-          if (nextP <= pageNumbers.length) {
-            ensurePageLoaded(nextP);
-            ensurePageVersesLoaded(nextP);
-          }
-          if (prevP >= 1) {
-            ensurePageLoaded(prevP);
-            ensurePageVersesLoaded(prevP);
-          }
-        }
-        return;
-      }
-      const data = pagePairsFor(pageNumbers.length);
-      const lo = Math.max(0, pairIndexForPage(page) - 2);
-      const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
-      for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
-    });
-  }, [pageNumbers.length, ensurePageLoaded, ensurePageVersesLoaded]);
-
   const landOnPage = useCallback(async (pg: number) => {
     if (pg < 1 || pg > pageNumbers.length) return;
     programmaticScrollRef.current = Date.now();
+    // FIX 8 — a programmatic landing settles immediately (no 120ms swipe debounce).
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     setSettledPage(pg);
+    // FIX 6c — prefetch the neighbours so the pages either side of the target are ready the
+    // moment the user swipes after landing.
+    if (pg > 1) ensurePageLoaded(pg - 1);
+    if (pg < pageNumbers.length) ensurePageLoaded(pg + 1);
     if (splitOn) prefetchPartner(pg);
-    prefetchAround(splitOn ? 'split' : 'single', pg);
+    // P0-A — scroll FIRST, wait NEVER: getItemLayout makes scrollToIndex synchronous, so the
+    // target slides into view on this frame while its data loads behind the FIX 4 skeleton.
+    // Only the PAGE list scrolls here; in ayah/continuous modes it is unmounted, so a
+    // mode-switch arrival re-scrolls below once the list is live.
     let scrolled = false;
     if (pageFlatListRef.current) {
       pageFlatListRef.current.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
       scrolled = true;
     }
     const data = await ensurePageLoaded(pg);
+    // Mode-switch landing (deep link / SurahList from ayah|continuous): the page list mounts
+    // after the readingMode dispatch — scroll the moment it's live, same target.
     if (!scrolled && pageFlatListRef.current) {
       pageFlatListRef.current.scrollToIndex({ index: splitOn ? pairIndexForPage(pg) : pg - 1, animated: false });
     }
+    // P0-A — stale-guard: if the reader moved on (fast swipe / surah change) while the page
+    // data was loading, warm nothing here — the settle-warm effect covers their actual page.
     if (currentPageNumRef.current !== pg || !data || !data.lines?.length || Math.round(pageW) <= 0) return;
     try { warmPageLayoutFor(pg, data, textStyleRef.current, Math.round(pageW * layoutFontScale)); } catch {}
-  }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded, prefetchAround]);
+  }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
+
+  /**
+   * WHAT: Prefetches pages ±5 around the current page (single mode) or the pair
+   *   ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
+   *   v80.2 — widened from ±2/±1 so a fling into the ±20 warm band never renders
+   *   a skeleton while the settle drain catches up.
+   * CALLS: ensurePageLoaded + ensurePageVersesLoaded (verses load directly, single-flight).
+   * CALLED BY: onMomentumScrollEnd, handleSelectPage, deep-link effect,
+   *   surah-change effect, lastRead restore.
+   * NOTES: 'single' mode skips page-verse prefetch — verses are only fetched by
+   *   MushafPageView render (single) or SpreadItem (split).
+   */
+  const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
+    if (legacySmoothRef.current) return;
+    if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
+    // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
+    // verifies off-screen halves (the FlatList window renders those anyway when needed).
+    const data = pagePairsFor(pageNumbers.length);
+    const lo = Math.max(0, pairIndexForPage(page) - 2);
+    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
+    for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+  };
 
   /**
    * WHAT: Prefetches the facing page of a spread in split mode (pg±1 to make a
@@ -880,10 +874,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const prefetchPartner = (pg: number) => {
     if (!splitOn || pg === 1) return;
-    InteractionManager.runAfterInteractions(() => {
-      const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
-      if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
-    });
+    const partner = Math.min(Math.max(pg + (pg % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
+    if (partner) { ensurePageLoaded(partner); ensurePageVersesLoaded(partner); }
   };
 
   // ---- spread toggle (split mode on/off) ----
@@ -1032,16 +1024,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * CALLS: saveLastPageSeenLocal (src/database/localDB.ts).
    */
   useEffect(() => {
-    if (readingMode !== 'page') return;
-    if (settledPage === currentPageNum) {
-      prefetchAround(splitOn ? 'split' : 'single', settledPage);
-    }
-    if (!currentStudent?.id || settledPage !== currentPageNum) return;
+    if (readingMode !== 'page' || !currentStudent?.id) return;
+    // FIX 8 — only the settled page counts as "last page viewed": intermediate pages of a fast
+    // fling must never overwrite the real landing page.
+    if (settledPage !== currentPageNum) return;
     const pg = pageVersesCache[currentPageNum];
     const last = pg && pg.length ? pg[pg.length - 1] : null;
     if (!last || !Number(last.surahId) || !Number(last.verseNumber)) return;
     saveLastPageSeenLocal(currentStudent.id, { surah: Number(last.surahId), verse: Number(last.verseNumber), at: new Date().toISOString() });
-  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum], settledPage, splitOn, prefetchAround]);
+  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum], settledPage]);
 
   /**
    * WHAT: 20-verse page loader for ayah/continuous modes; appends or replaces
