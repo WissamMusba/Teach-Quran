@@ -15,6 +15,7 @@ import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { SURAH_META } from '../utils/surahMeta';
 import { downloadSurahAudio, isSurahDownloaded, deleteSurahAudio, clearAllAudioDownloads, cancelSurahDownload, getDownloadedSurahs } from '../utils/audioDownloader';
+import { triggerAppHaptic } from '../utils/haptics';
 import Svg, { Path } from 'react-native-svg';
 
 const IconCheck = ({ c, size = 16 }: { c: string; size?: number }) => (
@@ -210,7 +211,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             <Switch
               value={readingMode === 'page' ? false : showTranslation}
               disabled={readingMode === 'page'}
-              onValueChange={() => { dispatch(toggleTranslation()); }}
+              onValueChange={() => { triggerAppHaptic(); dispatch(toggleTranslation()); }}
               trackColor={{ false: switchFalse, true: themeColors.accent }}
             />
           </View>
@@ -218,7 +219,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           <Text style={[styles(nightMode, themeColors).label, { color: labelColor }]}>Reading Mode</Text>
           <View style={styles(nightMode, themeColors).modeContainer}>
             {['ayah', 'continuous', 'page'].map((mode) => (
-              <TouchableOpacity key={mode} style={[styles(nightMode, themeColors).modeBtn, { borderColor: btnBorder }, readingMode === mode && styles(nightMode, themeColors).activeBtn]} onPress={() => dispatch(setReadingMode(mode))}>
+              <TouchableOpacity key={mode} style={[styles(nightMode, themeColors).modeBtn, { borderColor: btnBorder }, readingMode === mode && styles(nightMode, themeColors).activeBtn]} onPress={() => { triggerAppHaptic(); dispatch(setReadingMode(mode)); }}>
                 <Text style={readingMode === mode ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>{mode === 'ayah' ? 'Ayah List' : mode === 'continuous' ? 'Continuous' : 'Page Swipe'}</Text>
               </TouchableOpacity>
             ))}
@@ -234,7 +235,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
                 key={size}
                 disabled={readingMode === 'page'}
                 style={[styles(nightMode, themeColors).sizeBtn, { borderColor: btnBorder }, fontSize === size && styles(nightMode, themeColors).activeBtn]}
-                onPress={() => dispatch(setFontSize(size))}
+                onPress={() => { triggerAppHaptic(); dispatch(setFontSize(size)); }}
               >
                 <Text style={fontSize === size ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>{size.toUpperCase()}</Text>
               </TouchableOpacity>
@@ -284,7 +285,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
               <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Dark mode</Text>
               <Text style={styles(nightMode, themeColors).settingDesc}>Use dark background and light text</Text>
             </View>
-            <Switch value={nightMode} onValueChange={() => { dispatch(toggleNightMode()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+            <Switch value={nightMode} onValueChange={() => { triggerAppHaptic(); dispatch(toggleNightMode()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
           </View>
 
           <Text style={[styles(nightMode, themeColors).label, { color: labelColor, marginTop: 6 }]}>Color Theme Palette</Text>
@@ -297,7 +298,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
                   { borderColor: btnBorder },
                   colorTheme === t.key && styles(nightMode, themeColors).activeBtn,
                 ]}
-                onPress={() => dispatch(setColorTheme(t.key))}
+                onPress={() => { triggerAppHaptic(); dispatch(setColorTheme(t.key)); }}
               >
                 <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: t.accent, marginBottom: 4 }} />
                 <Text numberOfLines={1} style={colorTheme === t.key ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
@@ -465,7 +466,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
               <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Bismillah before verse 1</Text>
               <Text style={styles(nightMode, themeColors).settingDesc}>Play the Bismillah before the first verse of a surah (except Al-Fatiha and At-Tawbah)</Text>
             </View>
-            <Switch value={playBasmala} onValueChange={() => { dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
+            <Switch value={playBasmala} onValueChange={() => { triggerAppHaptic(); dispatch(togglePlayBasmala()); }} trackColor={{ false: switchFalse, true: themeColors.accent }} />
           </View>
         </View>
 
@@ -479,7 +480,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             </View>
             <Switch
               value={disableHaptics}
-              onValueChange={(val) => { dispatch(setDisableHaptics(val)); }}
+              onValueChange={(val) => { triggerAppHaptic(); dispatch(setDisableHaptics(val)); }}
               trackColor={{ false: switchFalse, true: themeColors.accent }}
             />
           </View>
@@ -490,7 +491,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
             </View>
             <Switch
               value={hideDrawingTool}
-              onValueChange={(val) => { dispatch(setHideDrawingTool(val)); }}
+              onValueChange={(val) => { triggerAppHaptic(); dispatch(setHideDrawingTool(val)); }}
               trackColor={{ false: switchFalse, true: themeColors.accent }}
             />
           </View>

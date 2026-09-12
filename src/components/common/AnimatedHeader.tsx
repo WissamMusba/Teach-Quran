@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import TutorialAnchor from '../../tutorial/TutorialAnchor';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
+import { triggerAppHaptic } from '../../utils/haptics';
 
 const C_MISTAKES = '#FF3B30';
 const C_NOTES = '#FF9F0A';
@@ -72,14 +73,14 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const callbacksRef = useRef(p);
   callbacksRef.current = p;
 
-  const handleBack = useCallback(() => { callbacksRef.current.onBack(); }, []);
-  const handleOpenList = useCallback(() => { callbacksRef.current.onOpenList(); }, []);
-  const handleMistakes = useCallback(() => { callbacksRef.current.onMistakes(); }, []);
-  const handleShare = useCallback(() => { callbacksRef.current.onShare(); }, []);
-  const handleNotes = useCallback(() => { callbacksRef.current.onNotes(); }, []);
-  const handleBookmarks = useCallback(() => { callbacksRef.current.onBookmarks(); }, []);
-  const handleSettings = useCallback(() => { callbacksRef.current.onSettings(); }, []);
-  const handleOpenMenu = useCallback(() => { setMenuOpen(true); }, []);
+  const handleBack = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onBack(); }, []);
+  const handleOpenList = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onOpenList(); }, []);
+  const handleMistakes = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onMistakes(); }, []);
+  const handleShare = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onShare(); }, []);
+  const handleNotes = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onNotes(); }, []);
+  const handleBookmarks = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onBookmarks(); }, []);
+  const handleSettings = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onSettings(); }, []);
+  const handleOpenMenu = useCallback(() => { triggerAppHaptic(); setMenuOpen(true); }, []);
   const handleCloseMenu = useCallback(() => { setMenuOpen(false); }, []);
 
   useEffect(() => {
@@ -279,7 +280,7 @@ const HeaderBtn = React.memo(
   ({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
     <TouchableOpacity
       style={s.iconBtn}
-      onPressIn={onPress}
+      onPressIn={() => { triggerAppHaptic(); onPress(); }}
       activeOpacity={0.6}
       delayPressIn={0}
       hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}

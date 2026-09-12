@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SURAH_META, SURAH_PAGE_RANGE } from '../../utils/surahMeta';
 import { getArabicFont, getThemeColors, JUZ_MAP, JUZ_NAMES, JUZ_PAGE_START } from '../../utils/theme';
+import { triggerAppHaptic } from '../../utils/haptics';
 import CollapsibleBannerAd from '../ads/CollapsibleBannerAd';
 
 const normCache: Record<string, string> = {};
@@ -191,7 +192,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
             <Text style={[styles.title, { color: themeColors.text }]}>
               {mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}
             </Text>
-            <TouchableOpacity onPressIn={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} delayPressIn={0}>
+            <TouchableOpacity onPressIn={() => { triggerAppHaptic(); handleClose(); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} delayPressIn={0}>
               <Text style={[styles.closeBtn, { color: themeColors.accent }]}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -234,6 +235,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
                   }
                 ]}
                 onPress={() => {
+                  triggerAppHaptic();
                   if (isPage) {
                     onSelectPage ? onSelectPage(item.page) : onSelect(item.page);
                   } else if (isJuz) {

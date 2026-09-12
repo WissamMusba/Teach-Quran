@@ -149,7 +149,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   // Top 24 = pill band above the frame; bottom 24 = pill band below it (v93: the Page N /
   // pages-left pills AND the Hide/Show-Header button hang from each page's frame bottom edge,
   // scrolling together with the page like the top Juz/Surah pills).
-  const spreadMargin = { marginTop: headerVisible ? 4 : Math.max(topSafeInset + 2, 8), marginBottom: 16 };
+  const spreadMargin = { marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 };
   const tablet = winW >= 600;
   const leftMargins = tablet ? (odd ? { marginLeft: 0, marginRight: 4 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
   const rightMargins = tablet ? (odd ? { marginLeft: 4, marginRight: 0 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
@@ -217,7 +217,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           margin band for the hanging row (mirror of the 24 top margin). marginHorizontal: 18
           tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW and clips end-of-line
           words past the 0.5 floor). */}
-      <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 4 : Math.max(topSafeInset + 2, 8), marginBottom: 16 }}>
+      <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 }}>
       {pData ? (
         <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}

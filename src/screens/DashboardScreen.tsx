@@ -28,6 +28,7 @@ import { processSyncQueue } from '../api/sync';
 import { setSyncing, setSynced, setOffline } from '../store/syncSlice';
 import { formatDate, formatTime, toMillis } from '../utils/format';
 import { startStartupPrefetch } from '../utils/startupPrefetch';
+import { triggerAppHaptic } from '../utils/haptics';
 import { emitTutorialEvent, startTutorial } from '../tutorial/tutorialRuntime';
 import { setTutorialDone } from '../store/settingsSlice';
 import TutorialAnchor from '../tutorial/TutorialAnchor';
@@ -573,7 +574,7 @@ export default function DashboardScreen({ navigation }: any) {
           {/* 3-Line / 3-Dot Menu Button */}
           <TouchableOpacity
             style={[styles(nightMode, themeColors).menuBtn, { backgroundColor: nightMode ? '#222738' : '#E8E3D5' }]}
-            onPress={() => setMenuModalVisible(true)}
+            onPress={() => { triggerAppHaptic(); setMenuModalVisible(true); }}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -608,7 +609,7 @@ export default function DashboardScreen({ navigation }: any) {
                   marginBottom: 0,
                 }
               ]}
-              onPress={handleMyQuranPress}
+              onPress={() => { triggerAppHaptic(); handleMyQuranPress(); }}
               activeOpacity={0.8}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -671,7 +672,7 @@ export default function DashboardScreen({ navigation }: any) {
         <Animated.View style={[styles(nightMode, themeColors).fabContainer, { width: fabWidth }]}>
           <TouchableOpacity
             style={[styles(nightMode, themeColors).fabTouchable, { backgroundColor: themeColors.primary }]}
-            onPress={() => { setName(''); setAddModal(true); }}
+            onPress={() => { triggerAppHaptic(); setName(''); setAddModal(true); }}
             activeOpacity={0.85}
           >
             <Animated.Text
@@ -710,6 +711,7 @@ export default function DashboardScreen({ navigation }: any) {
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
               onPress={() => {
+                triggerAppHaptic();
                 setMenuModalVisible(false);
                 setSettingsModalVisible(true);
               }}
@@ -724,6 +726,7 @@ export default function DashboardScreen({ navigation }: any) {
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
               onPress={() => {
+                triggerAppHaptic();
                 setMenuModalVisible(false);
                 handleManualSync();
               }}
@@ -744,6 +747,7 @@ export default function DashboardScreen({ navigation }: any) {
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
               onPress={() => {
+                triggerAppHaptic();
                 setMenuModalVisible(false);
                 dispatch(setTutorialDone(false));
                 dispatch(startTutorial());
@@ -759,6 +763,7 @@ export default function DashboardScreen({ navigation }: any) {
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
               onPress={async () => {
+                triggerAppHaptic();
                 setMenuModalVisible(false);
                 await logoutUser();
                 dispatch(logout());
@@ -767,7 +772,7 @@ export default function DashboardScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <IconMenuLogout c="#FF4444" />
-              <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF4444' }]}>Sign Out</Text>
+              <Text style={[styles(nightMode, themeColors).menuItemText, { color: '#FF4444' }]}>Log Out</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -796,12 +801,12 @@ export default function DashboardScreen({ navigation }: any) {
               autoFocus
             />
             <View style={{ flexDirection: 'row', marginTop: 14 }}>
-              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => { setAddModal(false); setName(''); }}>
+              <TouchableOpacity style={[styles(nightMode, themeColors).cancelBtn, { backgroundColor: nightMode ? '#2A2E40' : '#E2DCD0' }]} onPress={() => { triggerAppHaptic(); setAddModal(false); setName(''); }}>
                 <Text style={[styles(nightMode, themeColors).cancelText, { color: themeColors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles(nightMode, themeColors).saveBtn, { backgroundColor: themeColors.primary, opacity: !name.trim() ? 0.6 : 1 }]}
-                onPress={handleCreate}
+                onPress={() => { triggerAppHaptic(); handleCreate(); }}
                 disabled={!name.trim()}
               >
                 <Text style={[styles(nightMode, themeColors).saveText, { color: '#FFFFFF' }]}>Save</Text>

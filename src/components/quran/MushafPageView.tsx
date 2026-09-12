@@ -22,6 +22,7 @@ import { getArabicFont, getJuzInfoFromPage, getThemeColors } from '../../utils/t
 import { textInsetFor } from '../../utils/mushafLayout';
 import { getPageLayoutCache, getLayoutCacheSync, savePageLayoutCache, savePageLayoutCacheMemOnly, preloadPageLayoutCacheRange } from '../../database/localDB';
 import type { PageLayoutCacheRow, PageLayoutCacheFit } from '../../database/localDB';
+import { triggerAppHaptic } from '../../utils/haptics';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -804,7 +805,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
         // neighbours' offscreen measures race this page's and the spotlight flashes between
         // the ribbon and the top-left corner.
         <TutorialAnchor id="reading-ribbon" active={isCurrentPage} style={{ position: 'absolute', top: isTablet ? -20 : -16, right: isTablet && !spread ? -20 : -5, zIndex: 20, elevation: 20 }}>
-        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={onReadingMarkToggle} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity style={styles(nightMode).readingMarkBtn} onPress={() => { triggerAppHaptic(); onReadingMarkToggle(); }} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <BookmarkRibbon
             c={themeColors.accent}
             width={isTablet ? 22 : 20}
@@ -832,7 +833,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                 isTablet && { paddingHorizontal: 14, paddingVertical: 6 },
                 { backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(250,247,238,0.95)', borderColor: themeColors.border }
               ]}
-              onPress={onToggleHeader}
+              onPress={() => { triggerAppHaptic(); onToggleHeader(); }}
               activeOpacity={0.75}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >

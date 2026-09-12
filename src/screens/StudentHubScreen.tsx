@@ -13,6 +13,7 @@ import { emitTutorialEvent, setTutorialContext } from '../tutorial/tutorialRunti
 import { getVersePage } from '../database/quranData';
 import { getManifest, getStudentData, getStudentFace, getLastPageSeenLocal, getVersePagesDB } from '../database/localDB';
 import { cleanupLegacyAudioNotesForStudent } from '../utils/studentNotesMigration';
+import { triggerAppHaptic } from '../utils/haptics';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../utils/theme';
@@ -325,7 +326,7 @@ export default function StudentHubScreen({ navigation }: any) {
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg }]}>
       {/* Top Header showing the Student's Name directly */}
       <View style={[styles(nightMode, themeColors).header, { backgroundColor: rowBg, borderBottomColor: border, paddingTop: topInset > 0 ? topInset + 2 : 6, paddingBottom: 6 }]}>
-        <TouchableOpacity onPressIn={() => navigation.goBack()} style={styles(nightMode, themeColors).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
+        <TouchableOpacity onPressIn={() => { triggerAppHaptic(); navigation.goBack(); }} style={styles(nightMode, themeColors).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
           <ChevronLeft c={chevronC} />
         </TouchableOpacity>
         {facePath ? <Image source={{ uri: `file://${facePath}` }} style={styles(nightMode, themeColors).faceAvatar} resizeMode="cover" /> : null}
@@ -341,6 +342,7 @@ export default function StudentHubScreen({ navigation }: any) {
             <TouchableOpacity
               style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}
               onPress={() => {
+                triggerAppHaptic();
                 emitTutorialEvent('quran_opened');
                 const targetPage = (resumeInfo?.page && resumeInfo.page >= 1) ? resumeInfo.page : (dailyPage >= 1 ? dailyPage : 1);
                 navigation.navigate('QuranView' as any, { page: Math.max(1, targetPage), t: Date.now() } as any);
@@ -357,7 +359,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
           {/* 2 — Bookmarks & Notes (Side-by-Side Row: Bookmarks | Notes) */}
           <View style={[styles(nightMode, themeColors).splitRow, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}>
-            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('Bookmarks')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => { triggerAppHaptic(); navigation.navigate('Bookmarks'); }} activeOpacity={0.7}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                 <IconBookmark c={themeColors.accent} size={17} />
                 <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Bookmarks</Text>
@@ -367,7 +369,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
             <View style={[styles(nightMode, themeColors).vDivider, { backgroundColor: border }]} />
 
-            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('Notes')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => { triggerAppHaptic(); navigation.navigate('Notes'); }} activeOpacity={0.7}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                 <IconNotes c={themeColors.accent} size={17} />
                 <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Notes</Text>
@@ -380,6 +382,7 @@ export default function StudentHubScreen({ navigation }: any) {
           <TouchableOpacity
             style={[styles(nightMode, themeColors).row, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }, !dailyTarget && styles(nightMode, themeColors).rowDisabled]}
             onPress={async () => {
+              triggerAppHaptic();
               emitTutorialEvent('quran_opened');
               if (!dailyTarget) return;
               if (dailyPage >= 1) {
@@ -405,7 +408,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
           {/* 4 — Surah Index & Juz Index (Side-by-Side Row: Surah Index | Juz Index) */}
           <View style={[styles(nightMode, themeColors).splitRow, styles(nightMode, themeColors).rowBorder, { borderBottomColor: border }]}>
-            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('SurahIndex')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => { triggerAppHaptic(); navigation.navigate('SurahIndex'); }} activeOpacity={0.7}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                 <IconList c={themeColors.accent} size={17} />
                 <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Surah Index</Text>
@@ -414,7 +417,7 @@ export default function StudentHubScreen({ navigation }: any) {
 
             <View style={[styles(nightMode, themeColors).vDivider, { backgroundColor: border }]} />
 
-            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => navigation.navigate('JuzIndex')} activeOpacity={0.7}>
+            <TouchableOpacity style={styles(nightMode, themeColors).half} onPress={() => { triggerAppHaptic(); navigation.navigate('JuzIndex'); }} activeOpacity={0.7}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                 <IconLayers c={themeColors.accent} size={17} />
                 <Text style={[styles(nightMode, themeColors).halfLabel, { color: titleC, marginLeft: 6 }]}>Juz Index</Text>
@@ -442,7 +445,7 @@ export default function StudentHubScreen({ navigation }: any) {
               />
               <TouchableOpacity
                 style={[styles(nightMode, themeColors).pageGoBtn, { backgroundColor: themeColors.primary }, !pageValid && styles(nightMode, themeColors).pageGoDisabled]}
-                onPress={handlePageSubmit}
+                onPress={() => { triggerAppHaptic(); handlePageSubmit(); }}
                 disabled={!pageValid}
                 activeOpacity={0.7}
               >
