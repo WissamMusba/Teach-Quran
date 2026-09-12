@@ -37,13 +37,11 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
   const subColor = themeColors.subText;
   const accent = themeColors.accent;
 
-  const topInset = Platform.OS === 'android'
-    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
-    : (insets?.top || 0);
+  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
 
   return (
-    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: Math.max(12, topInset + 8) }]}>
-      <TouchableOpacity onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={styles(nightMode, themeColors).backBtn}>
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: topInset > 0 ? topInset + 2 : 8, paddingBottom: 6 }]}>
+      <TouchableOpacity onPressIn={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} delayPressIn={0} style={styles(nightMode, themeColors).backBtn}>
         <IconBack c={accent} />
       </TouchableOpacity>
       <View style={styles(nightMode, themeColors).textWrap}>
@@ -56,7 +54,7 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
 };
 
 const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 10, borderBottomWidth: 1 },
+  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 6, borderBottomWidth: 1 },
   backBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
   textWrap: { flex: 1 },
   title: { fontSize: 19, fontWeight: '800', letterSpacing: 0.3 },

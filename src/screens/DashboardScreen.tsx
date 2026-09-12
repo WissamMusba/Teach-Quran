@@ -137,9 +137,7 @@ const StudentProgressRing = ({ pct, color, bgTrack }: { pct: number; color: stri
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const statusBarPad = Platform.OS === 'android'
-    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
-    : (insets?.top || 0);
+  const statusBarPad = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
   const [addModal, setAddModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -563,7 +561,7 @@ export default function DashboardScreen({ navigation }: any) {
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg, paddingBottom: 0 }]}>
       {/* Top Header */}
-      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: Math.max(8, statusBarPad + 6) }]}>
+      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: statusBarPad > 0 ? statusBarPad + 2 : 6 }]}>
         <View style={styles(nightMode, themeColors).titleRow}>
           <View style={[styles(nightMode, themeColors).titleDot, { backgroundColor: themeColors.accent }]} />
           <Text style={[styles(nightMode, themeColors).title, { color: themeColors.text }]}>Students</Text>
@@ -708,7 +706,7 @@ export default function DashboardScreen({ navigation }: any) {
       {/* 3-Line Menu Modal with Vector SVG Icons */}
       <Modal visible={menuModalVisible} transparent animationType="fade" onRequestClose={() => setMenuModalVisible(false)}>
         <Pressable style={styles(nightMode, themeColors).menuBackdrop} onPress={() => setMenuModalVisible(false)}>
-          <View style={[styles(nightMode, themeColors).menuDropdown, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: statusBarPad + 58 }]}>
+          <View style={[styles(nightMode, themeColors).menuDropdown, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, top: (statusBarPad > 0 ? statusBarPad : 0) + 48 }]}>
             <TouchableOpacity
               style={styles(nightMode, themeColors).menuItem}
               onPress={() => {

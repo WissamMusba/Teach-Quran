@@ -57,9 +57,7 @@ export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?:
 
 const AnimatedHeader: React.FC<Props> = (p) => {
   const insets = useSafeAreaInsets();
-  const statusBarPad = Platform.OS === 'android'
-    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
-    : (insets?.top || 0);
+  const statusBarPad = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
   const { width } = useWindowDimensions();
   const [measured, setMeasured] = useState(0);
   const measuredRef = useRef(0);
@@ -170,9 +168,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           <View style={s.topRow}>
             {/* Left: Back Button & Surah Picker Title Block */}
             <TouchableOpacity
-              onPress={handleBack}
+              onPressIn={handleBack}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               activeOpacity={0.6}
+              delayPressIn={0}
               style={s.backBtn}
             >
               <IconBack c={primaryAccent} />
@@ -180,9 +179,10 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
             <TutorialAnchor id="hdr-list" style={{ flexShrink: 1 }}>
               <TouchableOpacity
-                onPress={handleOpenList}
+                onPressIn={handleOpenList}
                 style={s.titleBlock}
                 activeOpacity={0.7}
+                delayPressIn={0}
                 hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
               >
                 <Text style={[s.surahName, { color: titleColor }]} numberOfLines={1}>{p.surahName}</Text>
@@ -205,8 +205,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               <TutorialAnchor id="hdr-menu">
                 <TouchableOpacity
                   style={s.hamburgerBtn}
-                  onPress={handleOpenMenu}
+                  onPressIn={handleOpenMenu}
                   activeOpacity={0.6}
+                  delayPressIn={0}
                   hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
                 >
                   <IconHamburger c={primaryAccent} />
@@ -227,7 +228,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
               {
                 backgroundColor: themeColors.cardBg,
                 borderColor: themeColors.border,
-                top: statusBarPad + 48,
+                top: statusBarPad + 40,
                 right: 10,
                 transform: [
                   { scale: menuScale },
@@ -237,8 +238,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
           >
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
-              onPress={() => { handleCloseMenu(); handleSettings(); }}
+              onPressIn={() => { handleCloseMenu(); handleSettings(); }}
               activeOpacity={0.6}
+              delayPressIn={0}
               hitSlop={{ top: 6, bottom: 6, left: 10, right: 10 }}
             >
               <IconSettings c={themeColors.accent} />
@@ -247,8 +249,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
             <TouchableOpacity
               style={[s.menuItem, { borderBottomColor: themeColors.border }]}
-              onPress={() => { handleCloseMenu(); handleNotes(); }}
+              onPressIn={() => { handleCloseMenu(); handleNotes(); }}
               activeOpacity={0.6}
+              delayPressIn={0}
               hitSlop={{ top: 6, bottom: 6, left: 10, right: 10 }}
             >
               <IconNote c={C_NOTES} />
@@ -257,8 +260,9 @@ const AnimatedHeader: React.FC<Props> = (p) => {
 
             <TouchableOpacity
               style={[s.menuItem, { borderBottomWidth: 0 }]}
-              onPress={() => { handleCloseMenu(); handleMistakes(); }}
+              onPressIn={() => { handleCloseMenu(); handleMistakes(); }}
               activeOpacity={0.6}
+              delayPressIn={0}
               hitSlop={{ top: 6, bottom: 6, left: 10, right: 10 }}
             >
               <IconPen c={C_MISTAKES} />
@@ -275,8 +279,9 @@ const HeaderBtn = React.memo(
   ({ icon, label, onPress, labelStyle, subColor }: { icon: React.ReactNode; label: string; onPress: () => void; labelStyle?: any; subColor: string }) => (
     <TouchableOpacity
       style={s.iconBtn}
-      onPress={onPress}
+      onPressIn={onPress}
       activeOpacity={0.6}
+      delayPressIn={0}
       hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
     >
       {icon}
@@ -288,7 +293,7 @@ const HeaderBtn = React.memo(
 
 const s = StyleSheet.create({
   wrap: { borderBottomWidth: 1, zIndex: 100, overflow: 'hidden' },
-  topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4 },
+  topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingTop: 1, paddingBottom: 2 },
   backBtn: { minHeight: 42, minWidth: 38, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
   hamburgerBtn: { minWidth: 38, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, marginRight: 4 },
   iconsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },

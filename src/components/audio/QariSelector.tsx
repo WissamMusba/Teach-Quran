@@ -25,9 +25,7 @@ const QariSelector = ({ visible, onClose }: any) => {
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  const topInset = Platform.OS === 'android'
-    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
-    : (insets?.top || 0);
+  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
 
   const containerBg = themeColors.bg;
   const headerBg = themeColors.cardBg;
@@ -41,9 +39,9 @@ const QariSelector = ({ visible, onClose }: any) => {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.container, { backgroundColor: containerBg }]}>
-        <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: border, paddingTop: Math.max(14, topInset + 8) }]}>
+        <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: border, paddingTop: topInset > 0 ? topInset + 4 : 8, paddingBottom: 10 }]}>
           <Text style={[styles.title, { color: text }]}>Select a Qari</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity onPressIn={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} delayPressIn={0}>
             <Text style={[styles.closeBtn, { color: closeColor }]}>✕</Text>
           </TouchableOpacity>
         </View>

@@ -181,19 +181,17 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     onClose?.();
   }, [onClose]);
 
-  const topInset = Platform.OS === 'android'
-    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
-    : (insets?.top || 0);
+  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
 
   const content = (
-    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(12, topInset + 6), paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : (topInset > 0 ? topInset + 2 : 6), paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
         {!inline ? (
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: themeColors.text }]}>
               {mode === 'page' ? 'Go to page' : mode === 'juz' ? 'Go to juz' : 'Select Surah'}
             </Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6}>
+            <TouchableOpacity onPressIn={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} delayPressIn={0}>
               <Text style={[styles.closeBtn, { color: themeColors.accent }]}>Close</Text>
             </TouchableOpacity>
           </View>
