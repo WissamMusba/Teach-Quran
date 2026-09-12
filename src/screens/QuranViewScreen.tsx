@@ -47,7 +47,7 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage, getAllCachedMushafPages, getAllCachedVersesByPage } from '../database/quranData';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage } from '../database/quranData';
 import { cancelStartupPrefetch } from '../utils/startupPrefetch';
 import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
@@ -269,17 +269,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // (empty deps): captures the mount-frame script + page; empty memos yield {} exactly like the
   // old initializers, and the textStyle-wipe effect still owns later cache resets.
   const initialSeed = useMemo(() => {
-    const allCached = getAllCachedMushafPages(seedTextStyle);
-    const allVerses = getAllCachedVersesByPage(seedTextStyle);
-    const cache: Record<number, any> = { ...allCached };
-    const vcache: Record<number, any[]> = { ...allVerses };
+    const cache: Record<number, any> = {};
+    const vcache: Record<number, any[]> = {};
     for (let pg = Math.max(1, initialLandPage - 3); pg <= Math.min(initialLandPage + 3, seedTotalPages); pg++) {
-      if (!cache[pg]) {
-        const pd = getMemoizedPageData(pg, seedTextStyle); if (pd) cache[pg] = pd;
-      }
-      if (!vcache[pg]) {
-        const vs = getMemoizedVersesByPage(pg, seedTextStyle); if (vs) vcache[pg] = vs;
-      }
+      const pd = getMemoizedPageData(pg, seedTextStyle); if (pd) cache[pg] = pd;
+      const vs = getMemoizedVersesByPage(pg, seedTextStyle); if (vs) vcache[pg] = vs;
     }
     return { cache, vcache, keys: Object.keys(cache).map(Number), vkeys: Object.keys(vcache).map(Number) };
   }, []);
@@ -612,24 +606,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
     warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
   }, [splitOn, pageW, textStyle, isHeaderVisible]);
 
-  // Eager pre-load of ±2 pages immediately whenever currentPageNum changes:
-  useEffect(() => {
-    if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
-    const maxP = pageNumbers.length;
-    const clampP = (p: number) => Math.max(1, Math.min(p, maxP));
-    const toLoad = [
-      clampP(currentPageNum - 1),
-      clampP(currentPageNum + 1),
-      clampP(currentPageNum - 2),
-      clampP(currentPageNum + 2),
-    ];
-    toLoad.forEach(p => {
-      if (p >= 1 && p <= maxP) {
-        ensurePageLoaded(p);
-        ensurePageVersesLoaded(p);
-      }
-    });
-  }, [currentPageNum, readingMode, pageNumbers.length, ensurePageLoaded, ensurePageVersesLoaded]);
 
   // Cleanup on unmount: cancel pending warm timers.
   useEffect(() => () => {
@@ -2489,14 +2465,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 {...(initialLandPage > 1 && initialLandPage <= pageNumbers.length ? { initialScrollIndex: splitOn ? pairIndexForPage(initialLandPage) : initialLandPage - 1 } : {})}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
-                removeClippedSubviews={false} scrollEventThrottle={16}
+                removeClippedSubviews={true} scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: 0 }}
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
                 // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                // High-performance swiping with windowSize=21: keeps 10 pages before and after mounted
-                // so swiping multiple pages per second never encounters unmounted blanks.
-                initialNumToRender={5} maxToRenderPerBatch={10} windowSize={21}
+                // v62-style lean virtualization: only the visible page + its immediate neighbours
+                // are ever mounted, so button presses and navigation never queue behind a wall of
+                // background-rendered mushaf pages.
+                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
                 onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
