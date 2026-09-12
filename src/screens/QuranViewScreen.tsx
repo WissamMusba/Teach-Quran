@@ -294,6 +294,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [openModal, setOpenModal] = useState<'mistakes' | 'notes' | 'bookmarks' | 'settings' | null>(null);
   const [mountedModals, setMountedModals] = useState<Record<'mistakes' | 'notes' | 'bookmarks' | 'settings', boolean>>({ mistakes: false, notes: false, bookmarks: false, settings: false });
 
+  // Pre-warm overlay modals once initial render interactions settle so first tap is 0ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        setMountedModals({ mistakes: true, notes: true, bookmarks: true, settings: true });
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -2587,28 +2597,28 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
       {mountedModals.mistakes && (
-        <Modal visible={openModal === 'mistakes'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'mistakes'} animationType="slide" onRequestClose={closeModal} statusBarTranslucent>
           <View style={{ flex: 1 }}>
             <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.notes && (
-        <Modal visible={openModal === 'notes'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'notes'} animationType="slide" onRequestClose={closeModal} statusBarTranslucent>
           <View style={{ flex: 1 }}>
             <NotesScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.bookmarks && (
-        <Modal visible={openModal === 'bookmarks'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'bookmarks'} animationType="slide" onRequestClose={closeModal} statusBarTranslucent>
           <View style={{ flex: 1 }}>
             <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
           </View>
         </Modal>
       )}
       {mountedModals.settings && (
-        <Modal visible={openModal === 'settings'} animationType="slide" onRequestClose={closeModal}>
+        <Modal visible={openModal === 'settings'} animationType="slide" onRequestClose={closeModal} statusBarTranslucent>
           <View style={{ flex: 1 }}>
             <SettingsScreen onClose={closeModal} />
           </View>

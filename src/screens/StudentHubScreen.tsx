@@ -3,7 +3,7 @@
  * ROLE: Per-student hub screen with full theme integration, clean title case, vector SVG icons, and smooth navigation.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image, InteractionManager } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard, Image, InteractionManager, StatusBar, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -319,10 +319,14 @@ export default function StudentHubScreen({ navigation }: any) {
   const inputBg = nightMode ? '#121520' : '#F0EBE0';
   const chevronC = themeColors.accent;
 
+  const topInset = Platform.OS === 'android'
+    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
+    : (insets?.top || 0);
+
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg }]}>
       {/* Top Header showing the Student's Name directly */}
-      <View style={[styles(nightMode, themeColors).header, { backgroundColor: rowBg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
+      <View style={[styles(nightMode, themeColors).header, { backgroundColor: rowBg, borderBottomColor: border, paddingTop: Math.max(12, topInset + 8) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles(nightMode, themeColors).backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ChevronLeft c={chevronC} />
         </TouchableOpacity>

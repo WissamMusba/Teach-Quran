@@ -5,7 +5,7 @@
  *       vector SVG menu icons, and dynamic themes.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Animated, Pressable, Easing } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Image, Animated, Pressable, Easing, StatusBar, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -137,7 +137,9 @@ const StudentProgressRing = ({ pct, color, bgTrack }: { pct: number; color: stri
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const statusBarPad = insets.top;
+  const statusBarPad = Platform.OS === 'android'
+    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
+    : (insets?.top || 0);
   const [addModal, setAddModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -561,7 +563,7 @@ export default function DashboardScreen({ navigation }: any) {
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: themeColors.bg, paddingBottom: 0 }]}>
       {/* Top Header */}
-      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: Math.max(6, statusBarPad) }]}>
+      <View style={[styles(nightMode, themeColors).header, { backgroundColor: themeColors.cardBg, borderBottomColor: themeColors.border, paddingTop: Math.max(8, statusBarPad + 6) }]}>
         <View style={styles(nightMode, themeColors).titleRow}>
           <View style={[styles(nightMode, themeColors).titleDot, { backgroundColor: themeColors.accent }]} />
           <Text style={[styles(nightMode, themeColors).title, { color: themeColors.text }]}>Students</Text>

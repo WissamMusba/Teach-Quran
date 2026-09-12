@@ -4,13 +4,12 @@
  *       Full dynamic theme integration (Classic, Emerald, Obsidian).
  */
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
-import JuicyButton from './JuicyButton';
 
 const IconBack = ({ c }: { c: string }) => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -38,11 +37,15 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
   const subColor = themeColors.subText;
   const accent = themeColors.accent;
 
+  const topInset = Platform.OS === 'android'
+    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
+    : (insets?.top || 0);
+
   return (
-    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: Math.max(10, insets.top + 8) }]}>
-      <JuicyButton onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} scaleTo={0.86} style={styles(nightMode, themeColors).backBtn}>
+    <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: Math.max(12, topInset + 8) }]}>
+      <TouchableOpacity onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6} style={styles(nightMode, themeColors).backBtn}>
         <IconBack c={accent} />
-      </JuicyButton>
+      </TouchableOpacity>
       <View style={styles(nightMode, themeColors).textWrap}>
         <Text style={[styles(nightMode, themeColors).title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
         {subtitle ? <Text style={[styles(nightMode, themeColors).subtitle, { color: subColor }]} numberOfLines={1}>{subtitle}</Text> : null}

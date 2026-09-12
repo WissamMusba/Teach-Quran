@@ -3,7 +3,7 @@
  * ROLE: Full-screen modal surah picker with fuzzy search and full theme integration.
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions, Keyboard } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Modal, useWindowDimensions, Keyboard, StatusBar, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SURAH_META, SURAH_PAGE_RANGE } from '../../utils/surahMeta';
@@ -181,8 +181,12 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     onClose?.();
   }, [onClose]);
 
+  const topInset = Platform.OS === 'android'
+    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
+    : (insets?.top || 0);
+
   const content = (
-    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(10, insets.top + 6), paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : Math.max(12, topInset + 6), paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { backgroundColor: themeColors.headerBg, borderBottomColor: themeColors.headerBorder }]}>
         {!inline ? (
           <View style={styles.headerRow}>

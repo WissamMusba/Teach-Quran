@@ -3,7 +3,8 @@
  * ROLE: Slide-in modal listing the 4 supported reciters with full theme palette support.
  */
 import React, { memo, useMemo } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Modal, StatusBar, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { setQari } from '../../store/audioSlice';
 import { getThemeColors } from '../../utils/theme';
@@ -16,12 +17,17 @@ const QARIS = [
 ];
 
 const QariSelector = ({ visible, onClose }: any) => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const nightMode = useSelector((s: any) => s.settings?.nightMode);
   const colorTheme = useSelector((s: any) => s.settings?.colorTheme || 'classic');
   const { currentQari } = useSelector((s: any) => s.audio);
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
+
+  const topInset = Platform.OS === 'android'
+    ? Math.max(insets?.top || 0, StatusBar.currentHeight || 24)
+    : (insets?.top || 0);
 
   const containerBg = themeColors.bg;
   const headerBg = themeColors.cardBg;
@@ -33,9 +39,9 @@ const QariSelector = ({ visible, onClose }: any) => {
   const closeColor = themeColors.accent;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.container, { backgroundColor: containerBg }]}>
-        <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: border }]}>
+        <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: border, paddingTop: Math.max(14, topInset + 8) }]}>
           <Text style={[styles.title, { color: text }]}>Select a Qari</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={[styles.closeBtn, { color: closeColor }]}>✕</Text>
