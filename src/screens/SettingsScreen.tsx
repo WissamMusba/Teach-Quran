@@ -6,7 +6,7 @@ import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Modal, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleTranslation, setFontSize, setReadingMode, setTextStyle } from '../store/quranSlice';
-import { toggleNightMode, setColorTheme, setMushafSplit, togglePlayBasmala, setTutorialDone, setHideDrawingTool } from '../store/settingsSlice';
+import { toggleNightMode, setColorTheme, setMushafSplit, togglePlayBasmala, setTutorialDone, setHideDrawingTool, setDisableHaptics } from '../store/settingsSlice';
 import { startTutorial } from '../tutorial/tutorialRuntime';
 import { SPLIT_MIN_WIDTH } from '../utils/mushafLayout';
 import { getArabicFont, getThemeColors } from '../utils/theme';
@@ -90,6 +90,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const switchFalse = nightMode ? '#333' : '#d0d0d6';
 
   const hideDrawingTool = useSelector((state: RootState) => (state.settings as any)?.hideDrawingTool || false);
+  const disableHaptics = useSelector((state: RootState) => (state.settings as any)?.disableHaptics || false);
   const [downloadedSurahs, setDownloadedSurahs] = useState<number[]>([]);
   const [showDownloadedDropdown, setShowDownloadedDropdown] = useState(false);
 
@@ -471,6 +472,17 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
         {/* Drawing & Tools */}
         <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={styles(nightMode, themeColors).sectionTitle}>Drawing & Tools</Text>
+          <View style={[styles(nightMode, themeColors).row, { marginBottom: 14 }]}>
+            <View style={styles(nightMode, themeColors).settingInfo}>
+              <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Disable Haptics</Text>
+              <Text style={styles(nightMode, themeColors).settingDesc}>Turn off vibration feedback when tapping buttons</Text>
+            </View>
+            <Switch
+              value={disableHaptics}
+              onValueChange={(val) => { dispatch(setDisableHaptics(val)); }}
+              trackColor={{ false: switchFalse, true: themeColors.accent }}
+            />
+          </View>
           <View style={[styles(nightMode, themeColors).row, { marginBottom: 0 }]}>
             <View style={styles(nightMode, themeColors).settingInfo}>
               <Text style={[styles(nightMode, themeColors).settingTitle, { color: labelColor }]}>Hide Drawing Tool</Text>

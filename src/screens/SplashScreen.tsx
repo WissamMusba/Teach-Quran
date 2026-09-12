@@ -12,7 +12,7 @@
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, ScrollView, InteractionManager } from 'react-native';
-import { downloadAndCacheQuran, getSurahs, warmIndopakIndexes } from '../database/quranData';
+import { downloadAndCacheQuran, getSurahs, warmIndopakIndexes, warmAllMushafPages } from '../database/quranData';
 import auth from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setSurahNames } from '../store/quranSlice';
@@ -100,7 +100,11 @@ export default function SplashScreen({ navigation }: any) {
       if (!indopakWarmStarted) {
         indopakWarmStarted = true;
         InteractionManager.runAfterInteractions(() => {
-          setTimeout(() => { warmIndopakIndexes().catch(() => {}); }, 2000);
+          setTimeout(() => {
+            warmAllMushafPages('indopak').catch(() => {});
+            warmIndopakIndexes().catch(() => {});
+            warmAllMushafPages('uthmani').catch(() => {});
+          }, 800);
         });
       }
       navigation.replace(authResult.user ? 'Dashboard' : 'Login');

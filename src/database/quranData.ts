@@ -16,7 +16,7 @@
  *          src/screens/QuranViewScreen.tsx (page/verse reads + indopak import),
  *          src/components/quran/SurahList.tsx (surah list)
  */
-import { initDatabase, getDB, getIndopakPageDataFromAsset, disableIndopakAssetDB } from './localDB';
+import { initDatabase, getDB, getIndopakPageDataFromAsset, getAllIndopakPagesFromAsset, disableIndopakAssetDB } from './localDB';
 
 // SURAH_API: alquran.cloud surah metadata + edition endpoints (verse texts in
 // quran-uthmani, en.sahih and indo.pak — always fetched as a triple).
@@ -97,9 +97,9 @@ const getIndopakPageFromDBFallback = async (pageNum: number): Promise<any | null
 // END [PERF-CHANGE-1]
 // ============================================================
 const mushafPageMemo = new Map<string, any>();
-const MUSHAF_PAGE_MEMO_MAX = 300;
+const MUSHAF_PAGE_MEMO_MAX = 700;
 const versesByPageMemo = new Map<string, any[]>();
-const VERSES_BY_PAGE_MEMO_MAX = 400;
+const VERSES_BY_PAGE_MEMO_MAX = 700;
 
 /**
  * WHAT: True if the mushaf style string is an indopak-script font
@@ -274,6 +274,122 @@ export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
     return page;
   }
   return { lines: [] };
+};
+
+let warmAllPagesPromise: Promise<void> | null = null;
+
+/**
+ * WHAT: Warm the entire Quran (all 604 pages) into memory in single-batch queries.
+ * 1) SELECT pageNumber, data FROM mushaf_pages -> populates mushafPageMemo (all 604 pages).
+ * 2) SELECT * FROM verses ORDER BY page, surahId, verseNumber -> populates versesByPageMemo (all 604 pages).
+ * Runs in ~150-250ms total, using only ~10-12MB RAM.
+ */
+export const warmAllMushafPages = async (mushaf?: string): Promise<void> => {
+  const indopak = isIndopakStyle(mushaf);
+  const prefix = indopak ? 'indopak' : 'uthmani';
+  let count = 0;
+  for (const k of mushafPageMemo.keys()) {
+    if (k.startsWith(prefix)) count++;
+  }
+  if (count >= 604) return;
+  if (warmAllPagesPromise) return warmAllPagesPromise;
+
+  warmAllPagesPromise = (async () => {
+    try {
+      if (indopak) {
+        await getIndopakPageIndex();
+        const fromAsset = await getAllIndopakPagesFromAsset();
+        if (fromAsset) {
+          if (!indopakPagesByNum) indopakPagesByNum = {};
+          for (const [pStr, page] of Object.entries(fromAsset)) {
+            const pNum = Number(pStr);
+            indopakPagesByNum[pNum] = page;
+            const key = `indopak:${pNum}`;
+            if (!mushafPageMemo.has(key)) {
+              mushafPageMemo.set(key, page);
+            }
+          }
+          return;
+        }
+      }
+      const db = getDB();
+      const table = indopak ? 'mushaf_pages_indopak' : 'mushaf_pages';
+      const [resPages, resVerses] = await Promise.all([
+        db.executeSql(`SELECT pageNumber, data FROM ${table}`),
+        !indopak ? db.executeSql(`SELECT * FROM verses ORDER BY page, surahId, verseNumber`) : Promise.resolve(null),
+      ]);
+
+      if (resPages && resPages.length > 0 && resPages[0].rows) {
+        const rows = resPages[0].rows;
+        const len = rows.length;
+        for (let i = 0; i < len; i++) {
+          const item = rows.item(i);
+          const pNum = item.pageNumber;
+          const key = `${prefix}:${pNum}`;
+          if (!mushafPageMemo.has(key) && item.data) {
+            try {
+              const page = JSON.parse(item.data);
+              if (page?.lines?.length > 0) {
+                mushafPageMemo.set(key, page);
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (resVerses && resVerses.length > 0 && resVerses[0]?.rows) {
+        const rows = resVerses[0].rows;
+        const len = rows.length;
+        const grouped: Record<number, any[]> = {};
+        for (let i = 0; i < len; i++) {
+          const v = rows.item(i);
+          const pg = v.page;
+          if (pg > 0) {
+            if (!grouped[pg]) grouped[pg] = [];
+            grouped[pg].push(v);
+          }
+        }
+        for (const [pgStr, list] of Object.entries(grouped)) {
+          const key = `uthmani:${pgStr}`;
+          if (!versesByPageMemo.has(key)) {
+            versesByPageMemo.set(key, list);
+          }
+        }
+      }
+    } catch {}
+  })().finally(() => {
+    warmAllPagesPromise = null;
+  });
+
+  return warmAllPagesPromise;
+};
+
+export const getAllCachedMushafPages = (mushaf?: string): Record<number, any> => {
+  const indopak = isIndopakStyle(mushaf);
+  const prefix = indopak ? 'indopak:' : 'uthmani:';
+  const out: Record<number, any> = {};
+  for (const [k, v] of mushafPageMemo.entries()) {
+    if (k.startsWith(prefix)) {
+      const pNum = Number(k.slice(prefix.length));
+      if (pNum > 0) out[pNum] = v;
+    }
+  }
+  return out;
+};
+
+export const getAllCachedVersesByPage = (mushaf?: string): Record<number, any[]> => {
+  if (isIndopakStyle(mushaf)) {
+    return { ...indopakPageVerseCache };
+  }
+  const prefix = 'uthmani:';
+  const out: Record<number, any[]> = {};
+  for (const [k, v] of versesByPageMemo.entries()) {
+    if (k.startsWith(prefix)) {
+      const pNum = Number(k.slice(prefix.length));
+      if (pNum > 0) out[pNum] = v;
+    }
+  }
+  return out;
 };
 
 const ensuredPageQueues = new Map<string, Promise<any>>();

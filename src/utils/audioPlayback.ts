@@ -169,7 +169,7 @@ const stopPlayback = async (player: any): Promise<void> => {
     }
     await Promise.race([
       Promise.resolve(player.stopPlayer()),
-      new Promise<void>((res) => setTimeout(() => res(), 100)),
+      new Promise<void>((res) => setTimeout(() => res(), 300)),
     ]);
   } catch {}
 };
@@ -288,6 +288,7 @@ export const playNextVerse = (
   callbacks: PlaybackCallbacks = {},
 ): void => {
   const finalLastVerse = lastVerse || SURAH_VERSE_COUNTS[surahId - 1] || 1;
+  playToken++;
   const t = playToken;
   clearWatchdog();
   try {
@@ -297,10 +298,7 @@ export const playNextVerse = (
     player._isPlaying = false;
     player._hasPaused = false;
   }
-  Promise.race([
-    Promise.resolve(player.stopPlayer()).catch(() => {}),
-    new Promise<void>((res) => setTimeout(() => res(), 30)),
-  ]).then(() => {
+  stopPlayback(player).then(() => {
     if (t !== playToken) return;
     playVerse(player, qariId, surahId, nextVerse, finalLastVerse, callbacks, false);
   });

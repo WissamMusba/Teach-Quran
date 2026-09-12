@@ -47,7 +47,7 @@ import AudioPlayerBar from '../components/audio/AudioPlayerBar';
 import QariSelector from '../components/audio/QariSelector';
 import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
-import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage } from '../database/quranData';
+import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage, getAllCachedMushafPages, getAllCachedVersesByPage } from '../database/quranData';
 import { cancelStartupPrefetch } from '../utils/startupPrefetch';
 import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
@@ -140,6 +140,10 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
+  const oddData = odd ? (pageCache[odd] || getMemoizedPageData(odd, 'indopak') || getMemoizedPageData(odd, 'uthmani')) : null;
+  const evenData = even ? (pageCache[even] || getMemoizedPageData(even, 'indopak') || getMemoizedPageData(even, 'uthmani')) : null;
+  const oddVerses = odd ? (pageVersesCache[odd] || getMemoizedVersesByPage(odd, 'indopak') || getMemoizedVersesByPage(odd, 'uthmani') || []) : [];
+  const evenVerses = even ? (pageVersesCache[even] || getMemoizedVersesByPage(even, 'indopak') || getMemoizedVersesByPage(even, 'uthmani') || []) : [];
   // Spread margins: v97 tablets go FLUSH to the screen edges (0px — user request: "no padding
   // to the edge", portrait split was starving for width) with the 8px seam kept (4+4 inner);
   // phones stay at 6. A lone page (first/last pair, partner null) keeps symmetric treatment.
@@ -158,8 +162,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
-            pageCache[odd] ? (
-              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
+            oddData ? (
+              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={oddVerses} pageData={oddData} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
                 showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
@@ -171,8 +175,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
-          {pageCache[even] ? (
-            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
+          {evenData ? (
+            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={evenVerses} pageData={evenData} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
               showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
@@ -193,12 +197,9 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
  *   tick re-rendered the visible cells and re-issued guarded-but-redundant loads).
  *   All callbacks arrive already stable (useCallback in the parent), so idle
  *   re-renders of the screen skip the cell's render tree entirely; item-specific
- *   closures live INSIDE the cell so their identity never leaks into the memo
- *   comparison. MushafPageView is itself memoized (export default memo) — a cache
- *   fill of a NEIGHBOUR page re-renders this wrapper only, not the mushaf tree.
-* CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
-   * CALLED BY: page-mode FlatList renderItem (splitOn=false).
-   */
+ *   props (item, readingMarkActiveFor) invalidate only their own cell.
+ * CALLED BY: page-mode FlatList renderItem (splitOn=false).
+ */
 const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
   useEffect(() => {
     // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
@@ -207,7 +208,8 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
     if (!pageCache[item]) ensurePageLoaded(item);
     if (!pageVersesCache[item]) ensurePageVersesLoaded(item);
   }, [item, pageCache, pageVersesCache, ensurePageLoaded, ensurePageVersesLoaded]);
-  const pData = pageCache[item];
+  const pData = pageCache[item] || getMemoizedPageData(item, 'indopak') || getMemoizedPageData(item, 'uthmani');
+  const pVerses = pageVersesCache[item] || getMemoizedVersesByPage(item, 'indopak') || getMemoizedVersesByPage(item, 'uthmani') || [];
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
@@ -219,7 +221,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           words past the 0.5 floor). */}
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 24 : Math.max(topSafeInset + 6, 24), marginBottom: 24 }}>
       {pData ? (
-        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
+        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pVerses} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
@@ -267,11 +269,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // (empty deps): captures the mount-frame script + page; empty memos yield {} exactly like the
   // old initializers, and the textStyle-wipe effect still owns later cache resets.
   const initialSeed = useMemo(() => {
-    const cache: Record<number, any> = {};
-    const vcache: Record<number, any[]> = {};
+    const allCached = getAllCachedMushafPages(seedTextStyle);
+    const allVerses = getAllCachedVersesByPage(seedTextStyle);
+    const cache: Record<number, any> = { ...allCached };
+    const vcache: Record<number, any[]> = { ...allVerses };
     for (let pg = Math.max(1, initialLandPage - 3); pg <= Math.min(initialLandPage + 3, seedTotalPages); pg++) {
-      const pd = getMemoizedPageData(pg, seedTextStyle); if (pd) cache[pg] = pd;
-      const vs = getMemoizedVersesByPage(pg, seedTextStyle); if (vs) vcache[pg] = vs;
+      if (!cache[pg]) {
+        const pd = getMemoizedPageData(pg, seedTextStyle); if (pd) cache[pg] = pd;
+      }
+      if (!vcache[pg]) {
+        const vs = getMemoizedVersesByPage(pg, seedTextStyle); if (vs) vcache[pg] = vs;
+      }
     }
     return { cache, vcache, keys: Object.keys(cache).map(Number), vkeys: Object.keys(vcache).map(Number) };
   }, []);
@@ -442,6 +450,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
     if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
+    const mem = getMemoizedPageData(pageNum, textStyleRef.current) || getMemoizedPageData(pageNum, 'indopak') || getMemoizedPageData(pageNum, 'uthmani');
+    if (mem && mem.lines && mem.lines.length > 0) {
+      stagePageData(pageNum, mem);
+      return Promise.resolve(mem);
+    }
     if (pagePromiseRef.current[pageNum]) return pagePromiseRef.current[pageNum];
     const promise = (async () => {
       const data = await getMushafPageData(pageNum, textStyleRef.current);
@@ -480,6 +493,11 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const ensurePageVersesLoaded = useCallback((pageNum: number) => {
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
+    const memV = getMemoizedVersesByPage(pageNum, textStyleRef.current) || getMemoizedVersesByPage(pageNum, 'indopak') || getMemoizedVersesByPage(pageNum, 'uthmani');
+    if (memV && memV.length > 0) {
+      stagePageVerses(pageNum, memV);
+      return;
+    }
     pageVersesPromiseRef.current[pageNum] = true;
     getVersesByPage(pageNum, textStyleRef.current).then(verses => {
       stagePageVerses(pageNum, verses);
@@ -533,49 +551,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const stagePageData = (pageNum: number, data: any) => {
     if (isExitingRef.current) return;
     setPageCache(prev => {
-      const next = { ...prev };
-      const order = pageCacheOrderRef.current.slice();
-      next[pageNum] = data;
-      const oi = order.indexOf(pageNum);
-      if (oi !== -1) order.splice(oi, 1);
-      order.push(pageNum);
-      const cp = currentPageNumRef.current;
-      while (order.length > 96) {
-        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
-        if (idx === -1) break;
-        delete next[order[idx]];
-        order.splice(idx, 1);
-      }
-      pageCacheOrderRef.current = order;
-      return next;
+      if (prev[pageNum] === data) return prev;
+      return { ...prev, [pageNum]: data };
     });
   };
 
   /**
-   * WHAT: Single-entry verse landing — same direct commit + LRU pattern as
-   *   stagePageData, applied to pageVersesCache.
+   * WHAT: Single-entry verse landing — commits directly to pageVersesCache
+   *   without LRU eviction so verses stay in memory.
    * CALLS: setPageVersesCache (state setter only).
    * CALLED BY: ensurePageVersesLoaded.
-   * AFFECTS: pageVersesCache (one commit per entry), pageVersesOrderRef.
+   * AFFECTS: pageVersesCache (one commit per entry).
    */
   const stagePageVerses = (pageNum: number, verses: any[]) => {
     if (isExitingRef.current) return;
     setPageVersesCache(prev => {
-      const next = { ...prev };
-      const order = pageVersesOrderRef.current.slice();
-      next[pageNum] = verses;
-      const oi = order.indexOf(pageNum);
-      if (oi !== -1) order.splice(oi, 1);
-      order.push(pageNum);
-      const cp = currentPageNumRef.current;
-      while (order.length > 96) {
-        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
-        if (idx === -1) break;
-        delete next[order[idx]];
-        order.splice(idx, 1);
-      }
-      pageVersesOrderRef.current = order;
-      return next;
+      if (prev[pageNum] === verses) return prev;
+      return { ...prev, [pageNum]: verses };
     });
   };
 
@@ -619,6 +611,25 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const keyW = Math.round(splitOn ? pageW : winW);
     warmedPagesRef.current.add(`${textStyle}|${keyW}|${pg}`);
   }, [splitOn, pageW, textStyle, isHeaderVisible]);
+
+  // Eager pre-load of ±2 pages immediately whenever currentPageNum changes:
+  useEffect(() => {
+    if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
+    const maxP = pageNumbers.length;
+    const clampP = (p: number) => Math.max(1, Math.min(p, maxP));
+    const toLoad = [
+      clampP(currentPageNum - 1),
+      clampP(currentPageNum + 1),
+      clampP(currentPageNum - 2),
+      clampP(currentPageNum + 2),
+    ];
+    toLoad.forEach(p => {
+      if (p >= 1 && p <= maxP) {
+        ensurePageLoaded(p);
+        ensurePageVersesLoaded(p);
+      }
+    });
+  }, [currentPageNum, readingMode, pageNumbers.length, ensurePageLoaded, ensurePageVersesLoaded]);
 
   // Cleanup on unmount: cancel pending warm timers.
   useEffect(() => () => {
@@ -2103,7 +2114,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const startPlayFromVerse = async (verse: number | { surahId: number; verseNumber: number }, opts?: { playBasmala?: boolean }) => {
     const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
-    if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
+    if (isPlaying) { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); }
     const verseNum = typeof verse === 'number' ? verse : verse.verseNumber;
     const surahId = typeof verse === 'number'
       ? (readingMode === 'page'
@@ -2319,41 +2330,20 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [menuY]);
 
   // ---- header-button overlay screens: stable handlers (AnimatedHeader is React.memo'd) that
-  // ---- lazily mount each Modal once, then animate translateY with GPU native driver. ----
-  const overlayTranslateY = useRef(new Animated.Value(Dimensions.get('window').height)).current;
-  const isClosingModalRef = useRef(false);
-
+  // ---- lazily mount each Modal once, then only flip `visible` on re-opens (no re-query). ----
   const closeModal = useCallback(() => {
-    if (isClosingModalRef.current) return;
-    isClosingModalRef.current = true;
     Keyboard.dismiss();
-    const winH = Dimensions.get('window').height;
-    Animated.timing(overlayTranslateY, {
-      toValue: winH,
-      duration: 160,
-      easing: Easing.bezier(0.2, 0.9, 0.3, 1.0),
-      useNativeDriver: true,
-    }).start(() => {
-      setOpenModal(null);
-      isClosingModalRef.current = false;
-    });
-  }, [overlayTranslateY]);
+    setOpenModal(null);
+  }, []);
 
   const openOverlayModal = useCallback((name: 'mistakes' | 'notes' | 'bookmarks' | 'settings') => {
-    flushPendingHighlights();
-    isClosingModalRef.current = false;
-    overlayTranslateY.stopAnimation();
-    const winH = Dimensions.get('window').height;
-    overlayTranslateY.setValue(winH);
     setMountedModals((m) => (m[name] ? m : { ...m, [name]: true }));
     setOpenModal(name);
-    Animated.timing(overlayTranslateY, {
-      toValue: 0,
-      duration: 220,
-      easing: Easing.bezier(0.2, 0.9, 0.3, 1.0),
-      useNativeDriver: true,
-    }).start();
-  }, [flushPendingHighlights, overlayTranslateY]);
+    // Background flush pending highlights without blocking the modal pop
+    InteractionManager.runAfterInteractions(() => {
+      flushPendingHighlights();
+    });
+  }, [flushPendingHighlights]);
 
   const openMistakes = useCallback(() => {
     openOverlayModal('mistakes');
@@ -2499,15 +2489,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 {...(initialLandPage > 1 && initialLandPage <= pageNumbers.length ? { initialScrollIndex: splitOn ? pairIndexForPage(initialLandPage) : initialLandPage - 1 } : {})}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
-                removeClippedSubviews={true} scrollEventThrottle={16}
+                removeClippedSubviews={false} scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: 0 }}
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
                 // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                // v62-style lean virtualization: only the visible page + its immediate neighbours
-                // are ever mounted, so button presses and navigation never queue behind a wall of
-                // background-rendered mushaf pages.
-                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
+                // High-performance swiping with windowSize=21: keeps 10 pages before and after mounted
+                // so swiping multiple pages per second never encounters unmounted blanks.
+                initialNumToRender={5} maxToRenderPerBatch={10} windowSize={21}
                 updateCellsBatchingPeriod={40}
                 onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
@@ -2607,31 +2596,31 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
       {/* ---- header-button overlay screens: always-kept Modals (first open mounts lazily; re-opens are instant) ---- */}
       {mountedModals.mistakes && (
-        <Modal visible={openModal === 'mistakes'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
+        <Modal visible={openModal === 'mistakes'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
             <MistakesScreen onClose={closeModal} navigation={modalNav as any} />
-          </Animated.View>
+          </View>
         </Modal>
       )}
       {mountedModals.notes && (
-        <Modal visible={openModal === 'notes'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
+        <Modal visible={openModal === 'notes'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
             <NotesScreen onClose={closeModal} navigation={modalNav as any} />
-          </Animated.View>
+          </View>
         </Modal>
       )}
       {mountedModals.bookmarks && (
-        <Modal visible={openModal === 'bookmarks'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
+        <Modal visible={openModal === 'bookmarks'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
             <BookmarksScreen onClose={closeModal} navigation={modalNav as any} />
-          </Animated.View>
+          </View>
         </Modal>
       )}
       {mountedModals.settings && (
-        <Modal visible={openModal === 'settings'} transparent statusBarTranslucent animationType="none" onRequestClose={closeModal}>
-          <Animated.View style={{ flex: 1, transform: [{ translateY: overlayTranslateY }] }}>
+        <Modal visible={openModal === 'settings'} animationType="slide" onRequestClose={closeModal}>
+          <View style={{ flex: 1 }}>
             <SettingsScreen onClose={closeModal} />
-          </Animated.View>
+          </View>
         </Modal>
       )}
 

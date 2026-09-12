@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Svg, { Path } from 'react-native-svg';
 import { getThemeColors } from '../../utils/theme';
+import JuicyButton from '../common/JuicyButton';
 
 const IconPlay = ({ c, s = 16 }: { c: string; s?: number }) => (
   <Svg width={s} height={s} viewBox="0 0 24 24" fill={c}><Path d="M8 5v14l11-7z" /></Svg>
@@ -109,7 +110,7 @@ const AudioPlayerBar = ({
           </View>
           <Text style={[styles.surahName, { color: themeColors.subText }, isTablet && { fontSize: 11.5, marginTop: 1 }]}>Surah {surahId}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <JuicyButton
           style={[
             styles.changeBtn,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -117,10 +118,11 @@ const AudioPlayerBar = ({
           ]}
           onPress={onOpenLoopSettings}
           activeOpacity={0.7}
+          scaleTo={0.92}
         >
           <Text style={[styles.changeText, { color: themeColors.subText }, isTablet && { fontSize: 11.5 }]}>Loop settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </JuicyButton>
+        <JuicyButton
           style={[
             styles.changeBtn,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -128,12 +130,13 @@ const AudioPlayerBar = ({
           ]}
           onPress={onOpenQari}
           activeOpacity={0.7}
+          scaleTo={0.92}
         >
           <Text style={[styles.changeText, { color: themeColors.accent }, isTablet && { fontSize: 11.5 }]}>▾ Reciter</Text>
-        </TouchableOpacity>
+        </JuicyButton>
       </View>
       <View style={[styles.ctrlRow, isTablet && { gap: 10 }]}>
-        <TouchableOpacity
+        <JuicyButton
           style={[
             styles.circle,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -143,11 +146,12 @@ const AudioPlayerBar = ({
           onPress={onPrevVerse}
           disabled={!canStep}
           activeOpacity={0.7}
+          scaleTo={0.86}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <IconPrevTrack s={iconStepSize} c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
-        </TouchableOpacity>
-        <TouchableOpacity
+        </JuicyButton>
+        <JuicyButton
           style={[
             styles.playCircle,
             { backgroundColor: themeColors.primary },
@@ -155,11 +159,12 @@ const AudioPlayerBar = ({
           ]}
           onPress={showPlay ? onPlayPageStart : onResume}
           activeOpacity={0.85}
+          scaleTo={0.88}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {isPlaying ? <IconPause c="#FFFFFF" s={iconPlaySize} /> : <IconPlay c="#FFFFFF" s={iconPlaySize} />}
-        </TouchableOpacity>
-        <TouchableOpacity
+        </JuicyButton>
+        <JuicyButton
           style={[
             styles.circle,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -169,11 +174,12 @@ const AudioPlayerBar = ({
           onPress={onNextVerse}
           disabled={!canStep}
           activeOpacity={0.7}
+          scaleTo={0.86}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <IconNextTrack s={iconStepSize} c={String(canStep ? (nightMode ? '#e8e8e8' : '#121212') : disC)} />
-        </TouchableOpacity>
-        <TouchableOpacity
+        </JuicyButton>
+        <JuicyButton
           style={[
             styles.action,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -183,13 +189,14 @@ const AudioPlayerBar = ({
           onPress={onPlayPageStart}
           disabled={!loopEnabled}
           activeOpacity={0.7}
+          scaleTo={0.92}
           hitSlop={{ top: 8, bottom: 8 }}
         >
           <Text style={[styles.actionText, { color: loopEnabled ? themeColors.text : disC }, isTablet && { fontSize: 11.5 }]}>
             {loopEnabled && isPlaying ? 'Loop end' : 'Loop start'}
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </JuicyButton>
+        <JuicyButton
           style={[
             styles.action,
             { backgroundColor: nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
@@ -199,12 +206,13 @@ const AudioPlayerBar = ({
           onPress={onPlayNewSurah}
           disabled={!canPlayNewSurah}
           activeOpacity={0.7}
+          scaleTo={0.92}
           hitSlop={{ top: 8, bottom: 8 }}
         >
           <Text style={[styles.actionText, { color: canPlayNewSurah ? themeColors.text : disC }, isTablet && { fontSize: 11.5 }]}>
             Surah start
           </Text>
-        </TouchableOpacity>
+        </JuicyButton>
       </View>
     </View>
   );

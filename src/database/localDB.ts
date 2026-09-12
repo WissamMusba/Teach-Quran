@@ -260,6 +260,32 @@ export const getIndopakPageDataFromAsset = async (pageNum: number): Promise<any 
   return null;
 };
 
+export const getAllIndopakPagesFromAsset = async (): Promise<Record<number, any> | null> => {
+  if (indopakAssetDisabled) return null;
+  try {
+    const db = await ensureIndopakAsset();
+    if (!db) return null;
+    const r = await db.executeSql(`SELECT pageNumber, data FROM indopak_pages`);
+    if (r && r[0] && r[0].rows) {
+      const out: Record<number, any> = {};
+      const rows = r[0].rows;
+      const len = rows.length;
+      for (let i = 0; i < len; i++) {
+        const item = rows.item(i);
+        if (item.data) {
+          try {
+            out[item.pageNumber] = JSON.parse(item.data);
+          } catch {}
+        }
+      }
+      return out;
+    }
+  } catch (e) {
+    console.warn('getAllIndopakPagesFromAsset', e);
+  }
+  return null;
+};
+
 /**
  * Called by quranData's FALLBACK import after it back-fills
  * mushaf_pages_indopak in SQLite: shuts the read-only asset connection and

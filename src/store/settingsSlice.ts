@@ -16,6 +16,7 @@ const initialState = {
   tutorialDone: false,        // interactive walkthrough finished once
   legacySmooth: false,        // legacy smooth scroll flag
   hideDrawingTool: false,     // hide floating pen and drawing tools while reading
+  disableHaptics: false,      // disable tactile button haptics (default OFF)
 };
 
 export const settingsSlice = createSlice({
@@ -32,6 +33,7 @@ export const settingsSlice = createSlice({
     togglePlayBasmala: (state) => { state.playBasmala = !state.playBasmala; },
     setAdCollapsed: (state, action) => { state.adCollapsed = action.payload === true; },
     setHideDrawingTool: (state, action) => { state.hideDrawingTool = action.payload === true; },
+    setDisableHaptics: (state, action) => { state.disableHaptics = action.payload === true; },
   }
 });
 
@@ -46,6 +48,7 @@ export const {
   setTutorialDone,
   toggleLegacySmooth,
   setHideDrawingTool,
+  setDisableHaptics,
 } = settingsSlice.actions;
 
 export default settingsSlice.reducer;

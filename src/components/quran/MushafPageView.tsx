@@ -488,7 +488,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
   const naturalRatio = mushafLineHeight / (mushafFontSize + adj.size);
   const PITCH_FLOOR_RATIO = 1.2;
   const needH = wordLineCount * fitLineH;
-  const availH = innerH - fitPadTop - fitPadBottom;
+  const effectiveInnerH = innerH > 0 ? innerH : (SCREEN_HEIGHT - (headerVisible ? 120 : 60));
+  const availH = effectiveInnerH - fitPadTop - fitPadBottom;
   // One-shot vertical fit (P1 teardown): the fit is a pure function of its inputs — innerH,
   // headerVisible (line height + box height), textStyle/sparse (in the cache key) and this
   // page's wordLineCount — so the row's stored fit, when it matches the CURRENT box+header,
@@ -937,17 +938,9 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     );
   }
 
-  // Render gate — hold at an empty container until the cache verdict ('hit'/'miss') arrives so
-  // no measurement starts before it. CACHE-HIT mounts with a replayable one-shot fit paint
-  // IMMEDIATELY: the replayed pitchScale/fontScale need neither the box height nor the font
-  // gate, so the first painted frame is the full mushaf — no ActivityIndicator, no innerH
-  // round-trip, no re-measure (v62's synchronous width replay, restored for the vertical fit).
-  // ALL other states wait for fontReady + innerH: a miss must measure with the real font on the
-  // settled box, and a hit whose stored fit does NOT match the current box/header (validated by
-  // onBoxLayout's synchronous first-measure on the frame after mount) falls back to the live fit
-  // math — v81 behavior, unchanged. FIX 4 — while pending, render the frame + spinner (same
-  // container size so onBoxLayout still captures the true height), never a black void.
-  if (cacheState === 'loading' || (!replayFit && (!fontReady || innerH === 0))) {
+  // Render gate — when pageData.lines is present, paint the full mushaf immediately on frame 0
+  // without blocking behind an ActivityIndicator or black void. Only fallback if lines are missing.
+  if (!pageData?.lines || pageData.lines.length === 0) {
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).skeletonWrap}>

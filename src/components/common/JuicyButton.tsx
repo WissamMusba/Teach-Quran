@@ -13,6 +13,7 @@ import {
   PressableProps,
 } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import { triggerAppHaptic } from '../../utils/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -47,12 +48,7 @@ const JuicyButton: React.FC<JuicyButtonProps> = ({
 
   const triggerHaptic = useCallback(() => {
     if (!hapticFeedback) return;
-    try {
-      ReactNativeHapticFeedback.trigger('impactLight', {
-        enableVibrateFallback: false,
-        ignoreAndroidSystemSettings: false,
-      });
-    } catch {}
+    triggerAppHaptic('impactLight');
   }, [hapticFeedback]);
 
   const handlePressIn = useCallback(

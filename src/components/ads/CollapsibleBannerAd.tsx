@@ -20,8 +20,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import { setAdCollapsed } from '../../store/settingsSlice';
 
-// Feature flag: set to false for AAB release so no ads appear to users
-export const ENABLE_ADS = false;
+// Feature flag: set to true for APK build
+export const ENABLE_ADS = true;
 
 // TODO(ADMOB): replace with your REAL banner unit id from the AdMob console before release.
 const PROD_BANNER_ID = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
