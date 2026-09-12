@@ -140,10 +140,6 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  const oddData = odd ? (pageCache[odd] || getMemoizedPageData(odd, 'indopak') || getMemoizedPageData(odd, 'uthmani')) : null;
-  const evenData = even ? (pageCache[even] || getMemoizedPageData(even, 'indopak') || getMemoizedPageData(even, 'uthmani')) : null;
-  const oddVerses = odd ? (pageVersesCache[odd] || getMemoizedVersesByPage(odd, 'indopak') || getMemoizedVersesByPage(odd, 'uthmani') || []) : [];
-  const evenVerses = even ? (pageVersesCache[even] || getMemoizedVersesByPage(even, 'indopak') || getMemoizedVersesByPage(even, 'uthmani') || []) : [];
   // Spread margins: v97 tablets go FLUSH to the screen edges (0px — user request: "no padding
   // to the edge", portrait split was starving for width) with the 8px seam kept (4+4 inner);
   // phones stay at 6. A lone page (first/last pair, partner null) keeps symmetric treatment.
@@ -162,8 +158,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
-            oddData ? (
-              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={oddVerses} pageData={oddData} highlights={highlights}
+            pageCache[odd] ? (
+              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
                 onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
                 flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
                 showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
@@ -175,8 +171,8 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
-          {evenData ? (
-            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={evenVerses} pageData={evenData} highlights={highlights}
+          {pageCache[even] ? (
+            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
               showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
@@ -197,7 +193,10 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
  *   tick re-rendered the visible cells and re-issued guarded-but-redundant loads).
  *   All callbacks arrive already stable (useCallback in the parent), so idle
  *   re-renders of the screen skip the cell's render tree entirely; item-specific
- *   props (item, readingMarkActiveFor) invalidate only their own cell.
+ *   closures live INSIDE the cell so their identity never leaks into the memo
+ *   comparison. MushafPageView is itself memoized (export default memo) — a cache
+ *   fill of a NEIGHBOUR page re-renders this wrapper only, not the mushaf tree.
+ * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
  * CALLED BY: page-mode FlatList renderItem (splitOn=false).
  */
 const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
@@ -208,8 +207,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
     if (!pageCache[item]) ensurePageLoaded(item);
     if (!pageVersesCache[item]) ensurePageVersesLoaded(item);
   }, [item, pageCache, pageVersesCache, ensurePageLoaded, ensurePageVersesLoaded]);
-  const pData = pageCache[item] || getMemoizedPageData(item, 'indopak') || getMemoizedPageData(item, 'uthmani');
-  const pVerses = pageVersesCache[item] || getMemoizedVersesByPage(item, 'indopak') || getMemoizedVersesByPage(item, 'uthmani') || [];
+  const pData = pageCache[item];
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
@@ -221,7 +219,7 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache,
           words past the 0.5 floor). */}
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 24 : Math.max(topSafeInset + 6, 24), marginBottom: 24 }}>
       {pData ? (
-        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pVerses} pageData={pData} highlights={highlights} onWordPress={onWordPress}
+        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
@@ -444,11 +442,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
     if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
-    const mem = getMemoizedPageData(pageNum, textStyleRef.current) || getMemoizedPageData(pageNum, 'indopak') || getMemoizedPageData(pageNum, 'uthmani');
-    if (mem && mem.lines && mem.lines.length > 0) {
-      stagePageData(pageNum, mem);
-      return Promise.resolve(mem);
-    }
     if (pagePromiseRef.current[pageNum]) return pagePromiseRef.current[pageNum];
     const promise = (async () => {
       const data = await getMushafPageData(pageNum, textStyleRef.current);
@@ -487,11 +480,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const ensurePageVersesLoaded = useCallback((pageNum: number) => {
     if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
-    const memV = getMemoizedVersesByPage(pageNum, textStyleRef.current) || getMemoizedVersesByPage(pageNum, 'indopak') || getMemoizedVersesByPage(pageNum, 'uthmani');
-    if (memV && memV.length > 0) {
-      stagePageVerses(pageNum, memV);
-      return;
-    }
     pageVersesPromiseRef.current[pageNum] = true;
     getVersesByPage(pageNum, textStyleRef.current).then(verses => {
       stagePageVerses(pageNum, verses);
@@ -545,23 +533,49 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const stagePageData = (pageNum: number, data: any) => {
     if (isExitingRef.current) return;
     setPageCache(prev => {
-      if (prev[pageNum] === data) return prev;
-      return { ...prev, [pageNum]: data };
+      const next = { ...prev };
+      const order = pageCacheOrderRef.current.slice();
+      next[pageNum] = data;
+      const oi = order.indexOf(pageNum);
+      if (oi !== -1) order.splice(oi, 1);
+      order.push(pageNum);
+      const cp = currentPageNumRef.current;
+      while (order.length > 96) {
+        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
+        if (idx === -1) break;
+        delete next[order[idx]];
+        order.splice(idx, 1);
+      }
+      pageCacheOrderRef.current = order;
+      return next;
     });
   };
 
   /**
-   * WHAT: Single-entry verse landing — commits directly to pageVersesCache
-   *   without LRU eviction so verses stay in memory.
+   * WHAT: Single-entry verse landing — same direct commit + LRU pattern as
+   *   stagePageData, applied to pageVersesCache.
    * CALLS: setPageVersesCache (state setter only).
    * CALLED BY: ensurePageVersesLoaded.
-   * AFFECTS: pageVersesCache (one commit per entry).
+   * AFFECTS: pageVersesCache (one commit per entry), pageVersesOrderRef.
    */
   const stagePageVerses = (pageNum: number, verses: any[]) => {
     if (isExitingRef.current) return;
     setPageVersesCache(prev => {
-      if (prev[pageNum] === verses) return prev;
-      return { ...prev, [pageNum]: verses };
+      const next = { ...prev };
+      const order = pageVersesOrderRef.current.slice();
+      next[pageNum] = verses;
+      const oi = order.indexOf(pageNum);
+      if (oi !== -1) order.splice(oi, 1);
+      order.push(pageNum);
+      const cp = currentPageNumRef.current;
+      while (order.length > 96) {
+        const idx = order.findIndex((k: number) => Math.abs(k - cp) > 48);
+        if (idx === -1) break;
+        delete next[order[idx]];
+        order.splice(idx, 1);
+      }
+      pageVersesOrderRef.current = order;
+      return next;
     });
   };
 
