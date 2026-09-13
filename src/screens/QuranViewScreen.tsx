@@ -294,15 +294,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [openModal, setOpenModal] = useState<'mistakes' | 'notes' | 'bookmarks' | 'settings' | null>(null);
   const [mountedModals, setMountedModals] = useState<Record<'mistakes' | 'notes' | 'bookmarks' | 'settings', boolean>>({ mistakes: false, notes: false, bookmarks: false, settings: false });
 
-  // Pre-warm overlay modals once initial render interactions settle so first tap is 0ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      InteractionManager.runAfterInteractions(() => {
-        setMountedModals({ mistakes: true, notes: true, bookmarks: true, settings: true });
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
 
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [page, setPage] = useState(1);
@@ -2354,8 +2345,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
     openOverlayModal('notes');
   }, [openOverlayModal]);
   const openBookmarks = useCallback(() => {
-    openOverlayModal('bookmarks');
-  }, [openOverlayModal]);
+    setMountedModals((m) => (m.bookmarks ? m : { ...m, bookmarks: true }));
+    setOpenModal('bookmarks');
+  }, []);
   const openSettings = useCallback(() => {
     openOverlayModal('settings');
   }, [openOverlayModal]);
@@ -2390,56 +2382,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   const onOpenList = useCallback(() => { setSearchMode('surah'); setShowList(true); }, []);
 
-  const renderPageItem = useCallback(
-    ({ item }: any) => {
-      if (splitOn) {
-        return (
-          <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-            highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
-            bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
-            notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-            ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-            onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-            readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-            readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
-            onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
-            fontSizeScale={layoutFontScaleFor(winW, true, winH)}
-            readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
-            topSafeInset={topSafeInset} />
-        );
-      }
-      return (
-        <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
-          highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
-          bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
-          notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
-          ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
-          onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
-          readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
-          readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
-          onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-          nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
-          readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
-          topSafeInset={topSafeInset} />
-      );
-    },
-    [
-      splitOn, winW, pageW, winH, isHeaderVisible, surahNames, pageCache, pageVersesCache,
-      captureHighlights, handleWordFlow, handleBookmarkFlow, handleVerseLongPress,
-      captureBookmarks, flashingVerse, flashingSurah, currentSurahId,
-      canvasData.notes, readingMarkVerse, toggleHeader, ensurePageLoaded, ensurePageVersesLoaded,
-      splitCapable, handleToggleSpread, readingMode, isCapturing, pageLastVerseFor,
-      readingMarkActiveFor, handleReadingMarkToggle, handleVisibleMeasured,
-      currentPageNum, studentData?.lastRead?.updatedAt, studentData?.lastRead?.createdAt, nightMode,
-      topSafeInset
-    ]
-  );
-
   return (
     <View style={[styles(nightMode).container, { backgroundColor: bgColor }]}>
       <AnimatedHeader visible={isHeaderVisible} surahName={headerInfo.surahName} surahId={headerInfo.surahId} nightMode={nightMode}
         onBack={onBack} onOpenList={onOpenList} onMistakes={openMistakes}
-        onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings} />
+        onShare={handleSharePage} onNotes={openNotes} onBookmarks={openBookmarks} onSettings={openSettings}
+        onMenuOpen={() => setMountedModals(m => ({ ...m, mistakes: true, notes: true, settings: true }))} />
       <TutorialAnchor id="reading-area" style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: bgColor }} ref={viewShotRef} collapsable={false}>
         <GestureHandlerRootView style={{ flex: 1 }}><PanGestureHandler onHandlerStateChange={onSwipe} activeOffsetY={[-15, 15]} activeOffsetX={[-25, 25]} enabled={!isDrawing && readingMode !== 'page'}>
@@ -2535,7 +2483,33 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     }
                   }
                 }}
-                renderItem={renderPageItem} />
+                renderItem={splitOn ? ({ item }: any) => (
+                  <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
+                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+                    notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
+                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing} currentPageNum={currentPageNum}
+                    fontSizeScale={layoutFontScaleFor(winW, true, winH)}
+                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
+                    topSafeInset={topSafeInset} />
+                ) : ({ item }: any) => (
+                  <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+                    highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
+                    bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
+                    notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
+                    ensurePageLoaded={ensurePageLoaded} ensurePageVersesLoaded={ensurePageVersesLoaded}
+                    onSpread={splitCapable ? handleToggleSpread : undefined} spread={splitOn}
+                    readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
+                    readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
+                    onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
+                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
+                    readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
+                    topSafeInset={topSafeInset} />
+                )} />
             )}
 
             {/* share capture: re-draws saved drawing paths on top of the page while capturing (only when Drawings toggle is ON) */}

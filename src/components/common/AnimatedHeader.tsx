@@ -20,6 +20,7 @@ interface Props {
   visible: boolean; surahName: string; surahId: number; nightMode: boolean;
   onBack: () => void; onOpenList: () => void; onMistakes: () => void;
   onShare: () => void; onNotes: () => void; onBookmarks: () => void; onSettings: () => void;
+  onMenuOpen?: () => void;
 }
 
 const st = { fill: 'none' as const, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -81,7 +82,7 @@ const AnimatedHeader: React.FC<Props> = (p) => {
   const handleNotes = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onNotes(); }, []);
   const handleBookmarks = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onBookmarks(); }, []);
   const handleSettings = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onSettings(); }, []);
-  const handleOpenMenu = useCallback(() => { triggerAppHaptic(); setMenuOpen(true); }, []);
+  const handleOpenMenu = useCallback(() => { triggerAppHaptic(); callbacksRef.current.onMenuOpen?.(); setMenuOpen(true); }, []);
   const handleCloseMenu = useCallback(() => { setMenuOpen(false); }, []);
 
   useEffect(() => {
@@ -323,6 +324,7 @@ export default React.memo(AnimatedHeader, (prev, next) => {
     prev.onShare === next.onShare &&
     prev.onNotes === next.onNotes &&
     prev.onBookmarks === next.onBookmarks &&
-    prev.onSettings === next.onSettings
+    prev.onSettings === next.onSettings &&
+    prev.onMenuOpen === next.onMenuOpen
   );
 });
