@@ -39,7 +39,7 @@ const ScreenHeader = ({ title, subtitle, onBack }: Props) => {
   const subColor = themeColors.subText;
   const accent = themeColors.accent;
 
-  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const topInset = insets?.top || 0;
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg, borderBottomColor: border, paddingTop: topInset > 0 ? topInset + 2 : 8, paddingBottom: 6 }]}>

@@ -138,7 +138,7 @@ const StudentProgressRing = ({ pct, color, bgTrack }: { pct: number; color: stri
 
 export default function DashboardScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const statusBarPad = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const statusBarPad = insets?.top || 0;
   const [addModal, setAddModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [menuModalVisible, setMenuModalVisible] = useState(false);

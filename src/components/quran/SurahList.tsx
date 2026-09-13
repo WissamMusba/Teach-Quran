@@ -182,7 +182,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
     onClose?.();
   }, [onClose]);
 
-  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const topInset = insets?.top || 0;
 
   const content = (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: inline ? 0 : (topInset > 0 ? topInset + 2 : 6), paddingBottom: insets.bottom }]}>

@@ -320,7 +320,7 @@ export default function StudentHubScreen({ navigation }: any) {
   const inputBg = nightMode ? '#121520' : '#F0EBE0';
   const chevronC = themeColors.accent;
 
-  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const topInset = insets?.top || 0;
 
   return (
     <View style={[styles(nightMode, themeColors).container, { backgroundColor: bg }]}>

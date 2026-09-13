@@ -25,7 +25,7 @@ const QariSelector = ({ visible, onClose }: any) => {
 
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
 
-  const topInset = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const topInset = insets?.top || 0;
 
   const containerBg = themeColors.bg;
   const headerBg = themeColors.cardBg;

@@ -401,7 +401,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const topSafeInset = insets.top || StatusBar.currentHeight || 0;
+  const topSafeInset = insets?.top || 0;
   const splitOn = !!(useSelector((s: any) => s.settings)?.mushafSplit && winW >= SPLIT_MIN_WIDTH);
   const splitCapable = winW >= SPLIT_MIN_WIDTH;
   const pageW = Math.round(pageWFor(winW, splitOn));

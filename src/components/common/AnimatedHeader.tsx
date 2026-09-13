@@ -58,7 +58,7 @@ export const BookmarkIcon = ({ c = '#FFD700', size = 16, filled = false }: { c?:
 
 const AnimatedHeader: React.FC<Props> = (p) => {
   const insets = useSafeAreaInsets();
-  const statusBarPad = Math.max(insets?.top || 0, StatusBar.currentHeight || 0);
+  const statusBarPad = insets?.top || 0;
   const { width } = useWindowDimensions();
   const [measured, setMeasured] = useState(0);
   const measuredRef = useRef(0);
