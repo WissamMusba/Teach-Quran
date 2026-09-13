@@ -254,12 +254,12 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   // Not mounted when hidden — the parent passes visible={!isCapturing}, so the toolbar is absent during share capture.
   if (!visible) return null;
 
-  // Theming + palette placement — barBg/iconC flip with nightMode; palFitsAbove flips the palette above the bar when there's no room below; palLeft keeps it clamped on-screen.
-  const barBg = nightMode ? 'rgba(200,200,215,0.60)' : 'rgba(18,18,20,0.85)';
-  const iconC = nightMode ? '#2A2A2A' : '#CFCFCF';
-  const disC = nightMode ? '#6A6A6A' : '#5A5A5A';
-  const labC = nightMode ? '#4A4A4A' : '#9A9A9A';
-  const palBg = 'rgba(20,20,22,0.96)';
+  // Theming + palette placement — styled matching the long-press mini menu (dark translucent bubble + white outline + #CFCFCF icons)
+  const barBg = 'rgba(18,18,20,0.88)';
+  const iconC = '#CFCFCF';
+  const disC = '#5A5A5A';
+  const labC = '#9A9A9A';
+  const palBg = 'rgba(18,18,20,0.96)';
   const colorWrapX = x + ROUND + GAP + pad + 7 * COL;
   const palLeft = Math.max(MARGIN, Math.min(colorWrapX - (PAL_W - COL) / 2, width - PAL_W - MARGIN)) - colorWrapX;
   const palGap = 22;
@@ -267,8 +267,8 @@ const AnnotationToolbar: React.FC<Props> = ({ visible, drawingGestureActive, onU
   const palTop = palFitsAbove ? -(PAL_H + palPad + palGap) : BAR_H + GAP + 10;
 
   const d = {
-    grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 0, alignItems: 'center' as const, justifyContent: 'center' as const, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-    bar: { flexDirection: 'row' as const, alignItems: 'center' as const, borderRadius: Math.round(TAB * 0.3), paddingHorizontal: pad, paddingVertical: barPadV, borderWidth: 0, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+    grip: { width: ROUND, height: ROUND, borderRadius: ROUND / 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center' as const, justifyContent: 'center' as const, elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+    bar: { flexDirection: 'row' as const, alignItems: 'center' as const, borderRadius: Math.round(TAB * 0.3), paddingHorizontal: pad, paddingVertical: barPadV, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', elevation: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
     col: { width: COL, minHeight: 30, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: colPadV },
     lab: { fontSize: LAB_SZ, marginTop: 2, fontWeight: '600' as const },
     dot: { width: Math.min(22, Math.max(18, Math.round(TAB * 0.5))), height: Math.min(22, Math.max(18, Math.round(TAB * 0.5))), borderRadius: Math.min(11, Math.max(9, Math.round(TAB * 0.25))), borderWidth: Math.max(2, Math.round(TAB * 0.06)) },

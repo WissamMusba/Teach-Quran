@@ -38,6 +38,11 @@ const getAudioSources = (qariId: string, surahId: number, verse: number): string
       `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${surahId}:${verse}.mp3`,
     ];
   }
+  if (qariId === 'ar.tunaiji' || qariId === 'ar.khalefa_al_tunaiji') {
+    return [
+      `https://everyayah.com/data/khalefa_al_tunaiji_64kbps/${s3}${v3}.mp3`,
+    ];
+  }
   return [
     `https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps/${s3}${v3}.mp3`,
     `https://everyayah.com/data/Abdul_Basit_Murattal_192kbps/${s3}${v3}.mp3`,

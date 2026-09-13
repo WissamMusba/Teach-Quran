@@ -71,7 +71,7 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
   const [surahPickerModal, setSurahPickerModal] = useState(false);
 
   // Audio Download State
-  const [selectedQari, setSelectedQari] = useState<'ar.alafasy' | 'ar.abdulbasit'>('ar.alafasy');
+  const [selectedQari, setSelectedQari] = useState<'ar.alafasy' | 'ar.abdulbasit' | 'ar.tunaiji'>('ar.alafasy');
   const [selectedSurah, setSelectedSurah] = useState<number>(1);
   const [isCurrentDownloaded, setIsCurrentDownloaded] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -320,19 +320,27 @@ const SettingsScreen = ({ onClose }: { onClose?: () => void } = {}) => {
           <Text style={[styles(nightMode, themeColors).label, { color: labelColor, fontSize: 14 }]}>Select Reciter (Qari)</Text>
           <View style={styles(nightMode, themeColors).modeContainer}>
             <TouchableOpacity
-              style={[styles(nightMode, themeColors).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.alafasy' && styles(nightMode, themeColors).activeBtn]}
+              style={[styles(nightMode, themeColors).modeBtn, { width: '31%', borderColor: btnBorder }, selectedQari === 'ar.alafasy' && styles(nightMode, themeColors).activeBtn]}
               onPress={() => setSelectedQari('ar.alafasy')}
             >
               <Text style={selectedQari === 'ar.alafasy' ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
-                Mishary Al-Afasy
+                Al-Afasy
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles(nightMode, themeColors).modeBtn, { width: '48%', borderColor: btnBorder }, selectedQari === 'ar.abdulbasit' && styles(nightMode, themeColors).activeBtn]}
+              style={[styles(nightMode, themeColors).modeBtn, { width: '31%', borderColor: btnBorder }, selectedQari === 'ar.abdulbasit' && styles(nightMode, themeColors).activeBtn]}
               onPress={() => setSelectedQari('ar.abdulbasit')}
             >
               <Text style={selectedQari === 'ar.abdulbasit' ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
                 Abdul Basit
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles(nightMode, themeColors).modeBtn, { width: '31%', borderColor: btnBorder }, selectedQari === 'ar.tunaiji' && styles(nightMode, themeColors).activeBtn]}
+              onPress={() => setSelectedQari('ar.tunaiji')}
+            >
+              <Text style={selectedQari === 'ar.tunaiji' ? styles(nightMode, themeColors).activeText : [styles(nightMode, themeColors).inactiveText, { color: inactiveText }]}>
+                Al-Tunaiji
               </Text>
             </TouchableOpacity>
           </View>

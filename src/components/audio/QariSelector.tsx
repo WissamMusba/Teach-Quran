@@ -12,6 +12,7 @@ import { getThemeColors } from '../../utils/theme';
 const QARIS = [
   { id: 'mishary', name: 'Mishary Al-Afasy', style: 'gapped' },
   { id: 'abdulbasit', name: 'Abd Al-Basit', style: 'gapless' },
+  { id: 'tunaiji', name: 'Khalifa Al-Tunaiji', style: 'gapped' },
   { id: 'ayyoub', name: 'Muhammad Ayyoub', style: 'gapped' },
   { id: 'suwaid', name: 'Dr. Ayman Suwaid', style: 'gapped' },
 ];

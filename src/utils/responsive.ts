@@ -25,9 +25,9 @@ export const getMushafFontSize = (headerVisible?: boolean, targetWidth?: number)
   const isTablet = isTabletDevice();
   const base = (() => {
     if (isTablet) {
-      if (w < 600) return 34; // split screen on tablet (e.g. 50/50 with Zoom)
-      if (w < 900) return 40;
-      return 46;
+      if (w < 600) return 32; // was 34 (-2px)
+      if (w < 900) return 38; // was 40 (-2px)
+      return 44; // was 46 (-2px)
     }
     // Phones (unaffected)
     if (w < 360) return 16;

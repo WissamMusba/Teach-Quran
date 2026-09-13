@@ -2108,8 +2108,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * AFFECTS: s.audio.isPlaying; flash state during playback; streams from
    *   quran.com timeline with per-ayah fallback.
    */
+  const resolveQariId = (qariName: string): string => {
+    if (qariName.includes('Afasy')) return 'ar.alafasy';
+    if (qariName.includes('Tunaiji')) return 'ar.tunaiji';
+    return 'ar.abdulbasit';
+  };
+
   const startPlayFromVerse = async (verse: number | { surahId: number; verseNumber: number }, opts?: { playBasmala?: boolean }) => {
-    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const qariId = resolveQariId(currentQari);
     if (isPlaying) { dispatch(setPlaying(false)); dispatch(setFlashingVerse(null)); }
     const verseNum = typeof verse === 'number' ? verse : verse.verseNumber;
     const surahId = typeof verse === 'number'
@@ -2145,7 +2151,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   the same position — resume path is a NEWER addition vs the anatomy doc.
    */
   const togglePlayAudio = async () => {
-    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const qariId = resolveQariId(currentQari);
     if (isPlaying) { dispatch(setPlaying(false)); pauseSurahWithResume(audioPlayer.current).catch(() => {}); }
     else {
       const callbacks = {
@@ -2209,7 +2215,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * CALLED BY: AudioPlayerBar onPlayPageStart.
    */
   const playPageStart = async () => {
-    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const qariId = resolveQariId(currentQari);
     if (isPlaying) {
       // LOOP END while playing: STOP (not restart). pauseSurahWithResume keeps the
       // resume session at the exact mid-verse position and cancelLoop clears the
@@ -2253,7 +2259,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * CALLED BY: AudioPlayerBar onPlaySurahStart (when the label reads PLAY).
    */
   const playSurahStart = async () => {
-    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const qariId = resolveQariId(currentQari);
     if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
     const callbacks = {
       onVerseChange: (v: number, sId?: number) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); },
@@ -2274,7 +2280,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    */
   const playNewSurah = async () => {
     if (!newSurahOnPage) return;
-    const qariId = currentQari.includes('Afasy') ? 'ar.alafasy' : 'ar.abdulbasit';
+    const qariId = resolveQariId(currentQari);
     if (isPlaying) { dispatch(setPlaying(false)); pauseSurah(audioPlayer.current).catch(() => {}); dispatch(setFlashingVerse(null)); }
     const callbacks = {
       onVerseChange: (v: number, sId?: number) => { setFlashingSurah(sId || currentSurahId); dispatch(setFlashingVerse(v)); },

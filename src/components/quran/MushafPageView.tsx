@@ -1009,6 +1009,10 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               const isVerseEndMarker = !!word.word && !hasArabicLetters(stripped);
 
               let displayText = stripped;
+              // Workaround: lock Quranic waqf marks (\u06D6-\u06ED) with non-breaking space so they never wrap onto a second line below the word
+              if (displayText && /[\u06D6-\u06ED]/.test(displayText)) {
+                displayText = displayText.replace(/\s+([\u06D6-\u06ED])/g, '\u00A0$1');
+              }
               const isHighlighted = highlightedWordKeys.has(`${vKey}_${wordPos - 1}`);
               const isBookmarked = !!bookmarks?.[vKey];
               const isFlashing = flashingVerseKey === vKey;
@@ -1067,7 +1071,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                     onWordPress={() => verseNum > 0 && onWordPress?.(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1} numberOfLines={1}>
                       {displayText}{isTablet ? '' : ' '}
                     </Text>
                   </WordHitArea>

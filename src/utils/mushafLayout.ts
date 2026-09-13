@@ -25,7 +25,7 @@ export const layoutFontScaleFor = (winW: number, splitOn: boolean, winH?: number
     if (winW < 700) return 1;
     return TABLET_SINGLE_FONT_SCALE;
   }
-  return winH != null && winH > winW ? SPLIT_FONT_SCALE_LANDSCAPE : SPLIT_FONT_SCALE;
+  return winW != null && winH != null && winW > winH ? SPLIT_FONT_SCALE_LANDSCAPE : SPLIT_FONT_SCALE;
 };
 
 // WHAT: THE shared horizontal text inset for a given page width — 6.7% of the page width,
