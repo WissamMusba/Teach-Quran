@@ -666,7 +666,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
       preloadPageLayoutCacheRange(Math.max(1, pageNum - 4), pageNum + 4, textStyle, false, keySparse, keyW);
     });
     return () => { cancelled = true; };
-  }, [pageNum, textStyle, pageWidth, fontSizeScale, fixNonce, headerVisible]);
+  }, [pageNum, textStyle, pageWidth, fontSizeScale, fixNonce, headerVisible, pageData]);
 
   /**
    * handleWordMeasured(lineKey, wordIdx, w, expected) — core of the measure-then-scale dance.

@@ -138,7 +138,6 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
   const resolvedEvenVerses = even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : getMemoizedVersesByPage(even, textStyle) || []) : [];
 
   useEffect(() => {
-    // Only fetch if data is not already loaded or memoized
     if (even) {
       if (!resolvedEvenData) ensurePageLoaded(even);
       if (!resolvedEvenVerses || resolvedEvenVerses.length === 0) ensurePageVersesLoaded(even);
@@ -147,7 +146,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
       if (!resolvedOddData) ensurePageLoaded(odd);
       if (!resolvedOddVerses || resolvedOddVerses.length === 0) ensurePageVersesLoaded(odd);
     }
-  }, [even, odd, !resolvedEvenData, !resolvedEvenVerses?.length, !resolvedOddData, !resolvedOddVerses?.length]);
+  }, [even, odd, resolvedEvenData, resolvedEvenVerses, resolvedOddData, resolvedOddVerses, ensurePageLoaded, ensurePageVersesLoaded]);
 
   // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
   // button renders in the same commit as its page (including pre-rendered pages while swiping).
@@ -164,24 +163,36 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
-            <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedOddVerses} pageData={resolvedOddData} highlights={highlights}
-              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
-              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-              onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+            resolvedOddData ? (
+              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedOddVerses} pageData={resolvedOddData} highlights={highlights}
+                onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+                onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#1C3D72" />
+              </View>
+            )
           ) : null}
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
           {even ? (
-            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedEvenVerses} pageData={resolvedEvenData} highlights={highlights}
-              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
-              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-              onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+            resolvedEvenData ? (
+              <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedEvenVerses} pageData={resolvedEvenData} highlights={highlights}
+                onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+                onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#1C3D72" />
+              </View>
+            )
           ) : null}
         </View>
       </View>
@@ -208,22 +219,27 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pData, pVe
   const resolvedVerses = (pVerses && pVerses.length > 0) ? pVerses : getMemoizedVersesByPage(item, textStyle) || [];
 
   useEffect(() => {
-    // Only fetch if data is not already loaded or memoized
     if (!resolvedData) ensurePageLoaded(item);
     if (!resolvedVerses || resolvedVerses.length === 0) ensurePageVersesLoaded(item);
-  }, [item, !resolvedData, !resolvedVerses?.length]);
+  }, [item, resolvedData, resolvedVerses, ensurePageLoaded, ensurePageVersesLoaded]);
 
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 }}>
-        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={resolvedVerses} pageData={resolvedData} highlights={highlights} onWordPress={onWordPress}
-          onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-          flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
-          onSpread={onSpread} spread={spread}
-          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={isCurrentPage} onReadingMarkToggle={() => onReadingMarkToggle(last)}
-          onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-          onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+        {resolvedData ? (
+          <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={resolvedVerses} pageData={resolvedData} highlights={highlights} onWordPress={onWordPress}
+            onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+            flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
+            onSpread={onSpread} spread={spread}
+            showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={isCurrentPage} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+            onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+            onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
+        ) : (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -256,8 +272,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Clamped to the style-aware book length (611 indopak / 604 uthmani) so a GO-TO-PAGE input
   // beyond the uthmani total can never emit an out-of-range initialScrollIndex.
   const seedTextStyle = useSelector((s: any) => s.quran?.textStyle);
-  const seedTotalPages = indopakFonts.includes(seedTextStyle) ? 611 : 604;
-  const initialLandPage = Math.max(1, Math.min(seedTotalPages, Number(route?.params?.page) || 1));
+  const isSeedIndopak = indopakFonts.includes(seedTextStyle);
+  const seedTotalPages = isSeedIndopak ? 611 : 604;
+  const initialLandPage = Math.max(1, Math.min(seedTotalPages, Number(route?.params?.page) || (isSeedIndopak ? 2 : 1)));
   // Tier 3-A seed: hydrate pageCache / pageVersesCache (and their LRU order refs) from the
   // quranData module memos on the mount frame — the memos hold every page this process already
   // read, so a resume mount renders the target page instantly instead of refetching. One-shot
@@ -296,10 +313,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [currentPageNum, setCurrentPageNum] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : 1));
+  const [currentPageNum, setCurrentPageNum] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : (isSeedIndopak ? 2 : 1)));
   const [pageCache, setPageCache] = useState<any>(() => initialSeed.cache);
   const [headerSurahId, setHeaderSurahId] = useState(1);
-  const [headerPage, setHeaderPage] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : 0));
+  const [headerPage, setHeaderPage] = useState(() => (Number(route?.params?.page) >= 1 ? initialLandPage : (isSeedIndopak ? 2 : 0)));
   const [menuVerse, setMenuVerse] = useState<number | null>(null);
   const [noteVerseKey, setNoteVerseKey] = useState<number | null>(null);
   const [menuY, setMenuY] = useState<number | null>(null);
@@ -2452,11 +2469,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 // v62-style lean virtualization: only the visible page + its immediate neighbours
                 // are ever mounted, so button presses and navigation never queue behind a wall of
-                // background-rendered mushaf pages.
-                initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5}
+                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
-                onTouchStart={() => { prefetchAround(splitOn ? 'split' : 'single', currentPageNum); }}
-                onScrollBeginDrag={() => { prefetchAround(splitOn ? 'split' : 'single', currentPageNum); }}
                 onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {

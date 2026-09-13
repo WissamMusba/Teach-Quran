@@ -227,9 +227,30 @@ const ensureIndopakAsset = async (): Promise<any> => {
         // Self-check: force any hidden problem (corrupt copy, wrong schema) to
         // surface NOW with a cheap row-count probe instead of silently
         // returning empty pages later.
-        const r = await indopakAssetDb.executeSql(`SELECT COUNT(*) AS c FROM indopak_pages`);
+        const r = await indopakAssetDb.executeSql(`SELECT MIN(pageNumber) AS minP, MAX(pageNumber) AS maxP, COUNT(*) AS c FROM indopak_pages`);
         const c = r && r[0] && r[0].rows && r[0].rows.length ? r[0].rows.item(0).c : 0;
-        if (!c) { console.warn('indopak asset empty — disabling asset path'); try { await indopakAssetDb.close(); } catch {} indopakAssetDb = null; }
+        const minP = r && r[0] && r[0].rows && r[0].rows.length ? r[0].rows.item(0).minP : 0;
+        const maxP = r && r[0] && r[0].rows && r[0].rows.length ? r[0].rows.item(0).maxP : 0;
+        if (!c) {
+          console.warn('indopak asset empty — disabling asset path');
+          try { await indopakAssetDb.close(); } catch {}
+          indopakAssetDb = null;
+        } else if (minP === 1 && maxP === 610) {
+          console.log('Auto-migrating local indopak_pages to natural page numbers (1..611)...');
+          try {
+            await indopakAssetDb.executeSql(`UPDATE indopak_pages SET pageNumber = pageNumber + 1`);
+            const page1Json = JSON.stringify({
+              page: 1,
+              lines: [
+                { line_number: 1, words: [{ word: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ', location: '1:1:1' }] },
+                { line_number: 2, words: [{ word: 'الْقُرْآنُ الْكَرِيمُ', location: '1:1:2' }] }
+              ]
+            });
+            await indopakAssetDb.executeSql(`INSERT OR REPLACE INTO indopak_pages (pageNumber, data) VALUES (1, ?)`, [page1Json]);
+          } catch (mErr) {
+            console.warn('indopak asset migration failed', mErr);
+          }
+        }
         return indopakAssetDb;
       } catch (e) {
         console.warn('indopak asset setup failed', e);
