@@ -138,6 +138,11 @@ export const initDatabase = async () => {
     await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
     await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','8')`);
   }
+  // layoutVer 9: Indopak 1-to-1 page numbering shift (+1 offset removed, natural page numbers)
+  if (ver < 9) {
+    await dbInstance.executeSql(`DELETE FROM page_layout_cache`);
+    await dbInstance.executeSql(`INSERT OR REPLACE INTO meta(key,value) VALUES('layoutVer','9')`);
+  }
 
   // Migrate V1 to V2 schema if needed
   await migrateV1IfNeeded(dbInstance);

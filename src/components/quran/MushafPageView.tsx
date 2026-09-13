@@ -334,7 +334,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   
   const firstWord = pageData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
   const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
-  const displayPage = pageNum > 0 ? pageNum + 1 : 0;
+  const displayPage = pageNum > 0 ? pageNum : 0;
   const juzInfo = displayPage > 0 ? getJuzInfoFromPage(displayPage) : { juz: 0, pagesLeft: 0 };
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = themeColors.badgeBorder;
@@ -1089,7 +1089,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               return (
                 <React.Fragment key={wordIdx}>
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={[styles(nightMode).wordBox, isTablet && { marginHorizontal: 1 }]}
-                    onWordPress={() => verseNum > 0 && onWordPress?.(verseNum, wordPos - 1, parseInt(surahId, 10))} onDeadTap={onDeadTap}
+                    onWordPress={() => verseNum > 0 && onWordPress?.(verseNum, wordPos - 1, parseInt(surahId, 10), pageNum)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
                     onMeasured={(w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)}>
                     <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>

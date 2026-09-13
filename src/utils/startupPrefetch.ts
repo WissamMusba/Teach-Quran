@@ -88,7 +88,7 @@ export const startStartupPrefetch = (studentIds: string[]): void => {
   const splitOn = !!(mushafSplit && winW >= SPLIT_MIN_WIDTH);
   // v97: warm rows under the SCALED key the reader will actually read (tablet font scales).
   const pageW = Math.round(pageWFor(winW, splitOn) * layoutFontScaleFor(winW, splitOn, Dimensions.get('window').height));
-  const totalPages = isIndopakStyle(textStyle) ? 610 : 604;
+  const totalPages = isIndopakStyle(textStyle) ? 611 : 604;
   const ids = studentIds.slice(0, 5);
 
   InteractionManager.runAfterInteractions(() => {

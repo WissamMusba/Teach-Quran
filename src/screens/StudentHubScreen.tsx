@@ -293,7 +293,7 @@ export default function StudentHubScreen({ navigation }: any) {
   }, [dailyTarget, surahNames, dailyPage, studentData?.lastRead?.updatedAt]);
 
   const pageNum = pageInput !== '' ? parseInt(pageInput, 10) : 0;
-  const pageValid = pageInput !== '' && pageNum >= 1 && pageNum <= 610;
+  const pageValid = pageInput !== '' && pageNum >= 1 && pageNum <= 611;
 
   const handlePageSubmit = () => {
     if (!pageValid) return;
@@ -435,7 +435,7 @@ export default function StudentHubScreen({ navigation }: any) {
               <TextInput
                 style={[styles(nightMode, themeColors).pageInput, { backgroundColor: inputBg, color: titleC, borderColor: border }]}
                 keyboardType="number-pad"
-                placeholder="1–610"
+                placeholder="1–611"
                 placeholderTextColor={subC}
                 value={pageInput}
                 onChangeText={setPageInput}

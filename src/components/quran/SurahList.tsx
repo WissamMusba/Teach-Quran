@@ -87,7 +87,7 @@ export default function SurahList({ visible, onClose, onSelect, onSelectPage, on
   const themeColors = useMemo(() => getThemeColors(colorTheme, isDark), [colorTheme, isDark]);
 
   const isIndopak = textStyle === 'alqalam' || textStyle === 'lateef';
-  const maxPages = isIndopak ? 610 : 604;
+  const maxPages = isIndopak ? 611 : 604;
 
   const data = useMemo(() => {
     if (mode === 'page') {

@@ -138,6 +138,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
   const resolvedEvenVerses = even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : getMemoizedVersesByPage(even, textStyle) || []) : [];
 
   useEffect(() => {
+    // Only fetch if data is not already loaded or memoized
     if (even) {
       if (!resolvedEvenData) ensurePageLoaded(even);
       if (!resolvedEvenVerses || resolvedEvenVerses.length === 0) ensurePageVersesLoaded(even);
@@ -146,7 +147,7 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
       if (!resolvedOddData) ensurePageLoaded(odd);
       if (!resolvedOddVerses || resolvedOddVerses.length === 0) ensurePageVersesLoaded(odd);
     }
-  }, [even, odd, resolvedEvenData, resolvedEvenVerses, resolvedOddData, resolvedOddVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+  }, [even, odd, !resolvedEvenData, !resolvedEvenVerses?.length, !resolvedOddData, !resolvedOddVerses?.length]);
 
   // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
   // button renders in the same commit as its page (including pre-rendered pages while swiping).
@@ -207,9 +208,10 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pData, pVe
   const resolvedVerses = (pVerses && pVerses.length > 0) ? pVerses : getMemoizedVersesByPage(item, textStyle) || [];
 
   useEffect(() => {
+    // Only fetch if data is not already loaded or memoized
     if (!resolvedData) ensurePageLoaded(item);
     if (!resolvedVerses || resolvedVerses.length === 0) ensurePageVersesLoaded(item);
-  }, [item, resolvedData, resolvedVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+  }, [item, !resolvedData, !resolvedVerses?.length]);
 
   const last = pageLastVerseFor?.(item);
   return (
@@ -251,10 +253,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // RECITATION / GO TO PAGE) becomes the SYNCHRONOUS landing page — currentPageNum, settledPage,
   // headerPage, the cache seed window and the FlatList initialScrollIndex all derive from it on
   // the mount frame. 1 = no param: normal mounts keep today's async lastRead landing untouched.
-  // Clamped to the style-aware book length (610 indopak / 604 uthmani) so a GO-TO-PAGE input
+  // Clamped to the style-aware book length (611 indopak / 604 uthmani) so a GO-TO-PAGE input
   // beyond the uthmani total can never emit an out-of-range initialScrollIndex.
   const seedTextStyle = useSelector((s: any) => s.quran?.textStyle);
-  const seedTotalPages = indopakFonts.includes(seedTextStyle) ? 610 : 604;
+  const seedTotalPages = indopakFonts.includes(seedTextStyle) ? 611 : 604;
   const initialLandPage = Math.max(1, Math.min(seedTotalPages, Number(route?.params?.page) || 1));
   // Tier 3-A seed: hydrate pageCache / pageVersesCache (and their LRU order refs) from the
   // quranData module memos on the mount frame — the memos hold every page this process already
@@ -383,8 +385,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   let syncRefreshHandle: { cancel: () => void } | null = null;
   const bgColor = themeColors.bg;
   const isIndopak = indopakFonts.includes(textStyle);
-  // ---- derived: page count (610 indopak vs 604), split-mode geometry ----
-  const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 610 : 604 }, (_, i) => i + 1), [isIndopak]);
+  // ---- derived: page count (611 indopak vs 604), split-mode geometry ----
+  const pageNumbers = useMemo(() => Array.from({ length: isIndopak ? 611 : 604 }, (_, i) => i + 1), [isIndopak]);
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const topSafeInset = insets?.top || 0;
@@ -401,8 +403,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     const name = surahNames?.[sid] || `Surah ${sid}`;
     if (readingMode === 'page' && headerPage > 0) {
       const info = getJuzInfoFromPage(headerPage);
-      // Displayed pages are the user-facing numbering (Fatiha = Page 2): internal + 1.
-      return { surahName: name, surahId: sid, juz: info.juz, page: headerPage + 1, pagesLeftInJuz: info.pagesLeft };
+      return { surahName: name, surahId: sid, juz: info.juz, page: headerPage, pagesLeftInJuz: info.pagesLeft };
     }
     return { surahName: name, surahId: sid, juz: getStartJuzOfSurah(sid), page: 0, pagesLeftInJuz: 0 };
   }, [headerSurahId, headerPage, currentSurahId, surahNames, readingMode]);
@@ -950,7 +951,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => {
     const { surahId, scrollToVerse, page } = route.params || {};
     const p = page !== undefined ? Number(page) : 0;
-    if (p >= 1 && p <= 610) {
+    if (p >= 1 && p <= 611) {
       paramsHandledRef.current = true;
       if (readingMode !== 'page') dispatch(setReadingMode('page'));
       if (surahId) {
@@ -1573,7 +1574,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [flashingVerse, isPlaying, readingMode, flashingSurah, currentSurahId, textStyle]);
 
   const highlightSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingHighlightsRef = useRef<Record<string, { highlights: any[]; tapSurah: number; verseNum: number }>>({});
+  const pendingHighlightsRef = useRef<Record<string, { highlights: any[]; tapSurah: number; verseNum: number; page?: number }>>({});
 
   const flushPendingHighlights = useCallback(() => {
     if (highlightSaveTimerRef.current) {
@@ -1588,11 +1589,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const entriesToSave = { ...pendingHighlightsRef.current };
       pendingHighlightsRef.current = {};
       for (const [key, item] of Object.entries(entriesToSave)) {
-        getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
-          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(curSurah);
-          saveCanvasEdit(sid, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+        if (item.page && item.page > 0) {
+          saveCanvasEdit(sid, canvasKeyForPage(item.page), 'highlights', { [key]: { highlights: item.highlights } });
           dispatch(addPendingChange());
-        });
+        } else {
+          getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+            const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(curSurah);
+            saveCanvasEdit(sid, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+            dispatch(addPendingChange());
+          });
+        }
       }
     }
   }, [dispatch]);
@@ -1612,7 +1618,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   SpreadItem word taps.
    * AFFECTS: studentData.highlights.<surah_verse>.highlights[].
    */
-  const handleWordFlow = useCallback((verseNum: number, wordIndex: number, surahOverride?: number) => {
+  const handleWordFlow = useCallback((verseNum: number, wordIndex: number, surahOverride?: number, pageNumOverride?: number) => {
     // B1 fix: page-mode taps report the WORD's own surah (page data), so a highlight after
     // RESUME/GO TO PAGE can never land on the stale-redux surah.
     if (!currentStudent) return;
@@ -1630,7 +1636,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // Synchronously update lastStudentDataRef so subsequent reads are always fresh
     const base = lastStudentDataRef.current || studentData || {};
     lastStudentDataRef.current = { ...base, highlights: { ...(base.highlights || {}), [vKey]: { highlights: newHighs } } };
-    pendingHighlightsRef.current[vKey] = { highlights: newHighs, tapSurah, verseNum };
+    pendingHighlightsRef.current[vKey] = { highlights: newHighs, tapSurah, verseNum, page: pageNumOverride || 0 };
 
     // Debounce heavy Redux dispatch, SQLite writes, and tutorial events by 250ms so rapid word taps paint at 60fps with zero lag
     if (highlightSaveTimerRef.current) {
@@ -1645,11 +1651,16 @@ export default function QuranViewScreen({ navigation, route }: any) {
       const entriesToSave = { ...pendingHighlightsRef.current };
       pendingHighlightsRef.current = {};
       for (const [key, item] of Object.entries(entriesToSave)) {
-        getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
-          const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
-          saveCanvasEdit(currentStudent.id, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+        if (item.page && item.page > 0) {
+          saveCanvasEdit(currentStudent.id, canvasKeyForPage(item.page), 'highlights', { [key]: { highlights: item.highlights } });
           dispatch(addPendingChange());
-        });
+        } else {
+          getVersePage(item.tapSurah, item.verseNum, textStyleRef.current).catch(() => 0).then((page) => {
+            const cKey = page > 0 ? canvasKeyForPage(page) : canvasKeyForSurah(currentSurahId);
+            saveCanvasEdit(currentStudent.id, cKey, 'highlights', { [key]: { highlights: item.highlights } });
+            dispatch(addPendingChange());
+          });
+        }
       }
     }, 250);
   }, [canvasData, currentStudent, currentSurahId, studentData, dispatch]);

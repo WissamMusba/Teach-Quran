@@ -203,9 +203,13 @@ export default function DashboardScreen({ navigation }: any) {
     let active = true;
     const ids = (students || []).map((s: any) => s?.id).filter(Boolean);
     if (ids.length === 0) { setFaces({}); return; }
-    ids.forEach((id: string) => {
-      getStudentFace(id).then((path) => { if (active) setFaces((prev) => ({ ...prev, [id]: path })); }).catch(() => {});
-    });
+    Promise.all(ids.map((id: string) => getStudentFace(id).then((path) => ({ id, path })).catch(() => ({ id, path: null }))))
+      .then((results) => {
+        if (!active) return;
+        const newFaces: Record<string, string | null> = {};
+        results.forEach((r) => { if (r.path) newFaces[r.id] = r.path; });
+        setFaces((prev) => ({ ...prev, ...newFaces }));
+      });
     return () => { active = false; };
   }, [students]);
 
@@ -213,19 +217,31 @@ export default function DashboardScreen({ navigation }: any) {
     let active = true;
     const ids = (students || []).map((s: any) => s?.id).filter(Boolean);
     if (ids.length === 0) { setManifests({}); setStudentPages({}); return; }
-    ids.forEach((id: string) => {
-      getManifest(id)
-        .then(async (res: any) => {
-          if (active && res?.data) {
-            setManifests((prev) => ({ ...prev, [id]: res.data }));
-            const lr = res.data.lastRead;
-            if (lr?.surah && lr?.verse) {
-              const pg = await getVersePage(Number(lr.surah), Number(lr.verse), textStyle).catch(() => 1);
-              if (active) setStudentPages((prev) => ({ ...prev, [id]: pg }));
-            }
+    Promise.all(
+      ids.map(async (id: string) => {
+        try {
+          const res = await getManifest(id);
+          if (!res?.data) return { id, manifest: null, page: null };
+          let pg = null;
+          const lr = res.data.lastRead;
+          if (lr?.surah && lr?.verse) {
+            pg = await getVersePage(Number(lr.surah), Number(lr.verse), textStyle).catch(() => 1);
           }
-        })
-        .catch(() => {});
+          return { id, manifest: res.data, page: pg };
+        } catch {
+          return { id, manifest: null, page: null };
+        }
+      })
+    ).then((results) => {
+      if (!active) return;
+      const newManifests: Record<string, any> = {};
+      const newPages: Record<string, number> = {};
+      results.forEach((r) => {
+        if (r.manifest) newManifests[r.id] = r.manifest;
+        if (r.page !== null) newPages[r.id] = r.page;
+      });
+      setManifests((prev) => ({ ...prev, ...newManifests }));
+      setStudentPages((prev) => ({ ...prev, ...newPages }));
     });
     return () => { active = false; };
   }, [students, textStyle]);
@@ -469,10 +485,9 @@ export default function DashboardScreen({ navigation }: any) {
   const renderItem = useCallback(({ item, index }: any) => {
     const manifest = manifests[item.id];
     const lr = manifest?.lastRead;
-    const studentPage = studentPages[item.id] || (lr?.surah ? 1 : 0);
-    // Real Quran display page: Surah Fatiha starts on Page 2 (+1 offset)
-    const displayPage = studentPage > 0 ? studentPage + 1 : 0;
-    const studentPct = studentPage > 0 ? Math.min(100, Math.max(1, Math.round((studentPage / 610) * 100))) : 0;
+    const studentPage = studentPages[item.id] || (lr?.surah ? 2 : 0);
+    const displayPage = studentPage;
+    const studentPct = studentPage > 0 ? Math.min(100, Math.max(1, Math.round((studentPage / 611) * 100))) : 0;
 
     let readingLine: string;
     let dateLine: string | null = null;
@@ -556,7 +571,7 @@ export default function DashboardScreen({ navigation }: any) {
 
   const progressPct = useMemo(() => {
     const pg = myQuranResumeInfo?.page ?? 1;
-    return Math.min(100, Math.max(1, Math.round((pg / 610) * 100)));
+    return Math.min(100, Math.max(1, Math.round((pg / 611) * 100)));
   }, [myQuranResumeInfo?.page]);
 
   return (

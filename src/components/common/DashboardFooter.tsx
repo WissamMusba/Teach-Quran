@@ -28,7 +28,7 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
   const themeColors = useMemo(() => getThemeColors(colorTheme, nightMode), [colorTheme, nightMode]);
   const [pageInput, setPageInput] = useState('');
   const n = pageInput !== '' ? parseInt(pageInput, 10) : 0;
-  const pageValid = pageInput !== '' && n >= 1 && n <= 610;
+  const pageValid = pageInput !== '' && n >= 1 && n <= 611;
 
   const ensureMyQuran = useCallback(() => {
     if (myQuran?.id) dispatch(setCurrentStudent(myQuran));
@@ -72,7 +72,7 @@ export default function DashboardFooter({ myQuran, navigation }: { myQuran: any;
           value={pageInput}
           onChangeText={(t) => setPageInput(t.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
-          placeholder="1–610"
+          placeholder="1–611"
           placeholderTextColor={themeColors.subText}
           maxLength={3}
           returnKeyType="go"

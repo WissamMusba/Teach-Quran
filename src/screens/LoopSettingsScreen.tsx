@@ -11,6 +11,7 @@ import { getVersesByPage } from '../database/quranData';
 import ScreenHeader from '../components/common/ScreenHeader';
 import CollapsibleBannerAd from '../components/ads/CollapsibleBannerAd';
 import { getThemeColors } from '../utils/theme';
+import { triggerAppHaptic } from '../utils/haptics';
 
 const COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -96,7 +97,7 @@ export default function LoopSettingsScreen({ route }: any) {
     if (loop.customized === true) return;
     let cancelled = false;
     const page = Number(route?.params?.page) || 0;
-    if (page >= 1 && page <= 610) {
+    if (page >= 1 && page <= 611) {
       getVersesByPage(page, textStyle).then(list => {
         if (cancelled || !Array.isArray(list) || !list.length) return;
         const first = list[0];
@@ -146,6 +147,30 @@ export default function LoopSettingsScreen({ route }: any) {
     setEdit(null);
   };
 
+  const stepStart = (delta: number) => {
+    triggerAppHaptic();
+    const nextStart = Math.max(1, Math.min(start + delta, end));
+    patch({ startVerse: nextStart, customized: true });
+  };
+
+  const stepEnd = (delta: number) => {
+    triggerAppHaptic();
+    const nextEnd = Math.max(start, Math.min(end + delta, verseCount));
+    patch({ endVerse: nextEnd, customized: true });
+  };
+
+  const stepCount = (delta: number) => {
+    triggerAppHaptic();
+    const nextCount = Math.max(1, Math.min(count + delta, 100));
+    patch({ loopCount: nextCount, customized: true });
+  };
+
+  const stepRepeat = (delta: number) => {
+    triggerAppHaptic();
+    const nextRepeat = Math.max(1, Math.min(repeat + delta, 100));
+    patch({ ayahRepeat: nextRepeat, customized: true });
+  };
+
   const bg = themeColors.bg;
   const cardBg = themeColors.cardBg;
   const cardBorder = themeColors.border;
@@ -157,6 +182,8 @@ export default function LoopSettingsScreen({ route }: any) {
     <View style={[styles(nightMode, themeColors).wrapper, { backgroundColor: bg }]}>
       <ScreenHeader title="Loop Settings" subtitle="Repeat range of verses" />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles(nightMode, themeColors).content}>
+        
+        {/* Enable Loop Toggle */}
         <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles(nightMode, themeColors).row}>
             <View style={styles(nightMode, themeColors).rowMain}>
@@ -169,63 +196,106 @@ export default function LoopSettingsScreen({ route }: any) {
               trackColor={{ false: nightMode ? '#333' : '#ddd', true: themeColors.accent }}
             />
           </View>
+        </View>
 
-          <View style={[styles(nightMode, themeColors).divider, { backgroundColor: cardBorder }]} />
+        {/* Section 1: Surah & Ayah */}
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder, marginTop: 14, padding: 14 }]}>
+          <Text style={[styles(nightMode, themeColors).sectionHeaderTitle, { color: themeColors.accent }]}>SURAH & AYAH</Text>
 
-          <View style={styles(nightMode, themeColors).row}>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: labelColor }]}>Surah ▾</Text>
+          <View style={styles(nightMode, themeColors).surahAndAyahGrid}>
+            {/* Surah Dropdown Button */}
+            <TouchableOpacity
+              style={[styles(nightMode, themeColors).surahPickerCard, { borderColor: cardBorder, backgroundColor: nightMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)' }]}
+              onPress={() => setPicker('surah')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles(nightMode, themeColors).surahPickerLabel, { color: labelColor }]} numberOfLines={2}>
+                {loopSurahId}. {surahName}
+              </Text>
+              <Text style={[styles(nightMode, themeColors).dropdownArrow, { color: themeColors.accent }]}>▾</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('surah')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowValue, { color: valueColor }]}>{surahName}</Text>
-            </TouchableOpacity>
-          </View>
 
-          <View style={[styles(nightMode, themeColors).divider, { backgroundColor: cardBorder }]} />
+            {/* Stepper Rows: Start from & End verse */}
+            <View style={styles(nightMode, themeColors).stepperColumn}>
+              
+              {/* Start Verse Stepper */}
+              <View style={styles(nightMode, themeColors).stepperItemWrap}>
+                <Text style={[styles(nightMode, themeColors).stepperLabel, { color: subColor }]}>Start from</Text>
+                <View style={[styles(nightMode, themeColors).stepperControls, { borderColor: cardBorder, backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)' }]}>
+                  <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepStart(-1)} activeOpacity={0.6}>
+                    <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>−</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles(nightMode, themeColors).numClickBox} onPress={() => setEdit({ mode: 'start', draft: String(start) })} activeOpacity={0.7}>
+                    <Text style={[styles(nightMode, themeColors).numClickText, { color: valueColor }]}>{start}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepStart(1)} activeOpacity={0.6}>
+                    <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <View style={styles(nightMode, themeColors).row}>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('start')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: labelColor }]}>Start from ▾</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setEdit({ mode: 'start', draft: String(start) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowValue, { color: valueColor }]}>Verse {start} ✎</Text>
-            </TouchableOpacity>
-          </View>
+              {/* End Verse Stepper */}
+              <View style={[styles(nightMode, themeColors).stepperItemWrap, { marginTop: 10 }]}>
+                <Text style={[styles(nightMode, themeColors).stepperLabel, { color: subColor }]}>End Verse</Text>
+                <View style={[styles(nightMode, themeColors).stepperControls, { borderColor: cardBorder, backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)' }]}>
+                  <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepEnd(-1)} activeOpacity={0.6}>
+                    <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>−</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles(nightMode, themeColors).numClickBox} onPress={() => setEdit({ mode: 'end', draft: String(end) })} activeOpacity={0.7}>
+                    <Text style={[styles(nightMode, themeColors).numClickText, { color: valueColor }]}>{end}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepEnd(1)} activeOpacity={0.6}>
+                    <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <View style={[styles(nightMode, themeColors).divider, { backgroundColor: cardBorder }]} />
-
-          <View style={styles(nightMode, themeColors).row}>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('end')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: labelColor }]}>End Verse ▾</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setEdit({ mode: 'end', draft: String(end) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowValue, { color: valueColor }]}>Verse {end} ✎</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles(nightMode, themeColors).divider, { backgroundColor: cardBorder }]} />
-
-          <View style={styles(nightMode, themeColors).row}>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('count')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: labelColor }]}>Loop count ▾</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setEdit({ mode: 'count', draft: String(count) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowValue, { color: valueColor }]}>{count} {count === 1 ? 'time' : 'times'} ✎</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles(nightMode, themeColors).divider, { backgroundColor: cardBorder }]} />
-
-          <View style={styles(nightMode, themeColors).row}>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setPicker('repeat')} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowLabel, { color: labelColor }]}>Ayah repeat ▾</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles(nightMode, themeColors).rowMain} onPress={() => setEdit({ mode: 'repeat', draft: String(repeat) })} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles(nightMode, themeColors).rowValue, { color: valueColor }]}>{repeat} {repeat === 1 ? 'time' : 'times'} ✎</Text>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
 
+        {/* Section 2: Loop Counts */}
+        <View style={[styles(nightMode, themeColors).section, { backgroundColor: cardBg, borderColor: cardBorder, marginTop: 14, padding: 14 }]}>
+          <Text style={[styles(nightMode, themeColors).sectionHeaderTitle, { color: themeColors.accent }]}>LOOP COUNTS</Text>
+          
+          <View style={styles(nightMode, themeColors).loopCountsRow}>
+            {/* Loop count (whole range) */}
+            <View style={styles(nightMode, themeColors).countCard}>
+              <Text style={[styles(nightMode, themeColors).countTitle, { color: labelColor }]}>Loop count</Text>
+              <Text style={[styles(nightMode, themeColors).countSub, { color: subColor }]}>Whole range</Text>
+              <View style={[styles(nightMode, themeColors).stepperControls, { borderColor: cardBorder, backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)', marginTop: 8 }]}>
+                <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepCount(-1)} activeOpacity={0.6}>
+                  <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>−</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles(nightMode, themeColors).numClickBox} onPress={() => setEdit({ mode: 'count', draft: String(count) })} activeOpacity={0.7}>
+                  <Text style={[styles(nightMode, themeColors).numClickText, { color: valueColor }]}>{count}×</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepCount(1)} activeOpacity={0.6}>
+                  <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Ayah repeat (each ayah) */}
+            <View style={styles(nightMode, themeColors).countCard}>
+              <Text style={[styles(nightMode, themeColors).countTitle, { color: labelColor }]}>Ayah repeat</Text>
+              <Text style={[styles(nightMode, themeColors).countSub, { color: subColor }]}>Each ayah</Text>
+              <View style={[styles(nightMode, themeColors).stepperControls, { borderColor: cardBorder, backgroundColor: nightMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)', marginTop: 8 }]}>
+                <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepRepeat(-1)} activeOpacity={0.6}>
+                  <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>−</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles(nightMode, themeColors).numClickBox} onPress={() => setEdit({ mode: 'repeat', draft: String(repeat) })} activeOpacity={0.7}>
+                  <Text style={[styles(nightMode, themeColors).numClickText, { color: valueColor }]}>{repeat}×</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles(nightMode, themeColors).stepBtn} onPress={() => stepRepeat(1)} activeOpacity={0.6}>
+                  <Text style={[styles(nightMode, themeColors).stepBtnSymbol, { color: themeColors.accent }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Dynamic Summary */}
         <View style={[styles(nightMode, themeColors).summary, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <Text style={[styles(nightMode, themeColors).summaryText, { color: subColor }]}>
             {loop?.enabled
@@ -235,6 +305,7 @@ export default function LoopSettingsScreen({ route }: any) {
         </View>
       </ScrollView>
 
+      {/* Dropdown pickers */}
       <OptionPicker
         visible={picker === 'surah'} title="Which surah to loop" options={surahOptions} selected={loopSurahId}
         onSelect={pickSurah} onClose={() => setPicker(null)} labelFor={(s: number) => surahNames?.[s] || `Surah ${s}`} />
@@ -244,19 +315,15 @@ export default function LoopSettingsScreen({ route }: any) {
       <OptionPicker
         visible={picker === 'end'} title={`End Verse — ${surahName}`} options={verseOptions} selected={end}
         onSelect={pickEnd} onClose={() => setPicker(null)} labelFor={(v: number) => `Verse ${v}`} />
-      <OptionPicker
-        visible={picker === 'count'} title="How many times the part should loop" options={COUNT_OPTIONS} selected={count}
-        onSelect={(v: number) => patch({ loopCount: v, customized: true })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
-      <OptionPicker
-        visible={picker === 'repeat'} title="How many times each ayah replays" options={COUNT_OPTIONS} selected={repeat}
-        onSelect={(v: number) => patch({ ayahRepeat: v, customized: true })} onClose={() => setPicker(null)} labelFor={(v: number) => `${v} ${v === 1 ? 'time' : 'times'}`} />
 
+      {/* Number Editor Dialog for Direct Keypad Input */}
       <NumberEditor
         visible={!!edit}
-        title={edit?.mode === 'start' ? `Start from — ${surahName}` : edit?.mode === 'end' ? `End Verse — ${surahName}` : edit?.mode === 'count' ? 'How many times the part should loop' : 'How many times each ayah replays'}
+        title={edit?.mode === 'start' ? `Start from — ${surahName}` : edit?.mode === 'end' ? `End Verse — ${surahName}` : edit?.mode === 'count' ? 'Loop count (whole range)' : 'Ayah repeat count (each ayah)'}
         draft={edit?.draft || ''}
         onChangeText={(t: string) => setEdit({ mode: edit!.mode, draft: t.replace(/[^0-9]/g, '') })}
         onSave={commitEdit} onClose={() => setEdit(null)} />
+
       <CollapsibleBannerAd />
     </View>
   );
@@ -266,11 +333,32 @@ const styles = (nightMode: boolean, theme: any) => StyleSheet.create({
   wrapper: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
   section: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  sectionHeaderTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, marginBottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16 },
   rowMain: { flex: 1, justifyContent: 'center' },
   rowLabel: { fontSize: 15, fontWeight: '600' },
   rowSub: { fontSize: 12, marginTop: 2 },
-  rowValue: { fontSize: 15, fontWeight: '700', textAlign: 'right' },
+  
+  // Surah & Ayah Layout
+  surahAndAyahGrid: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  surahPickerCard: { flex: 1.1, borderWidth: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 88 },
+  surahPickerLabel: { fontSize: 15, fontWeight: '700', flex: 1, paddingRight: 4 },
+  dropdownArrow: { fontSize: 16, fontWeight: '800' },
+  stepperColumn: { flex: 1.2 },
+  stepperItemWrap: { width: '100%' },
+  stepperLabel: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
+  stepperControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 10, overflow: 'hidden', height: 38 },
+  stepBtn: { width: 36, height: '100%', alignItems: 'center', justifyContent: 'center' },
+  stepBtnSymbol: { fontSize: 20, fontWeight: '700', lineHeight: 22 },
+  numClickBox: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  numClickText: { fontSize: 15, fontWeight: '800', textAlign: 'center' },
+
+  // Loop Counts Layout
+  loopCountsRow: { flexDirection: 'row', gap: 12 },
+  countCard: { flex: 1 },
+  countTitle: { fontSize: 14, fontWeight: '700' },
+  countSub: { fontSize: 11, marginTop: 1 },
+
   numInput: { borderRadius: 12, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 14, fontSize: 18, fontWeight: '700', textAlign: 'center', marginHorizontal: 16 },
   numBtns: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, gap: 10 },
   numBtn: { flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
