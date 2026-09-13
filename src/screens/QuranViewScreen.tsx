@@ -128,27 +128,32 @@ const pageLastVerseFromPageData = (pd: any) => {
 // frame can derive the book length (610 indopak vs 604 uthmani) before any derived state.
 const indopakFonts = ['saleem', 'indopak', 'alqalam', 'lateef'];
 
-const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE, readingMarkDate, topSafeInset = 0 }: any) => {
+const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, oddData, oddVerses, evenData, evenVerses, textStyle, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, ensurePageLoaded, ensurePageVersesLoaded, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = SPLIT_FONT_SCALE, readingMarkDate, topSafeInset = 0 }: any) => {
   const even = pair?.[0];
   const odd = pair?.[1];
-  const nightMode = useSelector((s: any) => s.settings?.nightMode);
-  if (even) { ensurePageLoaded(even); ensurePageVersesLoaded(even); }
-  if (odd) { ensurePageLoaded(odd); ensurePageVersesLoaded(odd); }
+
+  const resolvedOddData = odd ? (oddData || getMemoizedPageData(odd, textStyle)) : undefined;
+  const resolvedOddVerses = odd ? ((oddVerses && oddVerses.length > 0) ? oddVerses : getMemoizedVersesByPage(odd, textStyle) || []) : [];
+  const resolvedEvenData = even ? (evenData || getMemoizedPageData(even, textStyle)) : undefined;
+  const resolvedEvenVerses = even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : getMemoizedVersesByPage(even, textStyle) || []) : [];
+
+  useEffect(() => {
+    if (even) {
+      if (!resolvedEvenData) ensurePageLoaded(even);
+      if (!resolvedEvenVerses || resolvedEvenVerses.length === 0) ensurePageVersesLoaded(even);
+    }
+    if (odd) {
+      if (!resolvedOddData) ensurePageLoaded(odd);
+      if (!resolvedOddVerses || resolvedOddVerses.length === 0) ensurePageVersesLoaded(odd);
+    }
+  }, [even, odd, resolvedEvenData, resolvedEvenVerses, resolvedOddData, resolvedOddVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+
   // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
   // button renders in the same commit as its page (including pre-rendered pages while swiping).
   const oddLast = pageLastVerseFor?.(odd);
   const evenLast = pageLastVerseFor?.(even);
   const oddMarkActive = readingMarkActiveFor?.(oddLast);
   const evenMarkActive = readingMarkActiveFor?.(evenLast);
-  // Spread margins: v97 tablets go FLUSH to the screen edges (0px — user request: "no padding
-  // to the edge", portrait split was starving for width) with the 8px seam kept (4+4 inner);
-  // phones stay at 6. A lone page (first/last pair, partner null) keeps symmetric treatment.
-  // Drawing anchors: the right page's content still starts at winW/2+4 (unchanged from v96),
-  // so right-half stroke math is untouched; left-page strokes drawn before v97 replay ~33px
-  // right of their words (one-time cost of moving the page).
-  // Top 24 = pill band above the frame; bottom 24 = pill band below it (v93: the Page N /
-  // pages-left pills AND the Hide/Show-Header button hang from each page's frame bottom edge,
-  // scrolling together with the page like the top Juz/Surah pills).
   const spreadMargin = { marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 };
   const tablet = winW >= 600;
   const leftMargins = tablet ? (odd ? { marginLeft: 0, marginRight: 4 } : { marginHorizontal: 0 }) : { marginHorizontal: 6 };
@@ -158,27 +163,25 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
-            pageCache[odd] ? (
-              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[odd] || []} pageData={pageCache[odd]} highlights={highlights}
-                onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
-                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-                onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-            ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)
+            <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedOddVerses} pageData={resolvedOddData} highlights={highlights}
+              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+              onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
           ) : null}
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
-          {pageCache[even] ? (
-            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={pageVersesCache[even] || []} pageData={pageCache[even]} highlights={highlights}
+          {even ? (
+            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedEvenVerses} pageData={resolvedEvenData} highlights={highlights}
               onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
               flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
               showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
               onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
               onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-          ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
+          ) : null}
         </View>
       </View>
     </View>
@@ -199,34 +202,26 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, p
  * CALLS: ensurePageLoaded (mount effect), ensurePageVersesLoaded (mount effect), MushafPageView.
  * CALLED BY: page-mode FlatList renderItem (splitOn=false).
  */
-const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pageCache, pageVersesCache, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, currentPageNum, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
+const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pData, pVerses, textStyle, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, isCurrentPage, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
+  const resolvedData = pData || getMemoizedPageData(item, textStyle);
+  const resolvedVerses = (pVerses && pVerses.length > 0) ? pVerses : getMemoizedVersesByPage(item, textStyle) || [];
+
   useEffect(() => {
-    // Guarded loads: a cache-fill re-render re-runs this effect but not the loads. Verses load
-    // directly via ensurePageVersesLoaded (itself single-flight via pageVersesPromiseRef), so
-    // every mounted cell fills its verse cache on mount, exactly like v62 did.
-    if (!pageCache[item]) ensurePageLoaded(item);
-    if (!pageVersesCache[item]) ensurePageVersesLoaded(item);
-  }, [item, pageCache, pageVersesCache, ensurePageLoaded, ensurePageVersesLoaded]);
-  const pData = pageCache[item];
+    if (!resolvedData) ensurePageLoaded(item);
+    if (!resolvedVerses || resolvedVerses.length === 0) ensurePageVersesLoaded(item);
+  }, [item, resolvedData, resolvedVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+
   const last = pageLastVerseFor?.(item);
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
-      {/* v93: the bottom chrome row (Page N / N pages left pills + Hide/Show-Header button) lives
-          INSIDE each page frame now (hanging from the bottom edge, mirroring the top Juz/Surah
-          pills) and scrolls with the page — the fixed strip is gone. marginBottom 24 = bottom
-          margin band for the hanging row (mirror of the 24 top margin). marginHorizontal: 18
-          tablets / 6 phones (phones keep 6 — a wider margin shrinks lineW and clips end-of-line
-          words past the 0.5 floor). */}
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 }}>
-      {pData ? (
-        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={pageVersesCache[item] || []} pageData={pData} highlights={highlights} onWordPress={onWordPress}
+        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={resolvedVerses} pageData={resolvedData} highlights={highlights} onWordPress={onWordPress}
           onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
           flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
           onSpread={onSpread} spread={spread}
-          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={item === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={isCurrentPage} onReadingMarkToggle={() => onReadingMarkToggle(last)}
           onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
           onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-      ) : (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} /></View>)}
       </View>
     </View>
   );
@@ -2447,8 +2442,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 // v62-style lean virtualization: only the visible page + its immediate neighbours
                 // are ever mounted, so button presses and navigation never queue behind a wall of
                 // background-rendered mushaf pages.
-                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
+                initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5}
                 updateCellsBatchingPeriod={40}
+                onTouchStart={() => { prefetchAround(splitOn ? 'split' : 'single', currentPageNum); }}
+                onScrollBeginDrag={() => { prefetchAround(splitOn ? 'split' : 'single', currentPageNum); }}
                 onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
@@ -2484,7 +2481,12 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   }
                 }}
                 renderItem={splitOn ? ({ item }: any) => (
-                  <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+                  <SpreadItem pair={item} winW={winW} pageW={pageW} headerVisible={isHeaderVisible} surahNames={surahNames}
+                    oddData={item[1] ? pageCache[item[1]] : undefined}
+                    oddVerses={item[1] ? pageVersesCache[item[1]] : undefined}
+                    evenData={item[0] ? pageCache[item[0]] : undefined}
+                    evenVerses={item[0] ? pageVersesCache[item[0]] : undefined}
+                    textStyle={textStyleRef.current}
                     highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
@@ -2497,7 +2499,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
                     topSafeInset={topSafeInset} />
                 ) : ({ item }: any) => (
-                  <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames} pageCache={pageCache} pageVersesCache={pageVersesCache}
+                  <PageCell item={item} winW={winW} headerVisible={isHeaderVisible} surahNames={surahNames}
+                    pData={pageCache[item]}
+                    pVerses={pageVersesCache[item]}
+                    textStyle={textStyleRef.current}
                     highlights={captureHighlights} onWordPress={handleWordFlow} onBookmarkToggle={handleBookmarkFlow} onVerseLongPress={handleVerseLongPress} onBadgePress={handleVerseLongPress}
                     bookmarks={captureBookmarks} flashingVerseKey={flashingVerse ? `${flashingSurah || currentSurahId}_${flashingVerse}` : null}
                     notes={canvasData.notes} readingMarkVerse={readingMarkVerse} onDeadTap={toggleHeader}
@@ -2506,7 +2511,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     readingMode={readingMode} isCapturing={isCapturing} pageLastVerseFor={pageLastVerseFor}
                     readingMarkActiveFor={readingMarkActiveFor} onReadingMarkToggle={handleReadingMarkToggle} onMeasured={handleVisibleMeasured}
                     onToggleHeader={toggleHeader} hideBottomChrome={isCapturing}
-                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} currentPageNum={currentPageNum}
+                    nightMode={nightMode} fontSizeScale={layoutFontScaleFor(winW, false, winH)} isCurrentPage={item === currentPageNum}
                     readingMarkDate={studentData?.lastRead?.updatedAt || studentData?.lastRead?.createdAt || null}
                     topSafeInset={topSafeInset} />
                 )} />

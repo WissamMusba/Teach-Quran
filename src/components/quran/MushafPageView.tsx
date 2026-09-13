@@ -208,6 +208,24 @@ const IconNoteBadge = ({ c = '#FFD700', size = 12 }: { c?: string; size?: number
   </Svg>
 );
 
+const ParchmentSkeletonLines = memo(({ nightMode }: { nightMode: boolean }) => (
+  <View style={styles(nightMode).skeletonLinesContainer}>
+    {Array.from({ length: 15 }).map((_, idx) => (
+      <View
+        key={idx}
+        style={[
+          styles(nightMode).skeletonLineBar,
+          {
+            backgroundColor: nightMode ? 'rgba(255, 255, 255, 0.055)' : 'rgba(0, 0, 0, 0.045)',
+            width: idx === 0 || idx === 14 ? '55%' : (idx % 3 === 0 ? '88%' : (idx % 2 === 0 ? '94%' : '84%')),
+          },
+        ]}
+      />
+    ))}
+  </View>
+));
+
+
 /**
  * computeLineExtra(line, lineIdx, pageData, notes) — extra horizontal px a line needs beyond raw
  * word widths: +28 per verse boundary inside the line, +14 more when that verse has a note.
@@ -321,6 +339,9 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
   const frameC = themeColors.badgeBorder;
   const badgeBg = themeColors.badgeBg;
+  const pillTextC = '#FFFFFF';
+  const pillBorderC = 'rgba(255, 255, 255, 0.55)';
+  const pillBg = nightMode ? 'rgba(18, 18, 20, 0.88)' : 'rgba(20, 24, 33, 0.85)';
 
   const readingMarkDateObj = useMemo(() => {
     if (!readingMarkActive) return null;
@@ -786,13 +807,13 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents="box-none">
       {!hideFrame && <OrnamentalFrame color={frameC} bg={badgeBg} nightMode={nightMode} />}
       {firstSurahId > 0 && (
-        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topLeft, { borderColor: pillBorderC, backgroundColor: pillBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: pillTextC }, compact && styles(nightMode).badgeTextCompact]}>Juz {juzInfo.juz}</Text>
         </View>
       )}
       {firstSurahId > 0 && (
-        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}>
-          <Text style={[styles(nightMode).badgeText, { color: grayC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
+        <View pointerEvents="none" style={[styles(nightMode).badgePill, styles(nightMode).topRight, { borderColor: pillBorderC, backgroundColor: pillBg }, compact && styles(nightMode).badgePillCompact]}>
+          <Text style={[styles(nightMode).badgeText, { color: pillTextC }, compact && styles(nightMode).badgeTextCompact]}>{surahNames?.[firstSurahId] || `Surah ${firstSurahId}`} ({firstSurahId})</Text>
         </View>
       )}
       {showReadingMarkBtn && onReadingMarkToggle && (
@@ -831,13 +852,13 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
               style={[
                 styles(nightMode).headerToggleBtn,
                 isTablet && { paddingHorizontal: 14, paddingVertical: 6 },
-                { backgroundColor: nightMode ? 'rgba(18,18,20,0.85)' : 'rgba(250,247,238,0.95)', borderColor: themeColors.border }
+                { backgroundColor: pillBg, borderColor: pillBorderC }
               ]}
               onPress={() => { triggerAppHaptic(); onToggleHeader(); }}
               activeOpacity={0.75}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={[styles(nightMode).headerToggleText, isTablet && { fontSize: 12.5 }, { color: themeColors.accent }]}>
+              <Text style={[styles(nightMode).headerToggleText, isTablet && { fontSize: 12.5 }, { color: pillTextC }]}>
                 {headerVisible ? 'Hide Header' : 'Show Header'}
               </Text>
             </TouchableOpacity>
@@ -846,10 +867,10 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
             <View style={[
               styles(nightMode).badgePill,
               isTablet && { paddingHorizontal: 12, paddingVertical: 5 },
-              { borderColor: frameC, backgroundColor: badgeBg },
+              { borderColor: pillBorderC, backgroundColor: pillBg },
               compact && !isTablet && styles(nightMode).badgePillCompact
             ]}>
-              <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: grayC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
+              <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: pillTextC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
                 Page {displayPage}
               </Text>
             </View>
@@ -857,10 +878,10 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
           <View pointerEvents="none" style={[
             styles(nightMode).badgePill,
             isTablet && { paddingHorizontal: 12, paddingVertical: 5 },
-            { borderColor: frameC, backgroundColor: badgeBg },
+            { borderColor: pillBorderC, backgroundColor: pillBg },
             compact && !isTablet && styles(nightMode).badgePillCompact
           ]}>
-            <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: grayC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
+            <Text style={[styles(nightMode).badgeText, isTablet && { fontSize: 12.5 }, { color: pillTextC }, compact && !isTablet && styles(nightMode).badgeTextCompact]}>
               {juzInfo.pagesLeft} pages left in Juz
             </Text>
           </View>
@@ -875,9 +896,9 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
   const actionPills = onSpread && !headerVisible ? (
     <View style={styles(nightMode).bottomLeftRow}>
       {onSpread && (
-        <TouchableOpacity style={[styles(nightMode).badgePill, styles(nightMode).actionPillGap, { borderColor: frameC, backgroundColor: badgeBg }, compact && styles(nightMode).badgePillCompact]}
+        <TouchableOpacity style={[styles(nightMode).badgePill, styles(nightMode).actionPillGap, { borderColor: pillBorderC, backgroundColor: pillBg }, compact && styles(nightMode).badgePillCompact]}
           onPress={() => onSpread()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={[styles(nightMode).badgeText, { color: spread ? (nightMode ? '#7BA7DB' : '#1C3D72') : grayC }, compact && styles(nightMode).badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
+          <Text style={[styles(nightMode).badgeText, { color: pillTextC }, compact && styles(nightMode).badgeTextCompact]}>{spread ? 'Spread' : 'Spread'}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -895,7 +916,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
       return (
         <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
           <View style={styles(nightMode).skeletonWrap}>
-            <ActivityIndicator size="large" color={nightMode ? '#7BA7DB' : '#1C3D72'} />
+            <ParchmentSkeletonLines nightMode={nightMode} />
           </View>
           {overlayLayer}
           {actionPills}
@@ -946,13 +967,13 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
   // ALL other states wait for fontReady + innerH: a miss must measure with the real font on the
   // settled box, and a hit whose stored fit does NOT match the current box/header (validated by
   // onBoxLayout's synchronous first-measure on the frame after mount) falls back to the live fit
-  // math — v81 behavior, unchanged. FIX 4 — while pending, render the frame + spinner (same
+  // math — v81 behavior, unchanged. FIX 4 — while pending, render the frame + parchment skeleton (same
   // container size so onBoxLayout still captures the true height), never a black void.
   if (cacheState === 'loading' || (!replayFit && (!fontReady || innerH === 0))) {
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).skeletonWrap}>
-          <ActivityIndicator size="large" color={nightMode ? '#7BA7DB' : '#1C3D72'} />
+          <ParchmentSkeletonLines nightMode={nightMode} />
         </View>
         {overlayLayer}
         {actionPills}
@@ -1120,6 +1141,8 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   text: { textAlign: 'center', flexShrink: 1 },
   fallbackBody: { flex: 1, justifyContent: 'flex-start' },
   skeletonWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  skeletonLinesContainer: { flex: 1, width: '100%', paddingVertical: 14, paddingHorizontal: 10, justifyContent: 'space-around', alignItems: 'center' },
+  skeletonLineBar: { height: 11, borderRadius: 5.5, marginVertical: 3 },
   fallbackRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', width: '100%', marginBottom: 8 },
   fallbackTextZone: { flexShrink: 1 },
   fallbackText: { flexWrap: 'wrap', flexShrink: 1, textAlign: 'right' },
