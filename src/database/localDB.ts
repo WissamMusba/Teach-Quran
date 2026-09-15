@@ -808,8 +808,8 @@ export const preloadPageLayoutCacheRange = async (
 ): Promise<void> => {
   try {
     const r = await getDB().executeSql(
-      `SELECT pageNumber, headerVisible, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
-      [first, last, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
+      `SELECT pageNumber, headerVisible, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=0 AND screenW=?`,
+      [first, last, textStyle, headerVisible ? 1 : 0, screenW]);
     for (let i = 0; i < r[0].rows.length; i++) {
       const row = r[0].rows.item(i);
       memStore(memKey(row.pageNumber, textStyle, !!row.headerVisible, row.sparse, row.screenW), parseLayoutRow(row.lines));

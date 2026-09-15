@@ -49,7 +49,7 @@ import AnimatedHeader from '../components/common/AnimatedHeader';
 import MushafPageView, { warmPageLayoutFor } from '../components/quran/MushafPageView';
 import { getVersesBySurahPaginated, getVersePage, getMushafPageData, ensureMushafPageData, getVersesByPage, getMemoizedPageData, getMemoizedVersesByPage } from '../database/quranData';
 import { cancelStartupPrefetch } from '../utils/startupPrefetch';
-import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal } from '../database/localDB';
+import { getStudentData, saveStudentData, saveCanvasEdit, canvasKeyForPage, canvasKeyForSurah, getManifest, saveManifestLocal, getChunk, saveChunk, rangeKeyForPage, saveLastPageSeenLocal, getPageLayoutCache } from '../database/localDB';
 import { uploadAudioNote, registerAudioNote } from '../api/audioNotes';
 import storage from '@react-native-firebase/storage';
 import { pushDrawings, pullDrawings } from '../api/sync';
@@ -356,6 +356,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const [canvasUndoState, setCanvasUndoState] = useState({ canUndo: false, canRedo: false });
   const pageCacheOrderRef = useRef<number[]>(initialSeed.keys);
   const pageVersesOrderRef = useRef<number[]>(initialSeed.vkeys);
+  const pageCacheRef = useRef(pageCache);
+  pageCacheRef.current = pageCache;
+  const pageVersesCacheRef = useRef(pageVersesCache);
+  pageVersesCacheRef.current = pageVersesCache;
   const currentPageNumRef = useRef(currentPageNum);
   // Timestamp of the last PROGRAMMATIC FlatList scroll (scrollToIndex/scrollToOffset)
   // — onMomentumScrollEnd ignores momentum for 400ms after one, so the stale settle
@@ -379,6 +383,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
   // ---- Redux subscriptions ----
   const { currentSurahId, verses, showTranslation, fontSize, readingMode, flashingVerse, surahNames, textStyle } = useSelector((s: any) => s.quran);
+  const textStyleRef = useRef(textStyle);
+  textStyleRef.current = textStyle;
   const { currentStudent, studentData } = useSelector((s: any) => s.student);
   // Live student-id ref (re-written every render) so first-render closures — notably the
   // []-deps AppState listener and its captured flushPendingSave — never flush under the
@@ -455,7 +461,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   the same promise they triggered.
    */
   const ensurePageLoaded = useCallback(async (pageNum: number): Promise<any> => {
-    if (pageCache[pageNum]) return Promise.resolve(pageCache[pageNum]);
+    if (pageCacheRef.current[pageNum]) return Promise.resolve(pageCacheRef.current[pageNum]);
     if (pagePromiseRef.current[pageNum]) return pagePromiseRef.current[pageNum];
     const promise = (async () => {
       const data = await getMushafPageData(pageNum, textStyleRef.current);
@@ -475,7 +481,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     })().finally(() => { delete pagePromiseRef.current[pageNum]; });
     pagePromiseRef.current[pageNum] = promise;
     return promise;
-  }, [pageCache, isIndopak]);
+  }, []);
 
   /**
    * WHAT: Loads the verses belonging to a page into pageVersesCache — used to
@@ -493,13 +499,13 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   promise ref clears on settle.
    */
   const ensurePageVersesLoaded = useCallback((pageNum: number) => {
-    if (pageVersesCache[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
+    if (pageVersesCacheRef.current[pageNum] || pageVersesPromiseRef.current[pageNum]) return;
     pageVersesPromiseRef.current[pageNum] = true;
     getVersesByPage(pageNum, textStyleRef.current).then(verses => {
       stagePageVerses(pageNum, verses);
       delete pageVersesPromiseRef.current[pageNum];
     }).catch(() => { delete pageVersesPromiseRef.current[pageNum]; });
-  }, [pageVersesCache]);
+  }, []);
 
   /**
    * WHAT: PRIORITIZED sliding-window warm-ahead for FAST swiping — the window
@@ -858,11 +864,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const surahIdRef = useRef(currentSurahId);
   const versesRef = useRef(verses);
   const pageRef = useRef(page);
-  const textStyleRef = useRef(textStyle);
   useEffect(() => { surahIdRef.current = currentSurahId; }, [currentSurahId]);
   useEffect(() => { versesRef.current = verses; }, [verses]);
   useEffect(() => { pageRef.current = page; }, [page]);
-  useEffect(() => { textStyleRef.current = textStyle; }, [textStyle]);
   useEffect(() => { currentPageNumRef.current = currentPageNum; }, [currentPageNum]);
 
   /**
@@ -2316,17 +2320,41 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
                 // v62-style lean virtualization: only the visible page + its immediate neighbours
                 // are ever mounted, so button presses and navigation never queue behind a wall of
-                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
-                updateCellsBatchingPeriod={40}
+                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5}
+                updateCellsBatchingPeriod={20}
                 onScroll={({ nativeEvent }: any) => {
                   const off = nativeEvent.contentOffset.x;
+                  const prevOff = lastScrollOffsetRef.current;
                   lastScrollOffsetRef.current = off;
                   const idx = Math.round(off / winW);
                   const targetP = splitOn ? anchorFromIndex(idx) : idx + 1;
-                  if (targetP >= 1 && targetP <= pageNumbers.length) {
-                    ensurePageLoaded(targetP);
-                    ensurePageVersesLoaded(targetP);
-                    if (splitOn) prefetchPartner(targetP);
+                  const delta = prevOff !== null ? off - prevOff : 0;
+                  const pagesToWarm: number[] = [targetP];
+                  if (delta > 0) {
+                    pagesToWarm.push(targetP + 1, targetP + 2);
+                    if (splitOn) pagesToWarm.push(targetP + 3, targetP + 4);
+                  } else if (delta < 0) {
+                    pagesToWarm.push(targetP - 1, targetP - 2);
+                    if (splitOn) pagesToWarm.push(targetP - 3, targetP - 4);
+                  } else {
+                    pagesToWarm.push(targetP - 1, targetP + 1);
+                  }
+                  const ts = textStyleRef.current;
+                  const sw = Math.round(pageW * layoutFontScale);
+                  for (const p of pagesToWarm) {
+                    if (p >= 1 && p <= pageNumbers.length) {
+                      getMushafPageData(p, ts);
+                      getVersesByPage(p, ts);
+                      getPageLayoutCache(p, ts, false, p <= 2 ? 1 : 0, sw);
+                      if (splitOn && p !== 1) {
+                        const partner = Math.min(Math.max(p + (p % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
+                        if (partner) {
+                          getMushafPageData(partner, ts);
+                          getVersesByPage(partner, ts);
+                          getPageLayoutCache(partner, ts, false, partner <= 2 ? 1 : 0, sw);
+                        }
+                      }
+                    }
                   }
                 }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}

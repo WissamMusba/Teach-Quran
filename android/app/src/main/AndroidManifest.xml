@@ -15,7 +15,8 @@
       android:theme="@style/AppTheme"
       android:hardwareAccelerated="true"
       android:largeHeap="true"
-      android:usesCleartextTraffic="true">
+      android:usesCleartextTraffic="true"
+      android:resizeableActivity="true">
       <!-- TEST app id — TODO replace with the real AdMob application id before release. -->
       <meta-data
         android:name="com.google.android.gms.ads.APPLICATION_ID"
@@ -26,7 +27,8 @@
         android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
         android:launchMode="singleTask"
         android:windowSoftInputMode="adjustResize"
-        android:exported="true">
+        android:exported="true"
+        android:resizeableActivity="true">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

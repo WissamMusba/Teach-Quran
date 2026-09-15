@@ -135,11 +135,10 @@ android {
         }
     }
     packagingOptions {
-        // v97: keep native libs DEFLATED in the APK. The minSdk 21->23 bump flipped
-        // AGP to stored/uncompressed libs (extractNativeLibs=false), which doubled the
-        // sideload APK from ~17MB to ~34MB. Legacy packaging restores the v96 APK size.
+        // 16 KB page size support for Android 15+: keep native libs uncompressed
+        // and 16 KB page-aligned in the APK/AAB as required by Google Play.
         jniLibs {
-            useLegacyPackaging = true
+            useLegacyPackaging = false
         }
     }
 

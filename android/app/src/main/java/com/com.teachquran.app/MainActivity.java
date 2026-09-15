@@ -13,16 +13,13 @@ public class MainActivity extends ReactActivity {
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
+    androidx.activity.EdgeToEdge.enable(this);
     // v96: lock PHONES to portrait — tablets (smallest-width >= 600dp, matching the JS
     // side's IS_TABLET = width >= 600) keep free rotation so split-view landscape keeps
     // working. Applied before super.onCreate so the first frame is already oriented.
     if (getResources().getConfiguration().smallestScreenWidthDp < 600) {
       setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
-    getWindow().setFlags(
-      WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-      WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-    );
     super.onCreate(null);
   }
 
