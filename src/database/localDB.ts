@@ -715,19 +715,19 @@ export const cacheStudentList = async (students: any[]): Promise<void> => {
  * LOCAL-ONLY per-student "last page VIEWED" memory (StudentHub RESUME source).
  * Deliberately NOT part of any manifest/sync path — the cloud stays clean.
  */
-export const saveLastPageSeenLocal = async (sid: string, seen: { surah: number; verse: number; at: string }): Promise<void> => {
+export const saveLastPageSeenLocal = async (sid: string, seen: { surah: number; verse: number; page?: number; at: string }): Promise<void> => {
   try {
     await getDB().executeSql(`INSERT OR REPLACE INTO local_student_state (sid, lastPageSeen, updatedAt) VALUES (?, ?, ?)`,
       [sid, JSON.stringify(seen), new Date().toISOString()]);
   } catch {}
 };
-export const getLastPageSeenLocal = async (sid: string): Promise<{ surah: number; verse: number; at: string } | null> => {
+export const getLastPageSeenLocal = async (sid: string): Promise<{ surah: number; verse: number; page?: number; at: string } | null> => {
   try {
     const r = await getDB().executeSql(`SELECT lastPageSeen FROM local_student_state WHERE sid = ?`, [sid]);
     if (r && r[0] && r[0].rows && r[0].rows.length) {
       const v = JSON.parse(r[0].rows.item(0).lastPageSeen);
-      if (v && Number(v.surah) > 0 && Number(v.verse) > 0) {
-        return { surah: Number(v.surah), verse: Number(v.verse), at: String(v.at || '') };
+      if (v && (Number(v.page) > 0 || (Number(v.surah) > 0 && Number(v.verse) > 0))) {
+        return { surah: Number(v.surah || 1), verse: Number(v.verse || 1), page: Number(v.page || 0), at: String(v.at || '') };
       }
     }
   } catch {}

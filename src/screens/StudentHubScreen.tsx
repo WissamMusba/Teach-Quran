@@ -219,20 +219,25 @@ export default function StudentHubScreen({ navigation }: any) {
       else if (lr?.updatedAt) setLastSeenAt(String(lr.updatedAt));
       else setLastSeenAt('');
 
-      if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) {
+      if (seen && Number(seen.page) > 0) {
+        const p = Number(seen.page);
+        const s = Number(seen.surah) || 1;
+        const v = Number(seen.verse) || 1;
+        setResumeInfo({ page: p, juz: pageToJuz(p), surah: s, verse: v });
+      } else if (seen && Number(seen.surah) > 0 && Number(seen.verse) > 0) {
         target = { surah: Number(seen.surah), verse: Number(seen.verse) };
       } else if (lrSurah > 0 && lrVerse > 0) {
         target = { surah: lrSurah, verse: lrVerse };
       }
 
-      if (target) {
+      if (target && (!seen || !seen.page)) {
         try {
           const pg = await getVersePage(target.surah, target.verse, textStyle);
           setResumeInfo({ page: pg, juz: getJuzForVerse(target.surah, target.verse), surah: target.surah, verse: target.verse });
         } catch {
           setResumeInfo({ page: 1, juz: getJuzForVerse(target.surah, target.verse), surah: target.surah, verse: target.verse });
         }
-      } else {
+      } else if (!seen?.page) {
         setResumeInfo({ page: 1, juz: 1, surah: 1, verse: 1 });
       }
 
@@ -261,7 +266,7 @@ export default function StudentHubScreen({ navigation }: any) {
   const lrVerse = studentData?.lastRead?.verse || 0;
 
   useEffect(() => {
-    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.page + 1));
+    if (resumeInfo) setTutorialContext('resumePage', String(resumeInfo.page));
   }, [resumeInfo]);
 
   const resumeSubtitle = useMemo(() => {
@@ -269,7 +274,7 @@ export default function StudentHubScreen({ navigation }: any) {
     const sName = surahNames?.[resumeInfo.surah] || `Surah ${resumeInfo.surah}`;
     const ago = formatTimeAgo(lastSeenAt || studentData?.lastRead?.updatedAt);
     const agoPart = ago ? ` · ${ago}` : '';
-    return `Reading Page ${resumeInfo.page + 1} · Juz ${resumeInfo.juz} · ${sName}${agoPart}`;
+    return `Reading Page ${resumeInfo.page} · Juz ${resumeInfo.juz} · ${sName}${agoPart}`;
   }, [resumeInfo, surahNames, lastSeenAt, studentData?.lastRead?.updatedAt]);
 
   const bookmarkCount = useMemo(() => {
@@ -286,7 +291,7 @@ export default function StudentHubScreen({ navigation }: any) {
     if (!dailyTarget) return 'No mark set yet — bookmark a verse while reading';
     const sName = surahNames?.[dailyTarget.surah] || `Surah ${dailyTarget.surah}`;
     const j = getJuzForVerse(dailyTarget.surah, dailyTarget.verse);
-    const pgPart = dailyPage > 0 ? ` · Page ${dailyPage + 1}` : '';
+    const pgPart = dailyPage > 0 ? ` · Page ${dailyPage}` : '';
     const timeAgoStr = formatTimeAgo(studentData?.lastRead?.updatedAt);
     const timePart = timeAgoStr ? ` (${timeAgoStr})` : '';
     return `${sName} · Ayat ${dailyTarget.verse} · Juz ${j}${pgPart}${timePart}`;

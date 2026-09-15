@@ -132,21 +132,49 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
   const even = pair?.[0];
   const odd = pair?.[1];
 
-  const resolvedOddData = odd ? (oddData || getMemoizedPageData(odd, textStyle)) : undefined;
-  const resolvedOddVerses = odd ? ((oddVerses && oddVerses.length > 0) ? oddVerses : getMemoizedVersesByPage(odd, textStyle) || []) : [];
-  const resolvedEvenData = even ? (evenData || getMemoizedPageData(even, textStyle)) : undefined;
-  const resolvedEvenVerses = even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : getMemoizedVersesByPage(even, textStyle) || []) : [];
+  const [localOddData, setLocalOddData] = useState<any>(() => odd ? (oddData || getMemoizedPageData(odd, textStyle)) : undefined);
+  const [localEvenData, setLocalEvenData] = useState<any>(() => even ? (evenData || getMemoizedPageData(even, textStyle)) : undefined);
+  const [localOddVerses, setLocalOddVerses] = useState<any[]>(() => odd ? ((oddVerses && oddVerses.length > 0) ? oddVerses : (getMemoizedVersesByPage(odd, textStyle) || [])) : []);
+  const [localEvenVerses, setLocalEvenVerses] = useState<any[]>(() => even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : (getMemoizedVersesByPage(even, textStyle) || [])) : []);
+
+  useEffect(() => { if (oddData && oddData !== localOddData) setLocalOddData(oddData); }, [oddData]);
+  useEffect(() => { if (evenData && evenData !== localEvenData) setLocalEvenData(evenData); }, [evenData]);
+  useEffect(() => { if (oddVerses && oddVerses.length > 0 && oddVerses !== localOddVerses) setLocalOddVerses(oddVerses); }, [oddVerses]);
+  useEffect(() => { if (evenVerses && evenVerses.length > 0 && evenVerses !== localEvenVerses) setLocalEvenVerses(evenVerses); }, [evenVerses]);
 
   useEffect(() => {
+    let active = true;
     if (even) {
-      if (!resolvedEvenData) ensurePageLoaded(even);
-      if (!resolvedEvenVerses || resolvedEvenVerses.length === 0) ensurePageVersesLoaded(even);
+      if (!localEvenData) {
+        const h = getMemoizedPageData(even, textStyle);
+        if (h) setLocalEvenData(h);
+        else ensurePageLoaded(even).then((d: any) => { if (active && d) setLocalEvenData(d); });
+      }
+      if (!localEvenVerses || localEvenVerses.length === 0) {
+        const v = getMemoizedVersesByPage(even, textStyle);
+        if (v && v.length > 0) setLocalEvenVerses(v);
+        else ensurePageVersesLoaded(even);
+      }
     }
     if (odd) {
-      if (!resolvedOddData) ensurePageLoaded(odd);
-      if (!resolvedOddVerses || resolvedOddVerses.length === 0) ensurePageVersesLoaded(odd);
+      if (!localOddData) {
+        const h = getMemoizedPageData(odd, textStyle);
+        if (h) setLocalOddData(h);
+        else ensurePageLoaded(odd).then((d: any) => { if (active && d) setLocalOddData(d); });
+      }
+      if (!localOddVerses || localOddVerses.length === 0) {
+        const v = getMemoizedVersesByPage(odd, textStyle);
+        if (v && v.length > 0) setLocalOddVerses(v);
+        else ensurePageVersesLoaded(odd);
+      }
     }
-  }, [even, odd, resolvedEvenData, resolvedEvenVerses, resolvedOddData, resolvedOddVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+    return () => { active = false; };
+  }, [even, odd, textStyle, ensurePageLoaded, ensurePageVersesLoaded]);
+
+  const resolvedOddData = localOddData || oddData || (odd ? getMemoizedPageData(odd, textStyle) : undefined);
+  const resolvedOddVerses = (localOddVerses && localOddVerses.length > 0) ? localOddVerses : (odd ? ((oddVerses && oddVerses.length > 0) ? oddVerses : getMemoizedVersesByPage(odd, textStyle) || []) : []);
+  const resolvedEvenData = localEvenData || evenData || (even ? getMemoizedPageData(even, textStyle) : undefined);
+  const resolvedEvenVerses = (localEvenVerses && localEvenVerses.length > 0) ? localEvenVerses : (even ? ((evenVerses && evenVerses.length > 0) ? evenVerses : getMemoizedVersesByPage(even, textStyle) || []) : []);
 
   // Reading-mark ribbon is per-page: derived synchronously from each half's own pageData, so the
   // button renders in the same commit as its page (including pre-rendered pages while swiping).
@@ -215,13 +243,42 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
  * CALLED BY: page-mode FlatList renderItem (splitOn=false).
  */
 const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pData, pVerses, textStyle, highlights, onWordPress, onBookmarkToggle, onVerseLongPress, onBadgePress, bookmarks, flashingVerseKey, notes, readingMarkVerse, onDeadTap, onSpread, spread, readingMode, isCapturing, pageLastVerseFor, readingMarkActiveFor, onReadingMarkToggle, onMeasured, ensurePageLoaded, ensurePageVersesLoaded, nightMode, onToggleHeader, hideBottomChrome, isCurrentPage, fontSizeScale = 1, readingMarkDate, topSafeInset = 0 }: any) => {
-  const resolvedData = pData || getMemoizedPageData(item, textStyle);
-  const resolvedVerses = (pVerses && pVerses.length > 0) ? pVerses : getMemoizedVersesByPage(item, textStyle) || [];
+  const [cellData, setCellData] = useState<any>(() => pData || getMemoizedPageData(item, textStyle));
+  const [cellVerses, setCellVerses] = useState<any[]>(() => (pVerses && pVerses.length > 0) ? pVerses : (getMemoizedVersesByPage(item, textStyle) || []));
 
   useEffect(() => {
-    if (!resolvedData) ensurePageLoaded(item);
-    if (!resolvedVerses || resolvedVerses.length === 0) ensurePageVersesLoaded(item);
-  }, [item, resolvedData, resolvedVerses, ensurePageLoaded, ensurePageVersesLoaded]);
+    if (pData && pData !== cellData) setCellData(pData);
+  }, [pData]);
+
+  useEffect(() => {
+    if (pVerses && pVerses.length > 0 && pVerses !== cellVerses) setCellVerses(pVerses);
+  }, [pVerses]);
+
+  useEffect(() => {
+    let active = true;
+    if (!cellData) {
+      const syncHit = getMemoizedPageData(item, textStyle);
+      if (syncHit) {
+        setCellData(syncHit);
+      } else {
+        ensurePageLoaded(item).then((data: any) => {
+          if (active && data) setCellData(data);
+        });
+      }
+    }
+    if (!cellVerses || cellVerses.length === 0) {
+      const syncV = getMemoizedVersesByPage(item, textStyle);
+      if (syncV && syncV.length > 0) {
+        setCellVerses(syncV);
+      } else {
+        ensurePageVersesLoaded(item);
+      }
+    }
+    return () => { active = false; };
+  }, [item, textStyle, ensurePageLoaded, ensurePageVersesLoaded]);
+
+  const resolvedData = cellData || pData || getMemoizedPageData(item, textStyle);
+  const resolvedVerses = (cellVerses && cellVerses.length > 0) ? cellVerses : ((pVerses && pVerses.length > 0) ? pVerses : (getMemoizedVersesByPage(item, textStyle) || []));
 
   const last = pageLastVerseFor?.(item);
   return (
@@ -693,6 +750,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // FIX 8 — a programmatic landing settles immediately (no 120ms swipe debounce).
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     setSettledPage(pg);
+    saveCurrentSeen(pg);
     if (splitOn) prefetchPartner(pg);
     // P0-A — scroll FIRST, wait NEVER: getItemLayout makes scrollToIndex synchronous, so the
     // target slides into view on this frame while its data loads behind the FIX 4 skeleton.
@@ -878,16 +936,33 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * of every manifest/cloud path on purpose.
    * CALLS: saveLastPageSeenLocal (src/database/localDB.ts).
    */
-  useEffect(() => {
-    if (readingMode !== 'page' || !currentStudent?.id) return;
-    // FIX 8 — only the settled page counts as "last page viewed": intermediate pages of a fast
-    // fling must never overwrite the real landing page.
-    if (settledPage !== currentPageNum) return;
-    const pg = pageVersesCache[currentPageNum];
+  const saveCurrentSeen = useCallback((p: number) => {
+    if (!currentStudent?.id || p < 1) return;
+    const pg = pageVersesCacheRef.current[p] || getMemoizedVersesByPage(p, textStyleRef.current);
     const last = pg && pg.length ? pg[pg.length - 1] : null;
-    if (!last || !Number(last.surahId) || !Number(last.verseNumber)) return;
-    saveLastPageSeenLocal(currentStudent.id, { surah: Number(last.surahId), verse: Number(last.verseNumber), at: new Date().toISOString() });
-  }, [currentPageNum, readingMode, currentStudent?.id, pageVersesCache?.[currentPageNum], settledPage]);
+    let s = Number(last?.surahId) || 0;
+    let v = Number(last?.verseNumber) || 0;
+    if (!s || !v) {
+      const pd = pageCacheRef.current[p] || getMemoizedPageData(p, textStyleRef.current);
+      const firstWord = pd?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
+      if (firstWord?.location) {
+        const parts = firstWord.location.split(':');
+        s = parseInt(parts[0], 10) || 1;
+        v = parseInt(parts[1], 10) || 1;
+      }
+    }
+    saveLastPageSeenLocal(currentStudent.id, {
+      surah: s || currentSurahId || 1,
+      verse: v || 1,
+      page: p,
+      at: new Date().toISOString(),
+    });
+  }, [currentStudent?.id, currentSurahId]);
+
+  useEffect(() => {
+    if (readingMode !== 'page' || !currentStudent?.id || currentPageNum < 1) return;
+    saveCurrentSeen(currentPageNum);
+  }, [currentPageNum, readingMode, currentStudent?.id, saveCurrentSeen]);
 
   /**
    * WHAT: 20-verse page loader for ayah/continuous modes; appends or replaces
@@ -2237,6 +2312,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const onBack = useCallback(() => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
+    saveCurrentSeen(currentPageNumRef.current);
     if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current);
     layoutQueueRef.current = [];
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -2244,7 +2320,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
     flushPendingHighlights();
     navigation.goBack();
-  }, [navigation, flushPendingHighlights]);
+  }, [navigation, flushPendingHighlights, saveCurrentSeen]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -2313,15 +2389,14 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 {...(initialLandPage > 1 && initialLandPage <= pageNumbers.length ? { initialScrollIndex: splitOn ? pairIndexForPage(initialLandPage) : initialLandPage - 1 } : {})}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
-                removeClippedSubviews={true} scrollEventThrottle={16}
+                removeClippedSubviews={false} scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: 0 }}
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
                 // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
                 getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
-                // v62-style lean virtualization: only the visible page + its immediate neighbours
-                // are ever mounted, so button presses and navigation never queue behind a wall of
-                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5}
-                updateCellsBatchingPeriod={20}
+                // Smooth virtualization: keep 3 pages buffer ahead and behind to prevent blank screens during fast swiping
+                initialNumToRender={5} maxToRenderPerBatch={5} windowSize={7}
+                updateCellsBatchingPeriod={16}
                 onScroll={({ nativeEvent }: any) => {
                   const off = nativeEvent.contentOffset.x;
                   const prevOff = lastScrollOffsetRef.current;
@@ -2373,6 +2448,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const off = (live !== null && Math.abs(reported - live) > winW) ? live : reported;
                   const idx = Math.round(off / winW);
                   const p = splitOn ? anchorFromIndex(idx) : idx + 1;
+                  saveCurrentSeen(p);
                   if (p !== currentPageNum) {
                     setCurrentPageNum(p); setHeaderPage(p);
                     // FIX 8 — debounce the heavy per-page effects to the page that survives
