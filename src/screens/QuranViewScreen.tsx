@@ -639,112 +639,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
   useEffect(() => () => {
     if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
   }, []);
-  useEffect(() => {
-    if (readingMode !== 'page' || currentPageNum < 1 || !pageNumbers.length) return;
-    // v79 — when the reader is NOT focused (user is on Mistakes/Notes/Bookmarks/Settings/etc. the
-    // reader stays mounted underneath the pushed screen) the warm drain must stop ENTIRELY: its
-    // state updates re-render the whole reader behind the pushed screen and starve it of frames.
-    if (!hiddenFocus) return;
-    // FIX 8 — ignore intermediate momentum pages: only warm the window for the page that
-    // survives 120ms after the last swipe settle.
-    if (settledPage !== currentPageNum) return;
-    const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
-    const loadPage = (p: number) => {
-      ensurePageLoaded(p);
-      ensurePageVersesLoaded(p);
-    };
-    // Same key scheme as warmedPagesRef (shared component-level warmKey —
-    // textStyle|width|page), so pages already measured on-screen are skipped here — their
-    // layout row is already in SQLite.
-    const warmLayoutByPage = new Set<number>();
-    const warmLayout = (p: number) => {
-      if (warmLayoutByPage.has(p) || layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) return;
-      warmLayoutByPage.add(p);
-      layoutWarmByPageRef.current.add(warmKey(p));
-      getMushafPageData(p, textStyleRef.current).then(pd => {
-        if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
-      }).catch(() => {});
-    };
-    // ONE 3-per-80ms drain queue for every off-screen page. A settle used to queue
-    // 27 synchronous loads + 21 layout queries in three bursts on the JS thread; now only
-    // the visible page + its immediate neighbours (TIER 0) run this tick, everything else
-    // drips 3 pages per tick. v80.2 — the window is ±20 (40 pages) so the whole reachable
-    // band ahead AND behind is warm for instant scroll-back, cached within ~1.1s, no wall.
-    const layoutStep = () => {
-      clearTimeout(layoutTimerRef.current);
-      InteractionManager.runAfterInteractions(() => {
-        if (!hiddenFocus) return;
-        const batch = layoutQueueRef.current.splice(0, 2);
-        for (const p of batch) { loadPage(p); warmLayout(p); }
-        if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
-      });
-    };
-    // TIER 1 — nearest-first drain: 20-behind arm, then 20-ahead arm (v80.2 ±20 window).
-    const queue: number[] = [];
-    // TIER 0 — the visible page + its immediate neighbours, this tick only.
-    const tier0Pages = [clampP(currentPageNum - 1), clampP(currentPageNum), clampP(currentPageNum + 1)];
-    loadPage(clampP(currentPageNum));
-    for (const q of tier0Pages) { loadPage(q); warmLayout(q); }
-    for (let p = currentPageNum - 20; p <= currentPageNum - 2; p++) queue.push(clampP(p));
-    for (let p = currentPageNum + 2; p <= currentPageNum + 20; p++) queue.push(clampP(p));
-    layoutQueueRef.current = queue;
-    if (layoutQueueRef.current.length) layoutTimerRef.current = setTimeout(layoutStep, 120);
-    return () => {
-      clearTimeout(layoutTimerRef.current);
-      layoutQueueRef.current = [];
-    };
-  }, [currentPageNum, readingMode, pageNumbers.length, pageW, settledPage, splitOn, winW, isHeaderVisible, textStyle, hiddenFocus]);
-
-  /**
-   * WHAT: IDLE 30s background TEXT prefetch — page JSON + verses for the next 30 and
-   *   previous 5 pages, drained 2 pages per 150ms so fast scrolling after a long reading
-   *   session never shows a spinner. WHY: the settle-warm window (±20) finishes within a
-   *   minute of each settle, so pages beyond it still cold-load on first scroll of a
-   *   marathon; this prefetch quietly extends the warm band while the reader is idle.
-   * FLOW: after 60s on the SAME settled page (still focused), build the queue
-   *   [settled+1..settled+30] then [settled-5..settled-1] (clamped to the book, settled
-   *   page skipped) and drain via ONE 2-per-150ms setTimeout chain — ensurePageLoaded /
-   *   ensurePageVersesLoaded dedupe internally (caches + promise refs). If the reader
-   *   loses focus mid-drain, the tick aborts and clears the queue.
-   * CALLS: ensurePageLoaded, ensurePageVersesLoaded.
-   * AFFECTS: pageCache / pageVersesCache (LRU, window-only fills).
-   * NOTES: Gentle pacing on purpose — 2/150ms never contends with header-button presses
-   *   or swipes; runs ONLY while hiddenFocus and fully idle (guard before the timer arms,
-   *   plus a live hiddenFocus re-check on every tick).
-   */
-  useEffect(() => {
-    if (readingMode !== 'page' || settledPage < 1 || !pageNumbers.length || !hiddenFocus) return;
-    const clampP = (p: number) => Math.max(1, Math.min(p, pageNumbers.length));
-    const buildQueue = () => {
-      const q: number[] = [];
-      for (let p = settledPage + 1; p <= settledPage + 30; p++) {
-        if (p > pageNumbers.length) break;
-        q.push(clampP(p));
-      }
-      for (let p = settledPage - 5; p <= settledPage - 1; p++) {
-        if (p < 1) break;
-        q.push(clampP(p));
-      }
-      return q.filter((p: number) => p !== settledPage);
-    };
-    const tick = () => {
-      clearTimeout(idleTimerRef.current);
-      InteractionManager.runAfterInteractions(() => {
-        if (!hiddenFocus) { idleQueueRef.current = []; return; }
-        const batch = idleQueueRef.current.splice(0, 2);
-        for (const p of batch) { ensurePageLoaded(p); ensurePageVersesLoaded(p); }
-        if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
-      });
-    };
-    idleTimerRef.current = setTimeout(() => {
-      idleQueueRef.current = buildQueue();
-      if (idleQueueRef.current.length) idleTimerRef.current = setTimeout(tick, 150);
-    }, 30000);
-    return () => {
-      clearTimeout(idleTimerRef.current);
-      idleQueueRef.current = [];
-    };
-  }, [settledPage, readingMode, pageNumbers.length, hiddenFocus]);
+  // Background preloading queues disabled per user configuration:
+  // Pages now load strictly on-demand when navigated/swiped to (like Go to Page),
+  // with zero background prefetching stealing SQLite or JS thread resources.
 
   /**
    * WHAT: Targeted layout warm for EXPLICIT navigation (SurahList surah/page/juz
@@ -763,40 +660,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
    * NOTES: Fire-and-forget (no await, .catch swallowed). The warm skip guard is
    *   identical to the settle effect's warmLayout, so no page is ever re-queried.
    */
-  const warmNearPages = useCallback((pg: number) => {
-    if (legacySmoothRef.current) return;
-    if (warmNearTimerRef.current) { clearTimeout(warmNearTimerRef.current); warmNearTimerRef.current = null; }
-    const step = splitOn ? 2 : 1;
-    const queue: number[] = [];
-    for (let i = 1; i <= 6; i += step) {
-      const ahead = pg + i;
-      const behind = pg - i;
-      if (ahead <= pageNumbers.length) queue.push(ahead);
-      if (behind >= 1) queue.push(behind);
-      if (splitOn) {
-        // Split mode warms whole pairs: each touched page's spread partner too.
-        const mateA = ahead <= 1 ? null : (ahead % 2 === 0 ? ahead + 1 : ahead - 1);
-        if (ahead <= pageNumbers.length && mateA && mateA <= pageNumbers.length) queue.push(mateA);
-        const mateB = behind <= 1 ? null : (behind % 2 === 0 ? behind + 1 : behind - 1);
-        if (behind >= 1 && mateB && mateB <= pageNumbers.length) queue.push(mateB);
-      }
-    }
-    const stepTick = () => {
-      InteractionManager.runAfterInteractions(() => {
-        const batch = queue.splice(0, 2);
-        for (const p of batch) {
-          if (layoutWarmByPageRef.current.has(warmKey(p)) || warmedPagesRef.current.has(warmKey(p))) continue;
-          layoutWarmByPageRef.current.add(warmKey(p));
-          getMushafPageData(p, textStyleRef.current).then(pd => {
-            if (pd?.lines?.length) warmPageLayoutFor(p, pd, textStyleRef.current, Math.round(pageW * layoutFontScale));
-          }).catch(() => {});
-        }
-        if (queue.length) warmNearTimerRef.current = setTimeout(stepTick, 150);
-        else warmNearTimerRef.current = null;
-      });
-    };
-    warmNearTimerRef.current = setTimeout(stepTick, 150);
-  }, [splitOn, pageW, winW, pageNumbers.length, textStyle]);
+  const warmNearPages = useCallback((_pg: number) => {
+    // Disabled: no background preloading per user configuration
+  }, []);
 
   /**
    * WHAT: Landing-path scroll — scrolls the page FlatList to the target page
@@ -805,9 +671,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   shows for the moment until data lands, never a wait. Stamps
    *   programmaticScrollRef so the momentum settle from this jump is ignored by
    *   onMomentumScrollEnd.
-   * FLOW: stamp -> settle -> prefetch neighbours -> scrollToIndex (P0-A: no
-   *   Promise.race gate; the page list may be unmounted on a mode-switch arrival,
-   *   so re-scroll once it is live) -> ensurePageLoaded -> if the reader is still
+   * FLOW: stamp -> settle -> scrollToIndex -> ensurePageLoaded -> if the reader is still
    *   on pg, warmPageLayoutFor for an instant layout-cache hit on render.
    * CALLS: ensurePageLoaded, warmPageLayoutFor, pageFlatListRef.scrollToIndex.
    * CALLED BY: handleSelectPage, deep-link effect, surah-change effect.
@@ -823,10 +687,6 @@ export default function QuranViewScreen({ navigation, route }: any) {
     // FIX 8 — a programmatic landing settles immediately (no 120ms swipe debounce).
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     setSettledPage(pg);
-    // FIX 6c — prefetch the neighbours so the pages either side of the target are ready the
-    // moment the user swipes after landing.
-    if (pg > 1) ensurePageLoaded(pg - 1);
-    if (pg < pageNumbers.length) ensurePageLoaded(pg + 1);
     if (splitOn) prefetchPartner(pg);
     // P0-A — scroll FIRST, wait NEVER: getItemLayout makes scrollToIndex synchronous, so the
     // target slides into view on this frame while its data loads behind the FIX 4 skeleton.
@@ -852,23 +712,10 @@ export default function QuranViewScreen({ navigation, route }: any) {
   /**
    * WHAT: Prefetches pages ±5 around the current page (single mode) or the pair
    *   ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
-   *   v80.2 — widened from ±2/±1 so a fling into the ±20 warm band never renders
-   *   a skeleton while the settle drain catches up.
-   * CALLS: ensurePageLoaded + ensurePageVersesLoaded (verses load directly, single-flight).
-   * CALLED BY: onMomentumScrollEnd, handleSelectPage, deep-link effect,
-   *   surah-change effect, lastRead restore.
-   * NOTES: 'single' mode skips page-verse prefetch — verses are only fetched by
-   *   MushafPageView render (single) or SpreadItem (split).
+   *   Disabled per user configuration: no preloading.
    */
-  const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
-    if (legacySmoothRef.current) return;
-    if (pageMode === 'single') { for (let d = 1; d <= 5; d++) { ensurePageLoaded(page + d); ensurePageLoaded(page - d); } return; }
-    // FIX 5 — spread mode loads only the visible pair + neighbour pairs; never preloads or
-    // verifies off-screen halves (the FlatList window renders those anyway when needed).
-    const data = pagePairsFor(pageNumbers.length);
-    const lo = Math.max(0, pairIndexForPage(page) - 2);
-    const hi = Math.min(data.length - 1, pairIndexForPage(page) + 2);
-    for (let i = lo; i <= hi; i++) { for (const pn of data[i]) { if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); } } }
+  const prefetchAround = (_pageMode: 'single' | 'split', _page: number) => {
+    // Disabled: no background preloading per user configuration
   };
 
   /**
@@ -2471,7 +2318,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 // are ever mounted, so button presses and navigation never queue behind a wall of
                 initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
                 updateCellsBatchingPeriod={40}
-                onScroll={({ nativeEvent }: any) => { lastScrollOffsetRef.current = nativeEvent.contentOffset.x; }}
+                onScroll={({ nativeEvent }: any) => {
+                  const off = nativeEvent.contentOffset.x;
+                  lastScrollOffsetRef.current = off;
+                  const idx = Math.round(off / winW);
+                  const targetP = splitOn ? anchorFromIndex(idx) : idx + 1;
+                  if (targetP >= 1 && targetP <= pageNumbers.length) {
+                    ensurePageLoaded(targetP);
+                    ensurePageVersesLoaded(targetP);
+                    if (splitOn) prefetchPartner(targetP);
+                  }
+                }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
                   if (Date.now() - programmaticScrollRef.current < 400) return;
@@ -2494,7 +2351,9 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     // 120ms after the last momentum settle.
                     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
                     settleTimerRef.current = setTimeout(() => setSettledPage(p), 120);
-                    prefetchAround(splitOn ? 'split' : 'single', p);
+                    ensurePageLoaded(p);
+                    ensurePageVersesLoaded(p);
+                    if (splitOn) prefetchPartner(p);
                     const pData = pageCache[p];
                     if (pData) {
                       const firstWord = pData.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
