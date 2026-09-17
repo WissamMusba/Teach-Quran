@@ -806,6 +806,16 @@ export const preloadPageLayoutCacheRange = async (
   first: number, last: number, textStyle: string, headerVisible: boolean,
   sparse: number, screenW: number,
 ): Promise<void> => {
+  // Early-out: if every page in the requested range is already in memory, skip SQLite completely!
+  let allPresent = true;
+  for (let p = first; p <= last; p++) {
+    if (layoutCacheMem.get(memKey(p, textStyle, headerVisible, p <= 2 ? 1 : 0, screenW)) === undefined) {
+      allPresent = false;
+      break;
+    }
+  }
+  if (allPresent) return;
+
   try {
     const r = await getDB().executeSql(
       `SELECT pageNumber, headerVisible, sparse, screenW, lines FROM page_layout_cache WHERE pageNumber>=? AND pageNumber<=? AND textStyle=? AND headerVisible=? AND fs=0 AND screenW=?`,
@@ -828,6 +838,8 @@ export const getLayoutCacheSync = (
   sparse: number, screenW: number,
 ): PageLayoutCacheRow | null | undefined => layoutCacheMem.get(memKey(pageNumber, textStyle, headerVisible, sparse, screenW));
 
+const layoutInFlight = new Map<string, Promise<PageLayoutCacheRow | null>>();
+
 export const getPageLayoutCache = async (
   pageNumber: number, textStyle: string, headerVisible: boolean,
   sparse: number, screenW: number,
@@ -835,15 +847,26 @@ export const getPageLayoutCache = async (
   const key = memKey(pageNumber, textStyle, headerVisible, sparse, screenW);
   const mem = layoutCacheMem.get(key);
   if (mem !== undefined) return mem;
-  try {
-    const r = await getDB().executeSql(
-      `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
-      [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
-    const parsed = (r && r[0].rows.length > 0) ? parseLayoutRow(r[0].rows.item(0).lines) : null;
-    memStore(key, parsed);
-    return parsed;
-  } catch { /* cache is best-effort */ }
-  return null;
+
+  const inFlight = layoutInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const job = (async () => {
+    try {
+      const r = await getDB().executeSql(
+        `SELECT lines FROM page_layout_cache WHERE pageNumber=? AND textStyle=? AND headerVisible=? AND fs=0 AND sparse=? AND screenW=?`,
+        [pageNumber, textStyle, headerVisible ? 1 : 0, sparse, screenW]);
+      const parsed = (r && r[0].rows.length > 0) ? parseLayoutRow(r[0].rows.item(0).lines) : null;
+      memStore(key, parsed);
+      return parsed;
+    } catch { /* cache is best-effort */ }
+    return null;
+  })().finally(() => {
+    layoutInFlight.delete(key);
+  });
+
+  layoutInFlight.set(key, job);
+  return job;
 };
 /**
  * savePageLayoutCache — persists a full page_layout_cache ROW ({ lines, fit }) both to the

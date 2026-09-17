@@ -663,7 +663,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
     // ever touch SQLite.
     InteractionManager.runAfterInteractions(() => {
       if (cancelled) return;
-      preloadPageLayoutCacheRange(Math.max(1, pageNum - 4), pageNum + 4, textStyle, false, keySparse, keyW);
+      preloadPageLayoutCacheRange(Math.max(1, pageNum - 2), pageNum + 2, textStyle, false, keySparse, keyW);
     });
     return () => { cancelled = true; };
   }, [pageNum, textStyle, pageWidth, fontSizeScale, fixNonce, headerVisible, pageData]);
@@ -1010,6 +1010,9 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
             <Pressable style={[styles(nightMode).line, { borderBottomColor: lineColor }, sparse && { justifyContent: 'space-around' }, isTablet && (line.words?.length || 0) <= 4 && { justifyContent: 'center' }]} onPress={(e: any) => onDeadTap?.(e?.nativeEvent?.pageY)}>
             {(() => {
               lineExtraRef.current[lineIdx] = computeLineExtra(line, lineIdx, pageData, notes);
+              const expectedInLine = cacheState === 'miss'
+                ? (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length
+                : 0;
               return line.words?.map((word: any, wordIdx: number) => {
               // Per-word render: location "surah:verse:wordPos" parsed into surahId/verseNum/
               // wordPos; vKey "surahId_verseNum" drives the highlight/badge lookups; a word is
@@ -1091,8 +1094,8 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                   <WordHitArea tapFraction={WORD_TAP_FRACTION} style={[styles(nightMode).wordBox, isTablet && { marginHorizontal: 1 }]}
                     onWordPress={() => verseNum > 0 && onWordPress?.(verseNum, wordPos - 1, parseInt(surahId, 10), pageNum)} onDeadTap={onDeadTap}
                     onLongPress={(e: any) => verseNum > 0 && onVerseLongPress(verseNum, e?.nativeEvent?.pageY)} delayLongPress={300}
-                    onMeasured={cacheState === 'miss' ? ((w) => handleWordMeasured(lineIdx, wordIdx, w, (line.words || []).filter((w: any) => hasArabicLetters(stripPua(w.word))).length)) : undefined}>
-                    <Text style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
+                    onMeasured={cacheState === 'miss' ? ((w) => handleWordMeasured(lineIdx, wordIdx, w, expectedInLine)) : undefined}>
+                    <Text allowFontScaling={false} style={[styles(nightMode).text, { fontSize: (mushafFontSize + adj.size) * (scaleForLine(lineIdx)) * (sparse ? SPARSE_FONT_BOOST : 1) * fontScale, lineHeight: mushafLineHeight * (sparse ? SPARSE_FONT_BOOST : 1) * pitchScale, color: textColor, fontFamily, includeFontPadding: true, transform: wordLiftY ? [{ translateY: wordLiftY }] : undefined }, isHighlighted && MISTAKE_HIGHLIGHT, isFlashing && { backgroundColor: 'rgba(255, 215, 0, 0.2)' }]} maxFontSizeMultiplier={1}>
                       {displayText}{isTablet ? '' : ' '}
                     </Text>
                   </WordHitArea>
@@ -1131,7 +1134,9 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
 // the Text style prop. line: row-reverse + flex:1 so each line fills one vertical slot;
 // wordBox flexShrink:0 keeps words intact; container uses space-around (sparse pages get an
 // additional line-level space-around).
-const styles = (nightMode: boolean) => StyleSheet.create({
+// Shared style constants — pre-instantiated once at module level to eliminate
+// ~274 StyleSheet.create executions per page render and stop GC stutters.
+const buildStyles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingVertical: 16, justifyContent: 'space-around', backgroundColor: 'transparent' },
   taawudRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 2 },
   taawudRule: { flex: 1, height: 1, marginHorizontal: 10 },
@@ -1173,6 +1178,9 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   headerToggleText: { color: (nightMode ? '#7BA7DB' : '#1C3D72'), fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   actionPillGap: { marginRight: 6 }
 });
+const LIGHT_STYLES = buildStyles(false);
+const DARK_STYLES = buildStyles(true);
+const styles = (nightMode: boolean) => (nightMode ? DARK_STYLES : LIGHT_STYLES);
 
 // memo export — see component NOTES: largely ineffective due to prop identity churn
 // (pageData/highlights/bookmarks/notes change on parent re-renders).

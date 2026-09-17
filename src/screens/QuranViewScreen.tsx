@@ -477,6 +477,22 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // passed to MushafPageView so warmPageLayoutFor preloads the same layout-cache key.
   const layoutFontScale = layoutFontScaleFor(winW, splitOn, winH);
 
+  // S3 — memoize FlatList data and layout plumbing so VirtualizedList doesn't recreate its render window on parent commits
+  const pageListData = useMemo(
+    () => (splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers),
+    [splitOn, pageNumbers],
+  );
+  const pageKeyExtractor = useCallback(
+    (item: any) => (splitOn ? String(item[0]) : item.toString()),
+    [splitOn],
+  );
+  const getPageItemLayout = useCallback(
+    (_data: any, index: number) => ({ length: winW, offset: winW * index, index }),
+    [winW],
+  );
+  const warmedThisGestureRef = useRef<Set<string>>(new Set());
+  const isScrollingRef = useRef(false);
+
   // ---- header info (surah name/number/juz/page/pages-left) ----
   const headerInfo = useMemo(() => {
     const sid = headerSurahId || currentSurahId;
@@ -1121,6 +1137,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
       return { highlights: newH, notes: newN, drawings: newD };
     };
     const load = async () => {
+      if (isScrollingRef.current) return;
       const keys = splitOn ? [spreadOddKey, spreadEvenKey] : [drawingKey];
       if (!cancelled) setCanvasData(await mergeChunks(keys));
     };
@@ -2384,8 +2401,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
 
             {/* ================= page mode: horizontal inverted paging FlatList of mushaf pages ================= */}
             {readingMode === 'page' && (
-              <FlatList ref={pageFlatListRef} data={splitOn ? pagePairsFor(pageNumbers.length) : pageNumbers}
-                keyExtractor={splitOn ? (item: any) => String(item[0]) : (item: any) => item.toString()}
+              <FlatList ref={pageFlatListRef} data={pageListData}
+                keyExtractor={pageKeyExtractor}
                 {...(initialLandPage > 1 && initialLandPage <= pageNumbers.length ? { initialScrollIndex: splitOn ? pairIndexForPage(initialLandPage) : initialLandPage - 1 } : {})}
                 horizontal inverted showsHorizontalScrollIndicator={false}
                 snapToInterval={winW} snapToAlignment="center" decelerationRate="fast" disableIntervalMomentum={true}
@@ -2393,10 +2410,17 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 contentContainerStyle={{ paddingBottom: 0 }}
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
                 // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
-                getItemLayout={(data, index) => ({ length: winW, offset: winW * index, index })}
+                getItemLayout={getPageItemLayout}
                 // Smooth virtualization: keep 3 pages buffer ahead and behind to prevent blank screens during fast swiping
                 initialNumToRender={5} maxToRenderPerBatch={5} windowSize={7}
                 updateCellsBatchingPeriod={16}
+                onScrollBeginDrag={() => {
+                  isScrollingRef.current = true;
+                  warmedThisGestureRef.current.clear();
+                }}
+                onScrollEndDrag={() => {
+                  setTimeout(() => { isScrollingRef.current = false; }, 200);
+                }}
                 onScroll={({ nativeEvent }: any) => {
                   const off = nativeEvent.contentOffset.x;
                   const prevOff = lastScrollOffsetRef.current;
@@ -2418,15 +2442,23 @@ export default function QuranViewScreen({ navigation, route }: any) {
                   const sw = Math.round(pageW * layoutFontScale);
                   for (const p of pagesToWarm) {
                     if (p >= 1 && p <= pageNumbers.length) {
-                      getMushafPageData(p, ts);
-                      getVersesByPage(p, ts);
-                      getPageLayoutCache(p, ts, false, p <= 2 ? 1 : 0, sw);
+                      const warmKey = `${p}|${ts}|${sw}`;
+                      if (!warmedThisGestureRef.current.has(warmKey)) {
+                        warmedThisGestureRef.current.add(warmKey);
+                        getMushafPageData(p, ts);
+                        getVersesByPage(p, ts);
+                        getPageLayoutCache(p, ts, false, p <= 2 ? 1 : 0, sw);
+                      }
                       if (splitOn && p !== 1) {
                         const partner = Math.min(Math.max(p + (p % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
                         if (partner) {
-                          getMushafPageData(partner, ts);
-                          getVersesByPage(partner, ts);
-                          getPageLayoutCache(partner, ts, false, partner <= 2 ? 1 : 0, sw);
+                          const partnerKey = `${partner}|${ts}|${sw}`;
+                          if (!warmedThisGestureRef.current.has(partnerKey)) {
+                            warmedThisGestureRef.current.add(partnerKey);
+                            getMushafPageData(partner, ts);
+                            getVersesByPage(partner, ts);
+                            getPageLayoutCache(partner, ts, false, partner <= 2 ? 1 : 0, sw);
+                          }
                         }
                       }
                     }
@@ -2434,6 +2466,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
+                  isScrollingRef.current = false;
+                  warmedThisGestureRef.current.clear();
                   if (Date.now() - programmaticScrollRef.current < 400) return;
                   // v76.2 — self-validating page derivation. The inverted FlatList can (rarely)
                   // fire momentum-end with a STALE offset right after a fast fling (cells
@@ -2682,7 +2716,7 @@ class ToolbarBoundary extends Component<any, { hasError: boolean }> {
   render() { return this.state.hasError ? null : this.props.children; }
 }
 
-const styles = (nightMode: boolean) => StyleSheet.create({
+const buildStyles = (nightMode: boolean) => StyleSheet.create({
   container: { flex: 1 },
   contentArea: { flex: 1 },
   capturingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
@@ -2715,8 +2749,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   // with the page), where its styles now live.
   edgeTapLeft: { position: 'absolute', top: 0, left: 0, height: '100%', zIndex: 1 },
   edgeTapRight: { position: 'absolute', top: 64, right: 0, bottom: 0, zIndex: 1 },
-
 });
+const LIGHT_STYLES = buildStyles(false);
+const DARK_STYLES = buildStyles(true);
+const styles = (nightMode: boolean) => (nightMode ? DARK_STYLES : LIGHT_STYLES);
 
 // ---- inline SVG icons for the long-press menu bubble ----
 const ICON_ST = { fill: 'none', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };

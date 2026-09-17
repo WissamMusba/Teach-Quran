@@ -254,26 +254,39 @@ const memoizeMushafPage = (key: string, page: any, memo: Map<string, any>, max: 
  *        NOT lose already-loaded pages: flipping back to a previous script is
  *        an instant re-hydration.
  */
+const pageDataInFlight = new Map<string, Promise<any>>();
+
 export const getMushafPageData = async (pageNum: number, mushaf?: string) => {
   const indopak = isIndopakStyle(mushaf);
   const memoKey = `${indopak ? 'indopak' : 'uthmani'}:${pageNum}`;
   const hit = mushafPageMemo.get(memoKey);
   if (hit) return hit;
-  // Indopak fast path: the bundle index is built once (deferred, single-flight)
-  // and served from memory from then on — avoids the SQLite round trip +
-  // bulk-import queue wait.
-  if (indopak) {
-    const bundled = await getIndopakPageFromBundle(pageNum);
-    if (bundled) return bundled;
-  }
-  const table = indopak ? 'mushaf_pages_indopak' : 'mushaf_pages';
-  const res = await getDB().executeSql(`SELECT data FROM ${table} WHERE pageNumber=?`, [pageNum]);
-  if (res && res.length > 0 && res[0].rows.length > 0) {
-    const page = JSON.parse(res[0].rows.item(0).data);
-    memoizeMushafPage(memoKey, page, mushafPageMemo, MUSHAF_PAGE_MEMO_MAX);
-    return page;
-  }
-  return { lines: [] };
+
+  const inFlight = pageDataInFlight.get(memoKey);
+  if (inFlight) return inFlight;
+
+  const job = (async () => {
+    // Indopak fast path: the bundle index is built once (deferred, single-flight)
+    // and served from memory from then on — avoids the SQLite round trip +
+    // bulk-import queue wait.
+    if (indopak) {
+      const bundled = await getIndopakPageFromBundle(pageNum);
+      if (bundled) return bundled;
+    }
+    const table = indopak ? 'mushaf_pages_indopak' : 'mushaf_pages';
+    const res = await getDB().executeSql(`SELECT data FROM ${table} WHERE pageNumber=?`, [pageNum]);
+    if (res && res.length > 0 && res[0].rows.length > 0) {
+      const page = JSON.parse(res[0].rows.item(0).data);
+      memoizeMushafPage(memoKey, page, mushafPageMemo, MUSHAF_PAGE_MEMO_MAX);
+      return page;
+    }
+    return { lines: [] };
+  })().finally(() => {
+    pageDataInFlight.delete(memoKey);
+  });
+
+  pageDataInFlight.set(memoKey, job);
+  return job;
 };
 
 
@@ -663,6 +676,10 @@ export const getVersesByPage = async (pageNum: number, mushaf?: string) => {
     indopakPageVerseCache[pageNum] = out;
     return out;
   }
+  const memoKey = `uthmani:${pageNum}`;
+  const memoHit = versesByPageMemo.get(memoKey);
+  if (memoHit) return memoHit;
+
   const res = await getDB().executeSql(`SELECT * FROM verses WHERE page=? ORDER BY surahId, verseNumber`, [pageNum]);
   const out: any[] = [];
   if (res && res.length > 0) for (let i = 0; i < res[0].rows.length; i++) out.push(res[0].rows.item(i));

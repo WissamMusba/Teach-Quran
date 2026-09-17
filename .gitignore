@@ -35,3 +35,6 @@ my-upload-key.keystore
 
 # Removed Indopak 2 sqlite (manual delete after close)
 qudratullah-indopak-15-lines.db
+
+# The v2 rebuild lives in its own git repository (see teach-quran-v2/README.md)
+/teach-quran-v2/
