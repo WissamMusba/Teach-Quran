@@ -3,7 +3,7 @@
 buildscript {
     ext {
         buildToolsVersion = "34.0.0" // AGP 7.4 aapt2 cannot parse android-35 jar; compile stays 34, target is 35 (Play checks target)
-        minSdkVersion = 23   // v97: 23 required by react-native-image-crop-picker (student photos)
+        minSdkVersion = 24   // SDK 24 (Android 7.0+) required by Google Play Automatic Protection
         compileSdkVersion = 34
         targetSdkVersion = 36  // Play requires 36+ from Nov 2026 (Android 16) - compile stays 34 for AGP 7.4 compat
 

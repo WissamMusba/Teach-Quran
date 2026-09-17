@@ -93,8 +93,23 @@ const FlowingText = ({ verses, highlights, onWordPress, onVerseLongPress, showTr
             Reading button was removed); long-press still opens the verse menu. */}
         <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge]}>
-            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verse.verseNumber}</Text>
+          <View style={[
+            styles(nightMode).verseBadge,
+            verse.verseNumber >= 100 && { minWidth: 28, paddingHorizontal: 3 },
+            { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent },
+            isBookmarked && styles(nightMode).bookmarkedBadge,
+          ]}>
+            <Text
+              allowFontScaling={false}
+              style={[
+                styles(nightMode).verseBadgeText,
+                verse.verseNumber >= 100 && { fontSize: 9.5, letterSpacing: -0.3 },
+                { color: nightMode ? '#fff' : '#121212' },
+                isBookmarked && styles(nightMode).bookmarkedBadgeText,
+              ]}
+            >
+              {verse.verseNumber}
+            </Text>
           </View>
         </TouchableOpacity>
         {hasNote && <Text style={styles(nightMode).noteIcon}>📝</Text>}
@@ -115,10 +130,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   arabicText: {},
   basmala: { width: '100%', textAlign: 'center', marginTop: 8, marginBottom: 2 },
   badgeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, minWidth: 18 },
-  verseBadge: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 1 },
+  verseBadge: { minWidth: 24, height: 26, borderRadius: 13, paddingHorizontal: 2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 1 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'normal', textAlign: 'center', includeFontPadding: false },
   bookmarkedBadgeText: { color: '#000000' },
   noteIcon: { color: '#ffd700', fontSize: 10, marginLeft: 2 },
   translation: { color: '#b0b0b0', fontStyle: 'italic', fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: 4, width: '100%' },

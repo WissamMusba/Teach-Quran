@@ -691,6 +691,7 @@ export default function DashboardScreen({ navigation }: any) {
             activeOpacity={0.85}
           >
             <Animated.Text
+              allowFontScaling={false}
               style={[
                 styles(nightMode, themeColors).fabPlus,
                 {

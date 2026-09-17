@@ -191,36 +191,24 @@ const SpreadItem = React.memo(({ pair, winW, pageW, headerVisible, surahNames, o
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, leftMargins, spreadMargin]}>
           {odd ? (
-            resolvedOddData ? (
-              <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedOddVerses} pageData={resolvedOddData} highlights={highlights}
-                onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
-                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-                onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#1C3D72" />
-              </View>
-            )
+            <MushafPageView pageNum={odd} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedOddVerses} pageData={resolvedOddData} highlights={highlights}
+              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!oddLast} readingMarkActive={oddMarkActive} readingMarkDate={oddMarkActive ? readingMarkDate : null} isCurrentPage={odd === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(oddLast)}
+              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+              onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
           ) : null}
         </View>
       </View>
       <View style={{ width: pageW, flex: 1, overflow: 'hidden' }}>
         <View style={[{ flex: 1 }, rightMargins, spreadMargin]}>
           {even ? (
-            resolvedEvenData ? (
-              <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedEvenVerses} pageData={resolvedEvenData} highlights={highlights}
-                onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-                flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
-                showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
-                onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-                onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#1C3D72" />
-              </View>
-            )
+            <MushafPageView pageNum={even} pageWidth={pageW} headerVisible={headerVisible} surahNames={surahNames} versesForPage={resolvedEvenVerses} pageData={resolvedEvenData} highlights={highlights}
+              onWordPress={onWordPress} onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+              flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap} onSpread={onSpread} spread={spread}
+              showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!evenLast} readingMarkActive={evenMarkActive} readingMarkDate={evenMarkActive ? readingMarkDate : null} isCurrentPage={even === currentPageNum} onReadingMarkToggle={() => onReadingMarkToggle(evenLast)}
+              onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+              onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
           ) : null}
         </View>
       </View>
@@ -284,19 +272,13 @@ const PageCell = React.memo(({ item, winW, headerVisible, surahNames, pData, pVe
   return (
     <View style={{ width: winW, flex: 1, overflow: 'hidden' }}>
       <View style={{ flex: 1, marginHorizontal: winW >= 800 ? 33 : 6, marginTop: headerVisible ? 26 : Math.max(topSafeInset + 24, 28), marginBottom: 24 }}>
-        {resolvedData ? (
-          <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={resolvedVerses} pageData={resolvedData} highlights={highlights} onWordPress={onWordPress}
-            onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
-            flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
-            onSpread={onSpread} spread={spread}
-            showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={isCurrentPage} onReadingMarkToggle={() => onReadingMarkToggle(last)}
-            onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
-            onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
-        ) : (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color={(nightMode ? '#7BA7DB' : '#1C3D72')} />
-          </View>
-        )}
+        <MushafPageView pageWidth={winW} headerVisible={headerVisible} pageNum={item} surahNames={surahNames} versesForPage={resolvedVerses} pageData={resolvedData} highlights={highlights} onWordPress={onWordPress}
+          onBookmarkToggle={onBookmarkToggle} onVerseLongPress={onVerseLongPress} onBadgePress={onBadgePress} bookmarks={bookmarks}
+          flashingVerseKey={flashingVerseKey} notes={notes} readingMarkVerse={readingMarkVerse} onDeadTap={onDeadTap}
+          onSpread={onSpread} spread={spread}
+          showReadingMarkBtn={readingMode === 'page' && !isCapturing && !!last} readingMarkActive={readingMarkActiveFor(last)} readingMarkDate={readingMarkActiveFor(last) ? readingMarkDate : null} isCurrentPage={isCurrentPage} onReadingMarkToggle={() => onReadingMarkToggle(last)}
+          onToggleHeader={onToggleHeader} hideBottomChrome={hideBottomChrome}
+          onMeasured={onMeasured} fontSizeScale={fontSizeScale} />
       </View>
     </View>
   );
@@ -613,6 +595,8 @@ export default function QuranViewScreen({ navigation, route }: any) {
   const warmKey = (p: number) => `${textStyle}|${Math.round(splitOn ? pageW : winW)}|${p}`;
   // v80 — paced warm timer for explicit navigation (warmNearPages): cleared on re-entry/unmount.
   const warmNearTimerRef = useRef<any>(0);
+  // Paced deep prefetch timer for +2..+5 pages
+  const deepPrefetchTimerRef = useRef<any>(0);
 
   /**
    * WHAT: Single-entry page-data landing — applies the entry to pageCache DIRECTLY
@@ -717,6 +701,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
   // Cleanup on unmount: cancel pending warm timers.
   useEffect(() => () => {
     if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
+    if (deepPrefetchTimerRef.current) clearTimeout(deepPrefetchTimerRef.current);
   }, []);
   // Background preloading queues disabled per user configuration:
   // Pages now load strictly on-demand when navigated/swiped to (like Go to Page),
@@ -790,25 +775,59 @@ export default function QuranViewScreen({ navigation, route }: any) {
   }, [pageNumbers.length, splitOn, pageW, ensurePageLoaded]);
 
   /**
-   * WHAT: Prefetches pages ±5 around the current page (single mode) or the pair
-   *   ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
-   *   Disabled per user configuration: no preloading.
+   * WHAT: Directional RAM Lookahead Pre-warming + Paced +5 Prefetching.
+   * 1. Immediate priority: ±1 into RAM memory (both page data and layoutCacheMem)
+   *    via InteractionManager.runAfterInteractions, ensuring adjacent arrivals hit RAM on Frame 0.
+   * 2. Paced deep prefetching: +2..+5 and -2 after a 200ms idle pause, sequentially dripping 1 page
+   *    at a time with 60ms pacing so SQLite storage is never congested during active reading.
    */
   const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
+    const targetW = Math.round((splitOn ? pageW : winW) * layoutFontScale);
+    if (deepPrefetchTimerRef.current) clearTimeout(deepPrefetchTimerRef.current);
+
     InteractionManager.runAfterInteractions(() => {
       if (pageMode === 'single') {
-        for (let d = 1; d <= 3; d++) {
-          if (page + d <= pageNumbers.length) { ensurePageLoaded(page + d); ensurePageVersesLoaded(page + d); }
-          if (page - d >= 1) { ensurePageLoaded(page - d); ensurePageVersesLoaded(page - d); }
+        // Immediate priority: ±1 into RAM memory (data + verses + layoutCacheMem)
+        const immediate = [page + 1, page - 1].filter(p => p >= 1 && p <= pageNumbers.length);
+        for (const p of immediate) {
+          ensurePageLoaded(p).then((data: any) => {
+            if (data?.lines?.length && targetW > 0) {
+              try { warmPageLayoutFor(p, data, textStyleRef.current, targetW); } catch {}
+            }
+          }).catch(() => {});
+          ensurePageVersesLoaded(p);
         }
+
+        // Paced lookahead: +2..+5 and -2 after 200ms pause, 1 page at a time with 60ms spacing
+        deepPrefetchTimerRef.current = setTimeout(() => {
+          InteractionManager.runAfterInteractions(async () => {
+            const deep = [page + 2, page + 3, page + 4, page + 5, page - 2].filter(p => p >= 1 && p <= pageNumbers.length);
+            for (const dp of deep) {
+              const data = await ensurePageLoaded(dp).catch(() => null);
+              ensurePageVersesLoaded(dp);
+              if (data?.lines?.length && targetW > 0) {
+                try { warmPageLayoutFor(dp, data, textStyleRef.current, targetW); } catch {}
+              }
+              await new Promise<void>(resolve => { setTimeout(() => resolve(), 60); });
+            }
+          });
+        }, 200);
         return;
       }
+
       const data = pagePairsFor(pageNumbers.length);
       const lo = Math.max(0, pairIndexForPage(page) - 1);
       const hi = Math.min(data.length - 1, pairIndexForPage(page) + 1);
       for (let i = lo; i <= hi; i++) {
         for (const pn of data[i]) {
-          if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); }
+          if (pn) {
+            ensurePageLoaded(pn).then((d: any) => {
+              if (d?.lines?.length && targetW > 0) {
+                try { warmPageLayoutFor(pn, d, textStyleRef.current, targetW); } catch {}
+              }
+            }).catch(() => {});
+            ensurePageVersesLoaded(pn);
+          }
         }
       }
     });
@@ -2351,6 +2370,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleQueueRef.current = [];
     if (warmNearTimerRef.current) clearTimeout(warmNearTimerRef.current);
+    if (deepPrefetchTimerRef.current) clearTimeout(deepPrefetchTimerRef.current);
     flushPendingHighlights();
     navigation.goBack();
   }, [navigation, flushPendingHighlights, saveCurrentSeen]);

@@ -333,7 +333,7 @@ const MushafPageView = ({ headerVisible = true, pageNum = 0, pageWidth = SCREEN_
   const lineColor = nightMode ? '#2a2a2a' : '#e0e0e0';
   
   const firstWord = pageData?.lines?.find((l: any) => l.words?.length > 0)?.words?.[0];
-  const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : 0;
+  const firstSurahId = firstWord?.location ? parseInt(firstWord.location.split(':')[0], 10) : (versesForPage?.[0]?.surahId || 0);
   const displayPage = pageNum > 0 ? pageNum : 0;
   const juzInfo = displayPage > 0 ? getJuzInfoFromPage(displayPage) : { juz: 0, pagesLeft: 0 };
   const grayC = nightMode ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
@@ -943,8 +943,23 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                 </Pressable>
                 <View style={styles(nightMode).verseBadgeContainer}>
                   <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(v.verseNumber, e?.nativeEvent?.pageY) : onBookmarkToggle(v.verseNumber, v.surahId)}>
-                    <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, fBookmarked && styles(nightMode).bookmarkedBadge]}>
-                      <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, fBookmarked && styles(nightMode).bookmarkedBadgeText]}>{v.verseNumber}</Text>
+                    <View style={[
+                      styles(nightMode).verseBadge,
+                      v.verseNumber >= 100 && { minWidth: 26, paddingHorizontal: 3 },
+                      { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent },
+                      fBookmarked && styles(nightMode).bookmarkedBadge,
+                    ]}>
+                      <Text
+                        allowFontScaling={false}
+                        style={[
+                          styles(nightMode).verseBadgeText,
+                          v.verseNumber >= 100 && { fontSize: 8.5, letterSpacing: -0.3 },
+                          { color: nightMode ? '#fff' : '#121212' },
+                          fBookmarked && styles(nightMode).bookmarkedBadgeText,
+                        ]}
+                      >
+                        {v.verseNumber}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                   {fHasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
@@ -969,7 +984,7 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
   // onBoxLayout's synchronous first-measure on the frame after mount) falls back to the live fit
   // math — v81 behavior, unchanged. FIX 4 — while pending, render the frame + parchment skeleton (same
   // container size so onBoxLayout still captures the true height), never a black void.
-  if (cacheState === 'loading' || (!replayFit && (!fontReady || innerH === 0))) {
+  if (!pageData?.lines?.length || cacheState === 'loading' || (!replayFit && (!fontReady || innerH === 0))) {
     return (
       <View style={[styles(nightMode).container, { paddingHorizontal: padSide, paddingTop: padTop, paddingBottom: padBottom }]} onLayout={onBoxLayout}>
         <View style={styles(nightMode).skeletonWrap}>
@@ -1070,13 +1085,24 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                         <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                           <View style={[
                             styles(nightMode).verseBadge,
+                            verseNum >= 100 && { minWidth: 26, paddingHorizontal: 3 },
                             {
                               backgroundColor: nightMode ? '#1e1e1e' : '#EAE6D8',
                               borderColor: themeColors.accent,
                             },
                             isBookmarked && styles(nightMode).bookmarkedBadge,
                           ]}>
-                            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verseNum}</Text>
+                            <Text
+                              allowFontScaling={false}
+                              style={[
+                                styles(nightMode).verseBadgeText,
+                                verseNum >= 100 && { fontSize: 8.5, letterSpacing: -0.3 },
+                                { color: nightMode ? '#fff' : '#121212' },
+                                isBookmarked && styles(nightMode).bookmarkedBadgeText,
+                              ]}
+                            >
+                              {verseNum}
+                            </Text>
                           </View>
                         </TouchableOpacity>
                         {hasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
@@ -1104,13 +1130,24 @@ const mushafFontSize = getMushafFontSize(headerVisible, pageWidth) * fontSizeSca
                       <TouchableOpacity onPress={(e: any) => onBadgePress ? onBadgePress(verseNum, e?.nativeEvent?.pageY) : onBookmarkToggle(verseNum, parseInt(surahId, 10))}>
                         <View style={[
                           styles(nightMode).verseBadge,
+                          verseNum >= 100 && { minWidth: 26, paddingHorizontal: 3 },
                           {
                             backgroundColor: nightMode ? '#1e1e1e' : '#EAE6D8',
                             borderColor: themeColors.badgeBorder || themeColors.accent,
                           },
                           isBookmarked && styles(nightMode).bookmarkedBadge,
                         ]}>
-                          <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verseNum}</Text>
+                          <Text
+                            allowFontScaling={false}
+                            style={[
+                              styles(nightMode).verseBadgeText,
+                              verseNum >= 100 && { fontSize: 8.5, letterSpacing: -0.3 },
+                              { color: nightMode ? '#fff' : '#121212' },
+                              isBookmarked && styles(nightMode).bookmarkedBadgeText,
+                            ]}
+                          >
+                            {verseNum}
+                          </Text>
                         </View>
                       </TouchableOpacity>
                       {hasNote && <IconNoteBadge c={themeColors.gold} size={isTablet ? 14 : 12} />}
@@ -1154,10 +1191,10 @@ const buildStyles = (nightMode: boolean) => StyleSheet.create({
   wordBox: { flexShrink: 0 },
   headerText: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
   verseBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 3, flexShrink: 1, minWidth: 18 },
-  verseBadge: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
+  verseBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72') },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', fontFamily: 'normal', textAlign: 'center', includeFontPadding: false },
   bookmarkedBadgeText: { color: '#000000' },
   noteIcon: { color: '#ffd700', fontSize: 10, marginLeft: 2 },
   badgePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },

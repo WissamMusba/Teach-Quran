@@ -81,8 +81,23 @@ const VerseDisplay = ({ verse, highlights, isBookmarked, isReadingMark, onWordPr
         {/* v96: badge TAP sets/clears the reading mark (long-press menu's Reading button removed). */}
         <TouchableOpacity onPress={() => onBadgeTap?.(verse.verseNumber)} activeOpacity={0.6}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <View style={[styles(nightMode).verseBadge, { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent }, isBookmarked && styles(nightMode).bookmarkedBadge]}>
-            <Text style={[styles(nightMode).verseBadgeText, { color: nightMode ? '#fff' : '#121212' }, isBookmarked && styles(nightMode).bookmarkedBadgeText]}>{verse.verseNumber}</Text>
+          <View style={[
+            styles(nightMode).verseBadge,
+            verse.verseNumber >= 100 && { minWidth: 28, paddingHorizontal: 3 },
+            { backgroundColor: nightMode ? '#1e1e1e' : '#e8e8e8', borderColor: themeColors.accent },
+            isBookmarked && styles(nightMode).bookmarkedBadge,
+          ]}>
+            <Text
+              allowFontScaling={false}
+              style={[
+                styles(nightMode).verseBadgeText,
+                verse.verseNumber >= 100 && { fontSize: 9.5, letterSpacing: -0.3 },
+                { color: nightMode ? '#fff' : '#121212' },
+                isBookmarked && styles(nightMode).bookmarkedBadgeText,
+              ]}
+            >
+              {verse.verseNumber}
+            </Text>
           </View>
         </TouchableOpacity>
       </Pressable>
@@ -98,10 +113,10 @@ const styles = (nightMode: boolean) => StyleSheet.create({
   arabicRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' },
   arabicText: {},
   basmala: { textAlign: 'center', marginBottom: 6 },
-  verseBadge: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 3 },
+  verseBadge: { minWidth: 24, height: 26, borderRadius: 13, paddingHorizontal: 2, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: (nightMode ? '#7BA7DB' : '#1C3D72'), marginHorizontal: 3 },
   bookmarkedBadge: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   readingMarkBadge: { backgroundColor: '#4a90d9', borderColor: '#4a90d9' },
-  verseBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'normal' },
+  verseBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'normal', textAlign: 'center', includeFontPadding: false },
   bookmarkedBadgeText: { color: '#000000' },
   translation: { marginTop: 10, color: '#b0b0b0', fontSize: 16, fontStyle: 'italic', lineHeight: 24, textAlign: 'center' },
 });
