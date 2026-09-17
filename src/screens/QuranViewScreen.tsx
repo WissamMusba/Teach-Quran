@@ -794,8 +794,24 @@ export default function QuranViewScreen({ navigation, route }: any) {
    *   ±2 around the current pair (split mode, via pairIndexForPage/pagePairsFor).
    *   Disabled per user configuration: no preloading.
    */
-  const prefetchAround = (_pageMode: 'single' | 'split', _page: number) => {
-    // Disabled: no background preloading per user configuration
+  const prefetchAround = (pageMode: 'single' | 'split', page: number) => {
+    InteractionManager.runAfterInteractions(() => {
+      if (pageMode === 'single') {
+        for (let d = 1; d <= 3; d++) {
+          if (page + d <= pageNumbers.length) { ensurePageLoaded(page + d); ensurePageVersesLoaded(page + d); }
+          if (page - d >= 1) { ensurePageLoaded(page - d); ensurePageVersesLoaded(page - d); }
+        }
+        return;
+      }
+      const data = pagePairsFor(pageNumbers.length);
+      const lo = Math.max(0, pairIndexForPage(page) - 1);
+      const hi = Math.min(data.length - 1, pairIndexForPage(page) + 1);
+      for (let i = lo; i <= hi; i++) {
+        for (const pn of data[i]) {
+          if (pn) { ensurePageLoaded(pn); ensurePageVersesLoaded(pn); }
+        }
+      }
+    });
   };
 
   /**
@@ -2411,63 +2427,15 @@ export default function QuranViewScreen({ navigation, route }: any) {
                 // paddingBottom MUST stay 0: cells (flex:1) stretch to container height = viewport + padding;
                 // any padding would clip the in-frame bottom pills (they hang 22px below each frame).
                 getItemLayout={getPageItemLayout}
-                // Smooth virtualization: keep 3 pages buffer ahead and behind to prevent blank screens during fast swiping
-                initialNumToRender={5} maxToRenderPerBatch={5} windowSize={7}
-                updateCellsBatchingPeriod={16}
-                onScrollBeginDrag={() => {
-                  isScrollingRef.current = true;
-                  warmedThisGestureRef.current.clear();
-                }}
-                onScrollEndDrag={() => {
-                  setTimeout(() => { isScrollingRef.current = false; }, 200);
-                }}
+                // v127-style lean virtualization: only the visible page + its immediate neighbours
+                // are ever mounted (~900 views total), eliminating JS bridge congestion and enabling 60/120Hz smooth flings.
+                initialNumToRender={3} maxToRenderPerBatch={3} windowSize={3}
+                updateCellsBatchingPeriod={40}
                 onScroll={({ nativeEvent }: any) => {
-                  const off = nativeEvent.contentOffset.x;
-                  const prevOff = lastScrollOffsetRef.current;
-                  lastScrollOffsetRef.current = off;
-                  const idx = Math.round(off / winW);
-                  const targetP = splitOn ? anchorFromIndex(idx) : idx + 1;
-                  const delta = prevOff !== null ? off - prevOff : 0;
-                  const pagesToWarm: number[] = [targetP];
-                  if (delta > 0) {
-                    pagesToWarm.push(targetP + 1, targetP + 2);
-                    if (splitOn) pagesToWarm.push(targetP + 3, targetP + 4);
-                  } else if (delta < 0) {
-                    pagesToWarm.push(targetP - 1, targetP - 2);
-                    if (splitOn) pagesToWarm.push(targetP - 3, targetP - 4);
-                  } else {
-                    pagesToWarm.push(targetP - 1, targetP + 1);
-                  }
-                  const ts = textStyleRef.current;
-                  const sw = Math.round(pageW * layoutFontScale);
-                  for (const p of pagesToWarm) {
-                    if (p >= 1 && p <= pageNumbers.length) {
-                      const warmKey = `${p}|${ts}|${sw}`;
-                      if (!warmedThisGestureRef.current.has(warmKey)) {
-                        warmedThisGestureRef.current.add(warmKey);
-                        getMushafPageData(p, ts);
-                        getVersesByPage(p, ts);
-                        getPageLayoutCache(p, ts, false, p <= 2 ? 1 : 0, sw);
-                      }
-                      if (splitOn && p !== 1) {
-                        const partner = Math.min(Math.max(p + (p % 2 === 0 ? 1 : -1), 1), pageNumbers.length);
-                        if (partner) {
-                          const partnerKey = `${partner}|${ts}|${sw}`;
-                          if (!warmedThisGestureRef.current.has(partnerKey)) {
-                            warmedThisGestureRef.current.add(partnerKey);
-                            getMushafPageData(partner, ts);
-                            getVersesByPage(partner, ts);
-                            getPageLayoutCache(partner, ts, false, partner <= 2 ? 1 : 0, sw);
-                          }
-                        }
-                      }
-                    }
-                  }
+                  lastScrollOffsetRef.current = nativeEvent.contentOffset.x;
                 }}
                 onScrollToIndexFailed={(info) => { programmaticScrollRef.current = Date.now(); pageFlatListRef.current?.scrollToOffset({ offset: info.index * winW, animated: false }); }}
                 onMomentumScrollEnd={(e) => {
-                  isScrollingRef.current = false;
-                  warmedThisGestureRef.current.clear();
                   if (Date.now() - programmaticScrollRef.current < 400) return;
                   // v76.2 — self-validating page derivation. The inverted FlatList can (rarely)
                   // fire momentum-end with a STALE offset right after a fast fling (cells
@@ -2491,6 +2459,7 @@ export default function QuranViewScreen({ navigation, route }: any) {
                     settleTimerRef.current = setTimeout(() => setSettledPage(p), 120);
                     ensurePageLoaded(p);
                     ensurePageVersesLoaded(p);
+                    prefetchAround(splitOn ? 'split' : 'single', p);
                     if (splitOn) prefetchPartner(p);
                     const pData = pageCache[p];
                     if (pData) {

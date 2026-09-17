@@ -135,10 +135,9 @@ android {
         }
     }
     packagingOptions {
-        // 16 KB page size support for Android 15+: keep native libs uncompressed
-        // and 16 KB page-aligned in the APK/AAB as required by Google Play.
+        // Keep native libs deflated (compressed) in the APK to restore ~17.9 MB APK size.
         jniLibs {
-            useLegacyPackaging = false
+            useLegacyPackaging = true
         }
     }
 
