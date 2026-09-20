@@ -41,10 +41,31 @@ allprojects {
             force "androidx.appcompat:appcompat-resources:1.6.1"
             force "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22"
+
+            // 16 KB page size support for Fresco
+            force "com.facebook.fresco:fresco:3.6.0"
+            force "com.facebook.fresco:imagepipeline-okhttp3:3.6.0"
+            force "com.facebook.fresco:ui-common:3.6.0"
+            force "com.facebook.fresco:imagepipeline:3.6.0"
+            force "com.facebook.fresco:imagepipeline-native:3.6.0"
+            force "com.facebook.fresco:memory-type-ashmem:3.6.0"
+            force "com.facebook.fresco:memory-type-native:3.6.0"
+            force "com.facebook.fresco:memory-type-java:3.6.0"
+            force "com.facebook.fresco:nativeimagefilters:3.6.0"
+            force "com.facebook.fresco:nativeimagetranscoder:3.6.0"
+            force "com.facebook.fresco:drawee:3.6.0"
+            force "com.facebook.fresco:middleware:3.6.0"
+            force "com.facebook.fresco:ui-core:3.6.0"
         }
         exclude group: 'com.google.android.gms', module: 'play-services-safetynet'
     }
     afterEvaluate { project ->
+        if (project.plugins.hasPlugin("com.android.library") || project.plugins.hasPlugin("com.android.application")) {
+            project.dependencies {
+                implementation 'com.facebook.fresco:middleware:3.6.0'
+                implementation 'com.facebook.fresco:ui-common:3.6.0'
+            }
+        }
         project.tasks.each { task ->
             if (task.name.contains("compile") && task.name.contains("Kotlin")) {
                 task.kotlinOptions.jvmTarget = "11"
