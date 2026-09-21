@@ -23,7 +23,8 @@
       android:hardwareAccelerated="true"
       android:largeHeap="true"
       android:usesCleartextTraffic="true"
-      android:resizeableActivity="true">
+      android:resizeableActivity="true"
+      android:extractNativeLibs="false">
       <!-- TEST app id — TODO replace with the real AdMob application id before release. -->
       <meta-data
         android:name="com.google.android.gms.ads.APPLICATION_ID"
