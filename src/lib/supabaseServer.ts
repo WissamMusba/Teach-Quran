@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Product, SiteSettings, Order, OrderItem, OrderStatus, PaymentStatus } from './types';
 import { INITIAL_PRODUCTS, INITIAL_SITE_SETTINGS, INITIAL_ORDERS } from './mockData';
@@ -68,7 +69,7 @@ const memoryStore = global.__memoryStore!;
 // PRODUCTS
 // ---------------------------------------------------------------------------
 
-export async function getProducts(options?: {
+export const getProducts = cache(async function getProducts(options?: {
   category?: string;
   brand?: string;
   isFeatured?: boolean;
@@ -120,7 +121,7 @@ export async function getProducts(options?: {
   }
 
   return isDemoMode ? fallbackProducts(options) : [];
-}
+});
 
 function fallbackProducts(options?: {
   category?: string;
@@ -161,7 +162,7 @@ function fallbackProducts(options?: {
 }
 
 /** Storefront lookup by slug — only active products are returned. */
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export const getProductBySlug = cache(async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -183,7 +184,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   }
 
   return isDemoMode ? fallbackProductBySlug(slug) : null;
-}
+});
 
 function fallbackProductBySlug(slug: string): Product | null {
   const found = memoryStore.products.find((p) => p.slug === slug && p.is_active);
@@ -315,7 +316,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
 // SITE SETTINGS
 // ---------------------------------------------------------------------------
 
-export async function getSiteSettings(): Promise<SiteSettings> {
+export const getSiteSettings = cache(async function getSiteSettings(): Promise<SiteSettings> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -335,7 +336,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   }
 
   return memoryStore.settings;
-}
+});
 
 export async function updateSiteSettings(
   settings: Partial<SiteSettings>

@@ -2,15 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { ShoppingBag, Zap } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
+  priority?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard = React.memo<ProductCardProps>(function ProductCard({ product, priority = false }) {
   const { addToCart } = useCart();
   const mainImage =
     product.images?.[0] ||
@@ -47,14 +49,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           className="block relative aspect-square bg-neutral-100/70 dark:bg-[#14141A] overflow-hidden p-6"
         >
           {/* Subtle Ambient Rim Light */}
-          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/5 dark:to-black/40 pointer-events-none" />
+          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/5 dark:to-black/40 pointer-events-none z-10" />
 
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={mainImage}
-            alt={product.title}
-            className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-500"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={mainImage}
+              alt={product.title}
+              fill
+              sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+              loading={priority ? 'eager' : 'lazy'}
+              priority={priority}
+              className="object-contain group-hover:scale-108 transition-transform duration-500 will-change-transform"
+            />
+          </div>
 
           {/* Brand Badge in Athletic Black & Orange */}
           <div className="absolute top-3 left-3">
@@ -131,4 +138,4 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       </div>
     </div>
   );
-};
+});

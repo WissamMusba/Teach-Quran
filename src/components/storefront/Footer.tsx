@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ShieldCheck, Truck, CreditCard, RotateCcw } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -65,10 +66,12 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
           <div className="space-y-4 sm:col-span-2 lg:col-span-1">
             <Link href="/" className="flex items-center space-x-3 group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src="/logo-seven-districts.png"
                 alt="Seven Districts Cricket Academy"
+                width={48}
+                height={48}
+                loading="lazy"
                 className="w-12 h-12 object-contain rounded-xl border border-[#2E2E38] bg-[#0A0A0E] p-1 shrink-0"
               />
               <div className="flex flex-col">

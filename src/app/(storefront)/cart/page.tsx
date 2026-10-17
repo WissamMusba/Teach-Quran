@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ArrowLeft, ShieldCheck, Truck } from 'lucide-react';
 
@@ -65,9 +66,8 @@ export default function CartPage() {
                 className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-2xl p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center shadow-sm hover:border-[#FF5500]/50 dark:hover:border-[#2E2E38] transition-colors"
               >
                 {/* Image */}
-                <div className="w-24 h-24 bg-neutral-100 dark:bg-[#14141B] rounded-xl border border-neutral-200 dark:border-[#252530] shrink-0 overflow-hidden flex items-center justify-center p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image} alt={item.title} className="w-full h-full object-contain" />
+                <div className="relative w-24 h-24 bg-neutral-100 dark:bg-[#14141B] rounded-xl border border-neutral-200 dark:border-[#252530] shrink-0 overflow-hidden p-2">
+                  <Image src={item.image} alt={item.title} fill sizes="96px" loading="lazy" className="object-contain p-1" />
                 </div>
 
                 {/* Details */}

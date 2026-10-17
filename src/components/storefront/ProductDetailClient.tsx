@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { ShoppingBag, ShieldCheck, Truck, RefreshCw, Check, AlertCircle, Zap } from 'lucide-react';
@@ -71,16 +72,21 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
       <div className="space-y-4">
         {/* Main Display Stage */}
         <div className="aspect-square bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl overflow-hidden flex items-center justify-center p-8 shadow-sm dark:shadow-2xl relative group">
-          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/5 dark:to-black/50 pointer-events-none" />
+          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/5 dark:to-black/50 pointer-events-none z-10" />
 
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={selectedImage}
-            alt={product.title}
-            className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-500"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={selectedImage}
+              alt={product.title}
+              fill
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              quality={90}
+              className="object-contain group-hover:scale-108 transition-transform duration-500 will-change-transform"
+            />
+          </div>
 
-          <span className="absolute top-5 left-5 bg-black/90 backdrop-blur-md border border-black text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-md flex items-center space-x-1.5">
+          <span className="absolute top-5 left-5 bg-black/90 backdrop-blur-md border border-black text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-md flex items-center space-x-1.5 z-20">
             <span className="w-2 h-2 rounded-full bg-[#FF5500]" />
             <span>{product.brand}</span>
           </span>
@@ -99,12 +105,16 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
                     : 'border-neutral-200 dark:border-[#22222A] hover:border-neutral-400'
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img}
-                  alt={`${product.title} thumbnail ${idx + 1}`}
-                  className="w-full h-full object-contain"
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={img}
+                    alt={`${product.title} thumbnail ${idx + 1}`}
+                    fill
+                    sizes="80px"
+                    loading="lazy"
+                    className="object-contain"
+                  />
+                </div>
               </button>
             ))}
           </div>

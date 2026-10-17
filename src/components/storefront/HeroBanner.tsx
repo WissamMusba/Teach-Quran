@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Play, Pause, ArrowRight, ShieldCheck, Truck, CreditCard } from 'lucide-react';
 import { SiteSettings, Product } from '@/lib/types';
 
@@ -166,11 +167,15 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
               }`}
             >
               {/* Background Photographic Image with gentle Ken Burns zoom */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={slide.image}
                 alt={slide.title}
-                className={`w-full h-full object-cover object-center transform transition-transform duration-[6000ms] ease-out ${
+                fill
+                priority={index === 0}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                sizes="100vw"
+                quality={85}
+                className={`object-cover object-center transform transition-transform duration-[6000ms] ease-out will-change-transform ${
                   isActive ? 'scale-105' : 'scale-100'
                 }`}
               />

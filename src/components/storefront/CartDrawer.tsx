@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
 
@@ -136,12 +137,14 @@ export const CartDrawer: React.FC = () => {
               cart.map((item, index) => (
                 <div key={`${item.productId}-${index}`} className="pt-4 first:pt-0 flex space-x-4">
                   {/* Thumbnail */}
-                  <div className="w-20 h-20 bg-neutral-100 dark:bg-[#14141A] rounded-xl border border-neutral-200 dark:border-[#252530] overflow-hidden shrink-0 flex items-center justify-center p-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                  <div className="relative w-20 h-20 bg-neutral-100 dark:bg-[#14141A] rounded-xl border border-neutral-200 dark:border-[#252530] overflow-hidden shrink-0 p-2">
+                    <Image
                       src={item.image}
                       alt={item.title}
-                      className="w-full h-full object-contain"
+                      fill
+                      sizes="80px"
+                      loading="lazy"
+                      className="object-contain p-1"
                     />
                   </div>
 

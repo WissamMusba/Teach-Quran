@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { ThemeToggle } from '@/context/ThemeContext';
@@ -37,10 +38,12 @@ export const Navbar: React.FC = () => {
             </button>
 
             <Link href="/" className="flex items-center space-x-3 group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src="/logo-seven-districts.png"
                 alt="Seven Districts Cricket Academy"
+                width={44}
+                height={44}
+                priority
                 className="w-10 h-10 sm:w-11 sm:h-11 object-contain rounded-xl shrink-0 border border-neutral-200 dark:border-[#2E2E38] bg-neutral-50 dark:bg-[#0A0A0E] p-0.5 group-hover:border-[#FF5500]/60 transition-colors shadow-sm"
               />
               <div className="flex flex-col">

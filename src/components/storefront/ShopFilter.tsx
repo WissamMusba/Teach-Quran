@@ -49,15 +49,32 @@ export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
   const currentSort = searchParams.get('sort') || 'newest';
   const currentSearch = searchParams.get('q') || '';
 
-  const updateParam = (key: string, val: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (val === 'all' || !val) {
-      params.delete(key);
-    } else {
-      params.set(key, val);
-    }
-    router.push(`/shop?${params.toString()}`);
-  };
+  const [searchValue, setSearchValue] = React.useState(currentSearch);
+
+  React.useEffect(() => {
+    setSearchValue(currentSearch);
+  }, [currentSearch]);
+
+  const updateParam = React.useCallback(
+    (key: string, val: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (val === 'all' || !val) {
+        params.delete(key);
+      } else {
+        params.set(key, val);
+      }
+      router.push(`/shop?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
+
+  React.useEffect(() => {
+    if (searchValue === currentSearch) return;
+    const timer = setTimeout(() => {
+      updateParam('q', searchValue);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchValue, currentSearch, updateParam]);
 
   const handleReset = () => {
     router.push('/shop');
@@ -94,8 +111,8 @@ export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
           <Search className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-3 top-2.5" />
           <input
             type="text"
-            value={currentSearch}
-            onChange={(e) => updateParam('q', e.target.value)}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
             placeholder="e.g. Kahuna, Ton Master..."
             className="w-full text-xs pl-9 pr-3.5 py-2.5 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500]/30 transition-colors"
           />
