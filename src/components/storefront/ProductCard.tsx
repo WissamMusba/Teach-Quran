@@ -79,22 +79,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               {product.title}
             </h3>
           </Link>
-
-          {/* Specifications Pills */}
-          {product.specifications && Object.keys(product.specifications).length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {Object.entries(product.specifications)
-                .slice(0, 2)
-                .map(([key, value]) => (
-                  <span
-                    key={key}
-                    className="text-[11px] bg-[#16161E] border border-[#252530] text-neutral-300 px-2 py-0.5 rounded font-medium"
-                  >
-                    {value}
-                  </span>
-                ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -102,11 +86,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <div className="p-5 pt-0 border-t border-[#1C1C24] mt-2 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 block">
-            Standard Price
+            Standard Match Price
           </span>
-          <span className="text-2xl font-black text-white font-display tracking-tight">
-            ${product.price.toFixed(2)}
-          </span>
+          <div className="flex items-baseline space-x-1">
+            <span className="text-xs font-black text-[#FF5500]">AED</span>
+            <span className="text-2xl font-black text-white font-display tracking-tight">
+              {product.price.toLocaleString()}
+            </span>
+          </div>
         </div>
 
         {product.stock_quantity > 0 ? (

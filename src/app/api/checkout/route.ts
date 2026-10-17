@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         // Build line items for Stripe Checkout Session
         const stripeLineItems = items.map((it: any) => ({
           price_data: {
-            currency: 'usd',
+            currency: 'aed',
             product_data: {
               name: it.title,
               description: it.selectedOptions

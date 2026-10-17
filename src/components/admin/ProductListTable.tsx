@@ -151,7 +151,7 @@ export const ProductListTable: React.FC<ProductListTableProps> = ({ initialProdu
                     {product.category}
                   </td>
                   <td className="py-3 px-5 font-display text-lg font-black text-white">
-                    ${product.price.toFixed(2)}
+                    AED {product.price.toLocaleString()}
                   </td>
                   <td className="py-3 px-5">
                     <span

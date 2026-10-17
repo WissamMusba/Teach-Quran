@@ -123,7 +123,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
                     </span>
                   </td>
                   <td className="py-3.5 px-5 font-display text-lg font-black text-white">
-                    ${order.total_amount.toFixed(2)}
+                    AED {order.total_amount.toLocaleString()}
                   </td>
                   <td className="py-3.5 px-5">
                     <OrderStatusSelect

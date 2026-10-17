@@ -15,20 +15,34 @@ const CATEGORIES = [
   { label: 'Cricket Shoes', value: 'shoes' },
 ];
 
-const BRANDS = [
-  { label: 'All Brands', value: 'all' },
-  { label: 'Kookaburra', value: 'Kookaburra' },
-  { label: 'Gray-Nicolls', value: 'Gray-Nicolls' },
-  { label: 'SG', value: 'SG' },
-  { label: 'SS', value: 'SS' },
-  { label: 'MRF', value: 'MRF' },
-  { label: 'Masuri', value: 'Masuri' },
-  { label: 'Asics', value: 'Asics' },
+interface ShopFilterProps {
+  availableBrands?: string[];
+}
+
+const DEFAULT_BRANDS = [
+  'SG',
+  'SS',
+  'Kookaburra',
+  'Gray-Nicolls',
+  'MRF',
+  'Masuri',
+  'Asics',
+  'New Balance',
+  'DSC',
+  'CA',
 ];
 
-export const ShopFilter: React.FC = () => {
+export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const brandList = React.useMemo(() => {
+    const set = new Set([...(availableBrands || []), ...DEFAULT_BRANDS]);
+    return [
+      { label: 'All Brands', value: 'all' },
+      ...Array.from(set).map((b) => ({ label: b, value: b })),
+    ];
+  }, [availableBrands]);
 
   const currentCategory = searchParams.get('category') || 'all';
   const currentBrand = searchParams.get('brand') || 'all';
@@ -120,7 +134,7 @@ export const ShopFilter: React.FC = () => {
           Authorized Brand
         </label>
         <div className="space-y-1">
-          {BRANDS.map((b) => {
+          {brandList.map((b) => {
             const active = currentBrand.toLowerCase() === b.value.toLowerCase();
             return (
               <button

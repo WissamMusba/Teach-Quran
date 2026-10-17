@@ -154,9 +154,9 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                       )}
                     </td>
                     <td className="py-4 px-6 text-center font-bold text-white">{it.quantity}</td>
-                    <td className="py-4 px-6 text-right font-mono">${it.unit_price.toFixed(2)}</td>
+                    <td className="py-4 px-6 text-right font-mono text-xs">AED {it.unit_price.toLocaleString()}</td>
                     <td className="py-4 px-6 text-right font-display text-lg font-black text-white">
-                      ${(it.unit_price * it.quantity).toFixed(2)}
+                      AED {(it.unit_price * it.quantity).toLocaleString()}
                     </td>
                   </tr>
                 ))
@@ -173,9 +173,12 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
         <div className="p-6 border-t border-[#1C1C24] bg-[#0A0A0E] flex justify-between items-baseline">
           <span className="font-display uppercase text-lg font-black text-neutral-400">Total Charged / Due:</span>
-          <span className="font-display text-4xl font-black text-white">
-            ${order.total_amount.toFixed(2)}
-          </span>
+          <div className="flex items-baseline space-x-1.5">
+            <span className="text-sm font-black text-[#FF5500]">AED</span>
+            <span className="font-display text-4xl font-black text-white">
+              {order.total_amount.toLocaleString()}
+            </span>
+          </div>
         </div>
       </div>
     </div>

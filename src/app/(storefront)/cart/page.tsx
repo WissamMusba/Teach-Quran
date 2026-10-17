@@ -93,7 +93,7 @@ export default function CartPage() {
                   )}
 
                   <div className="text-xs text-neutral-400 mt-2 font-mono">
-                    Unit Price: ${item.price.toFixed(2)}
+                    Unit Price: AED {item.price.toLocaleString()}
                   </div>
                 </div>
 
@@ -121,9 +121,12 @@ export default function CartPage() {
                   </div>
 
                   <div className="text-right">
-                    <span className="font-display text-2xl font-black text-white block">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </span>
+                    <div className="flex items-baseline space-x-1 justify-end">
+                      <span className="text-xs font-black text-[#FF5500]">AED</span>
+                      <span className="font-display text-2xl font-black text-white block">
+                        {(item.price * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
 
                   <button
@@ -158,17 +161,20 @@ export default function CartPage() {
               <div className="space-y-3.5 text-xs">
                 <div className="flex justify-between text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Items Subtotal</span>
-                  <span className="font-bold text-white font-mono text-sm">${totalAmount.toFixed(2)}</span>
+                  <span className="font-bold text-white font-mono text-sm">AED {totalAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Tracked Courier</span>
-                  <span className="font-bold text-[#FF5500] uppercase">Calculated Next</span>
+                  <span className="font-bold text-[#FF5500] uppercase">Free Match Dispatch</span>
                 </div>
                 <div className="pt-4 border-t border-[#1C1C24] flex justify-between items-baseline">
                   <span className="font-display uppercase text-lg font-black text-white">Total</span>
-                  <span className="font-display text-4xl font-black text-white">
-                    ${totalAmount.toFixed(2)}
-                  </span>
+                  <div className="flex items-baseline space-x-1">
+                    <span className="text-sm font-black text-[#FF5500]">AED</span>
+                    <span className="font-display text-4xl font-black text-white">
+                      {totalAmount.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
 

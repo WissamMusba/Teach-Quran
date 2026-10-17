@@ -23,6 +23,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const sort = resolvedParams.sort;
   const query = resolvedParams.q?.toLowerCase() || '';
 
+  const unfilteredCatalog = await getProducts({ isActive: true });
+  const availableBrands = Array.from(new Set(unfilteredCatalog.map((p) => p.brand).filter(Boolean)));
+
   const allProducts = await getProducts({
     category,
     brand,
@@ -79,7 +82,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 <div className="bg-[#0E0E14] border border-[#22222A] p-6 rounded-2xl h-80 animate-pulse" />
               }
             >
-              <ShopFilter />
+              <ShopFilter availableBrands={availableBrands} />
             </Suspense>
           </aside>
 

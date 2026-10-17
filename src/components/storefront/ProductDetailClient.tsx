@@ -31,7 +31,7 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
   );
 
   const [selectedWeight, setSelectedWeight] = useState<string>(
-    categoryLower === 'bats' ? '2lb 8oz - 2lb 9oz' : ''
+    categoryLower === 'bats' ? '1,140g - 1,165g' : ''
   );
 
   const [selectedOrientation, setSelectedOrientation] = useState<string>(
@@ -121,12 +121,15 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
             {product.title}
           </h1>
 
-          <div className="mt-5 flex items-baseline space-x-4">
-            <span className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight">
-              ${product.price.toFixed(2)}
+          <div className="mt-5 flex items-baseline space-x-2 flex-wrap">
+            <span className="text-lg sm:text-xl font-black text-[#FF5500]">
+              AED
             </span>
-            <span className="text-xs uppercase tracking-wider font-bold text-neutral-400">
-              Standard Tournament Price
+            <span className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight">
+              {product.price.toLocaleString()}
+            </span>
+            <span className="text-[11px] uppercase tracking-wider font-bold text-neutral-400 ml-2">
+              Tournament Match Price
             </span>
           </div>
         </div>
@@ -161,12 +164,12 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
               <label className="block text-xs font-black uppercase tracking-widest text-neutral-300 mb-2.5">
                 Handle & Size
               </label>
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 min-[340px]:grid-cols-3 gap-2">
                 {['Short Handle', 'Harrow', 'Long Handle'].map((opt) => (
                   <button
                     key={opt}
                     onClick={() => setSelectedSize(opt)}
-                    className={`py-2.5 px-3 text-xs font-black uppercase tracking-wider rounded-xl border text-center transition-all ${
+                    className={`py-2 px-2.5 text-xs font-black uppercase tracking-wider rounded-xl border text-center transition-all ${
                       selectedSize === opt
                         ? 'border-[#FF5500] bg-[#FF5500] text-black shadow-orange-glow-sm'
                         : 'border-[#252530] text-neutral-300 hover:border-neutral-400 bg-[#121218]'
@@ -179,18 +182,18 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
             </div>
           )}
 
-          {/* Bat Weight Option */}
+          {/* Bat Weight Option in Grams */}
           {categoryLower === 'bats' && (
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-neutral-300 mb-2.5">
-                Bat Weight Profile
+                Bat Weight Profile (Grams)
               </label>
-              <div className="grid grid-cols-3 gap-2.5">
-                {['2lb 7oz - 2lb 8oz', '2lb 8oz - 2lb 9oz', '2lb 10oz+'].map((w) => (
+              <div className="grid grid-cols-1 min-[340px]:grid-cols-3 gap-2">
+                {['1,135g - 1,155g', '1,160g - 1,180g', '1,185g - 1,220g'].map((w) => (
                   <button
                     key={w}
                     onClick={() => setSelectedWeight(w)}
-                    className={`py-2.5 px-3 text-xs font-black uppercase tracking-wider rounded-xl border text-center transition-all ${
+                    className={`py-2 px-2.5 text-xs font-black uppercase tracking-wider rounded-xl border text-center transition-all ${
                       selectedWeight === w
                         ? 'border-[#FF5500] bg-[#FF5500] text-black shadow-orange-glow-sm'
                         : 'border-[#252530] text-neutral-300 hover:border-neutral-400 bg-[#121218]'
@@ -319,25 +322,6 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
             <span className="font-semibold text-neutral-300">Card (Stripe) & Cash on Delivery</span>
           </div>
         </div>
-
-        {/* Technical Specifications */}
-        {product.specifications && Object.keys(product.specifications).length > 0 && (
-          <div className="border border-[#22222A] rounded-2xl p-6 bg-[#0E0E14] space-y-4">
-            <h3 className="font-display uppercase text-xl font-black text-white tracking-wide">
-              Technical Specifications
-            </h3>
-            <div className="divide-y divide-[#1C1C24]">
-              {Object.entries(product.specifications).map(([key, value]) => (
-                <div key={key} className="py-2.5 flex justify-between text-xs">
-                  <span className="font-bold text-neutral-400 uppercase tracking-wider">
-                    {key.replace('_', ' ')}
-                  </span>
-                  <span className="font-black text-white text-right font-mono">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

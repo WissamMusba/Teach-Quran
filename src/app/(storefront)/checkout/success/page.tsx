@@ -112,9 +112,9 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
                           )}
                         </td>
                         <td className="py-3.5 px-5 text-center font-bold text-white">{it.quantity}</td>
-                        <td className="py-3.5 px-5 text-right font-mono">${it.unit_price.toFixed(2)}</td>
+                        <td className="py-3.5 px-5 text-right font-mono text-xs">AED {it.unit_price.toLocaleString()}</td>
                         <td className="py-3.5 px-5 text-right font-mono font-bold text-white">
-                          ${(it.unit_price * it.quantity).toFixed(2)}
+                          AED {(it.unit_price * it.quantity).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -126,9 +126,12 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
             {/* Total */}
             <div className="border-t border-[#1C1C24] pt-5 flex justify-between items-baseline">
               <span className="font-display uppercase text-lg font-black text-neutral-400">Total Billed</span>
-              <span className="font-display text-4xl font-black text-white">
-                ${order.total_amount.toFixed(2)}
-              </span>
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-sm font-black text-[#FF5500]">AED</span>
+                <span className="font-display text-4xl font-black text-white">
+                  {order.total_amount.toLocaleString()}
+                </span>
+              </div>
             </div>
 
             <div className="bg-[#121218] border border-[#202028] rounded-2xl p-4 flex items-center space-x-3 text-xs text-neutral-400">

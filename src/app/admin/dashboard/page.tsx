@@ -60,9 +60,12 @@ export default async function AdminDashboardPage() {
             <span className="text-[11px] font-black text-neutral-400 block uppercase tracking-wider">
               Settled Revenue
             </span>
-            <span className="font-display text-3xl font-black text-white">
-              ${totalRevenue.toFixed(2)}
-            </span>
+            <div className="flex items-baseline space-x-1">
+              <span className="text-xs font-black text-[#FF5500]">AED</span>
+              <span className="font-display text-3xl font-black text-white">
+                {totalRevenue.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -131,7 +134,7 @@ export default async function AdminDashboardPage() {
                 <div className="min-w-0 pr-2">
                   <span className="font-bold text-white block truncate">{p.title}</span>
                   <span className="text-neutral-400 font-mono text-[11px]">
-                    {p.brand} • ${p.price.toFixed(2)}
+                    {p.brand} • AED {p.price.toLocaleString()}
                   </span>
                 </div>
                 <span className="font-mono font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-800">
@@ -195,7 +198,7 @@ export default async function AdminDashboardPage() {
                     </span>
                   </td>
                   <td className="py-3.5 px-5 font-display text-lg font-black text-white">
-                    ${order.total_amount.toFixed(2)}
+                    AED {order.total_amount.toLocaleString()}
                   </td>
                   <td className="py-3.5 px-5">
                     <OrderStatusSelect orderId={order.id} initialStatus={order.order_status} />

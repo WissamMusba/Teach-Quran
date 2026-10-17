@@ -363,7 +363,7 @@ export default function CheckoutPage() {
                       <p className="text-neutral-400">Qty: {item.quantity}</p>
                     </div>
                     <span className="font-bold text-white font-mono">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      AED {(item.price * item.quantity).toLocaleString()}
                     </span>
                   </div>
                 ))}
@@ -373,7 +373,7 @@ export default function CheckoutPage() {
               <div className="border-t border-[#1C1C24] pt-4 space-y-2 text-xs">
                 <div className="flex justify-between text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Subtotal</span>
-                  <span className="font-bold text-white font-mono text-sm">${totalAmount.toFixed(2)}</span>
+                  <span className="font-bold text-white font-mono text-sm">AED {totalAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Tracked Courier</span>
@@ -381,9 +381,12 @@ export default function CheckoutPage() {
                 </div>
                 <div className="border-t border-[#1C1C24] pt-3 flex justify-between items-baseline">
                   <span className="font-display uppercase text-lg font-black text-white">Total Amount</span>
-                  <span className="font-display text-4xl font-black text-white">
-                    ${totalAmount.toFixed(2)}
-                  </span>
+                  <div className="flex items-baseline space-x-1">
+                    <span className="text-sm font-black text-[#FF5500]">AED</span>
+                    <span className="font-display text-4xl font-black text-white">
+                      {totalAmount.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
 

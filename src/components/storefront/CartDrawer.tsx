@@ -108,9 +108,12 @@ export const CartDrawer: React.FC = () => {
                     )}
 
                     <div className="mt-2.5 flex items-center justify-between">
-                      <span className="font-display text-lg font-black text-white">
-                        ${(item.price * item.quantity).toFixed(2)}
-                      </span>
+                      <div className="flex items-baseline space-x-1">
+                        <span className="text-[11px] font-black text-[#FF5500]">AED</span>
+                        <span className="font-display text-lg font-black text-white">
+                          {(item.price * item.quantity).toLocaleString()}
+                        </span>
+                      </div>
 
                       {/* Quantity Controls */}
                       <div className="flex items-center space-x-1 border border-[#272730] rounded-xl p-0.5 bg-[#121218]">
@@ -157,9 +160,12 @@ export const CartDrawer: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                   Subtotal
                 </span>
-                <span className="font-display text-3xl font-black text-white">
-                  ${totalAmount.toFixed(2)}
-                </span>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-sm font-black text-[#FF5500]">AED</span>
+                  <span className="font-display text-3xl font-black text-white">
+                    {totalAmount.toLocaleString()}
+                  </span>
+                </div>
               </div>
               <p className="text-[11px] text-neutral-400">
                 Taxes and shipping calculated at checkout. Card (Visa/Mastercard) and COD available.
