@@ -8,12 +8,12 @@ export default async function AdminSettingsPage() {
   const settings = await getSiteSettings();
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+    <div className="space-y-8 max-w-7xl text-white">
+      <div className="pb-6 border-b border-[#1C1C24]">
+        <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
           Homepage Banner & Announcement CMS
         </h1>
-        <p className="text-xs text-neutral-500 mt-1">
+        <p className="text-xs text-neutral-400 mt-1">
           Customize the prominent announcement bar message, hero messaging, and main banner media across the storefront.
         </p>
       </div>

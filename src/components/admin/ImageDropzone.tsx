@@ -87,10 +87,10 @@ export const ImageDropzone: React.FC<ImageDropzoneProps> = ({
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
+        className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all ${
           isDragging
-            ? 'border-orange-500 bg-orange-50/50'
-            : 'border-neutral-300 hover:border-neutral-400 bg-neutral-50/50'
+            ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm'
+            : 'border-[#272732] hover:border-[#FF5500]/70 bg-[#121218]'
         }`}
       >
         <input
@@ -104,21 +104,21 @@ export const ImageDropzone: React.FC<ImageDropzoneProps> = ({
           }}
         />
 
-        <div className="flex flex-col items-center justify-center space-y-2">
+        <div className="flex flex-col items-center justify-center space-y-2.5">
           {isUploading ? (
-            <div className="flex flex-col items-center space-y-2 text-orange-600">
+            <div className="flex flex-col items-center space-y-2 text-[#FF5500]">
               <Loader2 className="w-8 h-8 animate-spin" />
-              <p className="text-sm font-semibold">Pushing images to product-media storage...</p>
+              <p className="text-xs font-bold uppercase tracking-wider">Pushing images to product-media storage...</p>
             </div>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mb-1">
+              <div className="w-12 h-12 rounded-2xl bg-[#FF5500]/10 border border-[#FF5500]/30 text-[#FF5500] flex items-center justify-center mb-1 shadow-orange-glow-sm">
                 <UploadCloud className="w-6 h-6" />
               </div>
-              <p className="text-sm font-bold text-neutral-800">
+              <p className="text-sm font-bold text-white uppercase tracking-wide">
                 Click or drag & drop equipment photos here
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-400">
                 PNG, JPEG, WEBP up to 5MB each. Max {maxFiles} images.
               </p>
             </>
@@ -127,7 +127,7 @@ export const ImageDropzone: React.FC<ImageDropzoneProps> = ({
       </div>
 
       {uploadError && (
-        <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">
+        <p className="text-xs text-red-300 font-medium bg-red-950/60 p-3 rounded-xl border border-red-800">
           {uploadError}
         </p>
       )}
@@ -138,13 +138,13 @@ export const ImageDropzone: React.FC<ImageDropzoneProps> = ({
           {images.map((imgUrl, idx) => (
             <div
               key={idx}
-              className="group relative aspect-square rounded-xl border border-neutral-200 overflow-hidden bg-neutral-100 flex items-center justify-center shadow-xs"
+              className="group relative aspect-square rounded-2xl border border-[#272732] overflow-hidden bg-[#14141B] flex items-center justify-center p-2 shadow-md"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imgUrl} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+              <img src={imgUrl} alt={`Upload ${idx + 1}`} className="w-full h-full object-contain" />
 
               {idx === 0 && (
-                <span className="absolute bottom-1.5 left-1.5 bg-neutral-900/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                <span className="absolute bottom-2 left-2 bg-[#FF5500] text-black text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">
                   Cover
                 </span>
               )}
@@ -155,7 +155,7 @@ export const ImageDropzone: React.FC<ImageDropzoneProps> = ({
                   e.stopPropagation();
                   handleRemoveImage(idx);
                 }}
-                className="absolute top-1.5 right-1.5 bg-white/90 hover:bg-red-600 hover:text-white text-neutral-700 p-1 rounded-full shadow-sm opacity-90 group-hover:opacity-100 transition-colors"
+                className="absolute top-2 right-2 bg-black/80 hover:bg-red-600 text-white p-1.5 rounded-full shadow-sm transition-colors"
                 title="Remove photo"
               >
                 <X className="w-3.5 h-3.5" />

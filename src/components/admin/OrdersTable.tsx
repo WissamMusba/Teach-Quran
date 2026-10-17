@@ -32,17 +32,17 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
   };
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-2xl shadow-xs overflow-hidden">
+    <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl shadow-xl overflow-hidden text-white">
       {/* Filters Bar */}
-      <div className="p-4 sm:p-5 border-b border-neutral-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+      <div className="p-5 border-b border-[#1C1C24] flex flex-col sm:flex-row gap-4 items-center justify-between bg-[#0A0A0E]">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+          <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-3" />
           <input
             type="text"
-            placeholder="Search by customer, email, or order ID..."
+            placeholder="Search customer, email, or order ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full text-xs pl-10 pr-3.5 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+            className="w-full text-xs pl-10 pr-3.5 py-2.5 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
           />
         </div>
 
@@ -51,7 +51,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs px-3 py-2 rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-semibold"
+            className="text-xs px-3.5 py-2.5 rounded-xl border border-[#272730] bg-[#14141B] text-white focus:outline-none focus:border-[#FF5500] font-bold uppercase tracking-wider"
           >
             <option value="all">All Statuses ({orders.length})</option>
             <option value="new">New ({orders.filter((o) => o.order_status === 'new').length})</option>
@@ -66,7 +66,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
       {/* Orders Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-neutral-50 text-neutral-500 font-bold uppercase tracking-wider border-b border-neutral-100">
+          <thead className="bg-[#121218] text-neutral-400 font-bold uppercase tracking-wider border-b border-[#1C1C24]">
             <tr>
               <th className="py-3 px-5">Order Reference</th>
               <th className="py-3 px-5">Date</th>
@@ -78,32 +78,32 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
               <th className="py-3 px-5 text-right">Details</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100 text-neutral-800">
+          <tbody className="divide-y divide-[#1C1C24] text-neutral-300">
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-neutral-400">
+                <td colSpan={8} className="py-8 text-center text-neutral-500">
                   No customer orders found matching the filter criteria.
                 </td>
               </tr>
             ) : (
               filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-neutral-50/50 transition-colors">
-                  <td className="py-3.5 px-5 font-mono font-bold text-neutral-700">
+                <tr key={order.id} className="hover:bg-[#14141C] transition-colors">
+                  <td className="py-3.5 px-5 font-mono font-bold text-neutral-400">
                     #{order.id.slice(0, 14)}
                   </td>
-                  <td className="py-3.5 px-5 text-neutral-500">
+                  <td className="py-3.5 px-5 text-neutral-400">
                     {new Date(order.created_at).toLocaleDateString()}
                   </td>
                   <td className="py-3.5 px-5">
-                    <span className="font-bold text-neutral-900 block">{order.customer_name}</span>
+                    <span className="font-bold text-white block">{order.customer_name}</span>
                     <span className="text-[11px] text-neutral-500">{order.customer_phone}</span>
                   </td>
                   <td className="py-3.5 px-5">
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-bold uppercase ${
+                      className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                         order.payment_method === 'cod'
-                          ? 'bg-orange-100 text-orange-800'
-                          : 'bg-neutral-100 text-neutral-800'
+                          ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                          : 'bg-[#181822] text-white border border-[#292938]'
                       }`}
                     >
                       {order.payment_method === 'cod' ? 'COD' : 'Stripe Card'}
@@ -111,18 +111,18 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
                   </td>
                   <td className="py-3.5 px-5">
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-bold capitalize ${
+                      className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold capitalize ${
                         order.payment_status === 'paid'
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                           : order.payment_status === 'failed'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-amber-100 text-amber-800'
+                          ? 'bg-red-950 text-red-400 border border-red-800'
+                          : 'bg-amber-950 text-amber-400 border border-amber-800'
                       }`}
                     >
                       {order.payment_status}
                     </span>
                   </td>
-                  <td className="py-3.5 px-5 font-bold text-neutral-900">
+                  <td className="py-3.5 px-5 font-display text-lg font-black text-white">
                     ${order.total_amount.toFixed(2)}
                   </td>
                   <td className="py-3.5 px-5">
@@ -135,10 +135,10 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
                   <td className="py-3.5 px-5 text-right">
                     <Link
                       href={`/admin/orders/${order.id}`}
-                      className="inline-flex items-center space-x-1 p-1.5 text-neutral-600 hover:text-orange-600 hover:bg-neutral-100 rounded-lg transition-colors"
+                      className="inline-flex items-center space-x-1 p-2 text-neutral-400 hover:text-white hover:bg-[#1C1C28] rounded-lg transition-colors"
                       title="Inspect Order"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4 h-4 text-[#FF5500]" />
                     </Link>
                   </td>
                 </tr>

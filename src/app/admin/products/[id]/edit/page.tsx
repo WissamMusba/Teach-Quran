@@ -18,12 +18,12 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+    <div className="space-y-8 text-white max-w-4xl">
+      <div className="pb-6 border-b border-[#1C1C24]">
+        <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
           Edit Gear: {product.title}
         </h1>
-        <p className="text-xs text-neutral-500 mt-1">
+        <p className="text-xs text-neutral-400 mt-1">
           Update price, stock levels, willow specifications, or equipment imagery.
         </p>
       </div>

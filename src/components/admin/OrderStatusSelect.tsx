@@ -11,11 +11,11 @@ interface OrderStatusSelectProps {
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; badgeClass: string }> = {
-  new: { label: 'New', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
-  packed: { label: 'Packed', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
-  shipped: { label: 'Shipped', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-  delivered: { label: 'Delivered', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  cancelled: { label: 'Cancelled', badgeClass: 'bg-neutral-100 text-neutral-600 border-neutral-300' },
+  new: { label: 'New', badgeClass: 'bg-blue-950/80 text-blue-300 border-blue-700/80' },
+  packed: { label: 'Packed', badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-700/80' },
+  shipped: { label: 'Shipped', badgeClass: 'bg-purple-950/80 text-purple-300 border-purple-700/80' },
+  delivered: { label: 'Delivered', badgeClass: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80' },
+  cancelled: { label: 'Cancelled', badgeClass: 'bg-neutral-900 text-neutral-400 border-neutral-700' },
 };
 
 export const OrderStatusSelect: React.FC<OrderStatusSelectProps> = ({
@@ -45,7 +45,7 @@ export const OrderStatusSelect: React.FC<OrderStatusSelectProps> = ({
       onStatusChange?.(newStatus);
     } catch (err) {
       console.error(err);
-      setStatus(initialStatus); // revert
+      setStatus(initialStatus);
     } finally {
       setIsUpdating(false);
     }
@@ -57,7 +57,7 @@ export const OrderStatusSelect: React.FC<OrderStatusSelectProps> = ({
         value={status}
         onChange={handleChange}
         disabled={isUpdating}
-        className={`text-xs font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border appearance-none pr-8 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${STATUS_CONFIG[status]?.badgeClass}`}
+        className={`text-[11px] font-black uppercase tracking-wider py-1.5 px-3 rounded-xl border appearance-none pr-8 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#FF5500] ${STATUS_CONFIG[status]?.badgeClass}`}
       >
         <option value="new">New</option>
         <option value="packed">Packed</option>
@@ -67,7 +67,7 @@ export const OrderStatusSelect: React.FC<OrderStatusSelectProps> = ({
       </select>
 
       {isUpdating && (
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400 absolute right-2 pointer-events-none" />
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF5500] absolute right-2 pointer-events-none" />
       )}
     </div>
   );

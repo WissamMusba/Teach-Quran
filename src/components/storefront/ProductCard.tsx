@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Product } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, Zap } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -12,7 +12,9 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addToCart } = useCart();
-  const mainImage = product.images?.[0] || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=800&auto=format&fit=crop';
+  const mainImage =
+    product.images?.[0] ||
+    'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=800&auto=format&fit=crop';
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -30,28 +32,35 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   };
 
   return (
-    <div className="group relative bg-white border border-neutral-200/90 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
+    <div className="group relative bg-[#0E0E13] border border-[#22222A] rounded-2xl overflow-hidden hover:border-[#FF5500]/70 hover:shadow-orange-glow transition-all duration-300 flex flex-col justify-between">
       <div>
-        {/* Thumbnail Container */}
-        <Link href={`/product/${product.slug}`} className="block relative aspect-square bg-neutral-50 overflow-hidden">
+        {/* Thumbnail Container with Dark Stage Surface */}
+        <Link
+          href={`/product/${product.slug}`}
+          className="block relative aspect-square bg-[#14141A] overflow-hidden p-6"
+        >
+          {/* Subtle Ambient Rim Light */}
+          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/40 pointer-events-none" />
+
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={mainImage}
             alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-500"
           />
 
-          {/* Brand Pill */}
+          {/* Brand Badge */}
           <div className="absolute top-3 left-3">
-            <span className="inline-block bg-white/95 backdrop-blur-sm border border-neutral-200 text-neutral-800 text-[11px] font-bold px-2 py-0.5 rounded shadow-xs">
-              {product.brand}
+            <span className="inline-flex items-center space-x-1 bg-[#08080C]/90 backdrop-blur-md border border-[#2E2E38] text-white text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500]" />
+              <span>{product.brand}</span>
             </span>
           </div>
 
-          {/* Low Stock Warning if <= 5 */}
+          {/* Low Stock Warning */}
           {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
             <div className="absolute top-3 right-3">
-              <span className="inline-block bg-neutral-900/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+              <span className="inline-block bg-[#FF5500]/20 border border-[#FF5500]/50 text-[#FF5500] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded">
                 Only {product.stock_quantity} left
               </span>
             </div>
@@ -59,38 +68,43 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </Link>
 
         {/* Content */}
-        <div className="p-4 sm:p-5">
-          <div className="text-xs uppercase font-medium text-neutral-500 tracking-wider mb-1">
-            {product.category}
+        <div className="p-5">
+          <div className="text-[11px] uppercase font-black text-[#FF5500] tracking-widest mb-1.5 flex items-center space-x-1">
+            <Zap className="w-3 h-3 text-[#FF5500]" />
+            <span>{product.category}</span>
           </div>
 
           <Link href={`/product/${product.slug}`}>
-            <h3 className="font-semibold text-neutral-900 text-base leading-snug hover:text-orange-600 transition-colors line-clamp-2">
+            <h3 className="font-display uppercase tracking-wide text-lg sm:text-xl font-bold text-white group-hover:text-[#FF5500] transition-colors line-clamp-2 leading-tight">
               {product.title}
             </h3>
           </Link>
 
-          {/* Quick Specification summary */}
+          {/* Specifications Pills */}
           {product.specifications && Object.keys(product.specifications).length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-1">
-              {Object.entries(product.specifications).slice(0, 2).map(([key, value]) => (
-                <span
-                  key={key}
-                  className="text-[11px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded"
-                >
-                  {value}
-                </span>
-              ))}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {Object.entries(product.specifications)
+                .slice(0, 2)
+                .map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="text-[11px] bg-[#16161E] border border-[#252530] text-neutral-300 px-2 py-0.5 rounded font-medium"
+                  >
+                    {value}
+                  </span>
+                ))}
             </div>
           )}
         </div>
       </div>
 
       {/* Pricing & Actions */}
-      <div className="p-4 sm:p-5 pt-0 border-t border-neutral-100 mt-2 flex items-center justify-between">
+      <div className="p-5 pt-0 border-t border-[#1C1C24] mt-2 flex items-center justify-between">
         <div>
-          <span className="text-xs text-neutral-500 block">Price</span>
-          <span className="text-lg font-bold text-neutral-900">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 block">
+            Standard Price
+          </span>
+          <span className="text-2xl font-black text-white font-display tracking-tight">
             ${product.price.toFixed(2)}
           </span>
         </div>
@@ -98,14 +112,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {product.stock_quantity > 0 ? (
           <button
             onClick={handleQuickAdd}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
             aria-label={`Add ${product.title} to cart`}
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
+            <ShoppingBag className="w-3.5 h-3.5 text-black" />
             <span>Add</span>
           </button>
         ) : (
-          <span className="text-xs font-semibold text-neutral-400 bg-neutral-100 px-2.5 py-1.5 rounded-lg">
+          <span className="text-xs font-black uppercase tracking-wider text-neutral-500 bg-[#16161E] border border-[#252530] px-3 py-2 rounded-xl">
             Sold Out
           </span>
         )}

@@ -3,8 +3,8 @@ import './globals.css';
 import { CartProvider } from '@/context/CartContext';
 
 export const metadata: Metadata = {
-  title: 'CRICKET STORE | Premium Cricket Bats & Professional Gear',
-  description: 'Engineered for the perfect stroke. Buy authentic Grade 1 English Willow bats, protective pads, gloves, helmets, and match balls.',
+  title: 'CRICKET STORE | Pro:Direct Cricket Gear & Match Equipment',
+  description: 'Engineered for tournament performance. High-impact Grade 1 English Willow bats, protective pads, gloves, helmets, and match leather balls.',
 };
 
 export default function RootLayout({
@@ -13,11 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-white text-neutral-900 selection:bg-orange-500 selection:text-white">
-        <CartProvider>
-          {children}
-        </CartProvider>
+    <html lang="en" className="dark bg-[#050505]">
+      <body className="min-h-screen bg-[#050505] text-white selection:bg-[#FF5500] selection:text-white antialiased font-sans">
+        <CartProvider>{children}</CartProvider>
       </body>
     </html>
   );

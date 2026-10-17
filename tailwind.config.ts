@@ -8,30 +8,42 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Plus Jakarta Sans", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Barlow Condensed", "Oswald", "sans-serif"],
+        athletic: ["var(--font-display)", "Barlow Condensed", "Impact", "sans-serif"],
+      },
       colors: {
+        pitch: {
+          DEFAULT: "#050505",
+          950: "#000000",
+          900: "#08080A",
+          850: "#0E0E12",
+          800: "#141418",
+          700: "#1C1C22",
+          600: "#27272E",
+          border: "#26262B",
+          borderHover: "#383842",
+        },
         brand: {
           50: "#fff7ed",
           100: "#ffedd5",
           200: "#fed7aa",
           300: "#fdba74",
           400: "#fb923c",
-          500: "#f97316",
-          600: "#ea580c",
-          700: "#c2410c",
-          800: "#9a3412",
-          900: "#7c2d12",
-          electric: "#FF6B00",
+          500: "#ff6600",
+          600: "#ff5500", // Vibrant JBL electric orange
+          700: "#ea4600",
+          800: "#c83600",
+          900: "#9e2800",
+          vibrant: "#FF5500",
+          glow: "#FF6600",
         },
-        surface: {
-          DEFAULT: "#FFFFFF",
-          subtle: "#F9FAFB",
-          muted: "#F3F4F6",
-        },
-        charcoal: {
-          DEFAULT: "#0F172A",
-          deep: "#111827",
-          light: "#1E293B",
-        },
+      },
+      boxShadow: {
+        "orange-glow": "0 0 25px -3px rgba(255, 85, 0, 0.35)",
+        "orange-glow-sm": "0 0 12px -2px rgba(255, 85, 0, 0.4)",
+        "card-dark": "0 10px 30px -10px rgba(0, 0, 0, 0.7)",
       },
     },
   },

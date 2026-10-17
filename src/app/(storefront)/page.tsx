@@ -4,7 +4,7 @@ import { getProducts, getSiteSettings } from '@/lib/supabaseServer';
 import { HeroBanner } from '@/components/storefront/HeroBanner';
 import { CategoryGrid } from '@/components/storefront/CategoryGrid';
 import { ProductCard } from '@/components/storefront/ProductCard';
-import { ArrowRight, Award, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Award, CheckCircle2, Flame } from 'lucide-react';
 
 export const revalidate = 60;
 
@@ -15,29 +15,32 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="bg-white">
-      {/* Dynamic Hero Banner */}
+    <div className="bg-[#050505] text-white">
+      {/* Hero Banner with Dynamic Settings */}
       <HeroBanner settings={settings} />
 
-      {/* Featured Products Showcase */}
-      <section className="py-16 sm:py-20 bg-neutral-50/50 border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10">
+      {/* Featured Match Gear Showcase */}
+      <section className="py-20 sm:py-24 bg-[#08080C] border-b border-[#1C1C24] relative overflow-hidden">
+        {/* Glow Spot */}
+        <div className="absolute top-1/2 right-0 w-96 h-96 bg-[#FF5500]/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 border-b border-[#1C1C24] pb-6">
             <div>
-              <div className="flex items-center space-x-1.5 text-xs font-bold uppercase tracking-wider text-orange-600 mb-1">
-                <Award className="w-4 h-4" />
-                <span>Selected by Professionals</span>
+              <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-[#FF5500] mb-2">
+                <Flame className="w-4 h-4 text-[#FF5500] fill-[#FF5500]" />
+                <span>Selected by Elite Stroke Makers</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+              <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
                 Featured Match Gear
               </h2>
             </div>
             <Link
               href="/shop"
-              className="mt-3 sm:mt-0 inline-flex items-center space-x-1.5 text-sm font-bold text-neutral-900 hover:text-orange-600 transition-colors"
+              className="mt-4 sm:mt-0 inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-300 hover:text-[#FF5500] transition-colors"
             >
               <span>Explore All {featuredProducts.length}+ Items</span>
-              <ArrowRight className="w-4 h-4 text-orange-600" />
+              <ArrowRight className="w-4 h-4 text-[#FF5500]" />
             </Link>
           </div>
 
@@ -49,18 +52,21 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Category Grid */}
+      {/* Category Grid Section */}
       <CategoryGrid />
 
-      {/* Brand Partnership Spotlight */}
-      <section className="py-16 bg-white border-t border-neutral-200">
+      {/* Pro:Direct Style Authorized Brand Partnerships */}
+      <section className="py-20 bg-[#060608] border-t border-[#1C1C24]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-2xl font-black text-neutral-900 tracking-tight sm:text-3xl">
-              Official Gear from Iconic Cricket Brands
+          <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
+            <span className="text-xs font-black uppercase tracking-widest text-[#FF5500]">
+              Official Manufacturing Lineup
+            </span>
+            <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+              Authorized Cricket Partnerships
             </h2>
-            <p className="mt-2 text-sm text-neutral-500">
-              Every bat and piece of armor is sourced directly from manufacturers, guaranteeing uncompromised willow quality and test-match safety standards.
+            <p className="text-xs sm:text-sm text-neutral-400">
+              Direct factory allocation ensures unadulterated willow grades, official test weights, and certified player balance.
             </p>
           </div>
 
@@ -69,13 +75,13 @@ export default async function HomePage() {
               <Link
                 key={brand}
                 href={`/shop?brand=${encodeURIComponent(brand)}`}
-                className="p-6 rounded-xl border border-neutral-200 bg-white hover:border-orange-500 hover:shadow-md transition-all flex flex-col items-center justify-center text-center group"
+                className="p-8 rounded-2xl border border-[#22222A] bg-[#0E0E14] hover:border-[#FF5500]/70 hover:shadow-orange-glow transition-all duration-300 flex flex-col items-center justify-center text-center group"
               >
-                <span className="text-lg font-black tracking-tight text-neutral-800 group-hover:text-orange-600 transition-colors">
+                <span className="font-display uppercase text-2xl font-black tracking-wider text-white group-hover:text-[#FF5500] transition-colors">
                   {brand}
                 </span>
-                <span className="text-xs text-neutral-400 mt-1 flex items-center space-x-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mt-2 flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Authorized</span>
                 </span>
               </Link>

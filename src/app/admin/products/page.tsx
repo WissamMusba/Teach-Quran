@@ -10,22 +10,22 @@ export default async function AdminProductsPage() {
   const products = await getProducts();
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8 max-w-7xl text-white">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#1C1C24]">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+          <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
             Inventory & Catalog Management
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-400 mt-1">
             Manage bats, balls, pads, and cricket armor. Toggle featured items for the storefront homepage.
           </p>
         </div>
 
         <Link
           href="/admin/products/new"
-          className="inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 self-start sm:self-auto"
+          className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-black font-black text-xs uppercase tracking-wider transition-all shadow-orange-glow-sm active:scale-95 self-start sm:self-auto"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 text-black" />
           <span>Add New Gear</span>
         </Link>
       </div>

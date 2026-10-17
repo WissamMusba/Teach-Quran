@@ -33,7 +33,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
     initialData?.is_active !== undefined ? initialData.is_active : true
   );
 
-  // Specifications key-value pairs
   const [specs, setSpecs] = useState<{ key: string; value: string }[]>(
     initialData?.specifications && Object.keys(initialData.specifications).length > 0
       ? Object.entries(initialData.specifications).map(([k, v]) => ({ key: k, value: String(v) }))
@@ -103,9 +102,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
         is_active: isActive,
       };
 
-      const url = isEditing && initialData?.id
-        ? `/api/admin/products/${initialData.id}`
-        : '/api/admin/products';
+      const url =
+        isEditing && initialData?.id
+          ? `/api/admin/products/${initialData.id}`
+          : '/api/admin/products';
 
       const method = isEditing ? 'PUT' : 'POST';
 
@@ -129,11 +129,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
-      <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
+    <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl text-white">
+      <div className="flex items-center justify-between pb-6 border-b border-[#1C1C24]">
         <Link
           href="/admin/products"
-          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-neutral-600 hover:text-orange-600 transition-colors"
+          className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-400 hover:text-[#FF5500] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Products</span>
@@ -142,37 +142,37 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50"
+          className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-black font-black text-xs uppercase tracking-wider transition-all shadow-orange-glow active:scale-95 disabled:opacity-50"
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin text-black" />
               <span>Saving...</span>
             </>
           ) : (
             <>
-              <Save className="w-4 h-4" />
-              <span>{isEditing ? 'Save Changes' : 'Publish Product'}</span>
+              <Save className="w-4 h-4 text-black" />
+              <span>{isEditing ? 'Save Changes' : 'Publish Gear'}</span>
             </>
           )}
         </button>
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+        <div className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-xs font-semibold">
           {errorMessage}
         </div>
       )}
 
       {/* Basic Info */}
-      <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs space-y-5">
-        <h3 className="font-bold text-base text-neutral-900 border-b border-neutral-100 pb-3">
+      <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-7 shadow-xl space-y-5">
+        <h3 className="font-display uppercase text-2xl font-black text-white border-b border-[#1C1C24] pb-3">
           1. General Product Details
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div className="sm:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               Product Title *
             </label>
             <input
@@ -181,12 +181,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
               value={title}
               onChange={handleTitleChange}
               placeholder="e.g. Kookaburra Kahuna Pro English Willow Cricket Bat"
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               URL Slug *
             </label>
             <input
@@ -195,18 +195,18 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="kookaburra-kahuna-pro"
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-mono text-xs"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#101016] text-[#FF5500] font-mono focus:outline-none focus:border-[#FF5500] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               Brand / Manufacturer *
             </label>
             <select
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white focus:outline-none focus:border-[#FF5500] font-bold"
             >
               {BRANDS.map((b) => (
                 <option key={b} value={b}>
@@ -217,13 +217,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               Category *
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 capitalize"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white focus:outline-none focus:border-[#FF5500] font-bold uppercase tracking-wider"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c} className="capitalize">
@@ -234,8 +234,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
-              Standard Price ($ USD) * (No discount fields)
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+              Standard Price ($ USD) * (Strictly Non-Discount)
             </label>
             <input
               type="number"
@@ -245,12 +245,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="499.00"
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-semibold"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white font-mono text-sm focus:outline-none focus:border-[#FF5500] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               Stock Quantity *
             </label>
             <input
@@ -260,43 +260,43 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
               value={stockQuantity}
               onChange={(e) => setStockQuantity(e.target.value)}
               placeholder="15"
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-semibold"
+              className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white font-mono text-sm focus:outline-none focus:border-[#FF5500] transition-colors"
             />
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
               Description
             </label>
             <textarea
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe craftsmanship, willow grade, profile, balance, and performance characteristics..."
-              className="w-full text-sm p-3.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+              placeholder="Describe craftsmanship, willow grade, profile, balance, and match performance characteristics..."
+              className="w-full text-xs p-4 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
             />
           </div>
         </div>
       </div>
 
       {/* Image Uploader */}
-      <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <h3 className="font-bold text-base text-neutral-900 border-b border-neutral-100 pb-3">
-          2. Product Images (Supabase Storage: product-media)
+      <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-7 shadow-xl space-y-5">
+        <h3 className="font-display uppercase text-2xl font-black text-white border-b border-[#1C1C24] pb-3">
+          2. Product Images (Supabase: product-media)
         </h3>
         <ImageDropzone images={images} onChange={setImages} />
       </div>
 
       {/* Specifications */}
-      <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-          <h3 className="font-bold text-base text-neutral-900">
-            3. Technical Specifications (JSON Key / Values)
+      <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-7 shadow-xl space-y-5">
+        <div className="flex items-center justify-between border-b border-[#1C1C24] pb-3">
+          <h3 className="font-display uppercase text-2xl font-black text-white">
+            3. Technical Specifications
           </h3>
           <button
             type="button"
             onClick={handleAddSpec}
-            className="inline-flex items-center space-x-1 text-xs font-bold text-orange-600 hover:text-orange-500"
+            className="inline-flex items-center space-x-1.5 text-xs font-black uppercase tracking-wider text-[#FF5500] hover:text-[#FF6600]"
           >
             <Plus className="w-4 h-4" />
             <span>Add Spec</span>
@@ -311,19 +311,19 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
                 placeholder="Key (e.g. willow, weight, handle)"
                 value={item.key}
                 onChange={(e) => handleSpecChange(index, 'key', e.target.value)}
-                className="w-1/3 text-xs px-3 py-2 rounded-lg border border-neutral-200 font-mono"
+                className="w-1/3 text-xs px-3.5 py-2.5 rounded-xl border border-[#272730] bg-[#14141B] text-white font-mono"
               />
               <input
                 type="text"
                 placeholder="Value (e.g. English Grade 1, 2lb 8oz)"
                 value={item.value}
                 onChange={(e) => handleSpecChange(index, 'value', e.target.value)}
-                className="flex-1 text-xs px-3 py-2 rounded-lg border border-neutral-200"
+                className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-[#272730] bg-[#14141B] text-white"
               />
               <button
                 type="button"
                 onClick={() => handleRemoveSpec(index)}
-                className="text-neutral-400 hover:text-red-600 p-1.5 transition-colors"
+                className="text-neutral-500 hover:text-red-400 p-2 transition-colors"
                 title="Remove spec"
               >
                 <Trash2 className="w-4 h-4" />
@@ -334,35 +334,43 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, isEditing
       </div>
 
       {/* Visibility & Toggles */}
-      <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <h3 className="font-bold text-base text-neutral-900 border-b border-neutral-100 pb-3">
-          4. Visibility & Merchandising
+      <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-7 shadow-xl space-y-5">
+        <h3 className="font-display uppercase text-2xl font-black text-white border-b border-[#1C1C24] pb-3">
+          4. Merchandising & Visibility
         </h3>
 
         <div className="space-y-4">
-          <label className="flex items-center space-x-3 cursor-pointer">
+          <label className="flex items-center space-x-3.5 cursor-pointer">
             <input
               type="checkbox"
               checked={isFeatured}
               onChange={(e) => setIsFeatured(e.target.checked)}
-              className="w-4 h-4 text-orange-600 rounded border-neutral-300 focus:ring-orange-500"
+              className="w-5 h-5 text-[#FF5500] rounded border-[#272730] focus:ring-[#FF5500] bg-[#14141B]"
             />
             <div>
-              <span className="text-sm font-bold text-neutral-800">Featured on Homepage</span>
-              <p className="text-xs text-neutral-500">Promotes this item directly to the storefront homepage carousel and grid.</p>
+              <span className="text-sm font-bold text-white uppercase tracking-wide">
+                Featured on Homepage
+              </span>
+              <p className="text-xs text-neutral-400">
+                Promotes this equipment directly to the storefront showcase and homepage grid.
+              </p>
             </div>
           </label>
 
-          <label className="flex items-center space-x-3 cursor-pointer">
+          <label className="flex items-center space-x-3.5 cursor-pointer">
             <input
               type="checkbox"
               checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
-              className="w-4 h-4 text-orange-600 rounded border-neutral-300 focus:ring-orange-500"
+              className="w-5 h-5 text-[#FF5500] rounded border-[#272730] focus:ring-[#FF5500] bg-[#14141B]"
             />
             <div>
-              <span className="text-sm font-bold text-neutral-800">Active (Visible to Customers)</span>
-              <p className="text-xs text-neutral-500">When turned off, customers cannot view or purchase this product.</p>
+              <span className="text-sm font-bold text-white uppercase tracking-wide">
+                Active (Visible in Storefront)
+              </span>
+              <p className="text-xs text-neutral-400">
+                When unchecked, customers cannot browse or purchase this item.
+              </p>
             </div>
           </label>
         </div>

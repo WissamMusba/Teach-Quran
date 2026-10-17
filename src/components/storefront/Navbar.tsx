@@ -22,25 +22,30 @@ export const Navbar: React.FC = () => {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-neutral-200 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+    <header className="sticky top-0 z-40 bg-[#08080A]/95 backdrop-blur-md border-b border-[#1C1C22]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo */}
           <div className="flex items-center space-x-6">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+              className="lg:hidden p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
-            <Link href="/" className="flex items-center space-x-2 group">
-              <div className="w-8 h-8 rounded-lg bg-[#0F172A] flex items-center justify-center font-black text-white text-base tracking-tighter">
-                C<span className="text-orange-500">S</span>
+            <Link href="/" className="flex items-center space-x-2.5 group">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1C1C24] to-[#0A0A0E] border border-[#2E2E38] flex items-center justify-center font-display font-black text-white text-lg tracking-wider shadow-inner group-hover:border-[#FF5500]/60 transition-colors">
+                C<span className="text-[#FF5500]">S</span>
               </div>
-              <div className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900 group-hover:text-neutral-700 transition-colors">
-                CRICKET<span className="text-orange-600">STORE</span>
+              <div className="flex flex-col">
+                <span className="font-display text-2xl sm:text-3xl font-black tracking-tight text-white uppercase leading-none group-hover:text-neutral-200 transition-colors">
+                  CRICKET<span className="text-[#FF5500]">STORE</span>
+                </span>
+                <span className="text-[9px] uppercase tracking-widest font-black text-neutral-500 font-sans -mt-0.5">
+                  PRO MATCH PERFORMANCE
+                </span>
               </div>
             </Link>
           </div>
@@ -49,17 +54,22 @@ export const Navbar: React.FC = () => {
           <nav className="hidden lg:flex items-center space-x-7">
             <Link
               href="/shop"
-              className={`text-sm font-semibold tracking-wide transition-colors ${
-                pathname === '/shop' ? 'text-orange-600' : 'text-neutral-800 hover:text-orange-600'
+              className={`font-display uppercase tracking-wider text-base font-bold transition-all relative py-1 ${
+                pathname === '/shop'
+                  ? 'text-[#FF5500]'
+                  : 'text-neutral-300 hover:text-white'
               }`}
             >
               All Gear
+              {pathname === '/shop' && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#FF5500] shadow-orange-glow-sm" />
+              )}
             </Link>
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.name}
                 href={cat.href}
-                className="text-sm font-medium text-neutral-600 hover:text-orange-600 tracking-wide transition-colors"
+                className="font-display uppercase tracking-wider text-base font-bold text-neutral-400 hover:text-white hover:translate-y-[-1px] transition-all"
               >
                 {cat.name}
               </Link>
@@ -70,30 +80,30 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center space-x-3 sm:space-x-4">
             <Link
               href="/shop"
-              className="p-2 text-neutral-600 hover:text-orange-600 hover:bg-neutral-100 rounded-full transition-colors hidden sm:flex"
-              title="Search Catalog"
+              className="p-2.5 text-neutral-400 hover:text-white hover:bg-[#141418] rounded-xl border border-transparent hover:border-[#26262E] transition-all hidden sm:flex"
+              title="Search Gear"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4" />
             </Link>
 
             <Link
               href="/admin/dashboard"
-              className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 hover:border-neutral-400 transition-colors"
+              className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-[#26262E] bg-[#101014] text-xs font-bold uppercase tracking-wider text-neutral-300 hover:text-white hover:border-[#FF5500]/50 transition-colors"
               title="Admin Portal"
             >
-              <Shield className="w-3.5 h-3.5 text-neutral-500" />
+              <Shield className="w-3.5 h-3.5 text-[#FF5500]" />
               <span>Admin</span>
             </Link>
 
             {/* Cart Trigger Button */}
             <button
               onClick={() => setIsCartDrawerOpen(true)}
-              className="relative p-2.5 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-neutral-900 border border-neutral-200 transition-all active:scale-95"
+              className="relative p-2.5 rounded-xl bg-[#121217] hover:bg-[#181820] text-white border border-[#26262E] hover:border-[#FF5500]/60 transition-all active:scale-95 shadow-sm"
               aria-label="Open cart"
             >
-              <ShoppingCart className="w-5 h-5 text-neutral-900" />
+              <ShoppingCart className="w-5 h-5 text-white" />
               {totalItems > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-orange-600 text-white font-black text-[11px] min-w-[20px] h-5 rounded-full flex items-center justify-center px-1 shadow-sm animate-in zoom-in-50 duration-200">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#FF5500] text-black font-black text-[11px] min-w-[20px] h-5 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-in zoom-in-50 duration-200">
                   {totalItems}
                 </span>
               )}
@@ -104,35 +114,35 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-neutral-200 bg-white px-4 pt-3 pb-6 space-y-3 shadow-lg">
-          <div className="grid grid-cols-2 gap-2 pb-3 border-b border-neutral-100">
+        <div className="lg:hidden border-t border-[#1C1C22] bg-[#0A0A0E] px-4 pt-4 pb-6 space-y-4 shadow-2xl">
+          <div className="grid grid-cols-2 gap-2 pb-3 border-b border-[#1C1C22]">
             <Link
               href="/shop"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center p-3 rounded-lg bg-orange-50 text-orange-700 font-bold text-sm"
+              className="flex items-center justify-center p-3 rounded-xl bg-[#FF5500] text-black font-black uppercase tracking-wider text-xs shadow-orange-glow-sm"
             >
               All Equipment
             </Link>
             <Link
               href="/admin/dashboard"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center space-x-1.5 p-3 rounded-lg bg-neutral-100 text-neutral-800 font-semibold text-sm"
+              className="flex items-center justify-center space-x-1.5 p-3 rounded-xl bg-[#14141A] border border-[#272730] text-neutral-200 font-bold text-xs"
             >
-              <Shield className="w-4 h-4 text-neutral-500" />
+              <Shield className="w-4 h-4 text-[#FF5500]" />
               <span>Admin Portal</span>
             </Link>
           </div>
 
           <div className="space-y-1">
-            <span className="text-xs uppercase tracking-wider text-neutral-400 font-semibold px-2">
-              Gear Categories
+            <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-black px-2 block mb-2">
+              Gear Departments
             </span>
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.name}
                 href={cat.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-3 py-2 rounded-lg text-sm font-medium text-neutral-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                className="block px-3 py-2.5 rounded-lg font-display uppercase tracking-wider text-lg font-bold text-neutral-300 hover:bg-[#15151C] hover:text-[#FF5500] transition-colors"
               >
                 {cat.name}
               </Link>
