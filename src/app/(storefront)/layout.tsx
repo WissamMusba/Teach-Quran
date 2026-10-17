@@ -16,7 +16,7 @@ export default async function StorefrontLayout({
   const settings = await getSiteSettings();
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#050505] text-white selection:bg-[#FF5500] selection:text-black">
+    <div className="flex flex-col min-h-screen bg-white text-neutral-900 dark:bg-[#050505] dark:text-white selection:bg-[#FF5500] selection:text-white transition-colors duration-200">
       <AnnouncementBar text={settings.announcement_text} />
       <Navbar />
       <main className="flex-1 pb-20 md:pb-0 min-w-0">{children}</main>

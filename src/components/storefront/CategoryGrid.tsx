@@ -49,20 +49,20 @@ const CATEGORIES = [
 
 export const CategoryGrid: React.FC = () => {
   return (
-    <section className="py-20 bg-[#050505]">
+    <section className="py-20 bg-white dark:bg-[#050505] transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 border-b border-[#1C1C24] pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 border-b border-neutral-200 dark:border-[#1C1C24] pb-6">
           <div>
             <span className="text-xs font-black uppercase tracking-widest text-[#FF5500] block mb-1">
               Tournament Departments
             </span>
-            <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+            <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
               Shop by Category
             </h2>
           </div>
           <Link
             href="/shop"
-            className="mt-4 sm:mt-0 inline-flex items-center space-x-1.5 text-xs font-black uppercase tracking-wider text-neutral-300 hover:text-[#FF5500] transition-colors"
+            className="mt-4 sm:mt-0 inline-flex items-center space-x-1.5 text-xs font-black uppercase tracking-wider text-neutral-700 hover:text-[#FF5500] dark:text-neutral-300 dark:hover:text-[#FF5500] transition-colors"
           >
             <span>View All Equipment</span>
             <ArrowUpRight className="w-4 h-4 text-[#FF5500]" />

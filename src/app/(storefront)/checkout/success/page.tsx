@@ -30,20 +30,20 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
 
   if (!order) {
     return (
-      <div className="bg-[#050505] text-white min-h-screen py-16">
+      <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-16 transition-colors duration-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-10 shadow-2xl text-center space-y-5">
-            <div className="w-16 h-16 bg-amber-950/60 border border-amber-700/60 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+          <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-10 shadow-sm dark:shadow-2xl text-center space-y-5">
+            <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700/60 rounded-2xl flex items-center justify-center mx-auto text-amber-600 dark:text-amber-400">
               <ShieldAlert className="w-10 h-10" />
             </div>
             <div className="space-y-2">
               <span className="text-xs font-black uppercase tracking-widest text-[#FF5500]">
                 Order Lookup
               </span>
-              <h1 className="font-display uppercase text-3xl sm:text-4xl font-black text-white tracking-tight">
+              <h1 className="font-display uppercase text-3xl sm:text-4xl font-black text-black dark:text-white tracking-tight">
                 We Couldn&apos;t Verify This Order
               </h1>
-              <p className="text-sm text-neutral-400 max-w-md mx-auto">
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
                 This confirmation link is invalid, expired, or was copied incorrectly. If your
                 payment went through, don&apos;t worry — your order is still on file and our team
                 will reach out. Contact us with your order reference and we&apos;ll sort it out.
@@ -52,13 +52,13 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-black font-black uppercase tracking-wider text-xs transition-all shadow-orange-glow"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-white font-black uppercase tracking-wider text-xs transition-all shadow-orange-glow"
               >
                 Contact Support
               </Link>
               <Link
                 href="/shop"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#16161E] hover:bg-[#1E1E28] border border-[#2A2A38] text-white font-black uppercase tracking-wider text-xs transition-all"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 text-black dark:bg-[#16161E] dark:hover:bg-[#1E1E28] dark:border-[#2A2A38] dark:text-white font-black uppercase tracking-wider text-xs transition-all"
               >
                 Back to Shop
               </Link>
@@ -71,10 +71,10 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
 
   const paymentBadge =
     order.payment_status === 'paid'
-      ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-700/60'
+      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/60'
       : order.payment_method === 'cod'
-        ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
-        : 'bg-amber-950/60 text-amber-400 border border-amber-700/60';
+        ? 'bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/40'
+        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700/60';
 
   const paymentLabel =
     order.payment_status === 'paid'
@@ -84,37 +84,37 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
         : 'Payment Processing';
 
   return (
-    <div className="bg-[#050505] text-white min-h-screen py-16">
+    <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-16 transition-colors duration-200">
       <ClearCartOnMount />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Success Banner */}
-        <div className="bg-[#0E0E14] border border-[#22222A] rounded-3xl p-10 shadow-2xl text-center space-y-5">
-          <div className="w-16 h-16 bg-emerald-950/60 border border-emerald-700/60 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
+        <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-10 shadow-sm dark:shadow-2xl text-center space-y-5">
+          <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700/60 rounded-2xl flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="w-10 h-10" />
           </div>
 
           <div className="space-y-1">
             <span className="text-xs font-black uppercase tracking-widest text-[#FF5500]">
-              Order Confirmed & Received
+              Order Confirmed &amp; Received
             </span>
-            <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+            <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
               Thank You for Your Order!
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-400 max-w-md mx-auto">
+            <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
               We have received your cricket gear order. Our equipment team is preparing your
               package for courier dispatch.
             </p>
           </div>
 
-          <div className="inline-block bg-[#16161E] border border-[#2A2A38] text-white text-xs font-mono font-bold px-4 py-2 rounded-xl">
+          <div className="inline-block bg-neutral-100 dark:bg-[#16161E] border border-neutral-300 dark:border-[#2A2A38] text-black dark:text-white text-xs font-mono font-bold px-4 py-2 rounded-xl">
             Order Reference #{order.id}
           </div>
         </div>
 
         {/* Invoice Summary */}
-        <div className="mt-8 bg-[#0E0E14] border border-[#22222A] rounded-3xl p-7 sm:p-10 shadow-2xl space-y-8">
-          <div className="flex items-center justify-between flex-wrap gap-3 pb-5 border-b border-[#1C1C24]">
-            <h2 className="font-display uppercase text-2xl font-black text-white flex items-center space-x-2.5">
+        <div className="mt-8 bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-7 sm:p-10 shadow-sm dark:shadow-2xl space-y-8">
+          <div className="flex items-center justify-between flex-wrap gap-3 pb-5 border-b border-neutral-200 dark:border-[#1C1C24]">
+            <h2 className="font-display uppercase text-2xl font-black text-black dark:text-white flex items-center space-x-2.5">
               <PackageCheck className="w-6 h-6 text-[#FF5500]" />
               <span>Invoice &amp; Delivery Summary</span>
             </h2>
@@ -127,34 +127,34 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
           </div>
 
           {/* Customer & Shipping info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-neutral-300">
-            <div className="bg-[#121218] p-5 rounded-2xl border border-[#202028]">
-              <h3 className="font-black text-white uppercase tracking-wider mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-neutral-700 dark:text-neutral-300">
+            <div className="bg-neutral-50 dark:bg-[#121218] p-5 rounded-2xl border border-neutral-200 dark:border-[#202028]">
+              <h3 className="font-black text-black dark:text-white uppercase tracking-wider mb-2">
                 Customer Information
               </h3>
-              <p className="font-bold text-white text-sm">{order.customer_name}</p>
-              <p className="text-neutral-400">{order.customer_email}</p>
-              <p className="text-neutral-400 font-mono">{order.customer_phone}</p>
+              <p className="font-bold text-black dark:text-white text-sm">{order.customer_name}</p>
+              <p className="text-neutral-600 dark:text-neutral-400">{order.customer_email}</p>
+              <p className="text-neutral-600 dark:text-neutral-400 font-mono">{order.customer_phone}</p>
             </div>
 
-            <div className="bg-[#121218] p-5 rounded-2xl border border-[#202028]">
-              <h3 className="font-black text-white uppercase tracking-wider mb-2">
+            <div className="bg-neutral-50 dark:bg-[#121218] p-5 rounded-2xl border border-neutral-200 dark:border-[#202028]">
+              <h3 className="font-black text-black dark:text-white uppercase tracking-wider mb-2">
                 Shipping Destination
               </h3>
-              <p className="font-bold text-white text-sm">{order.shipping_address.street}</p>
-              <p className="text-neutral-400">
+              <p className="font-bold text-black dark:text-white text-sm">{order.shipping_address.street}</p>
+              <p className="text-neutral-600 dark:text-neutral-400">
                 {order.shipping_address.city}, {order.shipping_address.state}{' '}
                 {order.shipping_address.postal_code}
               </p>
-              <p className="text-neutral-400 font-semibold">{order.shipping_address.country}</p>
+              <p className="text-neutral-600 dark:text-neutral-400 font-semibold">{order.shipping_address.country}</p>
             </div>
           </div>
 
           {/* Line Items Table */}
           {order.items && order.items.length > 0 && (
-            <div className="border border-[#202028] rounded-2xl overflow-hidden bg-[#121218]">
+            <div className="border border-neutral-200 dark:border-[#202028] rounded-2xl overflow-hidden bg-white dark:bg-[#121218]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#161620] text-neutral-400 font-bold uppercase tracking-wider border-b border-[#202028]">
+                <thead className="bg-neutral-100 dark:bg-[#161620] text-neutral-700 dark:text-neutral-400 font-bold uppercase tracking-wider border-b border-neutral-200 dark:border-[#202028]">
                   <tr>
                     <th className="py-3 px-5">Item</th>
                     <th className="py-3 px-5 text-center">Qty</th>
@@ -162,26 +162,26 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
                     <th className="py-3 px-5 text-right">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#202028] text-neutral-300">
+                <tbody className="divide-y divide-neutral-200 dark:divide-[#202028] text-neutral-800 dark:text-neutral-300">
                   {order.items.map((it, idx) => (
                     <tr key={idx}>
                       <td className="py-3.5 px-5">
-                        <span className="font-bold text-white text-sm">{it.product_title}</span>
+                        <span className="font-bold text-black dark:text-white text-sm">{it.product_title}</span>
                         {it.selected_options && Object.keys(it.selected_options).length > 0 && (
-                          <span className="block text-[11px] text-neutral-400 mt-0.5">
+                          <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                             {Object.entries(it.selected_options)
                               .map(([k, v]) => `${k}: ${v}`)
                               .join(' | ')}
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-5 text-center font-bold text-white">
+                      <td className="py-3.5 px-5 text-center font-bold text-black dark:text-white">
                         {it.quantity}
                       </td>
-                      <td className="py-3.5 px-5 text-right font-mono text-xs">
+                      <td className="py-3.5 px-5 text-right font-mono text-xs text-neutral-700 dark:text-neutral-300">
                         AED {it.unit_price.toLocaleString()}
                       </td>
-                      <td className="py-3.5 px-5 text-right font-mono font-bold text-white">
+                      <td className="py-3.5 px-5 text-right font-mono font-bold text-black dark:text-white">
                         AED {(it.unit_price * it.quantity).toLocaleString()}
                       </td>
                     </tr>
@@ -192,23 +192,22 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
           )}
 
           {/* Total */}
-          <div className="border-t border-[#1C1C24] pt-5 flex justify-between items-baseline">
-            <span className="font-display uppercase text-lg font-black text-neutral-400">
+          <div className="border-t border-neutral-200 dark:border-[#1C1C24] pt-5 flex justify-between items-baseline">
+            <span className="font-display uppercase text-lg font-black text-neutral-600 dark:text-neutral-400">
               Total Billed
             </span>
             <div className="flex items-baseline space-x-1.5">
               <span className="text-sm font-black text-[#FF5500]">AED</span>
-              <span className="font-display text-4xl font-black text-white">
+              <span className="font-display text-4xl font-black text-black dark:text-white">
                 {order.total_amount.toLocaleString()}
               </span>
             </div>
           </div>
 
-          <div className="bg-[#121218] border border-[#202028] rounded-2xl p-4 flex items-center space-x-3 text-xs text-neutral-400">
+          <div className="bg-neutral-50 dark:bg-[#121218] border border-neutral-200 dark:border-[#202028] rounded-2xl p-4 flex items-center space-x-3 text-xs text-neutral-600 dark:text-neutral-400">
             <Truck className="w-5 h-5 text-[#FF5500] shrink-0" />
             <span>
-              Standard tracked courier dispatch. Tracking updates will be sent to your phone and
-              email.
+              Standard tracked courier dispatch across all UAE Emirates. Tracking updates will be sent to your phone and email.
             </span>
           </div>
         </div>
@@ -217,10 +216,10 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             href="/shop"
-            className="inline-flex items-center justify-center space-x-2 px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-black font-black uppercase tracking-wider text-xs transition-all shadow-orange-glow"
+            className="inline-flex items-center justify-center space-x-2 px-8 py-4 rounded-xl bg-[#FF5500] hover:bg-[#FF6600] text-white font-black uppercase tracking-wider text-xs transition-all shadow-orange-glow"
           >
             <span>Continue Shopping</span>
-            <ArrowRight className="w-4 h-4 text-black" />
+            <ArrowRight className="w-4 h-4 text-white" />
           </Link>
         </div>
       </div>

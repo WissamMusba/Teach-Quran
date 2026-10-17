@@ -22,36 +22,36 @@ export const LegalPage: React.FC<LegalPageProps> = ({
   children,
 }) => {
   return (
-    <div className="bg-[#050505] text-white min-h-screen py-12">
+    <div className="bg-neutral-50 dark:bg-[#050505] text-neutral-900 dark:text-white min-h-screen py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Link
             href="/"
-            className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-400 hover:text-[#FF5500] transition-colors"
+            className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-500 hover:text-[#FF5500] dark:text-neutral-400 dark:hover:text-[#FF5500] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Store</span>
           </Link>
         </div>
 
-        <header className="mb-10 pb-6 border-b border-[#1C1C24]">
+        <header className="mb-10 pb-6 border-b border-neutral-200 dark:border-[#1C1C24]">
           <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-[#FF5500] mb-2">
             <Scale className="w-4 h-4" />
             <span>{eyebrow}</span>
           </div>
-          <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+          <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-neutral-950 dark:text-white tracking-tight">
             {title}
           </h1>
-          {intro && <p className="mt-3 text-sm text-neutral-400">{intro}</p>}
-          <p className="mt-4 text-[11px] uppercase tracking-wider font-bold text-neutral-500">
+          {intro && <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">{intro}</p>}
+          <p className="mt-4 text-[11px] uppercase tracking-wider font-bold text-neutral-400 dark:text-neutral-500">
             Last updated: {lastUpdated}
           </p>
         </header>
 
         <div className="space-y-10">{children}</div>
 
-        <div className="mt-14 bg-[#0E0E14] border border-[#22222A] rounded-2xl p-6 text-xs text-neutral-400 space-y-2">
-          <p className="font-black uppercase tracking-wider text-white">
+        <div className="mt-14 bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-2xl p-6 text-xs text-neutral-600 dark:text-neutral-400 space-y-2 shadow-sm">
+          <p className="font-black uppercase tracking-wider text-neutral-950 dark:text-white">
             Questions about this policy?
           </p>
           <p>
@@ -73,10 +73,10 @@ export const LegalSection: React.FC<{ title: string; children: React.ReactNode }
 }) => {
   return (
     <section className="space-y-3">
-      <h2 className="font-display uppercase text-xl font-black text-white tracking-tight border-b border-[#1C1C24] pb-2">
+      <h2 className="font-display uppercase text-xl font-black text-neutral-950 dark:text-white tracking-tight border-b border-neutral-200 dark:border-[#1C1C24] pb-2">
         {title}
       </h2>
-      <div className="space-y-3 text-sm text-neutral-300 leading-relaxed">{children}</div>
+      <div className="space-y-3 text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">{children}</div>
     </section>
   );
 };

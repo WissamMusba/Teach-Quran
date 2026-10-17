@@ -17,7 +17,7 @@ export const MobileBottomBar: React.FC = () => {
   return (
     <nav
       aria-label="Mobile Navigation"
-      className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-[#07070A]/95 backdrop-blur-xl border-t border-[#1C1C24] px-2 py-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.8)]"
+      className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white/95 text-neutral-800 dark:bg-[#07070A]/95 dark:text-neutral-400 backdrop-blur-xl border-t border-neutral-200 dark:border-[#1C1C24] px-2 py-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_24px_rgba(0,0,0,0.8)] transition-colors duration-200"
       style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}
     >
       <div className="grid grid-cols-5 items-center max-w-md mx-auto">
@@ -25,7 +25,7 @@ export const MobileBottomBar: React.FC = () => {
         <Link
           href="/"
           className={`flex flex-col items-center justify-center py-1 px-1 transition-colors ${
-            isHome ? 'text-[#FF5500]' : 'text-neutral-400 hover:text-white'
+            isHome ? 'text-[#FF5500]' : 'text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white'
           }`}
         >
           <Home className={`w-5 h-5 ${isHome ? 'stroke-[2.5]' : 'stroke-2'}`} />
@@ -36,7 +36,7 @@ export const MobileBottomBar: React.FC = () => {
         <Link
           href="/shop"
           className={`flex flex-col items-center justify-center py-1 px-1 transition-colors ${
-            isShop ? 'text-[#FF5500]' : 'text-neutral-400 hover:text-white'
+            isShop ? 'text-[#FF5500]' : 'text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white'
           }`}
         >
           <Compass className={`w-5 h-5 ${isShop ? 'stroke-[2.5]' : 'stroke-2'}`} />
@@ -46,7 +46,7 @@ export const MobileBottomBar: React.FC = () => {
         {/* Search */}
         <Link
           href="/shop"
-          className="flex flex-col items-center justify-center py-1 px-1 text-neutral-400 hover:text-white transition-colors"
+          className="flex flex-col items-center justify-center py-1 px-1 text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition-colors"
         >
           <Search className="w-5 h-5 stroke-2" />
           <span className="text-[10px] font-bold tracking-tight uppercase mt-0.5">Search</span>
@@ -56,13 +56,13 @@ export const MobileBottomBar: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsCartDrawerOpen(true)}
-          className="relative flex flex-col items-center justify-center py-1 px-1 text-neutral-400 hover:text-[#FF5500] transition-colors focus:outline-none"
+          className="relative flex flex-col items-center justify-center py-1 px-1 text-neutral-600 hover:text-[#FF5500] dark:text-neutral-400 dark:hover:text-[#FF5500] transition-colors focus:outline-none"
           aria-label="Open Cart"
         >
           <div className="relative">
             <ShoppingBag className="w-5 h-5 stroke-2" />
             {totalItems > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-[#FF5500] text-black font-black text-[9px] min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-in zoom-in-50">
+              <span className="absolute -top-1.5 -right-2 bg-[#FF5500] text-white font-black text-[9px] min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-in zoom-in-50">
                 {totalItems}
               </span>
             )}
@@ -74,7 +74,7 @@ export const MobileBottomBar: React.FC = () => {
         <Link
           href="/contact"
           className={`flex flex-col items-center justify-center py-1 px-1 transition-colors ${
-            isContact ? 'text-[#FF5500]' : 'text-neutral-400 hover:text-white'
+            isContact ? 'text-[#FF5500]' : 'text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white'
           }`}
         >
           <Headphones className={`w-5 h-5 ${isContact ? 'stroke-[2.5]' : 'stroke-2'}`} />

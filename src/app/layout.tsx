@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { CartProvider } from '@/context/CartContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { getSiteUrl } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -32,9 +33,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark bg-[#050505]">
-      <body className="min-h-screen bg-[#050505] text-white selection:bg-[#FF5500] selection:text-white antialiased font-sans">
-        <CartProvider>{children}</CartProvider>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('sdca_theme');if(t==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}else{document.documentElement.classList.add('dark');document.documentElement.classList.remove('light');}}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-screen bg-white text-neutral-900 dark:bg-[#050505] dark:text-white selection:bg-[#FF5500] selection:text-white antialiased font-sans transition-colors duration-200">
+        <ThemeProvider>
+          <CartProvider>{children}</CartProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

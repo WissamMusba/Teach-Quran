@@ -61,7 +61,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     .slice(0, 4);
 
   return (
-    <div className="bg-[#050505] text-white min-h-screen py-12">
+    <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Navigation & Breadcrumbs */}
         <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-neutral-500 mb-8">
@@ -76,14 +76,14 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             {product.category}
           </Link>
           <span>/</span>
-          <span className="text-white font-black truncate max-w-xs">{product.title}</span>
+          <span className="text-black dark:text-white font-black truncate max-w-xs">{product.title}</span>
         </div>
 
         {/* Back Link */}
         <div className="mb-8">
           <Link
             href="/shop"
-            className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-400 hover:text-[#FF5500] transition-colors"
+            className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-600 hover:text-[#FF5500] dark:text-neutral-400 dark:hover:text-[#FF5500] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Equipment Catalog</span>
@@ -95,19 +95,19 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
         {/* Related Category Equipment */}
         {relatedProducts.length > 0 && (
-          <div className="mt-28 pt-16 border-t border-[#1C1C24]">
+          <div className="mt-28 pt-16 border-t border-neutral-200 dark:border-[#1C1C24]">
             <div className="flex items-end justify-between mb-10">
               <div>
                 <span className="text-xs uppercase tracking-widest font-black text-[#FF5500] block mb-1">
                   Complementary Match Gear
                 </span>
-                <h2 className="font-display uppercase text-3xl sm:text-4xl font-black text-white tracking-tight">
+                <h2 className="font-display uppercase text-3xl sm:text-4xl font-black text-black dark:text-white tracking-tight">
                   More in {product.category}
                 </h2>
               </div>
               <Link
                 href={`/shop?category=${product.category}`}
-                className="text-xs font-black uppercase tracking-wider text-neutral-300 hover:text-[#FF5500] transition-colors"
+                className="text-xs font-black uppercase tracking-wider text-neutral-700 hover:text-[#FF5500] dark:text-neutral-300 dark:hover:text-[#FF5500] transition-colors"
               >
                 View Category
               </Link>

@@ -52,29 +52,29 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     : allProducts;
 
   return (
-    <div className="bg-[#050505] text-white min-h-screen py-12">
+    <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Page Title & Breadcrumb */}
-        <div className="mb-10 pb-6 border-b border-[#1C1C24]">
+        <div className="mb-10 pb-6 border-b border-neutral-200 dark:border-[#1C1C24]">
           <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">
             <Link href="/" className="hover:text-[#FF5500] transition-colors">
               Home
             </Link>
             <span>/</span>
-            <span className="text-white font-black">Equipment Catalog</span>
+            <span className="text-black dark:text-white font-black">Equipment Catalog</span>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+              <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
                 Cricket Equipment Catalog
               </h1>
-              <p className="text-xs sm:text-sm text-neutral-400 mt-1 max-w-xl">
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 mt-1 max-w-xl">
                 International match-standard bats, four-piece leather balls, and high-impact armor. Non-discount, authentic transparent pricing.
               </p>
             </div>
 
-            <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-[#121218] border border-[#262630] text-xs font-black uppercase tracking-wider text-white shadow-sm self-start sm:self-auto">
+            <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-white dark:bg-[#121218] border border-neutral-200 dark:border-[#262630] text-xs font-black uppercase tracking-wider text-black dark:text-white shadow-sm self-start sm:self-auto">
               <Sparkles className="w-4 h-4 text-[#FF5500]" />
               <span>{filteredProducts.length} Items Available</span>
             </div>
@@ -87,7 +87,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <aside className="lg:col-span-1">
             <Suspense
               fallback={
-                <div className="bg-[#0E0E14] border border-[#22222A] p-6 rounded-2xl h-80 animate-pulse" />
+                <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] p-6 rounded-2xl h-80 animate-pulse shadow-sm" />
               }
             >
               <ShopFilter availableBrands={availableBrands} />
@@ -97,21 +97,21 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           {/* Product Grid */}
           <section className="lg:col-span-3">
             {filteredProducts.length === 0 ? (
-              <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-16 text-center space-y-5">
-                <div className="w-16 h-16 rounded-full bg-[#16161E] border border-[#262630] flex items-center justify-center mx-auto text-[#FF5500]">
+              <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-2xl p-16 text-center space-y-5 shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-[#16161E] border border-neutral-200 dark:border-[#262630] flex items-center justify-center mx-auto text-[#FF5500]">
                   <PackageOpen className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="font-display uppercase text-2xl font-black text-white">
+                  <h3 className="font-display uppercase text-2xl font-black text-black dark:text-white">
                     No matching equipment found
                   </h3>
-                  <p className="text-xs sm:text-sm text-neutral-400 mt-1 max-w-md mx-auto">
+                  <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 mt-1 max-w-md mx-auto">
                     Try adjusting your filters or search keywords to find the right bats, balls, or protective pads.
                   </p>
                 </div>
                 <Link
                   href="/shop"
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-[#FF5500] text-black font-black uppercase tracking-wider text-xs hover:bg-[#FF6600] transition-colors shadow-orange-glow-sm"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-[#FF5500] text-white font-black uppercase tracking-wider text-xs hover:bg-[#FF6600] transition-colors shadow-orange-glow-sm"
                 >
                   Clear All Filters
                 </Link>

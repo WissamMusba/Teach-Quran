@@ -39,15 +39,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   };
 
   return (
-    <div className="group relative bg-[#0E0E13] border border-[#22222A] rounded-2xl overflow-hidden hover:border-[#FF5500]/70 hover:shadow-orange-glow transition-all duration-300 flex flex-col justify-between">
+    <div className="group relative bg-white dark:bg-[#0E0E13] border border-neutral-200 dark:border-[#22222A] rounded-2xl overflow-hidden hover:border-[#FF5500] dark:hover:border-[#FF5500]/70 hover:shadow-xl dark:hover:shadow-orange-glow transition-all duration-300 flex flex-col justify-between shadow-sm">
       <div>
-        {/* Thumbnail Container with Dark Stage Surface */}
+        {/* Thumbnail Container */}
         <Link
           href={`/product/${product.slug}`}
-          className="block relative aspect-square bg-[#14141A] overflow-hidden p-6"
+          className="block relative aspect-square bg-neutral-100/70 dark:bg-[#14141A] overflow-hidden p-6"
         >
           {/* Subtle Ambient Rim Light */}
-          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/40 pointer-events-none" />
+          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/5 dark:to-black/40 pointer-events-none" />
 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -56,9 +56,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             className="w-full h-full object-contain group-hover:scale-108 transition-transform duration-500"
           />
 
-          {/* Brand Badge */}
+          {/* Brand Badge in Athletic Black & Orange */}
           <div className="absolute top-3 left-3">
-            <span className="inline-flex items-center space-x-1 bg-[#08080C]/90 backdrop-blur-md border border-[#2E2E38] text-white text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-md">
+            <span className="inline-flex items-center space-x-1.5 bg-black/90 backdrop-blur-md border border-black text-white text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-md">
               <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500]" />
               <span>{product.brand}</span>
             </span>
@@ -67,7 +67,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           {/* Low Stock Warning */}
           {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
             <div className="absolute top-3 right-3">
-              <span className="inline-block bg-[#FF5500]/20 border border-[#FF5500]/50 text-[#FF5500] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded">
+              <span className="inline-block bg-[#FF5500]/20 border border-[#FF5500]/60 text-[#FF5500] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded shadow-sm">
                 Only {product.stock_quantity} left
               </span>
             </div>
@@ -82,7 +82,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
 
           <Link href={`/product/${product.slug}`}>
-            <h3 className="font-display uppercase tracking-wide text-lg sm:text-xl font-bold text-white group-hover:text-[#FF5500] transition-colors line-clamp-2 leading-tight">
+            <h3 className="font-display uppercase tracking-wide text-lg sm:text-xl font-bold text-black dark:text-white group-hover:text-[#FF5500] transition-colors line-clamp-2 leading-tight">
               {product.title}
             </h3>
           </Link>
@@ -90,14 +90,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       </div>
 
       {/* Pricing & Actions */}
-      <div className="p-5 pt-0 border-t border-[#1C1C24] mt-2 flex items-center justify-between">
+      <div className="p-5 pt-0 border-t border-neutral-200 dark:border-[#1C1C24] mt-2 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 block">
             Standard Match Price
           </span>
           <div className="flex items-baseline space-x-1">
             <span className="text-xs font-black text-[#FF5500]">AED</span>
-            <span className="text-2xl font-black text-white font-display tracking-tight">
+            <span className="text-2xl font-black text-black dark:text-white font-display tracking-tight">
               {product.price.toLocaleString()}
             </span>
           </div>
@@ -107,24 +107,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           hasOptions ? (
             <Link
               href={`/product/${product.slug}`}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
               aria-label={`Choose options for ${product.title}`}
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-black" aria-hidden="true" />
+              <ShoppingBag className="w-3.5 h-3.5 text-white" aria-hidden="true" />
               <span>Choose Options</span>
             </Link>
           ) : (
             <button
               onClick={handleQuickAdd}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
               aria-label={`Add ${product.title} to cart`}
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-black" aria-hidden="true" />
+              <ShoppingBag className="w-3.5 h-3.5 text-white" aria-hidden="true" />
               <span>Add</span>
             </button>
           )
         ) : (
-          <span className="text-xs font-black uppercase tracking-wider text-neutral-500 bg-[#16161E] border border-[#252530] px-3 py-2 rounded-xl">
+          <span className="text-xs font-black uppercase tracking-wider text-neutral-500 bg-neutral-100 dark:bg-[#16161E] border border-neutral-300 dark:border-[#252530] px-3 py-2 rounded-xl">
             Sold Out
           </span>
         )}

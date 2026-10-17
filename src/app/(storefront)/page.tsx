@@ -15,29 +15,29 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="bg-[#050505] text-white">
+    <div className="bg-white text-neutral-900 dark:bg-[#050505] dark:text-white transition-colors duration-200">
       {/* Hero Banner with Dynamic Settings */}
       <HeroBanner settings={settings} />
 
       {/* Featured Match Gear Showcase */}
-      <section className="py-20 sm:py-24 bg-[#08080C] border-b border-[#1C1C24] relative overflow-hidden">
+      <section className="py-20 sm:py-24 bg-neutral-50 dark:bg-[#08080C] border-b border-neutral-200 dark:border-[#1C1C24] relative overflow-hidden transition-colors duration-200">
         {/* Glow Spot */}
         <div className="absolute top-1/2 right-0 w-96 h-96 bg-[#FF5500]/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 border-b border-[#1C1C24] pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12 border-b border-neutral-200 dark:border-[#1C1C24] pb-6">
             <div>
               <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-[#FF5500] mb-2">
                 <Flame className="w-4 h-4 text-[#FF5500] fill-[#FF5500]" />
                 <span>Selected by Elite Stroke Makers</span>
               </div>
-              <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+              <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
                 Featured Match Gear
               </h2>
             </div>
             <Link
               href="/shop"
-              className="mt-4 sm:mt-0 inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-300 hover:text-[#FF5500] transition-colors"
+              className="mt-4 sm:mt-0 inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-700 hover:text-[#FF5500] dark:text-neutral-300 dark:hover:text-[#FF5500] transition-colors"
             >
               <span>Browse the Full Collection</span>
               <ArrowRight className="w-4 h-4 text-[#FF5500]" />
@@ -56,16 +56,16 @@ export default async function HomePage() {
       <CategoryGrid />
 
       {/* Authorized Brand Partnerships */}
-      <section className="py-20 bg-[#060608] border-t border-[#1C1C24]">
+      <section className="py-20 bg-white dark:bg-[#060608] border-t border-neutral-200 dark:border-[#1C1C24] transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
             <span className="text-xs font-black uppercase tracking-widest text-[#FF5500]">
               Official Manufacturing Lineup
             </span>
-            <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-white tracking-tight">
+            <h2 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
               Authorized Cricket Partnerships
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-400">
+            <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
               Direct factory allocation ensures unadulterated willow grades, official test weights, and certified player balance.
             </p>
           </div>
@@ -75,13 +75,13 @@ export default async function HomePage() {
               <Link
                 key={brand}
                 href={`/shop?brand=${encodeURIComponent(brand)}`}
-                className="p-8 rounded-2xl border border-[#22222A] bg-[#0E0E14] hover:border-[#FF5500]/70 hover:shadow-orange-glow transition-all duration-300 flex flex-col items-center justify-center text-center group"
+                className="p-8 rounded-2xl border border-neutral-200 bg-neutral-50 hover:bg-white hover:border-[#FF5500] hover:shadow-lg dark:border-[#22222A] dark:bg-[#0E0E14] dark:hover:border-[#FF5500]/70 dark:hover:shadow-orange-glow transition-all duration-300 flex flex-col items-center justify-center text-center group shadow-sm"
               >
-                <span className="font-display uppercase text-2xl font-black tracking-wider text-white group-hover:text-[#FF5500] transition-colors">
+                <span className="font-display uppercase text-2xl font-black tracking-wider text-black dark:text-white group-hover:text-[#FF5500] transition-colors">
                   {brand}
                 </span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mt-2 flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mt-2 flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Authorized</span>
                 </span>
               </Link>

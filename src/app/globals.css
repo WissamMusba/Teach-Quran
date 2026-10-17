@@ -5,15 +5,20 @@
 @tailwind utilities;
 
 :root {
-  --background: #050505;
-  --foreground: #ffffff;
+  --background: #ffffff;
+  --foreground: #0a0a0e;
   --font-display: 'Barlow Condensed', -apple-system, sans-serif;
   --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
 }
 
+.dark {
+  --background: #050505;
+  --foreground: #ffffff;
+}
+
 body {
-  color: #ffffff;
-  background-color: #050505;
+  color: var(--foreground);
+  background-color: var(--background);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -30,11 +35,17 @@ h1, h2, h3, h4, .font-display {
   height: 7px;
 }
 ::-webkit-scrollbar-track {
+  background: #f1f3f5;
+}
+.dark ::-webkit-scrollbar-track {
   background: #09090b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272e;
+  background: #cbd5e1;
   border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #27272e;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #ff5500;
