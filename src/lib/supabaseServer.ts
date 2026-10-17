@@ -3,15 +3,32 @@ import { Product, SiteSettings, Order, OrderItem, OrderStatus, PaymentStatus } f
 import { INITIAL_PRODUCTS, INITIAL_SITE_SETTINGS, INITIAL_ORDERS } from './mockData';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Deliberately NO fallback to the anon key: a privileged client must never
+// silently downgrade to a low-privilege key.
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const isSupabaseServerConfigured = Boolean(
   supabaseUrl &&
-  serviceRoleKey &&
-  !supabaseUrl.includes('placeholder-project') &&
-  !serviceRoleKey.includes('placeholder') &&
-  supabaseUrl.startsWith('http')
+    serviceRoleKey &&
+    !supabaseUrl.includes('placeholder-project') &&
+    !serviceRoleKey.includes('placeholder') &&
+    supabaseUrl.startsWith('http')
 );
+
+/**
+ * Demo mode keeps the local in-memory store available (dev previews, or an
+ * explicit DEMO_MODE=true). In production without a database the app FAILS
+ * CLOSED: no fake orders, no fake success, no mock catalog customers could buy.
+ */
+export const isDemoMode =
+  process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true';
+
+if (!isSupabaseServerConfigured && process.env.NODE_ENV === 'production' && !isDemoMode) {
+  console.error(
+    '[supabaseServer] FATAL CONFIG: Supabase is not configured and DEMO_MODE is off. ' +
+      'All database operations will fail closed. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.'
+  );
+}
 
 export function getSupabaseAdminClient() {
   if (!isSupabaseServerConfigured) {
@@ -28,11 +45,13 @@ export function getSupabaseAdminClient() {
 // Fallback in-memory store for development/preview when Supabase is not connected
 declare global {
   // eslint-disable-next-line no-var
-  var __memoryStore: {
-    products: Product[];
-    settings: SiteSettings;
-    orders: Order[];
-  } | undefined;
+  var __memoryStore:
+    | {
+        products: Product[];
+        settings: SiteSettings;
+        orders: Order[];
+      }
+    | undefined;
 }
 
 if (!global.__memoryStore) {
@@ -45,7 +64,10 @@ if (!global.__memoryStore) {
 
 const memoryStore = global.__memoryStore!;
 
+// ---------------------------------------------------------------------------
 // PRODUCTS
+// ---------------------------------------------------------------------------
+
 export async function getProducts(options?: {
   category?: string;
   brand?: string;
@@ -67,10 +89,10 @@ export async function getProducts(options?: {
         query = query.eq('is_featured', options.isFeatured);
       }
       if (options?.category && options.category !== 'all') {
-        query = query.eq('category', options.category);
+        query = query.ilike('category', options.category);
       }
       if (options?.brand && options.brand !== 'all') {
-        query = query.eq('brand', options.brand);
+        query = query.ilike('brand', options.brand);
       }
 
       if (options?.sort === 'price_asc') {
@@ -89,13 +111,25 @@ export async function getProducts(options?: {
       if (!error && data) {
         return data as Product[];
       }
-      console.warn('Supabase query error, falling back to memory store:', error?.message);
+      console.error('Supabase getProducts error:', error?.message);
+      return isDemoMode ? fallbackProducts(options) : [];
     } catch (err) {
-      console.warn('Supabase connection error:', err);
+      console.error('Supabase connection error:', err);
+      return isDemoMode ? fallbackProducts(options) : [];
     }
   }
 
-  // Fallback to in-memory store
+  return isDemoMode ? fallbackProducts(options) : [];
+}
+
+function fallbackProducts(options?: {
+  category?: string;
+  brand?: string;
+  isFeatured?: boolean;
+  isActive?: boolean;
+  sort?: string;
+  limit?: number;
+}): Product[] {
   let items = [...memoryStore.products];
 
   if (options?.isActive !== undefined) {
@@ -126,6 +160,7 @@ export async function getProducts(options?: {
   return items;
 }
 
+/** Storefront lookup by slug — only active products are returned. */
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = getSupabaseAdminClient();
 
@@ -135,16 +170,23 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         .from('products')
         .select('*')
         .eq('slug', slug)
-        .single();
+        .eq('is_active', true)
+        .maybeSingle();
       if (!error && data) {
         return data as Product;
       }
+      return null;
     } catch (err) {
-      console.warn('Supabase getProductBySlug error:', err);
+      console.error('Supabase getProductBySlug error:', err);
+      return isDemoMode ? fallbackProductBySlug(slug) : null;
     }
   }
 
-  const found = memoryStore.products.find((p) => p.slug === slug);
+  return isDemoMode ? fallbackProductBySlug(slug) : null;
+}
+
+function fallbackProductBySlug(slug: string): Product | null {
+  const found = memoryStore.products.find((p) => p.slug === slug && p.is_active);
   return found || null;
 }
 
@@ -157,20 +199,25 @@ export async function getProductById(id: string): Promise<Product | null> {
         .from('products')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (!error && data) {
         return data as Product;
       }
+      return null;
     } catch (err) {
-      console.warn('Supabase getProductById error:', err);
+      console.error('Supabase getProductById error:', err);
+      return null;
     }
   }
 
+  if (!isDemoMode) return null;
   const found = memoryStore.products.find((p) => p.id === id);
   return found || null;
 }
 
-export async function createProduct(product: Omit<Product, 'id' | 'created_at'>): Promise<Product> {
+export async function createProduct(
+  product: Omit<Product, 'id' | 'created_at'>
+): Promise<Product | null> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -181,15 +228,18 @@ export async function createProduct(product: Omit<Product, 'id' | 'created_at'>)
         .select()
         .single();
       if (!error && data) {
-        // Also update memory store
         memoryStore.products.unshift(data as Product);
         return data as Product;
       }
-      console.error('Supabase createProduct error:', error);
+      console.error('Supabase createProduct error:', error?.message || error);
+      return null;
     } catch (err) {
       console.error('Supabase createProduct exception:', err);
+      return null;
     }
   }
+
+  if (!isDemoMode) return null;
 
   const newProduct: Product = {
     ...product,
@@ -200,7 +250,10 @@ export async function createProduct(product: Omit<Product, 'id' | 'created_at'>)
   return newProduct;
 }
 
-export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
+export async function updateProduct(
+  id: string,
+  updates: Partial<Product>
+): Promise<Product | null> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -210,18 +263,21 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
         .update(updates)
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
       if (!error && data) {
         const idx = memoryStore.products.findIndex((p) => p.id === id);
         if (idx !== -1) memoryStore.products[idx] = data as Product;
         return data as Product;
       }
-      console.error('Supabase updateProduct error:', error);
+      console.error('Supabase updateProduct error:', error?.message || error);
+      return null;
     } catch (err) {
       console.error('Supabase updateProduct exception:', err);
+      return null;
     }
   }
 
+  if (!isDemoMode) return null;
   const idx = memoryStore.products.findIndex((p) => p.id === id);
   if (idx === -1) return null;
   memoryStore.products[idx] = { ...memoryStore.products[idx], ...updates };
@@ -233,21 +289,32 @@ export async function deleteProduct(id: string): Promise<boolean> {
 
   if (supabase) {
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (!error) {
-        memoryStore.products = memoryStore.products.filter((p) => p.id !== id);
-        return true;
+      const { data, error } = await supabase.from('products').delete().eq('id', id).select('id');
+      if (error) {
+        console.error('Supabase deleteProduct error:', error.message);
+        return false;
       }
+      if (!data || data.length === 0) {
+        return false; // nothing deleted — unknown id
+      }
+      memoryStore.products = memoryStore.products.filter((p) => p.id !== id);
+      return true;
     } catch (err) {
-      console.error('Supabase deleteProduct error:', err);
+      console.error('Supabase deleteProduct exception:', err);
+      return false;
     }
   }
 
+  if (!isDemoMode) return false;
+  const before = memoryStore.products.length;
   memoryStore.products = memoryStore.products.filter((p) => p.id !== id);
-  return true;
+  return memoryStore.products.length < before;
 }
 
+// ---------------------------------------------------------------------------
 // SITE SETTINGS
+// ---------------------------------------------------------------------------
+
 export async function getSiteSettings(): Promise<SiteSettings> {
   const supabase = getSupabaseAdminClient();
 
@@ -257,19 +324,22 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         .from('site_settings')
         .select('*')
         .eq('id', 1)
-        .single();
+        .maybeSingle();
       if (!error && data) {
         return data as SiteSettings;
       }
+      if (error) console.error('Supabase getSiteSettings error:', error.message);
     } catch (err) {
-      console.warn('Supabase getSiteSettings error:', err);
+      console.error('Supabase getSiteSettings exception:', err);
     }
   }
 
   return memoryStore.settings;
 }
 
-export async function updateSiteSettings(settings: Partial<SiteSettings>): Promise<SiteSettings> {
+export async function updateSiteSettings(
+  settings: Partial<SiteSettings>
+): Promise<SiteSettings | null> {
   const supabase = getSupabaseAdminClient();
 
   const payload = {
@@ -284,27 +354,37 @@ export async function updateSiteSettings(settings: Partial<SiteSettings>): Promi
         .update(payload)
         .eq('id', 1)
         .select()
-        .single();
+        .maybeSingle();
       if (!error && data) {
         memoryStore.settings = data as SiteSettings;
         return data as SiteSettings;
       }
+      console.error('Supabase updateSiteSettings error:', error?.message || error);
+      return null;
     } catch (err) {
-      console.error('Supabase updateSiteSettings error:', err);
+      console.error('Supabase updateSiteSettings exception:', err);
+      return null;
     }
   }
 
+  if (!isDemoMode) return null;
   memoryStore.settings = { ...memoryStore.settings, ...payload };
   return memoryStore.settings;
 }
 
+// ---------------------------------------------------------------------------
 // ORDERS
+// ---------------------------------------------------------------------------
+
 export async function getOrders(options?: { status?: OrderStatus }): Promise<Order[]> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
     try {
-      let query = supabase.from('orders').select('*, items:order_items(*)').order('created_at', { ascending: false });
+      let query = supabase
+        .from('orders')
+        .select('*, items:order_items(*)')
+        .order('created_at', { ascending: false });
       if (options?.status) {
         query = query.eq('order_status', options.status);
       }
@@ -312,15 +392,23 @@ export async function getOrders(options?: { status?: OrderStatus }): Promise<Ord
       if (!error && data) {
         return data as Order[];
       }
+      console.error('Supabase getOrders error:', error?.message);
+      return isDemoMode ? fallbackOrders(options) : [];
     } catch (err) {
-      console.warn('Supabase getOrders error:', err);
+      console.error('Supabase getOrders exception:', err);
+      return isDemoMode ? fallbackOrders(options) : [];
     }
   }
 
+  return isDemoMode ? fallbackOrders(options) : [];
+}
+
+function fallbackOrders(options?: { status?: OrderStatus }): Order[] {
   let orders = [...memoryStore.orders];
   if (options?.status) {
     orders = orders.filter((o) => o.order_status === options.status);
   }
+  orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   return orders;
 }
 
@@ -333,15 +421,18 @@ export async function getOrderById(id: string): Promise<Order | null> {
         .from('orders')
         .select('*, items:order_items(*)')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (!error && data) {
         return data as Order;
       }
+      return null;
     } catch (err) {
-      console.warn('Supabase getOrderById error:', err);
+      console.error('Supabase getOrderById error:', err);
+      return null;
     }
   }
 
+  if (!isDemoMode) return null;
   const found = memoryStore.orders.find((o) => o.id === id);
   return found || null;
 }
@@ -349,7 +440,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
 export async function createOrder(
   order: Omit<Order, 'id' | 'created_at' | 'items'>,
   items: OrderItem[]
-): Promise<Order> {
+): Promise<Order | null> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -360,38 +451,77 @@ export async function createOrder(
         .select()
         .single();
 
-      if (!orderError && orderData) {
-        const orderId = orderData.id;
-        const itemsToInsert = items.map((item) => ({
-          order_id: orderId,
-          product_id: item.product_id,
-          product_title: item.product_title,
-          unit_price: item.unit_price,
-          quantity: item.quantity,
-          selected_options: item.selected_options || {},
-        }));
-
-        await supabase.from('order_items').insert(itemsToInsert);
-
-        const fullOrder = { ...orderData, items: itemsToInsert } as Order;
-        memoryStore.orders.unshift(fullOrder);
-        return fullOrder;
+      if (orderError || !orderData) {
+        console.error('Supabase createOrder error:', orderError?.message || orderError);
+        return null;
       }
+
+      const orderId = orderData.id;
+      const itemsToInsert = items.map((item) => ({
+        order_id: orderId,
+        product_id: item.product_id,
+        product_title: item.product_title,
+        unit_price: item.unit_price,
+        quantity: item.quantity,
+        selected_options: item.selected_options || {},
+      }));
+
+      const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+      if (itemsError) {
+        console.error('Supabase createOrder order_items error:', itemsError.message);
+        // Roll back the half-written order instead of leaving a header-less order.
+        await supabase.from('orders').delete().eq('id', orderId);
+        return null;
+      }
+
+      const fullOrder = { ...orderData, items: itemsToInsert } as Order;
+      memoryStore.orders.unshift(fullOrder);
+      return fullOrder;
     } catch (err) {
-      console.error('Supabase createOrder error:', err);
+      console.error('Supabase createOrder exception:', err);
+      return null;
     }
   }
+
+  if (!isDemoMode) return null;
 
   const orderId = `ord-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
   const fullOrder: Order = {
     ...order,
     id: orderId,
     created_at: new Date().toISOString(),
-    items: items.map((i) => ({ ...i, id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`, order_id: orderId })),
+    items: items.map((i) => ({
+      ...i,
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      order_id: orderId,
+    })),
   };
 
   memoryStore.orders.unshift(fullOrder);
   return fullOrder;
+}
+
+export async function deleteOrder(id: string): Promise<boolean> {
+  const supabase = getSupabaseAdminClient();
+
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('orders').delete().eq('id', id);
+      if (error) {
+        console.error('Supabase deleteOrder error:', error.message);
+        return false;
+      }
+      memoryStore.orders = memoryStore.orders.filter((o) => o.id !== id);
+      return true;
+    } catch (err) {
+      console.error('Supabase deleteOrder exception:', err);
+      return false;
+    }
+  }
+
+  if (!isDemoMode) return false;
+  memoryStore.orders = memoryStore.orders.filter((o) => o.id !== id);
+  return true;
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<boolean> {
@@ -399,20 +529,27 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
 
   if (supabase) {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .update({ order_status: status })
-        .eq('id', id);
-      if (!error) {
-        const order = memoryStore.orders.find((o) => o.id === id);
-        if (order) order.order_status = status;
-        return true;
+        .eq('id', id)
+        .select('id');
+      if (error) {
+        console.error('Supabase updateOrderStatus error:', error.message);
+        return false;
       }
+      if (!data || data.length === 0) return false;
+
+      const order = memoryStore.orders.find((o) => o.id === id);
+      if (order) order.order_status = status;
+      return true;
     } catch (err) {
-      console.error('Supabase updateOrderStatus error:', err);
+      console.error('Supabase updateOrderStatus exception:', err);
+      return false;
     }
   }
 
+  if (!isDemoMode) return false;
   const order = memoryStore.orders.find((o) => o.id === id);
   if (order) {
     order.order_status = status;
@@ -428,25 +565,35 @@ export async function updateOrderPaymentStatus(
 ): Promise<boolean> {
   const supabase = getSupabaseAdminClient();
 
-  const updates: Record<string, any> = { payment_status: paymentStatus };
+  const updates: Record<string, string> = { payment_status: paymentStatus };
   if (stripeSessionId) updates.stripe_session_id = stripeSessionId;
 
   if (supabase) {
     try {
-      const { error } = await supabase.from('orders').update(updates).eq('id', id);
-      if (!error) {
-        const order = memoryStore.orders.find((o) => o.id === id);
-        if (order) {
-          order.payment_status = paymentStatus;
-          if (stripeSessionId) order.stripe_session_id = stripeSessionId;
-        }
-        return true;
+      const { data, error } = await supabase
+        .from('orders')
+        .update(updates)
+        .eq('id', id)
+        .select('id');
+      if (error) {
+        console.error('Supabase updateOrderPaymentStatus error:', error.message);
+        return false;
       }
+      if (!data || data.length === 0) return false;
+
+      const order = memoryStore.orders.find((o) => o.id === id);
+      if (order) {
+        order.payment_status = paymentStatus;
+        if (stripeSessionId) order.stripe_session_id = stripeSessionId;
+      }
+      return true;
     } catch (err) {
-      console.error('Supabase updateOrderPaymentStatus error:', err);
+      console.error('Supabase updateOrderPaymentStatus exception:', err);
+      return false;
     }
   }
 
+  if (!isDemoMode) return false;
   const order = memoryStore.orders.find((o) => o.id === id);
   if (order) {
     order.payment_status = paymentStatus;
@@ -456,37 +603,102 @@ export async function updateOrderPaymentStatus(
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// STOCK
+// ---------------------------------------------------------------------------
+
+/**
+ * Atomically decrement stock using compare-and-swap (retries on concurrent
+ * modification). Returns false when the product is missing or has insufficient
+ * stock — callers must treat that as a hard failure.
+ */
 export async function decrementProductStock(productId: string, quantity: number): Promise<boolean> {
+  if (!Number.isInteger(quantity) || quantity <= 0) return false;
+
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
     try {
-      const { data: prod } = await supabase
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', productId)
-        .single();
-
-      if (prod) {
-        const newStock = Math.max(0, prod.stock_quantity - quantity);
-        await supabase
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: prod, error: readError } = await supabase
           .from('products')
-          .update({ stock_quantity: newStock })
-          .eq('id', productId);
-        
-        const memoryProd = memoryStore.products.find((p) => p.id === productId);
-        if (memoryProd) memoryProd.stock_quantity = newStock;
-        return true;
+          .select('stock_quantity')
+          .eq('id', productId)
+          .single();
+
+        if (readError || !prod) return false;
+        if (prod.stock_quantity < quantity) return false;
+
+        const nextStock = prod.stock_quantity - quantity;
+        const { data: updated, error: writeError } = await supabase
+          .from('products')
+          .update({ stock_quantity: nextStock })
+          .eq('id', productId)
+          .eq('stock_quantity', prod.stock_quantity)
+          .select('id');
+
+        if (!writeError && updated && updated.length > 0) {
+          const memoryProd = memoryStore.products.find((p) => p.id === productId);
+          if (memoryProd) memoryProd.stock_quantity = nextStock;
+          return true;
+        }
+        // Concurrent modification — retry with fresh stock.
       }
+      return false;
     } catch (err) {
-      console.error('Supabase decrementProductStock error:', err);
+      console.error('Supabase decrementProductStock exception:', err);
+      return false;
     }
   }
 
+  if (!isDemoMode) return false;
   const memoryProd = memoryStore.products.find((p) => p.id === productId);
-  if (memoryProd) {
-    memoryProd.stock_quantity = Math.max(0, memoryProd.stock_quantity - quantity);
-    return true;
+  if (!memoryProd || memoryProd.stock_quantity < quantity) return false;
+  memoryProd.stock_quantity -= quantity;
+  return true;
+}
+
+/** Atomically increment stock (restock / rollback). Best effort. */
+export async function incrementProductStock(productId: string, quantity: number): Promise<boolean> {
+  if (!Number.isInteger(quantity) || quantity <= 0) return false;
+
+  const supabase = getSupabaseAdminClient();
+
+  if (supabase) {
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: prod, error: readError } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', productId)
+          .single();
+
+        if (readError || !prod) return false;
+
+        const nextStock = prod.stock_quantity + quantity;
+        const { data: updated, error: writeError } = await supabase
+          .from('products')
+          .update({ stock_quantity: nextStock })
+          .eq('id', productId)
+          .eq('stock_quantity', prod.stock_quantity)
+          .select('id');
+
+        if (!writeError && updated && updated.length > 0) {
+          const memoryProd = memoryStore.products.find((p) => p.id === productId);
+          if (memoryProd) memoryProd.stock_quantity = nextStock;
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.error('Supabase incrementProductStock exception:', err);
+      return false;
+    }
   }
-  return false;
+
+  if (!isDemoMode) return false;
+  const memoryProd = memoryStore.products.find((p) => p.id === productId);
+  if (!memoryProd) return false;
+  memoryProd.stock_quantity += quantity;
+  return true;
 }

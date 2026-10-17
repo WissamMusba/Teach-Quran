@@ -32,7 +32,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
           {/* Tagline Badge */}
           <div className="inline-flex items-center space-x-2 bg-[#FF5500]/10 border border-[#FF5500]/40 text-[#FF5500] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-orange-glow-sm">
             <Flame className="w-4 h-4 text-[#FF5500] fill-[#FF5500]" />
-            <span>2026 International Match Specifications</span>
+            <span>Seven Districts Cricket Academy • Ajman, UAE</span>
           </div>
 
           {/* Headline in Barlow Condensed / Athletic style */}

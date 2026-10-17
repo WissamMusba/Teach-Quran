@@ -32,9 +32,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
-  const handleLogout = () => {
-    document.cookie = 'admin_session=; path=/; max-age=0';
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch {
+      // ignore — redirect below regardless
+    }
     router.push('/admin/login');
+    router.refresh();
   };
 
   return (
@@ -43,15 +48,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="hidden md:flex flex-col w-64 bg-[#000000] text-white border-r border-[#1C1C24] shrink-0">
         {/* Brand */}
         <div className="p-6 border-b border-[#1C1C24] flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-xl bg-[#FF5500] text-black flex items-center justify-center font-black text-sm shadow-orange-glow-sm">
-            <Shield className="w-4 h-4 text-black" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-seven-districts.png"
+            alt="Seven Districts Cricket Academy"
+            className="w-10 h-10 object-contain rounded-xl border border-[#2E2E38] bg-[#0A0A0E] p-1 shrink-0"
+          />
           <div>
-            <h2 className="font-display uppercase text-xl font-black tracking-wider text-white leading-none">
-              CRICKET<span className="text-[#FF5500]">STORE</span>
+            <h2 className="font-display uppercase text-lg font-black tracking-wider text-white leading-none">
+              SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
             </h2>
             <span className="text-[10px] text-neutral-400 font-bold tracking-widest uppercase">
-              Management Portal
+              TSDCA Admin • Ajman
             </span>
           </div>
         </div>
@@ -105,10 +113,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#07070A]">
         {/* Mobile Top Header */}
         <header className="md:hidden bg-[#000000] text-white p-4 flex items-center justify-between border-b border-[#1C1C24]">
-          <div className="flex items-center space-x-2">
-            <Shield className="w-5 h-5 text-[#FF5500]" />
-            <span className="font-display uppercase text-lg font-black tracking-wider">
-              CRICKETSTORE ADMIN
+          <div className="flex items-center space-x-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-seven-districts.png"
+              alt="Seven Districts Cricket Academy"
+              className="w-7 h-7 object-contain rounded-lg border border-[#2E2E38] bg-[#0A0A0E] p-0.5 shrink-0"
+            />
+            <span className="font-display uppercase text-lg font-black tracking-wider text-white">
+              TSDCA ADMIN
             </span>
           </div>
           <button

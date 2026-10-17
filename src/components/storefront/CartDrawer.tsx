@@ -1,9 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
+
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -16,6 +19,54 @@ export const CartDrawer: React.FC = () => {
     totalItems,
   } = useCart();
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Dialog behaviour: Esc closes, background scroll locks, focus moves into
+  // the panel on open and returns to the trigger on close, Tab stays inside.
+  useEffect(() => {
+    if (!isCartDrawerOpen) return;
+
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const panel = panelRef.current;
+    panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setIsCartDrawerOpen(false);
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null
+      );
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      lastFocusedRef.current?.focus?.();
+    };
+  }, [isCartDrawerOpen, setIsCartDrawerOpen]);
+
   if (!isCartDrawerOpen) return null;
 
   return (
@@ -24,15 +75,25 @@ export const CartDrawer: React.FC = () => {
       <div
         className="fixed inset-0 bg-black/80 transition-opacity backdrop-blur-sm"
         onClick={() => setIsCartDrawerOpen(false)}
+        aria-hidden="true"
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-[#0A0A0E] border-l border-[#22222A] text-white shadow-2xl flex flex-col">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cart-drawer-title"
+          className="w-screen max-w-md bg-[#0A0A0E] border-l border-[#22222A] text-white shadow-2xl flex flex-col"
+        >
           {/* Header */}
           <div className="p-6 border-b border-[#1C1C24] flex items-center justify-between bg-[#08080C]">
             <div className="flex items-center space-x-2.5">
-              <ShoppingBag className="w-5 h-5 text-[#FF5500]" />
-              <h2 className="font-display uppercase text-2xl font-black text-white tracking-wide">
+              <ShoppingBag className="w-5 h-5 text-[#FF5500]" aria-hidden="true" />
+              <h2
+                id="cart-drawer-title"
+                className="font-display uppercase text-2xl font-black text-white tracking-wide"
+              >
                 Your Cricket Cart
               </h2>
               <span className="bg-[#FF5500] text-black text-xs px-2 py-0.5 rounded-full font-black">
@@ -41,7 +102,7 @@ export const CartDrawer: React.FC = () => {
             </div>
             <button
               onClick={() => setIsCartDrawerOpen(false)}
-              className="p-1.5 rounded-xl text-neutral-400 hover:text-white hover:bg-[#16161E] transition-colors"
+              className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-[#16161E] transition-colors"
               aria-label="Close cart"
             >
               <X className="w-5 h-5" />
@@ -53,7 +114,7 @@ export const CartDrawer: React.FC = () => {
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-5">
                 <div className="w-16 h-16 rounded-2xl bg-[#14141A] border border-[#272732] flex items-center justify-center text-[#FF5500]">
-                  <ShoppingBag className="w-8 h-8" />
+                  <ShoppingBag className="w-8 h-8" aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="font-display uppercase text-xl font-black text-white">
@@ -121,11 +182,12 @@ export const CartDrawer: React.FC = () => {
                           onClick={() =>
                             updateQuantity(item.productId, item.quantity - 1, item.selectedOptions)
                           }
-                          className="p-1 text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24]"
+                          className="p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24]"
+                          aria-label={`Decrease quantity of ${item.title}`}
                         >
-                          <Minus className="w-3.5 h-3.5" />
+                          <Minus className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
-                        <span className="text-xs font-bold px-2 text-white">
+                        <span className="text-xs font-bold px-1.5 text-white" aria-hidden="true">
                           {item.quantity}
                         </span>
                         <button
@@ -133,18 +195,20 @@ export const CartDrawer: React.FC = () => {
                             updateQuantity(item.productId, item.quantity + 1, item.selectedOptions)
                           }
                           disabled={item.quantity >= item.maxStock}
-                          className="p-1 text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24] disabled:opacity-30"
+                          className="p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24] disabled:opacity-30"
+                          aria-label={`Increase quantity of ${item.title}`}
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                       </div>
 
                       <button
                         onClick={() => removeFromCart(item.productId, item.selectedOptions)}
-                        className="text-neutral-500 hover:text-red-400 p-1 transition-colors"
+                        className="text-neutral-500 hover:text-red-400 p-2 transition-colors"
                         title="Remove item"
+                        aria-label={`Remove ${item.title} from cart`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -168,7 +232,8 @@ export const CartDrawer: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-neutral-400">
-                Taxes and shipping calculated at checkout. Card (Visa/Mastercard) and COD available.
+                Free tracked courier delivery. Pay by card (Visa/Mastercard) or cash on delivery
+                at checkout.
               </p>
 
               <div className="grid grid-cols-2 gap-3 pt-2">
@@ -185,7 +250,7 @@ export const CartDrawer: React.FC = () => {
                   className="w-full flex items-center justify-center space-x-1.5 py-3 px-4 bg-[#FF5500] hover:bg-[#FF6600] text-black rounded-xl font-black uppercase tracking-wider text-xs transition-colors shadow-orange-glow-sm"
                 >
                   <span>Checkout</span>
-                  <ArrowRight className="w-4 h-4 text-black" />
+                  <ArrowRight className="w-4 h-4 text-black" aria-hidden="true" />
                 </Link>
               </div>
             </div>

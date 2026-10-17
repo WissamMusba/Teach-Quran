@@ -1,10 +1,29 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { CartProvider } from '@/context/CartContext';
+import { getSiteUrl } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'CRICKET STORE | Pro:Direct Cricket Gear & Match Equipment',
-  description: 'Engineered for tournament performance. High-impact Grade 1 English Willow bats, protective pads, gloves, helmets, and match leather balls.',
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: 'Seven Districts Cricket Academy | Pro Shop — Ajman, UAE',
+    template: '%s | Seven Districts Cricket Academy',
+  },
+  description:
+    'Official Equipment Store of Seven Districts Cricket Academy (TSDCA) in Ajman, UAE. Tournament Grade 1 English Willow bats, match leather balls, protective armor, and gear with Card and COD delivery across the Emirates.',
+  applicationName: 'Seven Districts Cricket Academy',
+  openGraph: {
+    type: 'website',
+    locale: 'en_AE',
+    siteName: 'Seven Districts Cricket Academy',
+    title: 'Seven Districts Cricket Academy | Pro Shop — Ajman, UAE',
+    description:
+      'Official Equipment Store of Seven Districts Cricket Academy (TSDCA) in Ajman, UAE. Tournament Grade 1 English Willow bats, protective armor, and match gear.',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#050505',
 };
 
 export default function RootLayout({

@@ -18,7 +18,9 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
   const [quantity, setQuantity] = useState<number>(1);
   const [addedAnimation, setAddedAnimation] = useState<boolean>(false);
 
-  // Variant selection states
+  // Variant selection states. Defaults must only apply to categories that
+  // actually render the matching control, otherwise hidden options leak into
+  // the cart (e.g. a ball ordered with size "Adult / Men").
   const categoryLower = product.category.toLowerCase();
   const [selectedSize, setSelectedSize] = useState<string>(
     categoryLower === 'bats'
@@ -27,11 +29,13 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
       ? 'UK 9'
       : categoryLower === 'helmets'
       ? 'Medium (58-61cm)'
-      : 'Adult / Men'
+      : ['pads', 'gloves'].includes(categoryLower)
+      ? 'Adult / Men'
+      : ''
   );
 
   const [selectedWeight, setSelectedWeight] = useState<string>(
-    categoryLower === 'bats' ? '1,140g - 1,165g' : ''
+    categoryLower === 'bats' ? '1,135g - 1,155g' : ''
   );
 
   const [selectedOrientation, setSelectedOrientation] = useState<string>(
@@ -156,6 +160,26 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
           </p>
         )}
 
+        {/* Specifications */}
+        {product.specifications && Object.keys(product.specifications).length > 0 && (
+          <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-5">
+            <h2 className="font-display uppercase text-sm font-black text-white tracking-widest mb-3">
+              Specifications
+            </h2>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 text-xs">
+              {Object.entries(product.specifications).map(([key, value]) => (
+                <div
+                  key={key}
+                  className="flex justify-between gap-4 py-1.5 border-b border-[#1C1C24]"
+                >
+                  <dt className="text-neutral-400 font-bold uppercase tracking-wider">{key}</dt>
+                  <dd className="text-white font-semibold text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
         {/* Variants / Options */}
         <div className="space-y-5 pt-1">
           {/* Bats Size / Handle Option */}
@@ -267,16 +291,18 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
               disabled={quantity <= 1 || product.stock_quantity <= 0}
               className="w-10 h-10 flex items-center justify-center text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24] disabled:opacity-30 font-bold"
+              aria-label="Decrease quantity"
             >
-              -
+              −
             </button>
-            <span className="w-12 text-center font-bold text-white text-sm">
+            <span className="w-12 text-center font-bold text-white text-sm" aria-hidden="true">
               {quantity}
             </span>
             <button
               onClick={() => setQuantity((q) => Math.min(product.stock_quantity, q + 1))}
               disabled={quantity >= product.stock_quantity || product.stock_quantity <= 0}
               className="w-10 h-10 flex items-center justify-center text-neutral-400 hover:text-white rounded-lg hover:bg-[#1C1C24] disabled:opacity-30 font-bold"
+              aria-label="Increase quantity"
             >
               +
             </button>
@@ -285,7 +311,7 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
           <button
             onClick={handleAddToCart}
             disabled={product.stock_quantity <= 0}
-            className={`flex-1 py-4 px-8 rounded-xl font-black uppercase text-sm tracking-widest flex items-center justify-center space-x-2.5 transition-all duration-200 active:scale-98 ${
+            className={`flex-1 py-4 px-8 rounded-xl font-black uppercase text-sm tracking-widest flex items-center justify-center space-x-2.5 transition-all duration-200 active:scale-[0.98] ${
               product.stock_quantity <= 0
                 ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
                 : addedAnimation

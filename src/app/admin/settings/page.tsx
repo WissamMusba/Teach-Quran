@@ -1,10 +1,12 @@
 import React from 'react';
 import { getSiteSettings } from '@/lib/supabaseServer';
 import { SiteSettingsForm } from '@/components/admin/SiteSettingsForm';
+import { requireAdminPage } from '@/lib/adminGuard';
 
 export const revalidate = 0;
 
 export default async function AdminSettingsPage() {
+  await requireAdminPage();
   const settings = await getSiteSettings();
 
   return (

@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getOrderById } from '@/lib/supabaseServer';
 import { OrderStatusSelect } from '@/components/admin/OrderStatusSelect';
+import { PaymentStatusControl } from '@/components/admin/PaymentStatusControl';
+import { requireAdminPage } from '@/lib/adminGuard';
 import { ArrowLeft, User, MapPin, CreditCard } from 'lucide-react';
 
 export const revalidate = 0;
@@ -12,6 +14,7 @@ interface OrderDetailPageProps {
 }
 
 export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
+  await requireAdminPage();
   const { id } = await params;
   const order = await getOrderById(id);
 
@@ -109,6 +112,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                 </span>
               </div>
             )}
+            <PaymentStatusControl
+              orderId={order.id}
+              method={order.payment_method}
+              initialStatus={order.payment_status}
+            />
           </div>
         </div>
       </div>

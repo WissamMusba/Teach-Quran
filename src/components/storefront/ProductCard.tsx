@@ -16,6 +16,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     product.images?.[0] ||
     'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=800&auto=format&fit=crop';
 
+  // Categories that expose size / weight / orientation choices on the product
+  // page must not be quick-added with default options — send the shopper to
+  // the PDP to make a real selection instead.
+  const hasOptions = ['bats', 'gloves', 'pads', 'shoes', 'helmets'].includes(
+    product.category.toLowerCase()
+  );
+
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -97,14 +104,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         {product.stock_quantity > 0 ? (
-          <button
-            onClick={handleQuickAdd}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
-            aria-label={`Add ${product.title} to cart`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5 text-black" />
-            <span>Add</span>
-          </button>
+          hasOptions ? (
+            <Link
+              href={`/product/${product.slug}`}
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
+              aria-label={`Choose options for ${product.title}`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-black" aria-hidden="true" />
+              <span>Choose Options</span>
+            </Link>
+          ) : (
+            <button
+              onClick={handleQuickAdd}
+              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#FF5500] hover:bg-[#FF6600] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-orange-glow-sm transition-all active:scale-95"
+              aria-label={`Add ${product.title} to cart`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-black" aria-hidden="true" />
+              <span>Add</span>
+            </button>
+          )
         ) : (
           <span className="text-xs font-black uppercase tracking-wider text-neutral-500 bg-[#16161E] border border-[#252530] px-3 py-2 rounded-xl">
             Sold Out

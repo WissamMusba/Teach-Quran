@@ -39,7 +39,7 @@ export default async function HomePage() {
               href="/shop"
               className="mt-4 sm:mt-0 inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-300 hover:text-[#FF5500] transition-colors"
             >
-              <span>Explore All {featuredProducts.length}+ Items</span>
+              <span>Browse the Full Collection</span>
               <ArrowRight className="w-4 h-4 text-[#FF5500]" />
             </Link>
           </div>
@@ -55,7 +55,7 @@ export default async function HomePage() {
       {/* Category Grid Section */}
       <CategoryGrid />
 
-      {/* Pro:Direct Style Authorized Brand Partnerships */}
+      {/* Authorized Brand Partnerships */}
       <section className="py-20 bg-[#060608] border-t border-[#1C1C24]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">

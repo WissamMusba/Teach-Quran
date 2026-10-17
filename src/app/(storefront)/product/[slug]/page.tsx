@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getProductBySlug, getProducts } from '@/lib/supabaseServer';
 import { ProductDetailClient } from '@/components/storefront/ProductDetailClient';
 import { ProductCard } from '@/components/storefront/ProductCard';
@@ -12,6 +13,32 @@ interface ProductPageProps {
   params: Promise<{
     slug: string;
   }>;
+}
+
+export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getProductBySlug(slug);
+
+  if (!product) {
+    return { title: 'Product Not Found' };
+  }
+
+  const description =
+    product.description ||
+    `Buy the ${product.title} by ${product.brand} — match-grade cricket equipment with card and Cash on Delivery options.`;
+  const image = product.images?.[0];
+
+  return {
+    title: product.title,
+    description,
+    alternates: { canonical: `/product/${product.slug}` },
+    openGraph: {
+      title: product.title,
+      description,
+      type: 'website',
+      images: image ? [{ url: image }] : undefined,
+    },
+  };
 }
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {

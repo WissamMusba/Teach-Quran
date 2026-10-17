@@ -1,7 +1,10 @@
 import React from 'react';
 import { ProductForm } from '@/components/admin/ProductForm';
+import { requireAdminPage } from '@/lib/adminGuard';
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  await requireAdminPage();
+
   return (
     <div className="space-y-8 text-white max-w-4xl">
       <div className="pb-6 border-b border-[#1C1C24]">

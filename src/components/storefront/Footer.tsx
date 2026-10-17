@@ -4,7 +4,7 @@ import { ShieldCheck, Truck, CreditCard, RotateCcw } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-[#000000] border-t border-[#1C1C24] text-neutral-400">
+    <footer className="bg-[#000000] border-t border-[#1C1C24] text-neutral-400 pb-24 md:pb-0">
       {/* Value Proposition Badges */}
       <div className="border-b border-[#1C1C24] bg-[#050508]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -62,18 +62,26 @@ export const Footer: React.FC = () => {
 
       {/* Main Footer Links */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-          <div className="space-y-4 md:col-span-1">
-            <Link href="/" className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#1C1C24] to-[#0A0A0E] border border-[#2E2E38] flex items-center justify-center font-display font-black text-white text-sm">
-                C<span className="text-[#FF5500]">S</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
+          <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+            <Link href="/" className="flex items-center space-x-3 group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-seven-districts.png"
+                alt="Seven Districts Cricket Academy"
+                className="w-12 h-12 object-contain rounded-xl border border-[#2E2E38] bg-[#0A0A0E] p-1 shrink-0"
+              />
+              <div className="flex flex-col">
+                <span className="font-display text-xl font-black tracking-tight text-white uppercase leading-none">
+                  SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
+                </span>
+                <span className="text-[9px] uppercase tracking-widest font-black text-[#FF5500] font-sans mt-0.5">
+                  CRICKET ACADEMY • AJMAN, UAE
+                </span>
               </div>
-              <span className="font-display text-2xl font-black tracking-tight text-white uppercase">
-                CRICKET<span className="text-[#FF5500]">STORE</span>
-              </span>
             </Link>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Equipping cricketers of all levels with professional bats, balls, pads, gloves, and protective gear. Direct brand partnerships guarantee authenticity.
+              Official Pro Equipment Store of Seven Districts Cricket Academy. Equipping cricketers across Ajman and the UAE with tournament-grade bats, leather balls, protective armor, and match gear.
             </p>
           </div>
 
@@ -145,6 +153,44 @@ export const Footer: React.FC = () => {
 
           <div>
             <h4 className="font-display uppercase tracking-wider text-sm font-black text-white mb-4">
+              Customer Care
+            </h4>
+            <ul className="space-y-2.5 text-xs">
+              <li>
+                <Link href="/contact" className="hover:text-[#FF5500] transition-colors">
+                  Contact Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/shipping" className="hover:text-[#FF5500] transition-colors">
+                  Shipping &amp; Delivery
+                </Link>
+              </li>
+              <li>
+                <Link href="/returns" className="hover:text-[#FF5500] transition-colors">
+                  Returns &amp; Refunds
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-[#FF5500] transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="hover:text-[#FF5500] transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/cookies" className="hover:text-[#FF5500] transition-colors">
+                  Cookie Notice
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-display uppercase tracking-wider text-sm font-black text-white mb-4">
               Accepted Payments
             </h4>
             <div className="space-y-3 text-xs">
@@ -170,7 +216,7 @@ export const Footer: React.FC = () => {
         </div>
 
         <div className="border-t border-[#1C1C24] mt-12 pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-400 space-y-3 sm:space-y-0">
-          <p>© {new Date().getFullYear()} CricketStore Inc. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Seven Districts Cricket Academy (TSDCA) • Ajman, UAE. All rights reserved.</p>
           <div className="flex space-x-6">
             <Link href="/shop" className="hover:text-white transition-colors">
               Catalog

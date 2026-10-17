@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
-import { Home, Compass, Search, ShoppingBag, Shield } from 'lucide-react';
+import { Home, Compass, Search, ShoppingBag, Headphones } from 'lucide-react';
 
 export const MobileBottomBar: React.FC = () => {
   const pathname = usePathname();
@@ -12,7 +12,7 @@ export const MobileBottomBar: React.FC = () => {
 
   const isHome = pathname === '/';
   const isShop = pathname.startsWith('/shop') || pathname.startsWith('/product');
-  const isAdmin = pathname.startsWith('/admin');
+  const isContact = pathname.startsWith('/contact');
 
   return (
     <nav
@@ -70,15 +70,15 @@ export const MobileBottomBar: React.FC = () => {
           <span className="text-[10px] font-bold tracking-tight uppercase mt-0.5">Cart</span>
         </button>
 
-        {/* Admin Portal Shortcut */}
+        {/* Contact / Support Shortcut */}
         <Link
-          href="/admin/dashboard"
+          href="/contact"
           className={`flex flex-col items-center justify-center py-1 px-1 transition-colors ${
-            isAdmin ? 'text-[#FF5500]' : 'text-neutral-400 hover:text-white'
+            isContact ? 'text-[#FF5500]' : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <Shield className={`w-5 h-5 ${isAdmin ? 'stroke-[2.5]' : 'stroke-2'}`} />
-          <span className="text-[10px] font-bold tracking-tight uppercase mt-0.5">Admin</span>
+          <Headphones className={`w-5 h-5 ${isContact ? 'stroke-[2.5]' : 'stroke-2'}`} />
+          <span className="text-[10px] font-bold tracking-tight uppercase mt-0.5">Contact</span>
         </Link>
       </div>
     </nav>

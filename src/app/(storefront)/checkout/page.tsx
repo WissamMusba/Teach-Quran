@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { CreditCard, Truck, ShieldCheck, Lock, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const router = useRouter();
-  const { cart, totalAmount, clearCart } = useCart();
+  const { cart, totalAmount } = useCart();
 
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -18,12 +16,13 @@ export default function CheckoutPage() {
     city: '',
     state: '',
     postal_code: '',
-    country: 'United States',
+    country: 'United Arab Emirates',
   });
 
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cod'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   if (cart.length === 0) {
     return (
@@ -80,15 +79,16 @@ export default function CheckoutPage() {
         throw new Error(data.error || 'Failed to initialize order');
       }
 
-      // Order created successfully
-      clearCart();
-
-      // Redirect to Stripe checkout session or COD success page
-      if (data.redirectUrl) {
-        window.location.href = data.redirectUrl;
-      } else {
-        router.push(`/checkout/success?order_id=${data.orderId}`);
+      // Redirect to the Stripe checkout session or the signed COD
+      // confirmation page. The cart is only cleared on the confirmation
+      // page, after the order token verifies — never before payment
+      // completes, so an abandoned payment does not wipe the cart.
+      if (!data.redirectUrl) {
+        throw new Error(
+          'We could not start the payment session. Please try again or choose Cash on Delivery.'
+        );
       }
+      window.location.href = data.redirectUrl;
     } catch (err: any) {
       setErrorMessage(err.message || 'An unexpected error occurred. Please try again.');
       setIsSubmitting(false);
@@ -124,7 +124,7 @@ export default function CheckoutPage() {
         </div>
 
         {errorMessage && (
-          <div className="mb-8 p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-xs flex items-start space-x-2.5">
+          <div role="alert" className="mb-8 p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-xs flex items-start space-x-2.5">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
             <span>{errorMessage}</span>
           </div>
@@ -144,13 +144,15 @@ export default function CheckoutPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                  <label htmlFor="customer_name" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
                     Full Name *
                   </label>
                   <input
+                    id="customer_name"
                     type="text"
                     name="customer_name"
                     required
+                    autoComplete="name"
                     value={formData.customer_name}
                     onChange={handleInputChange}
                     placeholder="e.g. Michael Clarke"
@@ -159,13 +161,16 @@ export default function CheckoutPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                  <label htmlFor="customer_email" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
                     Email Address *
                   </label>
                   <input
+                    id="customer_email"
                     type="email"
                     name="customer_email"
                     required
+                    autoComplete="email"
+                    inputMode="email"
                     value={formData.customer_email}
                     onChange={handleInputChange}
                     placeholder="michael@example.com"
@@ -174,16 +179,19 @@ export default function CheckoutPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                  <label htmlFor="customer_phone" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
                     Phone Number *
                   </label>
                   <input
+                    id="customer_phone"
                     type="tel"
                     name="customer_phone"
                     required
+                    autoComplete="tel"
+                    inputMode="tel"
                     value={formData.customer_phone}
                     onChange={handleInputChange}
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+971 50 000 0000"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
@@ -201,83 +209,99 @@ export default function CheckoutPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
-                    Street Address & House/Apartment *
+                  <label htmlFor="street" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                    Street Address &amp; House/Apartment *
                   </label>
                   <input
+                    id="street"
                     type="text"
                     name="street"
                     required
+                    autoComplete="address-line1"
                     value={formData.street}
                     onChange={handleInputChange}
-                    placeholder="123 Cricket Pavilion Road, Suite 4B"
+                    placeholder="Villa 12, Street 4, Al Barsha 1"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                  <label htmlFor="city" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
                     City *
                   </label>
                   <input
+                    id="city"
                     type="text"
                     name="city"
                     required
+                    autoComplete="address-level2"
                     value={formData.city}
                     onChange={handleInputChange}
-                    placeholder="New York"
+                    placeholder="Dubai"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
-                    State / Province *
+                  <label htmlFor="state" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                    State / Province (Emirate) *
                   </label>
                   <input
+                    id="state"
                     type="text"
                     name="state"
                     required
+                    autoComplete="address-level1"
                     value={formData.state}
                     onChange={handleInputChange}
-                    placeholder="NY"
+                    placeholder="Dubai"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
-                    Postal / ZIP Code *
+                  <label htmlFor="postal_code" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                    Postal / ZIP Code (optional)
                   </label>
                   <input
+                    id="postal_code"
                     type="text"
                     name="postal_code"
-                    required
+                    autoComplete="postal-code"
                     value={formData.postal_code}
                     onChange={handleInputChange}
-                    placeholder="10001"
+                    placeholder="00000"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
+                  <label htmlFor="country" className="block text-xs font-black uppercase tracking-wider text-neutral-300 mb-2">
                     Country *
                   </label>
                   <select
+                    id="country"
                     name="country"
+                    autoComplete="country-name"
                     value={formData.country}
                     onChange={handleInputChange}
                     className="w-full text-xs px-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white focus:outline-none focus:border-[#FF5500] font-bold"
                   >
-                    <option value="United States">United States</option>
+                    <option value="United Arab Emirates">United Arab Emirates</option>
+                    <option value="Saudi Arabia">Saudi Arabia</option>
+                    <option value="Oman">Oman</option>
+                    <option value="Qatar">Qatar</option>
+                    <option value="Kuwait">Kuwait</option>
+                    <option value="Bahrain">Bahrain</option>
                     <option value="United Kingdom">United Kingdom</option>
                     <option value="Australia">Australia</option>
                     <option value="India">India</option>
-                    <option value="Canada">Canada</option>
-                    <option value="New Zealand">New Zealand</option>
+                    <option value="Pakistan">Pakistan</option>
+                    <option value="Sri Lanka">Sri Lanka</option>
                     <option value="South Africa">South Africa</option>
-                    <option value="United Arab Emirates">United Arab Emirates</option>
+                    <option value="New Zealand">New Zealand</option>
+                    <option value="Canada">Canada</option>
+                    <option value="United States">United States</option>
                   </select>
                 </div>
               </div>
@@ -390,11 +414,37 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* Terms Agreement */}
+              <label className="flex items-start space-x-3 text-[11px] text-neutral-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  required
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#272730] bg-[#14141B] text-[#FF5500] focus:ring-[#FF5500]"
+                />
+                <span>
+                  I agree to the{' '}
+                  <Link href="/terms" className="text-[#FF5500] hover:underline font-bold">
+                    Terms of Service
+                  </Link>
+                  ,{' '}
+                  <Link href="/returns" className="text-[#FF5500] hover:underline font-bold">
+                    Returns Policy
+                  </Link>{' '}
+                  and{' '}
+                  <Link href="/privacy" className="text-[#FF5500] hover:underline font-bold">
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </label>
+
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-4 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-800 text-black font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-orange-glow flex items-center justify-center space-x-2 active:scale-98"
+                disabled={isSubmitting || !agreedToTerms}
+                className="w-full py-4 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-800 disabled:text-neutral-500 text-black font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-orange-glow flex items-center justify-center space-x-2 active:scale-[0.98]"
               >
                 {isSubmitting ? (
                   <>
@@ -402,9 +452,9 @@ export default function CheckoutPage() {
                     <span>Processing Order...</span>
                   </>
                 ) : paymentMethod === 'card' ? (
-                  <span>Continue to Stripe Card Payment</span>
+                  <span>Pay by Card — AED {totalAmount.toLocaleString()}</span>
                 ) : (
-                  <span>Confirm Cash on Delivery Order</span>
+                  <span>Place COD Order — AED {totalAmount.toLocaleString()}</span>
                 )}
               </button>
 

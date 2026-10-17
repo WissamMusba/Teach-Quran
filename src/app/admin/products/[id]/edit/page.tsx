@@ -2,6 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import { getProductById } from '@/lib/supabaseServer';
 import { ProductForm } from '@/components/admin/ProductForm';
+import { requireAdminPage } from '@/lib/adminGuard';
 
 export const revalidate = 0;
 
@@ -10,6 +11,7 @@ interface EditProductPageProps {
 }
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
+  await requireAdminPage();
   const { id } = await params;
   const product = await getProductById(id);
 

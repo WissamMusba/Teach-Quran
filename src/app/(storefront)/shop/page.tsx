@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { getProducts } from '@/lib/supabaseServer';
 import { ProductCard } from '@/components/storefront/ProductCard';
 import { ShopFilter } from '@/components/storefront/ShopFilter';
@@ -6,6 +7,13 @@ import { PackageOpen, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: 'Cricket Equipment Catalog',
+  description:
+    'Browse match-grade cricket bats, balls, pads, gloves, helmets, bags and shoes. Authentic brands with transparent AED pricing and UAE-wide delivery.',
+  alternates: { canonical: '/shop' },
+};
 
 interface ShopPageProps {
   searchParams: Promise<{

@@ -1,12 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { getProducts } from '@/lib/supabaseServer';
+import { requireAdminPage } from '@/lib/adminGuard';
 import { ProductListTable } from '@/components/admin/ProductListTable';
 import { Plus } from 'lucide-react';
 
 export const revalidate = 0;
 
 export default async function AdminProductsPage() {
+  await requireAdminPage();
   const products = await getProducts();
 
   return (

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
-import { ShoppingCart, Menu, X, Shield, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X, Search, Headphones } from 'lucide-react';
 
 const CATEGORIES = [
   { name: 'Bats', href: '/shop?category=bats' },
@@ -35,16 +35,19 @@ export const Navbar: React.FC = () => {
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
-            <Link href="/" className="flex items-center space-x-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1C1C24] to-[#0A0A0E] border border-[#2E2E38] flex items-center justify-center font-display font-black text-white text-lg tracking-wider shadow-inner group-hover:border-[#FF5500]/60 transition-colors">
-                C<span className="text-[#FF5500]">S</span>
-              </div>
+            <Link href="/" className="flex items-center space-x-3 group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-seven-districts.png"
+                alt="Seven Districts Cricket Academy"
+                className="w-10 h-10 sm:w-11 sm:h-11 object-contain rounded-xl shrink-0 border border-[#2E2E38] bg-[#0A0A0E] p-0.5 group-hover:border-[#FF5500]/60 transition-colors"
+              />
               <div className="flex flex-col">
-                <span className="font-display text-2xl sm:text-3xl font-black tracking-tight text-white uppercase leading-none group-hover:text-neutral-200 transition-colors">
-                  CRICKET<span className="text-[#FF5500]">STORE</span>
+                <span className="font-display text-xl sm:text-2xl font-black tracking-tight text-white uppercase leading-none group-hover:text-neutral-200 transition-colors">
+                  SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
                 </span>
-                <span className="text-[9px] uppercase tracking-widest font-black text-neutral-500 font-sans -mt-0.5">
-                  PRO MATCH PERFORMANCE
+                <span className="text-[9px] uppercase tracking-widest font-black text-neutral-400 font-sans mt-0.5">
+                  CRICKET ACADEMY • AJMAN, UAE
                 </span>
               </div>
             </Link>
@@ -87,12 +90,12 @@ export const Navbar: React.FC = () => {
             </Link>
 
             <Link
-              href="/admin/dashboard"
+              href="/contact"
               className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-[#26262E] bg-[#101014] text-xs font-bold uppercase tracking-wider text-neutral-300 hover:text-white hover:border-[#FF5500]/50 transition-colors"
-              title="Admin Portal"
+              title="Contact Support"
             >
-              <Shield className="w-3.5 h-3.5 text-[#FF5500]" />
-              <span>Admin</span>
+              <Headphones className="w-3.5 h-3.5 text-[#FF5500]" />
+              <span>Contact</span>
             </Link>
 
             {/* Cart Trigger Button */}
@@ -124,12 +127,12 @@ export const Navbar: React.FC = () => {
               All Equipment
             </Link>
             <Link
-              href="/admin/dashboard"
+              href="/contact"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-center space-x-1.5 p-3 rounded-xl bg-[#14141A] border border-[#272730] text-neutral-200 font-bold text-xs"
             >
-              <Shield className="w-4 h-4 text-[#FF5500]" />
-              <span>Admin Portal</span>
+              <Headphones className="w-4 h-4 text-[#FF5500]" />
+              <span>Contact Support</span>
             </Link>
           </div>
 

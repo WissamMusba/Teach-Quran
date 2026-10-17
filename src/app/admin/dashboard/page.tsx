@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { getOrders, getProducts } from '@/lib/supabaseServer';
+import { requireAdminPage } from '@/lib/adminGuard';
 import {
   Package,
   ShoppingBag,
@@ -15,6 +16,7 @@ import { OrderStatusSelect } from '@/components/admin/OrderStatusSelect';
 export const revalidate = 0;
 
 export default async function AdminDashboardPage() {
+  await requireAdminPage();
   const [orders, products] = await Promise.all([getOrders(), getProducts()]);
 
   const totalRevenue = orders

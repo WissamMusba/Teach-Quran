@@ -1,10 +1,12 @@
 import React from 'react';
 import { getOrders } from '@/lib/supabaseServer';
 import { OrdersTable } from '@/components/admin/OrdersTable';
+import { requireAdminPage } from '@/lib/adminGuard';
 
 export const revalidate = 0;
 
 export default async function AdminOrdersPage() {
+  await requireAdminPage();
   const orders = await getOrders();
 
   return (
