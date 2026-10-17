@@ -16,8 +16,8 @@ export default async function HomePage() {
 
   return (
     <div className="bg-white text-neutral-900 dark:bg-[#050505] dark:text-white transition-colors duration-200">
-      {/* Hero Banner with Dynamic Settings */}
-      <HeroBanner settings={settings} />
+      {/* Hero Banner with Dynamic Settings & Featured Equipment Spotlight */}
+      <HeroBanner settings={settings} spotlightProduct={featuredProducts[0]} />
 
       {/* Featured Match Gear Showcase */}
       <section className="py-20 sm:py-24 bg-neutral-50 dark:bg-[#08080C] border-b border-neutral-200 dark:border-[#1C1C24] relative overflow-hidden transition-colors duration-200">

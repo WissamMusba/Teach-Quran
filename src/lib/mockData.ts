@@ -2,9 +2,9 @@ import { Product, SiteSettings, Order } from './types';
 
 export const INITIAL_SITE_SETTINGS: SiteSettings = {
   id: 1,
-  announcement_text: 'Official Pro Shop of Seven Districts Cricket Academy • Fast delivery across Ajman & all UAE Emirates.',
-  hero_headline: 'Engineered for Supreme Match Power.',
-  hero_subheadline: 'Seven Districts Cricket Academy pro-grade English Willow bats, protective armor, and match gear for serious cricketers.',
+  announcement_text: 'Fast Delivery Across Ajman & All UAE Emirates • Card & Cash on Delivery Accepted',
+  hero_headline: 'Pro Cricket Equipment & Match Gear',
+  hero_subheadline: 'Grade 1 English Willow bats, leather balls, and protective armor from SG, SS, Kookaburra & Gray-Nicolls. Fast delivery across Ajman and all UAE Emirates.',
   hero_banner_image: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=1600&auto=format&fit=crop',
   updated_at: new Date().toISOString(),
 };
