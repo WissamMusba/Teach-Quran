@@ -8,6 +8,15 @@ const config: Config = {
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
+    screens: {
+      fold: "280px", // Galaxy Z Fold outer display & ultra-narrow phones
+      xs: "375px",   // Standard compact phones (iPhone SE, mini)
+      sm: "640px",   // Large phones & unfolded foldables (Fold inner screen)
+      md: "768px",   // Tablets & small laptops
+      lg: "1024px",  // Desktop
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     extend: {
       fontFamily: {
         sans: ["var(--font-sans)", "Barlow", "system-ui", "sans-serif"],

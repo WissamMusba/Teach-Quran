@@ -84,27 +84,27 @@ export const GlassProductCard = React.memo<GlassProductCardProps>(function Glass
       </Link>
 
       {/* Details */}
-      <div className="flex-1 px-5">
-        <div className="flex items-center gap-1 text-[11px] font-black uppercase tracking-widest text-[#C2410C] dark:text-[#FF9A5C]">
-          <Zap className="h-3 w-3" aria-hidden="true" />
+      <div className="flex-1 px-3.5 xs:px-5">
+        <div className="flex items-center gap-1 text-[10px] xs:text-[11px] font-black uppercase tracking-widest text-[#C2410C] dark:text-[#FF9A5C]">
+          <Zap className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span>{product.category}</span>
         </div>
         <Link href={`/product/${product.slug}`}>
-          <h3 className="mt-1.5 line-clamp-2 font-display text-lg font-black uppercase leading-tight tracking-wide text-neutral-900 transition-colors group-hover:text-[#C2410C] dark:text-white dark:group-hover:text-[#FF9A5C] sm:text-xl">
+          <h3 className="mt-1.5 line-clamp-2 font-display text-base xs:text-lg font-black uppercase leading-tight tracking-wide text-neutral-900 transition-colors group-hover:text-[#C2410C] dark:text-white dark:group-hover:text-[#FF9A5C] sm:text-xl">
             {product.title}
           </h3>
         </Link>
       </div>
 
       {/* Price + action */}
-      <div className="mt-4 flex items-center justify-between border-t border-white/50 p-5 pt-4 dark:border-white/10">
+      <div className="mt-3 xs:mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/50 p-3.5 xs:p-5 pt-3 xs:pt-4 dark:border-white/10">
         <div>
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-white/60">
+          <span className="block text-[9px] xs:text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-white/60">
             Match Price
           </span>
           <div className="flex items-baseline gap-1">
-            <span className="text-xs font-black text-[#C2410C] dark:text-[#FF9A5C]">AED</span>
-            <span className="font-display text-2xl font-black tracking-tight text-neutral-900 dark:text-white">
+            <span className="text-[10px] xs:text-xs font-black text-[#C2410C] dark:text-[#FF9A5C]">AED</span>
+            <span className="font-display text-xl xs:text-2xl font-black tracking-tight text-neutral-900 dark:text-white">
               {product.price.toLocaleString()}
             </span>
           </div>
@@ -114,24 +114,24 @@ export const GlassProductCard = React.memo<GlassProductCardProps>(function Glass
           hasOptions ? (
             <Link
               href={`/product/${product.slug}`}
-              className={actionClass}
+              className="btn-glass inline-flex items-center justify-center gap-1.5 rounded-full bg-[#FF5500] px-3.5 xs:px-4 py-2 text-[11px] xs:text-xs font-black uppercase tracking-wider text-black transition-all duration-200 hover:bg-[#FF6B1A] active:scale-95 touch-target"
               aria-label={`Choose options for ${product.title}`}
             >
-              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+              <ShoppingBag className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>Options</span>
             </Link>
           ) : (
             <button
               onClick={handleQuickAdd}
-              className={actionClass}
+              className="btn-glass inline-flex items-center justify-center gap-1.5 rounded-full bg-[#FF5500] px-3.5 xs:px-4 py-2 text-[11px] xs:text-xs font-black uppercase tracking-wider text-black transition-all duration-200 hover:bg-[#FF6B1A] active:scale-95 touch-target"
               aria-label={`Add ${product.title} to cart`}
             >
-              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+              <ShoppingBag className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>Add</span>
             </button>
           )
         ) : (
-          <span className="glass-chip px-3 py-2 text-xs font-black uppercase tracking-wider text-neutral-500 dark:text-white/60">
+          <span className="glass-chip px-2.5 xs:px-3 py-1.5 xs:py-2 text-[10px] xs:text-xs font-black uppercase tracking-wider text-neutral-500 dark:text-white/60">
             Sold Out
           </span>
         )}

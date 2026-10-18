@@ -98,8 +98,113 @@ export const ProductListTable: React.FC<ProductListTableProps> = ({ initialProdu
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Mobile & Foldable Card List View */}
+      <div className="md:hidden divide-y divide-[#1C1C24]">
+        {filtered.length === 0 ? (
+          <div className="py-10 text-center text-xs text-neutral-500 px-4">
+            No matching cricket products found.
+          </div>
+        ) : (
+          filtered.map((product) => (
+            <div key={product.id} className="p-4 space-y-3 hover:bg-[#12121A] transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="w-14 h-14 rounded-xl bg-[#14141B] border border-[#252530] overflow-hidden shrink-0 flex items-center justify-center p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      product.images?.[0] ||
+                      'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=200&auto=format&fit=crop'
+                    }
+                    alt={product.title}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] uppercase tracking-wider font-black text-[#FF5500]">
+                      {product.brand}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 uppercase font-bold">•</span>
+                    <span className="text-[10px] text-neutral-400 uppercase font-bold">
+                      {product.category}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm text-white line-clamp-1">{product.title}</h3>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-[10px] text-[#FF5500] font-black">AED</span>
+                    <span className="font-display text-lg font-black text-white">
+                      {product.price.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status and Action Controls */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#1C1C24]/60">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-block px-2.5 py-0.5 rounded font-mono font-bold text-[10px] ${
+                      product.stock_quantity <= 5
+                        ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                        : 'bg-[#181822] text-neutral-300 border border-[#272735]'
+                    }`}
+                  >
+                    {product.stock_quantity} left
+                  </span>
+                  <button
+                    onClick={() => handleToggle(product.id, 'is_featured', product.is_featured)}
+                    className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors ${
+                      product.is_featured
+                        ? 'text-[#FF5500] bg-[#FF5500]/10'
+                        : 'text-neutral-500 bg-[#16161F]'
+                    }`}
+                    title={product.is_featured ? 'Featured' : 'Not featured'}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${product.is_featured ? 'fill-[#FF5500]' : ''}`} />
+                    <span className="text-[10px] font-bold">Featured</span>
+                  </button>
+                  <button
+                    onClick={() => handleToggle(product.id, 'is_active', product.is_active)}
+                    className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors ${
+                      product.is_active
+                        ? 'text-emerald-400 bg-emerald-950/60'
+                        : 'text-neutral-500 bg-[#16161F]'
+                    }`}
+                    title={product.is_active ? 'Active' : 'Hidden'}
+                  >
+                    {product.is_active ? (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5" />
+                    )}
+                    <span className="text-[10px] font-bold">{product.is_active ? 'Active' : 'Hidden'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/admin/products/${product.id}/edit`}
+                    className="p-2 rounded-lg text-neutral-300 hover:text-white bg-[#181824] hover:bg-[#202030] transition-colors touch-target flex items-center justify-center"
+                    title="Edit"
+                  >
+                    <Edit2 className="w-4 h-4 text-[#FF5500]" />
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(product.id, product.title)}
+                    className="p-2 rounded-lg text-neutral-400 hover:text-red-400 bg-[#181824] hover:bg-red-950/30 transition-colors touch-target flex items-center justify-center"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="bg-[#121218] text-neutral-400 font-bold uppercase tracking-wider border-b border-[#1C1C24]">
             <tr>

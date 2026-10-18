@@ -112,27 +112,27 @@ export const GlassHero: React.FC<GlassHeroProps> = ({ settings }) => {
               {active.tagline}
             </span>
 
-            <h1 className="font-display text-4xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            <h1 className="font-display text-3xl fold:text-[28px] xs:text-4xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-6xl lg:text-7xl">
               {active.title}
             </h1>
 
-            <p className="max-w-xl text-sm font-medium leading-relaxed text-white/80 sm:text-base">
+            <p className="max-w-xl text-xs xs:text-sm font-medium leading-relaxed text-white/80 sm:text-base">
               {active.subtitle}
             </p>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 xs:gap-3">
               <Link
                 href={active.primaryCta.href}
-                className="btn-glass inline-flex items-center gap-2 rounded-full bg-[#FF5500] px-7 py-3 text-xs font-black uppercase tracking-wider text-black shadow-orange-glow transition-all duration-200 hover:bg-[#FF6B1A] active:scale-95"
+                className="btn-glass inline-flex items-center justify-center gap-2 rounded-full bg-[#FF5500] px-5 xs:px-7 py-2.5 xs:py-3 text-[11px] xs:text-xs font-black uppercase tracking-wider text-black shadow-orange-glow transition-all duration-200 hover:bg-[#FF6B1A] active:scale-95 touch-target"
               >
                 {active.primaryCta.label}
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </Link>
               {active.secondaryCtas.map((cta) => (
                 <Link
                   key={cta.label}
                   href={cta.href}
-                  className="glass-chip-dark px-5 py-3 text-xs font-black uppercase tracking-wider text-white/90 transition-all duration-200 hover:bg-white/20 hover:text-white active:scale-95"
+                  className="glass-chip-dark px-4 xs:px-5 py-2.5 xs:py-3 text-[11px] xs:text-xs font-black uppercase tracking-wider text-white/90 transition-all duration-200 hover:bg-white/20 hover:text-white active:scale-95 touch-target inline-flex items-center justify-center"
                 >
                   {cta.label}
                 </Link>
@@ -170,27 +170,27 @@ export const GlassHero: React.FC<GlassHeroProps> = ({ settings }) => {
           <button
             onClick={prev}
             aria-label="Previous slide"
-            className="glass-chip-dark h-10 w-10 items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+            className="glass-chip-dark h-11 w-11 touch-target items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
           >
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </button>
           <button
             onClick={next}
             aria-label="Next slide"
-            className="glass-chip-dark h-10 w-10 items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+            className="glass-chip-dark h-11 w-11 touch-target items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
           >
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </button>
 
-          <div className="flex items-center gap-2 px-2">
+          <div className="flex items-center gap-1.5 xs:gap-2 px-1 xs:px-2">
             {slides.map((slide, i) => (
               <button
                 key={slide.id}
                 onClick={() => setIndex(i)}
                 aria-label={`Go to slide ${i + 1}`}
                 aria-current={i === index}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === index ? 'w-8 bg-[#FF5500]' : 'w-4 bg-white/35 hover:bg-white/60'
+                className={`h-2 py-1 rounded-full transition-all duration-300 ${
+                  i === index ? 'w-6 xs:w-8 bg-[#FF5500]' : 'w-3 xs:w-4 bg-white/35 hover:bg-white/60'
                 }`}
               />
             ))}
@@ -199,7 +199,7 @@ export const GlassHero: React.FC<GlassHeroProps> = ({ settings }) => {
           <button
             onClick={() => setPlaying((p) => !p)}
             aria-label={playing ? 'Pause slideshow' : 'Play slideshow'}
-            className="glass-chip-dark h-10 w-10 items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+            className="glass-chip-dark h-11 w-11 touch-target items-center justify-center text-white/80 transition-colors hover:bg-white/20 hover:text-white"
           >
             {playing ? (
               <Pause className="h-4 w-4" aria-hidden="true" />

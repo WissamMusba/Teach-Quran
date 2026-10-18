@@ -63,8 +63,83 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="overflow-x-auto">
+      {/* Mobile & Foldable Card List View */}
+      <div className="md:hidden divide-y divide-[#1C1C24]">
+        {filteredOrders.length === 0 ? (
+          <div className="py-10 text-center text-xs text-neutral-500 px-4">
+            No customer orders found matching the filter criteria.
+          </div>
+        ) : (
+          filteredOrders.map((order) => (
+            <div key={order.id} className="p-4 space-y-3 hover:bg-[#12121A] transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs font-bold text-neutral-400">
+                  #{order.id.slice(0, 12)}
+                </span>
+                <span className="text-[10px] text-neutral-500">
+                  {new Date(order.created_at).toLocaleDateString()}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-bold text-sm text-white block truncate">{order.customer_name}</span>
+                  <span className="text-xs text-neutral-400 block truncate">{order.customer_phone}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-[#FF5500] font-black mr-1">AED</span>
+                  <span className="font-display text-xl font-black text-white">
+                    {order.total_amount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span
+                  className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                    order.payment_method === 'cod'
+                      ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                      : 'bg-[#181822] text-white border border-[#292938]'
+                  }`}
+                >
+                  {order.payment_method === 'cod' ? 'COD' : 'Stripe Card'}
+                </span>
+                <span
+                  className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold capitalize ${
+                    order.payment_status === 'paid'
+                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                      : order.payment_status === 'failed'
+                      ? 'bg-red-950 text-red-400 border border-red-800'
+                      : 'bg-amber-950 text-amber-400 border border-amber-800'
+                  }`}
+                >
+                  {order.payment_status}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#1C1C24]/60">
+                <div className="flex-1 max-w-[200px]">
+                  <OrderStatusSelect
+                    orderId={order.id}
+                    initialStatus={order.order_status}
+                    onStatusChange={(newStatus) => handleStatusChange(order.id, newStatus)}
+                  />
+                </div>
+                <Link
+                  href={`/admin/orders/${order.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#181824] hover:bg-[#202030] text-xs font-bold uppercase tracking-wider text-white rounded-xl transition-colors shrink-0"
+                >
+                  <Eye className="w-3.5 h-3.5 text-[#FF5500]" />
+                  <span>Inspect</span>
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Orders Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="bg-[#121218] text-neutral-400 font-bold uppercase tracking-wider border-b border-[#1C1C24]">
             <tr>

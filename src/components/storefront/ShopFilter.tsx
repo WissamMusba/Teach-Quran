@@ -83,14 +83,23 @@ export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
   const hasActiveFilters =
     currentCategory !== 'all' || currentBrand !== 'all' || currentSort !== 'newest' || currentSearch;
 
+  const [mobileExpanded, setMobileExpanded] = React.useState(false);
+
   return (
-    <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-2xl p-6 space-y-6 shadow-sm dark:shadow-xl sticky top-28 transition-colors duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-[#1C1C24]">
-        <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-black dark:text-white">
+    <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-sm dark:shadow-xl lg:sticky lg:top-28 transition-colors duration-200">
+      {/* Header & Mobile Toggle */}
+      <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-neutral-200 dark:border-[#1C1C24]">
+        <button
+          type="button"
+          onClick={() => setMobileExpanded(!mobileExpanded)}
+          className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-black dark:text-white lg:cursor-default"
+        >
           <Filter className="w-4 h-4 text-[#FF5500]" />
-          <span>Filters</span>
-        </div>
+          <span>Filters & Search</span>
+          <span className="lg:hidden text-[10px] text-[#FF5500] font-bold px-2 py-0.5 rounded-full bg-[#FF5500]/10">
+            {mobileExpanded ? 'Hide' : 'Show'}
+          </span>
+        </button>
         {hasActiveFilters && (
           <button
             onClick={handleReset}
@@ -101,6 +110,9 @@ export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
           </button>
         )}
       </div>
+
+      {/* Filter Body — always visible on lg+, collapsible on mobile */}
+      <div className={`space-y-4 sm:space-y-6 ${mobileExpanded ? 'block' : 'hidden lg:block'}`}>
 
       {/* Search Input */}
       <div>
@@ -185,6 +197,7 @@ export const ShopFilter: React.FC<ShopFilterProps> = ({ availableBrands }) => {
           <option value="price_asc">Price: Low to High</option>
           <option value="price_desc">Price: High to Low</option>
         </select>
+      </div>
       </div>
     </div>
   );

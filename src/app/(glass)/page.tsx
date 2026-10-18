@@ -131,8 +131,8 @@ export default async function GlassHomePage() {
       <GlassHero settings={settings} />
 
       {/* Floating department rail over the hero/next-section seam */}
-      <div className="relative z-20 mx-auto -mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="glass-panel glass-panel-strong flex items-center gap-2 overflow-x-auto rounded-2xl p-2 scrollbar-none sm:rounded-full">
+      <div className="relative z-20 mx-auto -mt-10 xs:-mt-14 max-w-7xl px-3 xs:px-4 sm:px-6 lg:px-8">
+        <div className="glass-panel glass-panel-strong flex items-center gap-2 overflow-x-auto touch-scroll-x rounded-2xl p-2 scrollbar-none sm:rounded-full">
           <span className="hidden shrink-0 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-white/60 sm:inline">
             Shop Departments
           </span>
@@ -140,10 +140,10 @@ export default async function GlassHomePage() {
             <Link
               key={category.label}
               href={category.href}
-              className="glass-chip shrink-0 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-neutral-800 transition-colors hover:bg-white/85 dark:text-white/90 dark:hover:bg-white/15"
+              className="glass-chip shrink-0 px-3.5 xs:px-4 py-2 text-[10px] xs:text-[11px] font-black uppercase tracking-wider text-neutral-800 transition-colors hover:bg-white/85 dark:text-white/90 dark:hover:bg-white/15 touch-target flex items-center gap-1.5"
             >
-              <category.Icon className="h-3.5 w-3.5 text-[#FF5500]" aria-hidden="true" />
-              {category.label}
+              <category.Icon className="h-3.5 w-3.5 text-[#FF5500] shrink-0" aria-hidden="true" />
+              <span>{category.label}</span>
             </Link>
           ))}
         </div>
@@ -152,19 +152,19 @@ export default async function GlassHomePage() {
       {/* Service promise tiles */}
       <section
         aria-label="Academy service promises"
-        className="mx-auto max-w-7xl px-4 pt-16 sm:px-6 lg:px-8"
+        className="mx-auto max-w-7xl px-3 xs:px-4 pt-12 xs:pt-16 sm:px-6 lg:px-8"
       >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {SERVICE_PROMISES.map((promise, idx) => (
             <Reveal key={promise.title} delay={idx * 50} className="h-full">
-              <div className="glass-panel h-full rounded-3xl p-5 transition-transform duration-300 hover:-translate-y-1">
-                <span className="glass-chip inline-flex h-11 w-11 items-center justify-center">
-                  <promise.icon className="h-5 w-5 text-[#FF5500]" aria-hidden="true" />
+              <div className="glass-panel h-full rounded-2xl xs:rounded-3xl p-3.5 xs:p-5 transition-transform duration-300 hover:-translate-y-1">
+                <span className="glass-chip inline-flex h-9 w-9 xs:h-11 xs:w-11 items-center justify-center">
+                  <promise.icon className="h-4 w-4 xs:h-5 xs:w-5 text-[#FF5500]" aria-hidden="true" />
                 </span>
-                <h3 className="mt-4 font-display text-lg font-black uppercase tracking-wide text-neutral-900 dark:text-white">
+                <h3 className="mt-3 xs:mt-4 font-display text-sm xs:text-lg font-black uppercase tracking-wide text-neutral-900 dark:text-white">
                   {promise.title}
                 </h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-neutral-600 dark:text-white/60">
+                <p className="mt-1 text-[11px] xs:text-xs leading-relaxed text-neutral-600 dark:text-white/60 line-clamp-2 xs:line-clamp-none">
                   {promise.caption}
                 </p>
               </div>
@@ -174,29 +174,29 @@ export default async function GlassHomePage() {
       </section>
 
       {/* Featured gear */}
-      <section className="mx-auto max-w-7xl px-4 pt-20 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-3 xs:px-4 pt-14 xs:pt-20 sm:px-6 lg:px-8">
         <Reveal>
-          <div className="flex flex-col gap-4 border-b border-white/60 pb-6 dark:border-white/10 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-3 xs:gap-4 border-b border-white/60 pb-5 xs:pb-6 dark:border-white/10 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#C2410C] dark:text-[#FF9A5C]">
-                <Flame className="h-4 w-4 fill-current" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[11px] xs:text-xs font-black uppercase tracking-widest text-[#C2410C] dark:text-[#FF9A5C]">
+                <Flame className="h-4 w-4 fill-current shrink-0" aria-hidden="true" />
                 <span>Selected by Elite Stroke Makers</span>
               </div>
-              <h2 className="mt-2 font-display text-3xl font-black uppercase tracking-tight text-neutral-900 dark:text-white sm:text-5xl">
+              <h2 className="mt-1.5 xs:mt-2 font-display text-2xl xs:text-3xl font-black uppercase tracking-tight text-neutral-900 dark:text-white sm:text-5xl">
                 Featured Match Gear
               </h2>
             </div>
             <Link
               href="/shop"
-              className="glass-chip mt-1 inline-flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-neutral-800 transition-colors hover:bg-white/85 dark:text-white/90 dark:hover:bg-white/15 sm:mt-0"
+              className="glass-chip mt-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-neutral-800 transition-colors hover:bg-white/85 dark:text-white/90 dark:hover:bg-white/15 sm:mt-0 touch-target"
             >
               <span>Browse the Full Collection</span>
-              <ArrowRight className="h-3.5 w-3.5 text-[#FF5500]" aria-hidden="true" />
+              <ArrowRight className="h-3.5 w-3.5 text-[#FF5500] shrink-0" aria-hidden="true" />
             </Link>
           </div>
         </Reveal>
 
-        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 xs:mt-10 grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
           {featuredProducts.map((product, idx) => (
             <Reveal key={product.id} delay={idx * 55} className="h-full">
               <GlassProductCard product={product} priority={idx < 2} />

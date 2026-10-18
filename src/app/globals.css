@@ -317,3 +317,40 @@ html.js [data-reveal].is-visible {
 .orb-b {
   animation: orb-drift-b 32s ease-in-out infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   Mobile & Foldable Ergonomics (UI/UX Pro Max)
+   - Supports Galaxy Z Fold (280px cover screen & unfolded 7.6" dual screen)
+   - iPhone dynamic island & home indicator safe area handling
+   - 44px+ minimum touch targets for high-precision thumb navigation
+   - Smooth horizontal scrolling for filter/stat rails with touch momentum
+--------------------------------------------------------------------------- */
+.touch-scroll-x {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.touch-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+.touch-snap-item {
+  scroll-snap-align: start;
+}
+
+/* Safe area padding utilities */
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.safe-pt {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.safe-px {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* Minimum accessible touch target utility */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
