@@ -41,7 +41,7 @@ export const ProductCard = React.memo<ProductCardProps>(function ProductCard({ p
   };
 
   return (
-    <div className="group relative bg-white dark:bg-[#0E0E13] border border-neutral-200 dark:border-[#22222A] rounded-2xl overflow-hidden hover:border-[#FF5500] dark:hover:border-[#FF5500]/70 hover:shadow-xl dark:hover:shadow-orange-glow transition-all duration-300 flex flex-col justify-between shadow-sm">
+    <div className="group relative h-full bg-white dark:bg-[#0E0E13] border border-neutral-200 dark:border-[#22222A] rounded-2xl overflow-hidden hover:border-[#FF5500] dark:hover:border-[#FF5500]/70 hover:shadow-xl dark:hover:shadow-orange-glow transition-all duration-300 flex flex-col justify-between shadow-sm">
       <div>
         {/* Thumbnail Container */}
         <Link

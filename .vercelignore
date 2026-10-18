@@ -1,0 +1,3 @@
+# Not needed in the deployed app — keeps uploads lean.
+.opencode/
+design-system/

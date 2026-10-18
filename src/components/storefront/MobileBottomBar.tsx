@@ -62,7 +62,7 @@ export const MobileBottomBar: React.FC = () => {
           <div className="relative">
             <ShoppingBag className="w-5 h-5 stroke-2" />
             {totalItems > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-[#FF5500] text-white font-black text-[9px] min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-in zoom-in-50">
+              <span className="absolute -top-1.5 -right-2 bg-[#FF5500] text-white font-black text-[9px] min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-zoom-in">
                 {totalItems}
               </span>
             )}

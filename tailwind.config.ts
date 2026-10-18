@@ -10,9 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", "Plus Jakarta Sans", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Barlow", "system-ui", "sans-serif"],
         display: ["var(--font-display)", "Barlow Condensed", "Oswald", "sans-serif"],
         athletic: ["var(--font-display)", "Barlow Condensed", "Impact", "sans-serif"],
+      },
+      scale: {
+        // Referenced by product/category media zoom; not in Tailwind defaults.
+        108: "1.08",
       },
       colors: {
         pitch: {

@@ -3,7 +3,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Play, Pause, ArrowRight, ShieldCheck, Truck, CreditCard } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  ArrowRight,
+  ShieldCheck,
+  Truck,
+  CreditCard,
+  Shield,
+  Hand,
+  HardHat,
+  Backpack,
+} from 'lucide-react';
+import { CricketBatIcon, CricketBallIcon } from '@/components/storefront/icons';
+import { buildHeroSlides, type HeroSlide } from '@/lib/heroSlides';
 import { SiteSettings, Product } from '@/lib/types';
 
 interface HeroBannerProps {
@@ -11,79 +26,8 @@ interface HeroBannerProps {
   spotlightProduct?: Product;
 }
 
-interface SlideItem {
-  id: string;
-  image: string;
-  tagline: string;
-  title: string;
-  subtitle: string;
-  priceBadge?: string;
-  primaryCta: { label: string; href: string };
-  secondaryCtas: Array<{ label: string; href: string }>;
-}
-
 export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
-  const slides: SlideItem[] = [
-    {
-      id: 'bats',
-      image:
-        settings.hero_banner_image ||
-        'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'CRICKET OBSESSED • SEVEN DISTRICTS ACADEMY',
-      title: 'Shop Grade 1 English Willow Bats',
-      subtitle:
-        'Hand-selected clefts from Kookaburra, Gray-Nicolls, SG & SS with massive edges, high spines, and featherlight pick-up.',
-      priceBadge: 'Starting from AED 1,299',
-      primaryCta: { label: 'Shop Bats', href: '/shop?category=bats' },
-      secondaryCtas: [
-        { label: 'Kookaburra', href: '/shop?brand=Kookaburra' },
-        { label: 'Gray-Nicolls', href: '/shop?brand=Gray-Nicolls' },
-        { label: 'SS Bats', href: '/shop?brand=SS' },
-      ],
-    },
-    {
-      id: 'balls',
-      image: 'https://images.unsplash.com/photo-1531415074868-036b107e775a?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'TOURNAMENT MATCH BALLS • TEST QUALITY',
-      title: 'Four-Piece County & Match Leather Balls',
-      subtitle:
-        'Handcrafted alum-tanned steer hide with pronounced hand-stitched seams and Portuguese cork centers for lasting swing.',
-      priceBadge: 'Match Packs from AED 95',
-      primaryCta: { label: 'Shop Match Balls', href: '/shop?category=balls' },
-      secondaryCtas: [
-        { label: 'SG White Balls', href: '/shop?brand=SG' },
-        { label: 'Boxes of 6', href: '/shop?category=balls' },
-      ],
-    },
-    {
-      id: 'protection',
-      image: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'HIGH IMPACT DEFENSE • PRO COMFORT',
-      title: 'Test Batting Legguards & Pittards Gloves',
-      subtitle:
-        'High-density EVA impact foam, traditional cane splits, and premium sheepskin palms engineered for 145+ km/h pace bowling.',
-      priceBadge: 'Pads & Gloves from AED 180',
-      primaryCta: { label: 'Shop Batting Pads', href: '/shop?category=pads' },
-      secondaryCtas: [
-        { label: 'Batting Gloves', href: '/shop?category=gloves' },
-        { label: 'Helmets', href: '/shop?category=helmets' },
-      ],
-    },
-    {
-      id: 'academy',
-      image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'SEVEN DISTRICTS CRICKET ACADEMY • AJMAN, UAE',
-      title: 'Official Pro Shop & Team Match Gear',
-      subtitle:
-        'Equipping cricketers across Ajman and all 7 UAE Emirates with tournament-grade gear, card security, and Cash on Delivery.',
-      priceBadge: 'Fast Courier Across UAE',
-      primaryCta: { label: 'Shop All Gear', href: '/shop' },
-      secondaryCtas: [
-        { label: 'Authorized Brands', href: '/shop' },
-        { label: 'Kit Bags', href: '/shop?category=bags' },
-      ],
-    },
-  ];
+  const slides: HeroSlide[] = buildHeroSlides(settings);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -192,7 +136,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
 
         {/* Floating Price/Feature Tag on Desktop Top-Right */}
         {activeSlide.priceBadge && (
-          <div className="absolute top-8 right-8 z-20 hidden md:block animate-fadeIn">
+          <div key={activeSlide.id} className="absolute top-8 right-8 z-20 hidden md:block animate-fade-in">
             <div className="bg-black/60 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 shadow-2xl text-right">
               <span className="block text-[10px] font-black uppercase tracking-widest text-[#FF5500]">
                 Official Academy Spec
@@ -310,19 +254,20 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
               Shop Categories:
             </span>
             {[
-              { label: '🏏 Bats', href: '/shop?category=bats' },
-              { label: '🔴 Match Balls', href: '/shop?category=balls' },
-              { label: '🛡️ Pads', href: '/shop?category=pads' },
-              { label: '🧤 Gloves', href: '/shop?category=gloves' },
-              { label: '🪖 Helmets', href: '/shop?category=helmets' },
-              { label: '🎒 Kit Bags', href: '/shop?category=bags' },
+              { label: 'Bats', href: '/shop?category=bats', Icon: CricketBatIcon },
+              { label: 'Match Balls', href: '/shop?category=balls', Icon: CricketBallIcon },
+              { label: 'Pads', href: '/shop?category=pads', Icon: Shield },
+              { label: 'Gloves', href: '/shop?category=gloves', Icon: Hand },
+              { label: 'Helmets', href: '/shop?category=helmets', Icon: HardHat },
+              { label: 'Kit Bags', href: '/shop?category=bags', Icon: Backpack },
             ].map((cat) => (
               <Link
                 key={cat.label}
                 href={cat.href}
-                className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#14141B] hover:bg-[#1E1E28] border border-[#272734] hover:border-[#FF5500] text-neutral-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
+                className="grow-0 shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#14141B] hover:bg-[#1E1E28] border border-[#272734] hover:border-[#FF5500] text-neutral-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
               >
-                {cat.label}
+                <cat.Icon className="w-3.5 h-3.5 text-[#FF5500]" aria-hidden="true" />
+                <span>{cat.label}</span>
               </Link>
             ))}
           </div>

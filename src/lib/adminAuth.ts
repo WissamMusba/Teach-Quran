@@ -19,6 +19,7 @@ export const ADMIN_REFRESH_COOKIE = 'sdca_admin_refresh';
 
 export const ADMIN_COOKIE_MAX_AGE = 60 * 60; // 1 hour (Supabase access token)
 export const ADMIN_REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+export const ADMIN_PASSWORD_SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (no refresh flow)
 
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -31,6 +32,29 @@ export function isSupabaseAuthConfigured(): boolean {
       !supabaseUrl.includes('placeholder') &&
       !supabaseAnonKey.includes('placeholder')
   );
+}
+
+/**
+ * Password-based admin for deployments without Supabase (e.g. the DEMO_MODE
+ * store). Enabled only when ADMIN_PASSWORD (8+ chars) is set in the env.
+ */
+export function isPasswordAdminConfigured(): boolean {
+  return (process.env.ADMIN_PASSWORD || '').length >= 8;
+}
+
+const textEncoder = new TextEncoder();
+
+/** SHA-256 hex digest — Web Crypto, available in both edge and Node runtimes. */
+export async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(input));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/** Session cookie value for the password admin — derived, never the raw password. */
+export async function adminPasswordSessionToken(): Promise<string> {
+  return sha256Hex(`sdca-admin-v1:${process.env.ADMIN_PASSWORD || ''}`);
 }
 
 /** The demo session is only permitted outside production AND with no Supabase configured. */
@@ -47,42 +71,54 @@ export type AdminAuthResult =
  * (middleware) and from Node route handlers alike.
  */
 export async function checkAdminAuth(accessToken: string | undefined): Promise<AdminAuthResult> {
+  const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+
+  // 1) Real Supabase-backed sessions when configured.
+  if (isSupabaseAuthConfigured()) {
+    if (!adminEmail) {
+      // Fail closed: without an allowlist we cannot tell admin from any other user.
+      return { ok: false, reason: 'not_configured' };
+    }
+
+    if (!accessToken) {
+      return { ok: false, reason: 'unauthenticated' };
+    }
+
+    try {
+      const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      });
+      if (!res.ok) return { ok: false, reason: 'unauthenticated' };
+
+      const user = (await res.json()) as { id?: string; email?: string };
+      if (!user?.id) return { ok: false, reason: 'unauthenticated' };
+      if ((user.email || '').toLowerCase() !== adminEmail) {
+        return { ok: false, reason: 'not_admin' };
+      }
+      return { ok: true, email: user.email || adminEmail };
+    } catch {
+      return { ok: false, reason: 'unauthenticated' };
+    }
+  }
+
+  // 2) Password-based admin session (deployments without Supabase).
+  if (isPasswordAdminConfigured()) {
+    if (!accessToken) return { ok: false, reason: 'unauthenticated' };
+    const expected = await adminPasswordSessionToken();
+    return accessToken === expected
+      ? { ok: true, email: adminEmail || 'admin@demo' }
+      : { ok: false, reason: 'unauthenticated' };
+  }
+
+  // 3) Off-production demo session.
   if (isDevBypassAllowed()) {
     return accessToken === 'dev_session'
       ? { ok: true, email: 'dev@localhost' }
       : { ok: false, reason: 'unauthenticated' };
   }
 
-  if (!isSupabaseAuthConfigured()) {
-    return { ok: false, reason: 'not_configured' };
-  }
-
-  const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-  if (!adminEmail) {
-    // Fail closed: without an allowlist we cannot tell admin from any other user.
-    return { ok: false, reason: 'not_configured' };
-  }
-
-  if (!accessToken) {
-    return { ok: false, reason: 'unauthenticated' };
-  }
-
-  try {
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${accessToken}` },
-      cache: 'no-store',
-    });
-    if (!res.ok) return { ok: false, reason: 'unauthenticated' };
-
-    const user = (await res.json()) as { id?: string; email?: string };
-    if (!user?.id) return { ok: false, reason: 'unauthenticated' };
-    if ((user.email || '').toLowerCase() !== adminEmail) {
-      return { ok: false, reason: 'not_admin' };
-    }
-    return { ok: true, email: user.email || adminEmail };
-  } catch {
-    return { ok: false, reason: 'unauthenticated' };
-  }
+  return { ok: false, reason: 'not_configured' };
 }
 
 /** Exchange a Supabase refresh token for a fresh access token. */

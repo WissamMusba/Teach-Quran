@@ -113,7 +113,7 @@ export const Navbar: React.FC = () => {
             >
               <ShoppingCart className="w-5 h-5 text-neutral-900 dark:text-white" />
               {totalItems > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#FF5500] text-white font-black text-[11px] min-w-[20px] h-5 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-in zoom-in-50 duration-200">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#FF5500] text-white font-black text-[11px] min-w-[20px] h-5 rounded-full flex items-center justify-center px-1 shadow-orange-glow animate-zoom-in">
                   {totalItems}
                 </span>
               )}

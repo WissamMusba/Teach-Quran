@@ -331,7 +331,7 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ produc
           >
             {addedAnimation ? (
               <>
-                <Check className="w-5 h-5 animate-in zoom-in-50" />
+                <Check className="w-5 h-5 animate-zoom-in" />
                 <span>Added to Cricket Cart!</span>
               </>
             ) : (

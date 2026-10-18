@@ -5,9 +5,13 @@ import {
   ADMIN_REFRESH_COOKIE,
   ADMIN_COOKIE_MAX_AGE,
   ADMIN_REFRESH_MAX_AGE,
+  ADMIN_PASSWORD_SESSION_MAX_AGE,
   adminCookieOptions,
   isSupabaseAuthConfigured,
+  isPasswordAdminConfigured,
   isDevBypassAllowed,
+  sha256Hex,
+  adminPasswordSessionToken,
 } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +90,32 @@ export async function POST(req: NextRequest) {
       ADMIN_REFRESH_COOKIE,
       data.session.refresh_token,
       adminCookieOptions(ADMIN_REFRESH_MAX_AGE)
+    );
+    return response;
+  }
+
+  // --- Password-based admin (deployments without Supabase, e.g. DEMO_MODE) ---
+  if (isPasswordAdminConfigured()) {
+    const configuredEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    if (configuredEmail && email !== configuredEmail) {
+      // Do not reveal whether it was the email or the password that was wrong.
+      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+    }
+
+    // Compare SHA-256 digests instead of the raw strings (constant-length compare).
+    const [givenHash, expectedHash] = await Promise.all([
+      sha256Hex(password),
+      sha256Hex(process.env.ADMIN_PASSWORD || ''),
+    ]);
+    if (givenHash !== expectedHash) {
+      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+    }
+
+    const response = NextResponse.json({ success: true, demo: true });
+    response.cookies.set(
+      ADMIN_COOKIE,
+      await adminPasswordSessionToken(),
+      adminCookieOptions(ADMIN_PASSWORD_SESSION_MAX_AGE)
     );
     return response;
   }

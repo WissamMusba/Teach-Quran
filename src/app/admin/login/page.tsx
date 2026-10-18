@@ -135,7 +135,7 @@ function LoginForm() {
 
         <div className="pt-4 border-t border-[#1C1C24] text-center space-y-1">
           <p className="text-[11px] text-neutral-400">
-            Forgot your password? Reset it from your Supabase dashboard (Authentication → Users).
+            Forgot the password? Ask your site administrator to reset it.
           </p>
           <p className="text-[11px] text-neutral-500 font-mono">
             Server-verified sessions · rate-limited login

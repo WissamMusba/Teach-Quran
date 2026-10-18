@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowUpRight } from 'lucide-react';
+import { Reveal } from '@/components/storefront/Reveal';
 
 const CATEGORIES = [
   {
@@ -71,36 +72,37 @@ export const CategoryGrid: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat.slug}
-              href={`/shop?category=${cat.slug}`}
-              className={`group relative overflow-hidden rounded-2xl border border-[#22222A] bg-[#0E0E13] h-64 sm:h-72 transition-all duration-300 hover:border-[#FF5500]/80 hover:shadow-orange-glow ${cat.span}`}
-            >
-              {/* Background Image */}
-              <Image
-                src={cat.image}
-                alt={cat.name}
-                fill
-                sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
-                loading="lazy"
-                className="object-cover opacity-50 group-hover:scale-108 group-hover:opacity-70 transition-all duration-700 will-change-transform"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
+          {CATEGORIES.map((cat, idx) => (
+            <Reveal key={cat.slug} delay={idx * 50} className={cat.span}>
+              <Link
+                href={`/shop?category=${cat.slug}`}
+                className="group relative overflow-hidden rounded-2xl border border-[#22222A] bg-[#0E0E13] h-64 sm:h-72 transition-all duration-300 hover:border-[#FF5500]/80 hover:shadow-orange-glow block"
+              >
+                {/* Background Image */}
+                <Image
+                  src={cat.image}
+                  alt={cat.name}
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 768px) 50vw, 100vw"
+                  loading="lazy"
+                  className="object-cover opacity-50 group-hover:scale-108 group-hover:opacity-70 transition-all duration-700 will-change-transform"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
 
-              {/* Text overlay */}
-              <div className="absolute inset-0 p-6 flex flex-col justify-end">
-                <span className="text-[11px] font-black uppercase tracking-widest text-[#FF5500] mb-1">
-                  {cat.count}
-                </span>
-                <h3 className="font-display uppercase text-2xl sm:text-3xl font-black text-white group-hover:text-white transition-colors leading-tight">
-                  {cat.name}
-                </h3>
+                {/* Text overlay */}
+                <div className="absolute inset-0 p-6 flex flex-col justify-end">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-[#FF5500] mb-1">
+                    {cat.count}
+                  </span>
+                  <h3 className="font-display uppercase text-2xl sm:text-3xl font-black text-white group-hover:text-white transition-colors leading-tight">
+                    {cat.name}
+                  </h3>
 
-                {/* Subtle bottom orange accent bar (GPU scale-x, no layout reflow) */}
-                <div className="w-16 h-[3px] bg-[#FF5500] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 mt-2 shadow-orange-glow-sm will-change-transform" />
-              </div>
-            </Link>
+                  {/* Subtle bottom orange accent bar (GPU scale-x, no layout reflow) */}
+                  <div className="w-16 h-[3px] bg-[#FF5500] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 mt-2 shadow-orange-glow-sm will-change-transform" />
+                </div>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </div>
