@@ -45,10 +45,20 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#0E0E14] border border-[#22222A] rounded-3xl p-10 shadow-2xl space-y-6">
+    <div className="min-h-screen bg-[#07070A] text-white flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient Fluid Glows */}
+      <div
+        className="liquid-ambient-glow w-[500px] h-[500px] -top-32 -left-32 bg-[#FF5500]"
+        aria-hidden="true"
+      />
+      <div
+        className="liquid-ambient-glow w-[600px] h-[600px] -bottom-48 -right-32 bg-[#FF3300]/25"
+        aria-hidden="true"
+      />
+
+      <div className="max-w-md w-full liquid-glass border border-white/10 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-6 relative z-10">
         <div className="text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#000000] border border-[#272732] text-[#FF5500] flex items-center justify-center mx-auto shadow-orange-glow-sm">
+          <div className="w-14 h-14 rounded-2xl liquid-glass-pill border border-white/15 text-[#FF5500] flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(255,85,0,0.3)]">
             <Shield className="w-7 h-7" />
           </div>
           <h1 className="font-display uppercase text-3xl font-black tracking-tight text-white">
@@ -58,6 +68,7 @@ function LoginForm() {
             Authorized cricket store personnel only.
           </p>
         </div>
+
 
         {errorMsg && (
           <div
@@ -78,7 +89,7 @@ function LoginForm() {
               Admin Email Address
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-neutral-500 absolute left-3.5 top-3.5" />
+              <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
               <input
                 id="admin-email"
                 type="email"
@@ -87,7 +98,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@yourstore.com"
-                className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] focus:bg-white/10 transition-all backdrop-blur-md"
               />
             </div>
           </div>
@@ -100,7 +111,7 @@ function LoginForm() {
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
               <input
                 id="admin-password"
                 type="password"
@@ -109,7 +120,7 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-[#272730] bg-[#14141B] text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
+                className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] focus:bg-white/10 transition-all backdrop-blur-md"
               />
             </div>
           </div>
@@ -117,7 +128,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-800 text-black font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-orange-glow flex items-center justify-center space-x-2 active:scale-[0.98]"
+            className="w-full py-3.5 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-800 text-black font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-[0_0_25px_rgba(255,85,0,0.4)] flex items-center justify-center space-x-2 active:scale-[0.98] cursor-pointer touch-target"
           >
             {loading ? (
               <>
@@ -132,6 +143,7 @@ function LoginForm() {
             )}
           </button>
         </form>
+
 
         <div className="pt-4 border-t border-[#1C1C24] text-center space-y-1">
           <p className="text-[11px] text-neutral-400">

@@ -54,8 +54,8 @@ export default async function AdminDashboardPage() {
       {/* KPI Cards — responsive 2 columns on foldables & phones, 4 on desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Revenue */}
-        <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="liquid-glass-card rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
             <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
@@ -72,8 +72,8 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Total Orders */}
-        <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#FF5500]/10 border border-[#FF5500]/30 text-[#FF5500] flex items-center justify-center shrink-0">
+        <div className="liquid-glass-card rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#FF5500]/15 border border-[#FF5500]/30 text-[#FF5500] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,85,0,0.15)]">
             <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
@@ -90,8 +90,8 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Active Gear */}
-        <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#14141E] border border-[#272735] text-white flex items-center justify-center shrink-0">
+        <div className="liquid-glass-card rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/5 border border-white/10 text-white flex items-center justify-center shrink-0">
             <Package className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
@@ -105,8 +105,8 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Low Stock Alerts */}
-        <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-950/60 border border-amber-800/60 text-amber-400 flex items-center justify-center shrink-0">
+        <div className="liquid-glass-card rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:space-x-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
             <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
@@ -122,7 +122,7 @@ export default async function AdminDashboardPage() {
 
       {/* Low Stock Attention List */}
       {lowStockProducts.length > 0 && (
-        <div className="bg-[#1A1005] border border-[#4D2802] rounded-2xl p-4 sm:p-5 space-y-3">
+        <div className="liquid-glass-orange rounded-2xl p-4 sm:p-5 space-y-3">
           <div className="flex items-center space-x-2 text-amber-300 font-bold text-xs uppercase tracking-wider">
             <AlertTriangle className="w-4 h-4 text-amber-400" />
             <span>Low Stock Attention Needed (&le; 5 units remaining)</span>
@@ -131,7 +131,7 @@ export default async function AdminDashboardPage() {
             {lowStockProducts.map((p) => (
               <div
                 key={p.id}
-                className="bg-[#0E0E14] border border-[#331C04] rounded-xl p-3 flex items-center justify-between text-xs"
+                className="liquid-glass rounded-xl p-3 flex items-center justify-between text-xs"
               >
                 <div className="min-w-0 pr-2">
                   <span className="font-bold text-white block truncate">{p.title}</span>
@@ -139,7 +139,7 @@ export default async function AdminDashboardPage() {
                     {p.brand} • AED {p.price.toLocaleString()}
                   </span>
                 </div>
-                <span className="font-mono font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-800 shrink-0">
+                <span className="font-mono font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 shrink-0">
                   {p.stock_quantity} left
                 </span>
               </div>
@@ -149,8 +149,8 @@ export default async function AdminDashboardPage() {
       )}
 
       {/* Recent Orders Preview */}
-      <div className="bg-[#0E0E14] border border-[#22222A] rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-[#1C1C24] flex items-center justify-between bg-[#0A0A0E] gap-2">
+      <div className="liquid-glass rounded-2xl shadow-xl overflow-hidden border border-white/10">
+        <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02] gap-2">
           <div>
             <h2 className="font-display uppercase text-xl sm:text-2xl font-black text-white tracking-wide">
               Recent Orders
@@ -167,9 +167,9 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Mobile / Foldable Recent Orders Card View */}
-        <div className="md:hidden divide-y divide-[#1C1C24]">
+        <div className="md:hidden divide-y divide-white/5">
           {orders.slice(0, 5).map((order) => (
-            <div key={order.id} className="p-4 space-y-3 hover:bg-[#14141B] transition-colors">
+            <div key={order.id} className="p-4 space-y-3 hover:bg-white/[0.03] transition-colors">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs font-bold text-neutral-400">
                   #{order.id.slice(0, 12)}
@@ -178,7 +178,7 @@ export default async function AdminDashboardPage() {
                   className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
                     order.payment_method === 'cod'
                       ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
-                      : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                   }`}
                 >
                   {order.payment_method.toUpperCase()} ({order.payment_status})
@@ -198,13 +198,13 @@ export default async function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#1C1C24]/60">
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/5">
                 <div className="flex-1 max-w-[200px]">
                   <OrderStatusSelect orderId={order.id} initialStatus={order.order_status} />
                 </div>
                 <Link
                   href={`/admin/orders/${order.id}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#181824] hover:bg-[#202030] text-xs font-bold uppercase tracking-wider text-white rounded-xl transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 liquid-glass-pill hover:bg-white/10 text-xs font-bold uppercase tracking-wider text-white rounded-xl transition-colors shrink-0"
                 >
                   <Eye className="w-3.5 h-3.5 text-[#FF5500]" />
                   <span>Inspect</span>
@@ -217,7 +217,7 @@ export default async function AdminDashboardPage() {
         {/* Desktop Table View */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#121218] text-neutral-400 font-bold uppercase tracking-wider border-b border-[#1C1C24]">
+            <thead className="bg-white/[0.02] text-neutral-400 font-bold uppercase tracking-wider border-b border-white/10">
               <tr>
                 <th className="py-3 px-5">Order ID</th>
                 <th className="py-3 px-5">Customer</th>
@@ -227,9 +227,9 @@ export default async function AdminDashboardPage() {
                 <th className="py-3 px-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1C1C24] text-neutral-300">
+            <tbody className="divide-y divide-white/5 text-neutral-300">
               {orders.slice(0, 5).map((order) => (
-                <tr key={order.id} className="hover:bg-[#14141B] transition-colors">
+                <tr key={order.id} className="hover:bg-white/[0.03] transition-colors">
                   <td className="py-3.5 px-5 font-mono font-bold text-neutral-400">
                     #{order.id.slice(0, 12)}
                   </td>
@@ -242,7 +242,7 @@ export default async function AdminDashboardPage() {
                       className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                         order.payment_method === 'cod'
                           ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
-                          : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                       }`}
                     >
                       {order.payment_method.toUpperCase()} ({order.payment_status})
@@ -257,7 +257,7 @@ export default async function AdminDashboardPage() {
                   <td className="py-3.5 px-5 text-right">
                     <Link
                       href={`/admin/orders/${order.id}`}
-                      className="inline-flex items-center space-x-1 p-2 text-neutral-400 hover:text-white hover:bg-[#181824] rounded-lg transition-colors"
+                      className="inline-flex items-center space-x-1 p-2 text-neutral-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                       title="View details"
                     >
                       <Eye className="w-4 h-4 text-[#FF5500]" />
@@ -268,6 +268,7 @@ export default async function AdminDashboardPage() {
             </tbody>
           </table>
         </div>
+
       </div>
     </div>
   );

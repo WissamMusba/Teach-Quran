@@ -43,16 +43,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-[#07070A] text-white flex">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#000000] text-white border-r border-[#1C1C24] shrink-0">
+    <div className="min-h-screen bg-[#07070A] text-white flex relative overflow-hidden">
+      {/* Ambient Fluid Glows behind the glass */}
+      <div
+        className="liquid-ambient-glow w-[500px] h-[500px] -top-32 -left-32 bg-[#FF5500]"
+        aria-hidden="true"
+      />
+      <div
+        className="liquid-ambient-glow w-[600px] h-[600px] -bottom-48 right-0 bg-[#FF3300]/20"
+        aria-hidden="true"
+      />
+
+      {/* Desktop Liquid Glass Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 liquid-glass text-white border-r border-white/10 shrink-0 z-20 relative">
         {/* Brand */}
-        <div className="p-6 border-b border-[#1C1C24] flex items-center space-x-3">
+        <div className="p-6 border-b border-white/10 flex items-center space-x-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-seven-districts.png"
             alt="Seven Districts Cricket Academy"
-            className="w-10 h-10 object-contain rounded-xl border border-[#2E2E38] bg-[#0A0A0E] p-1 shrink-0"
+            className="w-10 h-10 object-contain rounded-xl border border-white/15 bg-white/5 p-1 shrink-0 backdrop-blur-md shadow-inner"
           />
           <div>
             <h2 className="font-display uppercase text-lg font-black tracking-wider text-white leading-none">
@@ -75,8 +85,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={item.href}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                   isActive
-                    ? 'bg-[#FF5500] text-black shadow-orange-glow-sm'
-                    : 'text-neutral-400 hover:text-white hover:bg-[#121218]'
+                    ? 'bg-[#FF5500] text-black shadow-[0_0_20px_rgba(255,85,0,0.5)] font-black'
+                    : 'text-neutral-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -87,11 +97,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-[#1C1C24] space-y-2">
+        <div className="p-4 border-t border-white/10 space-y-2">
           <Link
             href="/"
             target="_blank"
-            className="flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-[#121218] transition-colors"
+            className="flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
           >
             <span className="flex items-center space-x-2">
               <ExternalLink className="w-4 h-4 text-[#FF5500]" />
@@ -101,7 +111,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-950/20 transition-colors text-left"
+            className="w-full flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left border border-transparent hover:border-red-500/20"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
@@ -110,9 +120,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#07070A] pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-transparent pb-16 md:pb-0 z-10 relative">
         {/* Mobile / Foldable Top Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md text-white px-3 sm:px-4 py-3 flex items-center justify-between border-b border-[#1C1C24] safe-pt">
+        <header className="md:hidden sticky top-0 z-30 liquid-glass text-white px-3 sm:px-4 py-3 flex items-center justify-between border-b border-white/10 safe-pt">
           <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -151,9 +161,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Mobile Fullscreen Drawer / Menu Overlay */}
         {mobileSidebarOpen && (
-          <div className="md:hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-md pt-16 flex flex-col animate-fade-in">
-            <div className="p-4 bg-[#0A0A0E] border-b border-[#1C1C24] space-y-2 flex-1 overflow-y-auto">
-              <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 px-3 block mb-1">
+          <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-2xl pt-16 flex flex-col animate-fade-in">
+            <div className="p-4 liquid-glass border-b border-white/10 space-y-2 flex-1 overflow-y-auto">
+              <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400 px-3 block mb-1">
                 Admin Navigation
               </span>
               {NAV_ITEMS.map((item) => {
@@ -166,8 +176,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     onClick={() => setMobileSidebarOpen(false)}
                     className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-wider touch-target transition-all ${
                       isActive
-                        ? 'bg-[#FF5500] text-black shadow-orange-glow-sm'
-                        : 'text-neutral-300 hover:bg-[#181824]'
+                        ? 'bg-[#FF5500] text-black shadow-[0_0_20px_rgba(255,85,0,0.5)] font-black'
+                        : 'text-neutral-300 hover:bg-white/5'
                     }`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
@@ -176,18 +186,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 );
               })}
 
-              <div className="pt-4 mt-4 border-t border-[#1C1C24] space-y-2">
+              <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
                 <Link
                   href="/"
                   target="_blank"
-                  className="flex items-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-[#121218]"
+                  className="flex items-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-white/5"
                 >
                   <ExternalLink className="w-4 h-4 text-[#FF5500]" />
                   <span>Live Storefront</span>
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-950/20 text-left"
+                  className="w-full flex items-center space-x-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 text-left"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign Out</span>
@@ -202,7 +212,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Mobile / Foldable Fixed Quick Bar */}
         <nav
           aria-label="Admin Mobile Navigation"
-          className="fixed bottom-0 inset-x-0 z-30 md:hidden bg-[#0A0A0E]/95 backdrop-blur-xl border-t border-[#1C1C24] px-2 py-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.8)]"
+          className="fixed bottom-0 inset-x-0 z-30 md:hidden liquid-glass border-t border-white/10 px-2 py-1.5 shadow-[0_-8px_32px_rgba(0,0,0,0.8)]"
           style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}
         >
           <div className="grid grid-cols-4 items-center max-w-md mx-auto">
@@ -213,9 +223,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition-colors ${
+                  className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all ${
                     isActive
-                      ? 'text-[#FF5500]'
+                      ? 'text-[#FF5500] font-black'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
@@ -232,3 +242,4 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   );
 }
+
