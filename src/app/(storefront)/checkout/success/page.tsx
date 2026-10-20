@@ -3,8 +3,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getOrderById } from '@/lib/supabaseServer';
 import { verifyOrderToken } from '@/lib/orderToken';
-import { CheckCircle2, PackageCheck, Truck, ArrowRight, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, PackageCheck, Truck, ArrowRight, ShieldAlert, Building2 } from 'lucide-react';
 import ClearCartOnMount from '@/components/storefront/ClearCartOnMount';
+import { SDCA_BANK_DETAILS } from '@/lib/bankDetails';
 
 export const metadata: Metadata = {
   title: 'Order Confirmation',
@@ -72,16 +73,20 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
   const paymentBadge =
     order.payment_status === 'paid'
       ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/60'
-      : order.payment_method === 'cod'
-        ? 'bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/40'
-        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700/60';
+      : order.payment_method === 'bank_transfer'
+        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-700/60'
+        : order.payment_method === 'cod'
+          ? 'bg-[#FF5500]/15 text-[#FF5500] border border-[#FF5500]/40'
+          : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700/60';
 
   const paymentLabel =
     order.payment_status === 'paid'
       ? 'Card Paid via Stripe'
-      : order.payment_method === 'cod'
-        ? 'Cash on Delivery (Pending)'
-        : 'Payment Processing';
+      : order.payment_method === 'bank_transfer'
+        ? 'Bank Wire Transfer (Awaiting Transfer)'
+        : order.payment_method === 'cod'
+          ? 'Cash on Delivery (Pending)'
+          : 'Payment Processing';
 
   return (
     <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-16 transition-colors duration-200">
@@ -125,6 +130,66 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
               {paymentLabel}
             </span>
           </div>
+
+          {/* Bank Transfer Instructions Box if selected */}
+          {order.payment_method === 'bank_transfer' && (
+            <div className="bg-neutral-50 dark:bg-[#12121B] border-2 border-[#FF5500]/40 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center space-x-2 text-[#FF5500]">
+                <Building2 className="w-5 h-5" />
+                <h3 className="font-display uppercase text-lg font-black text-black dark:text-white">
+                  Bank Transfer Instructions
+                </h3>
+              </div>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                Please transfer exactly <strong className="text-black dark:text-white font-mono">AED {order.total_amount.toLocaleString()}</strong> to the following Emirates Islamic account and include your order reference in the transfer notes:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white dark:bg-[#0B0B10] p-4 rounded-xl border border-neutral-200 dark:border-[#222230]">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">Bank</span>
+                  <span className="font-bold text-black dark:text-white">{SDCA_BANK_DETAILS.bankName}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">Currency</span>
+                  <span className="font-bold text-black dark:text-white">{SDCA_BANK_DETAILS.currency}</span>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">IBAN</span>
+                  <span className="font-mono font-bold text-black dark:text-white select-all text-xs sm:text-sm">
+                    {SDCA_BANK_DETAILS.iban}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">Account Number</span>
+                  <span className="font-mono font-bold text-black dark:text-white select-all">
+                    {SDCA_BANK_DETAILS.accountNumber}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">SWIFT Code</span>
+                  <span className="font-mono font-bold text-black dark:text-white select-all">
+                    {SDCA_BANK_DETAILS.swiftCode}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">Routing Number</span>
+                  <span className="font-mono font-bold text-black dark:text-white select-all">
+                    {SDCA_BANK_DETAILS.routingNumber}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-neutral-500 block">Payment Reference</span>
+                  <span className="font-mono font-bold text-[#FF5500] select-all">
+                    #{order.id.slice(0, 8)}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-neutral-500">
+                Once transferred, you can send the screenshot or confirmation receipt to our WhatsApp support team for instant order dispatch.
+              </p>
+            </div>
+          )}
 
           {/* Customer & Shipping info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-neutral-700 dark:text-neutral-300">

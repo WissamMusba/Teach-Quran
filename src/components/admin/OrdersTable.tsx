@@ -99,10 +99,16 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
                   className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                     order.payment_method === 'cod'
                       ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                      : order.payment_method === 'bank_transfer'
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                       : 'bg-[#181822] text-white border border-[#292938]'
                   }`}
                 >
-                  {order.payment_method === 'cod' ? 'COD' : 'Stripe Card'}
+                  {order.payment_method === 'cod'
+                    ? 'COD'
+                    : order.payment_method === 'bank_transfer'
+                    ? 'Bank Transfer'
+                    : 'Stripe Card'}
                 </span>
                 <span
                   className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold capitalize ${
@@ -178,10 +184,16 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ initialOrders }) => {
                       className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                         order.payment_method === 'cod'
                           ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                          : order.payment_method === 'bank_transfer'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                           : 'bg-[#181822] text-white border border-[#292938]'
                       }`}
                     >
-                      {order.payment_method === 'cod' ? 'COD' : 'Stripe Card'}
+                      {order.payment_method === 'cod'
+                        ? 'COD'
+                        : order.payment_method === 'bank_transfer'
+                        ? 'Bank Transfer'
+                        : 'Stripe Card'}
                     </span>
                   </td>
                   <td className="py-3.5 px-5">

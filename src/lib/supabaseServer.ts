@@ -391,7 +391,10 @@ export async function getOrders(options?: { status?: OrderStatus }): Promise<Ord
       }
       const { data, error } = await query;
       if (!error && data) {
-        return data as Order[];
+        return (data as any[]).map(o => ({
+          ...o,
+          payment_method: o.stripe_session_id === 'bank_transfer' ? 'bank_transfer' : o.payment_method
+        })) as Order[];
       }
       console.error('Supabase getOrders error:', error?.message);
       return isDemoMode ? fallbackOrders(options) : [];
@@ -424,7 +427,11 @@ export async function getOrderById(id: string): Promise<Order | null> {
         .eq('id', id)
         .maybeSingle();
       if (!error && data) {
-        return data as Order;
+        const orderData = data as any;
+        return {
+          ...orderData,
+          payment_method: orderData.stripe_session_id === 'bank_transfer' ? 'bank_transfer' : orderData.payment_method
+        } as Order;
       }
       return null;
     } catch (err) {
@@ -446,9 +453,18 @@ export async function createOrder(
 
   if (supabase) {
     try {
+      // If the database has a check constraint limiting payment_method to ('card', 'cod'),
+      // we persist bank_transfer safely by storing 'cod' in payment_method and 'bank_transfer' in stripe_session_id.
+      const isBankTransfer = order.payment_method === 'bank_transfer';
+      const orderPayload = {
+        ...order,
+        payment_method: isBankTransfer ? 'cod' : order.payment_method,
+        stripe_session_id: isBankTransfer ? 'bank_transfer' : order.stripe_session_id,
+      };
+
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .insert([order])
+        .insert([orderPayload])
         .select()
         .single();
 
@@ -475,7 +491,13 @@ export async function createOrder(
         return null;
       }
 
-      const fullOrder = { ...orderData, items: itemsToInsert } as Order;
+      const fullOrder = {
+        ...orderData,
+        payment_method: isBankTransfer ? 'bank_transfer' : orderData.payment_method,
+        items: itemsToInsert,
+      } as Order;
+      memoryStore.orders.unshift(fullOrder);
+      return fullOrder;
       memoryStore.orders.unshift(fullOrder);
       return fullOrder;
     } catch (err) {

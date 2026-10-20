@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!['card', 'cod'].includes(payment_method)) {
+    if (!['card', 'cod', 'bank_transfer'].includes(payment_method)) {
       return NextResponse.json(
-        { error: 'Invalid payment method. Allowed: "card" or "cod"' },
+        { error: 'Invalid payment method. Allowed: "card", "cod", or "bank_transfer"' },
         { status: 400 }
       );
     }
@@ -177,9 +177,9 @@ export async function POST(req: NextRequest) {
     const successUrl = `${siteUrl}/checkout/success?order_id=${newOrder.id}&token=${token}`;
 
     // ------------------------------------------------------------------
-    // 4a. Cash on Delivery: reserve stock immediately, atomically
+    // 4a. Cash on Delivery or Direct Bank Transfer: reserve stock immediately
     // ------------------------------------------------------------------
-    if (payment_method === 'cod') {
+    if (payment_method === 'cod' || payment_method === 'bank_transfer') {
       const reserved: { productId: string; quantity: number }[] = [];
 
       for (const r of resolved) {

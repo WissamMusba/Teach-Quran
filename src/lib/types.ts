@@ -31,7 +31,7 @@ export interface ShippingAddress {
   country: string;
 }
 
-export type PaymentMethod = 'card' | 'cod';
+export type PaymentMethod = 'card' | 'cod' | 'bank_transfer';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type OrderStatus = 'new' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
 

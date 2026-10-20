@@ -89,7 +89,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             <div className="flex justify-between">
               <span className="text-neutral-400">Method:</span>
               <span className="font-black uppercase text-white">
-                {order.payment_method === 'cod' ? 'Cash on Delivery' : 'Stripe Card'}
+                {order.payment_method === 'cod'
+                  ? 'Cash on Delivery'
+                  : order.payment_method === 'bank_transfer'
+                  ? 'Bank Wire Transfer'
+                  : 'Stripe Card'}
               </span>
             </div>
             <div className="flex justify-between">

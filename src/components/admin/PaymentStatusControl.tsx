@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 import { Loader2, BadgeCheck, Undo2 } from 'lucide-react';
-import { PaymentStatus } from '@/lib/types';
+import { PaymentMethod, PaymentStatus } from '@/lib/types';
 
 interface PaymentStatusControlProps {
   orderId: string;
-  method: 'card' | 'cod';
+  method: PaymentMethod;
   initialStatus: PaymentStatus;
 }
 
@@ -58,6 +58,8 @@ export const PaymentStatusControl: React.FC<PaymentStatusControlProps> = ({
               'paid',
               method === 'cod'
                 ? 'Confirm the courier has collected the cash for this order?'
+                : method === 'bank_transfer'
+                ? 'Confirm the bank transfer has been received in Emirates Islamic?'
                 : 'Mark this order as paid? Only do this if payment has actually been received.'
             )
           }
@@ -69,7 +71,13 @@ export const PaymentStatusControl: React.FC<PaymentStatusControlProps> = ({
           ) : (
             <BadgeCheck className="w-3.5 h-3.5" />
           )}
-          <span>{method === 'cod' ? 'Mark Cash Received' : 'Mark Payment Received'}</span>
+          <span>
+            {method === 'cod'
+              ? 'Mark Cash Received'
+              : method === 'bank_transfer'
+              ? 'Confirm Bank Transfer'
+              : 'Mark Payment Received'}
+          </span>
         </button>
       ) : (
         <button

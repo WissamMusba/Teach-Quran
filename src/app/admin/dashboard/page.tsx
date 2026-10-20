@@ -178,10 +178,12 @@ export default async function AdminDashboardPage() {
                   className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
                     order.payment_method === 'cod'
                       ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                      : order.payment_method === 'bank_transfer'
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                       : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                   }`}
                 >
-                  {order.payment_method.toUpperCase()} ({order.payment_status})
+                  {order.payment_method === 'bank_transfer' ? 'BANK TRANSFER' : order.payment_method.toUpperCase()} ({order.payment_status})
                 </span>
               </div>
 
@@ -242,10 +244,12 @@ export default async function AdminDashboardPage() {
                       className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                         order.payment_method === 'cod'
                           ? 'bg-[#FF5500]/20 text-[#FF5500] border border-[#FF5500]/40'
+                          : order.payment_method === 'bank_transfer'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                           : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                       }`}
                     >
-                      {order.payment_method.toUpperCase()} ({order.payment_status})
+                      {order.payment_method === 'bank_transfer' ? 'BANK TRANSFER' : order.payment_method.toUpperCase()} ({order.payment_status})
                     </span>
                   </td>
                   <td className="py-3.5 px-5 font-display text-lg font-black text-white">

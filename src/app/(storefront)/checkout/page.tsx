@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { CreditCard, Truck, ShieldCheck, Lock, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { CreditCard, Truck, ShieldCheck, Lock, AlertCircle, ArrowLeft, Loader2, Building2, Check, Copy } from 'lucide-react';
+import { SDCA_BANK_DETAILS } from '@/lib/bankDetails';
 
 export default function CheckoutPage() {
   const { cart, totalAmount } = useCart();
@@ -19,10 +20,17 @@ export default function CheckoutPage() {
     country: 'United Arab Emirates',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cod'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cod' | 'bank_transfer'>('bank_transfer');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  const copyToClipboard = (text: string, fieldName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   if (cart.length === 0) {
     return (
@@ -313,7 +321,37 @@ export default function CheckoutPage() {
                 3. Payment Method
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Direct Bank Wire Transfer */}
+                <label
+                  className={`relative flex flex-col p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    paymentMethod === 'bank_transfer'
+                      ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm'
+                      : 'border-neutral-200 dark:border-[#252530] hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50 dark:bg-[#121218]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2 font-display uppercase tracking-wide font-bold text-base text-black dark:text-white">
+                      <Building2 className="w-5 h-5 text-[#FF5500] shrink-0" />
+                      <span>Bank Transfer</span>
+                    </div>
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value="bank_transfer"
+                      checked={paymentMethod === 'bank_transfer'}
+                      onChange={() => setPaymentMethod('bank_transfer')}
+                      className="text-[#FF5500] focus:ring-[#FF5500]"
+                    />
+                  </div>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Direct transfer to Emirates Islamic. 0% processing fees.
+                  </p>
+                  <span className="mt-2 text-[10px] font-black tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                    Direct To Bank Account
+                  </span>
+                </label>
+
                 {/* Stripe Card */}
                 <label
                   className={`relative flex flex-col p-5 rounded-2xl border-2 cursor-pointer transition-all ${
@@ -323,9 +361,9 @@ export default function CheckoutPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2.5 font-display uppercase tracking-wide font-bold text-lg text-black dark:text-white">
-                      <CreditCard className="w-5 h-5 text-[#FF5500]" />
-                      <span>Credit / Debit Card</span>
+                    <div className="flex items-center space-x-2 font-display uppercase tracking-wide font-bold text-base text-black dark:text-white">
+                      <CreditCard className="w-5 h-5 text-[#FF5500] shrink-0" />
+                      <span>Card / Apple Pay</span>
                     </div>
                     <input
                       type="radio"
@@ -337,7 +375,7 @@ export default function CheckoutPage() {
                     />
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                    Visa, Mastercard, Apple Pay processed securely via Stripe Checkout session.
+                    Visa, Mastercard, Apple Pay processed securely via Stripe.
                   </p>
                 </label>
 
@@ -350,8 +388,8 @@ export default function CheckoutPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2.5 font-display uppercase tracking-wide font-bold text-lg text-black dark:text-white">
-                      <Truck className="w-5 h-5 text-[#FF5500]" />
+                    <div className="flex items-center space-x-2 font-display uppercase tracking-wide font-bold text-base text-black dark:text-white">
+                      <Truck className="w-5 h-5 text-[#FF5500] shrink-0" />
                       <span>Cash on Delivery</span>
                     </div>
                     <input
@@ -364,10 +402,105 @@ export default function CheckoutPage() {
                     />
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                    Pay in cash when your cricket equipment parcel is handed over by the courier.
+                    Pay in cash when parcel is handed over by the courier.
                   </p>
                 </label>
               </div>
+
+              {/* Bank Account Details Card if selected */}
+              {paymentMethod === 'bank_transfer' && (
+                <div className="mt-4 p-5 rounded-2xl border border-[#FF5500]/30 bg-neutral-100 dark:bg-[#161622] space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2">
+                      <Building2 className="w-5 h-5 text-[#FF5500]" />
+                      <span className="font-display uppercase font-black text-sm tracking-wide text-black dark:text-white">
+                        Official Bank Transfer Details
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                      {SDCA_BANK_DETAILS.bankName} • {SDCA_BANK_DETAILS.currency}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                    Please transfer the total of <strong className="text-black dark:text-white font-mono">AED {totalAmount.toLocaleString()}</strong> directly to our bank account. Your equipment will be reserved and prepared immediately.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {/* IBAN */}
+                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
+                      <div className="min-w-0 pr-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">IBAN</span>
+                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs sm:text-[13px] block truncate">
+                          {SDCA_BANK_DETAILS.iban}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.ibanClean, 'iban')}
+                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
+                        title="Copy IBAN"
+                      >
+                        {copiedField === 'iban' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* Account Number */}
+                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
+                      <div className="min-w-0 pr-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">Account Number</span>
+                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs sm:text-sm block">
+                          {SDCA_BANK_DETAILS.accountNumber}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.accountNumber, 'account')}
+                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
+                        title="Copy Account Number"
+                      >
+                        {copiedField === 'account' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* Swift Code */}
+                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">SWIFT Code</span>
+                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs">
+                          {SDCA_BANK_DETAILS.swiftCode}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.swiftCode, 'swift')}
+                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
+                        title="Copy SWIFT"
+                      >
+                        {copiedField === 'swift' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {/* Routing Number */}
+                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">Routing Number</span>
+                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs">
+                          {SDCA_BANK_DETAILS.routingNumber}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.routingNumber, 'routing')}
+                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
+                        title="Copy Routing Number"
+                      >
+                        {copiedField === 'routing' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
