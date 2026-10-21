@@ -19,7 +19,7 @@ const SUPPORT_LINKS = [
   { label: 'Staff Portal', href: '/admin/login' },
 ];
 
-const PAYMENT_CHIPS = ['Card', 'Cash on Delivery', 'Apple Pay', 'Google Pay'];
+const PAYMENT_CHIPS = ['Bank Transfer (Emirates Islamic)', 'Cash on Delivery'];
 
 /**
  * Liquid Glass footer — translucent band continuing the ambient page field.

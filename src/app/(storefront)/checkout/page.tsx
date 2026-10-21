@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import {
-  CreditCard,
   Truck,
   ShieldCheck,
   Lock,
@@ -29,7 +28,7 @@ export default function CheckoutPage() {
     country: 'United Arab Emirates',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'card' | 'cod'>('bank_transfer');
+  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'cod'>('bank_transfer');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(true);
@@ -312,7 +311,7 @@ export default function CheckoutPage() {
                 </span>
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 1. Direct Bank Wire Transfer */}
                 <div
                   role="button"
@@ -361,52 +360,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* 2. Stripe Card */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setPaymentMethod('card')}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.key === 'Enter') {
-                      e.preventDefault();
-                      setPaymentMethod('card');
-                    }
-                  }}
-                  className={`relative flex flex-col p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                    paymentMethod === 'card'
-                      ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm ring-1 ring-[#FF5500]'
-                      : 'border-neutral-200 dark:border-[#252530] hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50 dark:bg-[#121218]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2 font-display uppercase tracking-wide font-bold text-base text-black dark:text-white">
-                      <CreditCard className="w-5 h-5 text-[#FF5500] shrink-0" />
-                      <span>Card / Apple Pay</span>
-                    </div>
-                    {/* Visual Radio Circle */}
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                        paymentMethod === 'card'
-                          ? 'border-[#FF5500] bg-[#FF5500]'
-                          : 'border-neutral-400 dark:border-neutral-600'
-                      }`}
-                    >
-                      {paymentMethod === 'card' && (
-                        <div className="w-2 h-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 flex-1">
-                    Visa, Mastercard, Apple Pay processed securely via Stripe.
-                  </p>
-                  <div className="mt-3">
-                    <span className="text-[10px] font-black tracking-wider uppercase text-neutral-500 dark:text-neutral-400">
-                      Instant Confirmation
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Cash on Delivery */}
+                {/* 2. Cash on Delivery */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -478,9 +432,7 @@ export default function CheckoutPage() {
                   <h3 className="font-display uppercase text-lg sm:text-xl font-black text-black dark:text-white">
                     {paymentMethod === 'bank_transfer'
                       ? 'Proceed to Bank Transfer Instructions'
-                      : paymentMethod === 'card'
-                        ? 'Proceed to Secure Card Payment'
-                        : 'Confirm Cash on Delivery'}
+                      : 'Confirm Cash on Delivery'}
                   </h3>
                 </div>
                 <div className="flex items-baseline space-x-1.5 self-start sm:self-auto">
@@ -504,11 +456,6 @@ export default function CheckoutPage() {
                 ) : paymentMethod === 'bank_transfer' ? (
                   <>
                     <span>Proceed to Bank Transfer Details</span>
-                    <ArrowRight className="w-5 h-5 text-white" />
-                  </>
-                ) : paymentMethod === 'card' ? (
-                  <>
-                    <span>Pay AED {totalAmount.toLocaleString()} by Card</span>
                     <ArrowRight className="w-5 h-5 text-white" />
                   </>
                 ) : (
@@ -612,8 +559,6 @@ export default function CheckoutPage() {
                     <span>Proceed to Bank Transfer Details</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
-                ) : paymentMethod === 'card' ? (
-                  <span>Pay by Card — AED {totalAmount.toLocaleString()}</span>
                 ) : (
                   <span>Place COD Order — AED {totalAmount.toLocaleString()}</span>
                 )}
@@ -663,8 +608,6 @@ export default function CheckoutPage() {
                 <span>Bank Transfer</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </>
-            ) : paymentMethod === 'card' ? (
-              <span>Pay by Card</span>
             ) : (
               <span>Place COD Order</span>
             )}

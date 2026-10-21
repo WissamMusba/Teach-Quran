@@ -23,7 +23,7 @@ interface GlassHeroProps {
 const TRUST_ROWS = [
   { icon: Truck, text: 'Fast UAE Dispatch' },
   { icon: ShieldCheck, text: '100% Authentic Brands' },
-  { icon: Banknote, text: 'Card & Cash on Delivery' },
+  { icon: Banknote, text: 'Bank Transfer & Cash on Delivery' },
 ];
 
 /**

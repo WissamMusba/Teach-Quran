@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!['card', 'cod', 'bank_transfer'].includes(payment_method)) {
+    if (!['cod', 'bank_transfer'].includes(payment_method)) {
       return NextResponse.json(
-        { error: 'Invalid payment method. Allowed: "card", "cod", or "bank_transfer"' },
+        { error: 'Card / Apple Pay is currently unavailable. Please select Direct Bank Transfer or Cash on Delivery.' },
         { status: 400 }
       );
     }

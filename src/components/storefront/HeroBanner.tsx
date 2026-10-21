@@ -11,7 +11,7 @@ import {
   ArrowRight,
   ShieldCheck,
   Truck,
-  CreditCard,
+  Building2,
   Shield,
   Hand,
   HardHat,
@@ -283,8 +283,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
               <span>Fast UAE Dispatch</span>
             </div>
             <div className="flex items-center space-x-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-[#FF5500]" />
-              <span>Card &amp; Cash on Delivery</span>
+              <Building2 className="w-3.5 h-3.5 text-[#FF5500]" />
+              <span>Bank Transfer &amp; COD</span>
             </div>
           </div>
         </div>

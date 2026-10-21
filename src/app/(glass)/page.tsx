@@ -50,8 +50,8 @@ const SERVICE_PROMISES = [
   },
   {
     icon: Banknote,
-    title: 'Card & Cash on Delivery',
-    caption: 'Pay securely online with Stripe or in cash at your door.',
+    title: 'Bank Transfer & Cash on Delivery',
+    caption: 'Direct Emirates Islamic transfer with instant receipt verification, or cash at your door.',
   },
   {
     icon: ShieldCheck,
