@@ -1,5 +1,5 @@
 /**
- * Official Academy Bank Transfer Details (Emirates Islamic)
+ * Official CG Sports Bank Transfer Details (Emirates Islamic)
  * Direct payments land instantly into this account with zero gateway fee.
  */
 export const SDCA_BANK_DETAILS = {
@@ -10,8 +10,13 @@ export const SDCA_BANK_DETAILS = {
   accountNumber: '3578352715902',
   swiftCode: 'MEBLAEAD',
   routingNumber: '703420114',
-  accountTitle: 'Seven Districts Cricket Academy',
-  supportWhatsapp: '+971500000000',
+  accountTitle: 'CG Sports',
+  supportWhatsapp: '+971552317221',
+  supportPhone: '0552317221',
+  supportEmail: 'Rizwany3k@gmail.com',
   instructions:
     'Transfer the total amount via Online/Mobile Banking or ATM deposit. Include your Order Reference in the transfer remarks/description so we can immediately verify and dispatch your cricket equipment.',
 };
+
+export const CG_SPORTS_BANK_DETAILS = SDCA_BANK_DETAILS;
+

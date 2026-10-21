@@ -7,19 +7,19 @@ import { getSiteUrl } from '@/lib/site';
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: {
-    default: 'Seven Districts Cricket Academy | Pro Shop — Ajman, UAE',
-    template: '%s | Seven Districts Cricket Academy',
+    default: 'CG Sports | Pro Cricket Shop — Located at Seven Districts, Ajman, UAE',
+    template: '%s | CG Sports',
   },
   description:
-    'Official Equipment Store of Seven Districts Cricket Academy (TSDCA) in Ajman, UAE. Tournament Grade 1 English Willow bats, match leather balls, protective armor, and gear with Card and COD delivery across the Emirates.',
-  applicationName: 'Seven Districts Cricket Academy',
+    'Official Equipment Store of CG Sports, located at Seven Districts Cricket Academy in Ajman, UAE. Tournament Grade 1 English Willow bats, match leather balls, protective armor, and gear with Card and COD delivery across the Emirates.',
+  applicationName: 'CG Sports',
   openGraph: {
     type: 'website',
     locale: 'en_AE',
-    siteName: 'Seven Districts Cricket Academy',
-    title: 'Seven Districts Cricket Academy | Pro Shop — Ajman, UAE',
+    siteName: 'CG Sports',
+    title: 'CG Sports | Pro Cricket Shop — Located at Seven Districts, Ajman, UAE',
     description:
-      'Official Equipment Store of Seven Districts Cricket Academy (TSDCA) in Ajman, UAE. Tournament Grade 1 English Willow bats, protective armor, and match gear.',
+      'Official Equipment Store of CG Sports, located at Seven Districts Cricket Academy in Ajman, UAE. Tournament Grade 1 English Willow bats, protective armor, and match gear.',
   },
 };
 

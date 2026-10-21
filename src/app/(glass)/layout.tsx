@@ -8,9 +8,9 @@ import { CartDrawer } from '@/components/storefront/CartDrawer';
 import { MobileBottomBar } from '@/components/storefront/MobileBottomBar';
 
 export const metadata: Metadata = {
-  title: 'Seven Districts Cricket Academy | Pro Shop — Ajman, UAE',
+  title: 'CG Sports | Pro Cricket Shop — Located at Seven Districts, Ajman, UAE',
   description:
-    'Shop tournament-grade cricket gear at the Seven Districts Cricket Academy pro shop in Ajman — English willow bats, match balls, batting pads, gloves and helmets with fast UAE-wide delivery.',
+    'Shop tournament-grade cricket gear at CG Sports, located at Seven Districts Cricket Academy in Ajman — English willow bats, match balls, batting pads, gloves and helmets with fast UAE-wide delivery.',
 };
 
 export const revalidate = 60;

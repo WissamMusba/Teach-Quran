@@ -17,14 +17,14 @@ export default function PrivacyPolicyPage() {
     >
       <LegalSection title="1. Who We Are">
         <p>
-          Seven Districts Cricket Academy (TSDCA) (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates this
-          online cricket equipment store. We are the data controller responsible for your personal
-          information.
+          CG Sports (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates this online cricket
+          equipment store, located at Seven Districts Cricket Academy. We are the data controller responsible
+          for your personal information.
         </p>
         <LegalList
           items={[
-            <>Location: Seven Districts Cricket Academy, Ajman, United Arab Emirates</>,
-            <>Academy Campus &amp; Pro Store: Ajman, UAE</>,
+            <>Location: CG Sports • Located at Seven Districts Cricket Academy, Ajman, United Arab Emirates</>,
+            <>Pro Store: Inside Seven Districts Cricket Academy Campus, Ajman, UAE</>,
           ]}
         />
       </LegalSection>
@@ -134,8 +134,8 @@ export default function PrivacyPolicyPage() {
         />
         <p>
           To exercise any of these rights, contact{' '}
-          <a href="mailto:info@sevendistricts.ae" className="text-[#FF5500] hover:underline">
-            info@sevendistricts.ae
+          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
+            Rizwany3k@gmail.com
           </a>
           . We may ask you to verify your identity before acting on a request. You also have the right to complain to the data
           protection authority in your jurisdiction — in the UAE this is the UAE Data Office.
@@ -167,8 +167,8 @@ export default function PrivacyPolicyPage() {
         <p>
           Our store is not directed at children under 16. We do not knowingly collect personal
           information from children. If you believe a child has provided us information, contact{' '}
-          <a href="mailto:info@sevendistricts.ae" className="text-[#FF5500] hover:underline">
-            info@sevendistricts.ae
+          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
+            Rizwany3k@gmail.com
           </a>{' '}
           and we will delete it.
         </p>

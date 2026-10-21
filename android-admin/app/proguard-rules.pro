@@ -1,0 +1,2 @@
+-dontwarn **
+-keep class ae.sevendistricts.admin.** { *; }

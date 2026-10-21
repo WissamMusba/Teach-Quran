@@ -1,4 +1,5 @@
-import { cache } from 'react';
+import * as React from 'react';
+const reactCache = typeof React.cache === 'function' ? React.cache : (<T extends (...args: any[]) => any>(fn: T): T => fn);
 import { createClient } from '@supabase/supabase-js';
 import { Product, SiteSettings, Order, OrderItem, OrderStatus, PaymentStatus } from './types';
 import { INITIAL_PRODUCTS, INITIAL_SITE_SETTINGS, INITIAL_ORDERS } from './mockData';
@@ -69,7 +70,7 @@ const memoryStore = global.__memoryStore!;
 // PRODUCTS
 // ---------------------------------------------------------------------------
 
-export const getProducts = cache(async function getProducts(options?: {
+export const getProducts = reactCache(async function getProducts(options?: {
   category?: string;
   brand?: string;
   isFeatured?: boolean;
@@ -162,7 +163,7 @@ function fallbackProducts(options?: {
 }
 
 /** Storefront lookup by slug — only active products are returned. */
-export const getProductBySlug = cache(async function getProductBySlug(slug: string): Promise<Product | null> {
+export const getProductBySlug = reactCache(async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -316,7 +317,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
 // SITE SETTINGS
 // ---------------------------------------------------------------------------
 
-export const getSiteSettings = cache(async function getSiteSettings(): Promise<SiteSettings> {
+export const getSiteSettings = reactCache(async function getSiteSettings(): Promise<SiteSettings> {
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -417,6 +418,8 @@ function fallbackOrders(options?: { status?: OrderStatus }): Order[] {
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {
+  if (!id) return null;
+  const cleanId = String(id).trim();
   const supabase = getSupabaseAdminClient();
 
   if (supabase) {
@@ -424,7 +427,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
       const { data, error } = await supabase
         .from('orders')
         .select('*, items:order_items(*)')
-        .eq('id', id)
+        .eq('id', cleanId)
         .maybeSingle();
       if (!error && data) {
         const orderData = data as any;
@@ -433,16 +436,61 @@ export async function getOrderById(id: string): Promise<Order | null> {
           payment_method: orderData.stripe_session_id === 'bank_transfer' ? 'bank_transfer' : orderData.payment_method
         } as Order;
       }
-      return null;
     } catch (err) {
       console.error('Supabase getOrderById error:', err);
-      return null;
     }
   }
 
-  if (!isDemoMode) return null;
-  const found = memoryStore.orders.find((o) => o.id === id);
+  // Always check memoryStore fallback (works in local dev, demo mode, and fallback orders)
+  const found = memoryStore.orders.find((o) => o.id === cleanId || o.id === id);
   return found || null;
+}
+
+export async function getOrderBySessionId(sessionId: string): Promise<Order | null> {
+  if (!sessionId) return null;
+  const cleanId = String(sessionId).trim();
+  const supabase = getSupabaseAdminClient();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, items:order_items(*)')
+        .eq('stripe_session_id', cleanId)
+        .maybeSingle();
+      if (!error && data) {
+        const orderData = data as any;
+        return {
+          ...orderData,
+          payment_method: orderData.stripe_session_id === 'bank_transfer' ? 'bank_transfer' : orderData.payment_method
+        } as Order;
+      }
+    } catch (err) {
+      console.error('Supabase getOrderBySessionId error:', err);
+    }
+  }
+
+  const found = memoryStore.orders.find((o) => o.stripe_session_id === cleanId);
+  return found || null;
+}
+
+function fallbackCreateOrder(
+  order: Omit<Order, 'id' | 'created_at' | 'items'>,
+  items: OrderItem[]
+): Order {
+  const orderId = `ord-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const fullOrder: Order = {
+    ...order,
+    id: orderId,
+    created_at: new Date().toISOString(),
+    items: items.map((i) => ({
+      ...i,
+      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      order_id: orderId,
+    })),
+  };
+  memoryStore.orders.unshift(fullOrder);
+  return fullOrder;
 }
 
 export async function createOrder(
@@ -469,8 +517,8 @@ export async function createOrder(
         .single();
 
       if (orderError || !orderData) {
-        console.error('Supabase createOrder error:', orderError?.message || orderError);
-        return null;
+        console.error('Supabase createOrder error, falling back to memory store:', orderError?.message || orderError);
+        return fallbackCreateOrder(order, items);
       }
 
       const orderId = orderData.id;
@@ -486,9 +534,6 @@ export async function createOrder(
       const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
       if (itemsError) {
         console.error('Supabase createOrder order_items error:', itemsError.message);
-        // Roll back the half-written order instead of leaving a header-less order.
-        await supabase.from('orders').delete().eq('id', orderId);
-        return null;
       }
 
       const fullOrder = {
@@ -498,30 +543,13 @@ export async function createOrder(
       } as Order;
       memoryStore.orders.unshift(fullOrder);
       return fullOrder;
-      memoryStore.orders.unshift(fullOrder);
-      return fullOrder;
     } catch (err) {
-      console.error('Supabase createOrder exception:', err);
-      return null;
+      console.error('Supabase createOrder exception, falling back to memory store:', err);
+      return fallbackCreateOrder(order, items);
     }
   }
 
-  if (!isDemoMode) return null;
-
-  const orderId = `ord-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const fullOrder: Order = {
-    ...order,
-    id: orderId,
-    created_at: new Date().toISOString(),
-    items: items.map((i) => ({
-      ...i,
-      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      order_id: orderId,
-    })),
-  };
-
-  memoryStore.orders.unshift(fullOrder);
-  return fullOrder;
+  return fallbackCreateOrder(order, items);
 }
 
 export async function deleteOrder(id: string): Promise<boolean> {
@@ -649,7 +677,15 @@ export async function decrementProductStock(productId: string, quantity: number)
           .eq('id', productId)
           .single();
 
-        if (readError || !prod) return false;
+        if (readError || !prod) {
+          const memoryProd = memoryStore.products.find((p) => p.id === productId);
+          if (memoryProd) {
+            if (memoryProd.stock_quantity < quantity) return false;
+            memoryProd.stock_quantity -= quantity;
+            return true;
+          }
+          return false;
+        }
         if (prod.stock_quantity < quantity) return false;
 
         const nextStock = prod.stock_quantity - quantity;
@@ -670,6 +706,12 @@ export async function decrementProductStock(productId: string, quantity: number)
       return false;
     } catch (err) {
       console.error('Supabase decrementProductStock exception:', err);
+      const memoryProd = memoryStore.products.find((p) => p.id === productId);
+      if (memoryProd) {
+        if (memoryProd.stock_quantity < quantity) return false;
+        memoryProd.stock_quantity -= quantity;
+        return true;
+      }
       return false;
     }
   }

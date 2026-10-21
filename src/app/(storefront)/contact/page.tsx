@@ -6,7 +6,7 @@ import { Mail, MapPin, Phone, Clock, PackageSearch, RotateCcw, Truck } from 'luc
 export const metadata: Metadata = {
   title: 'Contact Us',
   description:
-    'Contact our cricket equipment store for order help, delivery questions, returns and warranty support.',
+    'Contact CG Sports for order help, delivery questions, returns and warranty support.',
   alternates: { canonical: '/contact' },
 };
 
@@ -35,8 +35,8 @@ export default function ContactPage() {
                 Email
               </h2>
               <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                <a href="mailto:info@sevendistricts.ae" className="hover:text-[#FF5500] transition-colors">
-                  info@sevendistricts.ae
+                <a href="mailto:Rizwany3k@gmail.com" className="hover:text-[#FF5500] transition-colors">
+                  Rizwany3k@gmail.com
                 </a>
               </p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
@@ -51,9 +51,13 @@ export default function ContactPage() {
               <h2 className="text-xs font-black uppercase tracking-wider text-neutral-950 dark:text-white mb-1">
                 Phone &amp; WhatsApp
               </h2>
-              <p className="text-sm text-neutral-700 dark:text-neutral-300">+971 6 743 0000 / +971 50 717 1971</p>
+              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                <a href="tel:+971552317221" className="hover:text-[#FF5500] transition-colors">
+                  0552317221 (+971 55 231 7221)
+                </a>
+              </p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                For urgent order questions &amp; equipment advice during academy hours.
+                For urgent order questions &amp; equipment advice during store hours.
               </p>
             </div>
           </div>
@@ -62,7 +66,7 @@ export default function ContactPage() {
             <Clock className="w-5 h-5 text-[#FF5500] shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <h2 className="text-xs font-black uppercase tracking-wider text-neutral-950 dark:text-white mb-1">
-                Academy &amp; Support Hours
+                Store &amp; Support Hours
               </h2>
               <p className="text-sm text-neutral-700 dark:text-neutral-300">Sunday – Friday: 8:00 AM – 9:00 PM GST</p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
@@ -75,13 +79,13 @@ export default function ContactPage() {
             <MapPin className="w-5 h-5 text-[#FF5500] shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <h2 className="text-xs font-black uppercase tracking-wider text-neutral-950 dark:text-white mb-1">
-                Academy Location
+                Store Location
               </h2>
               <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                Seven Districts Cricket Academy (TSDCA), Ajman, United Arab Emirates
+                CG Sports • Located at Seven Districts Cricket Academy, Ajman, United Arab Emirates
               </p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                Pro Shop &amp; Academy Campus • Equipment dispatch across all UAE Emirates.
+                Pro Shop inside Seven Districts • Equipment dispatch across all UAE Emirates.
               </p>
             </div>
           </div>
@@ -134,7 +138,7 @@ export default function ContactPage() {
             </li>
           </ul>
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            Business details: Seven Districts Cricket Academy LLC, Ajman, United Arab Emirates.
+            Business details: CG Sports LLC • Located at Seven Districts Cricket Academy, Ajman, United Arab Emirates.
           </p>
         </div>
       </div>

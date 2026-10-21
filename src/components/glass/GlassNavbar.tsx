@@ -64,7 +64,7 @@ export const GlassNavbar: React.FC = () => {
               <Link href="/" className="flex min-w-0 items-center gap-2.5">
                 <Image
                   src="/logo-seven-districts.png"
-                  alt="Seven Districts Cricket Academy"
+                  alt="CG Sports"
                   width={36}
                   height={36}
                   priority
@@ -72,10 +72,10 @@ export const GlassNavbar: React.FC = () => {
                 />
                 <span className="flex min-w-0 flex-col leading-none">
                   <span className="font-display text-lg font-black uppercase tracking-tight text-black dark:text-white sm:text-xl">
-                    Seven Districts<span className="text-[#FF5500]">.</span>
+                    CG Sports<span className="text-[#FF5500]">.</span>
                   </span>
                   <span className="hidden text-[9px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-white/60 sm:block">
-                    Cricket Academy • Ajman, UAE
+                    Located at Seven Districts • Ajman, UAE
                   </span>
                 </span>
               </Link>

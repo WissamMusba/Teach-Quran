@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
       (req.headers.get('origin') ?? 'http://localhost:3000');
 
     const token = createOrderToken(newOrder.id);
-    const successUrl = `${siteUrl}/checkout/success?order_id=${newOrder.id}&token=${token}`;
+    const successUrl = `${siteUrl}/checkout/success?order_id=${newOrder.id}&token=${token}&pm=${payment_method}&total=${total_amount}`;
 
     // ------------------------------------------------------------------
     // 4a. Cash on Delivery or Direct Bank Transfer: reserve stock immediately

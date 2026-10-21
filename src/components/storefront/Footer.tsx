@@ -68,7 +68,7 @@ export const Footer: React.FC = () => {
             <Link href="/" className="flex items-center space-x-3 group">
               <Image
                 src="/logo-seven-districts.png"
-                alt="Seven Districts Cricket Academy"
+                alt="CG Sports"
                 width={48}
                 height={48}
                 loading="lazy"
@@ -76,15 +76,15 @@ export const Footer: React.FC = () => {
               />
               <div className="flex flex-col">
                 <span className="font-display text-xl font-black tracking-tight text-white uppercase leading-none">
-                  SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
+                  CG SPORTS<span className="text-[#FF5500]">.</span>
                 </span>
                 <span className="text-[9px] uppercase tracking-widest font-black text-[#FF5500] font-sans mt-0.5">
-                  CRICKET ACADEMY • AJMAN, UAE
+                  LOCATED AT SEVEN DISTRICTS • AJMAN, UAE
                 </span>
               </div>
             </Link>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Official Pro Equipment Store of Seven Districts Cricket Academy. Equipping cricketers across Ajman and the UAE with tournament-grade bats, leather balls, protective armor, and match gear.
+              Official Pro Equipment Store of CG Sports, located at Seven Districts Cricket Academy. Equipping cricketers across Ajman and the UAE with tournament-grade bats, leather balls, protective armor, and match gear.
             </p>
           </div>
 
@@ -219,7 +219,7 @@ export const Footer: React.FC = () => {
         </div>
 
         <div className="border-t border-[#1C1C24] mt-12 pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-400 space-y-3 sm:space-y-0">
-          <p>© {new Date().getFullYear()} Seven Districts Cricket Academy (TSDCA) • Ajman, UAE. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} CG Sports • Located at Seven Districts, Ajman, UAE. All rights reserved.</p>
           <div className="flex space-x-6">
             <Link href="/shop" className="hover:text-white transition-colors">
               Catalog

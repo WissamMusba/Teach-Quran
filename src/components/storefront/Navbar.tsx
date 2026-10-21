@@ -40,7 +40,7 @@ export const Navbar: React.FC = () => {
             <Link href="/" className="flex items-center space-x-3 group">
               <Image
                 src="/logo-seven-districts.png"
-                alt="Seven Districts Cricket Academy"
+                alt="CG Sports"
                 width={44}
                 height={44}
                 priority
@@ -48,10 +48,10 @@ export const Navbar: React.FC = () => {
               />
               <div className="flex flex-col">
                 <span className="font-display text-xl sm:text-2xl font-black tracking-tight text-black dark:text-white uppercase leading-none group-hover:text-[#FF5500] transition-colors">
-                  SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
+                  CG SPORTS<span className="text-[#FF5500]">.</span>
                 </span>
                 <span className="text-[9px] uppercase tracking-widest font-black text-neutral-500 dark:text-neutral-400 font-sans mt-0.5">
-                  CRICKET ACADEMY • AJMAN, UAE
+                  LOCATED AT SEVEN DISTRICTS • AJMAN, UAE
                 </span>
               </div>
             </Link>

@@ -59,7 +59,7 @@ export const LegalPage: React.FC<LegalPageProps> = ({
             <Link href="/contact" className="text-[#FF5500] hover:underline font-bold">
               Contact page
             </Link>{' '}
-            or email <a href="mailto:info@sevendistricts.ae" className="text-[#FF5500] hover:underline">info@sevendistricts.ae</a>. We respond to every request as quickly as we can.
+            or email <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">Rizwany3k@gmail.com</a>. We respond to every request as quickly as we can.
           </p>
         </div>
       </div>

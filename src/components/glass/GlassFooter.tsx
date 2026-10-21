@@ -33,22 +33,22 @@ export const GlassFooter: React.FC = () => (
           <Link href="/" className="flex items-center gap-2.5">
             <Image
               src="/logo-seven-districts.png"
-              alt="Seven Districts Cricket Academy"
+              alt="CG Sports"
               width={40}
               height={40}
               className="h-10 w-10 rounded-full border border-white/50 bg-white/60 object-contain p-0.5 dark:border-white/20 dark:bg-white/10"
             />
             <span className="flex flex-col leading-none">
               <span className="font-display text-xl font-black uppercase tracking-tight text-black dark:text-white">
-                Seven Districts<span className="text-[#FF5500]">.</span>
+                CG Sports<span className="text-[#FF5500]">.</span>
               </span>
               <span className="text-[9px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-white/60">
-                Cricket Academy • Ajman, UAE
+                Located at Seven Districts • Ajman, UAE
               </span>
             </span>
           </Link>
           <p className="text-xs leading-relaxed text-neutral-600 dark:text-white/60">
-            Tournament-grade cricket equipment assembled by academy coaches and trusted by players
+            Tournament-grade cricket equipment assembled by coaches and trusted by players
             across all 7 Emirates.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -130,7 +130,7 @@ export const GlassFooter: React.FC = () => (
 
       {/* Bottom bar */}
       <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-white/60 pt-6 text-[11px] text-neutral-500 dark:border-white/10 dark:text-white/50 sm:flex-row">
-        <p>© {new Date().getFullYear()} Seven Districts Cricket Academy (TSDCA) • Ajman, UAE.</p>
+        <p>© {new Date().getFullYear()} CG Sports • Located at Seven Districts, Ajman, UAE. All rights reserved.</p>
         <div className="flex items-center gap-5">
           <Link href="/shop" className="transition-colors hover:text-[#C2410C] dark:hover:text-[#FF9A5C]">
             Full Catalog

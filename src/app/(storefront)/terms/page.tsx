@@ -17,7 +17,7 @@ export default function TermsOfServicePage() {
     >
       <LegalSection title="1. Agreement to These Terms">
         <p>
-          This website is operated by Seven Districts Cricket Academy (TSDCA), located in Ajman,
+          This website is operated by CG Sports, located at Seven Districts Cricket Academy in Ajman,
           United Arab Emirates (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;). By browsing the store or
           placing an order, you agree to these Terms of Service. If you do not agree, please do not
           use the site.

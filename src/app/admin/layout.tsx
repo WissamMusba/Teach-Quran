@@ -61,15 +61,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-seven-districts.png"
-            alt="Seven Districts Cricket Academy"
+            alt="CG Sports"
             className="w-10 h-10 object-contain rounded-xl border border-white/15 bg-white/5 p-1 shrink-0 backdrop-blur-md shadow-inner"
           />
           <div>
             <h2 className="font-display uppercase text-lg font-black tracking-wider text-white leading-none">
-              SEVEN DISTRICTS<span className="text-[#FF5500]">.</span>
+              CG SPORTS<span className="text-[#FF5500]">.</span>
             </h2>
             <span className="text-[10px] text-neutral-400 font-bold tracking-widest uppercase">
-              TSDCA Admin • Ajman
+              Admin Portal • Seven Districts
             </span>
           </div>
         </div>
@@ -127,15 +127,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo-seven-districts.png"
-              alt="Seven Districts Cricket Academy"
+              alt="CG Sports"
               className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg border border-[#2E2E38] bg-[#0A0A0E] p-0.5 shrink-0"
             />
             <div className="flex flex-col min-w-0">
               <span className="font-display uppercase text-sm sm:text-base font-black tracking-wider text-white truncate">
-                TSDCA ADMIN
+                CG SPORTS ADMIN
               </span>
               <span className="text-[9px] text-[#FF5500] font-bold tracking-widest uppercase">
-                Ajman • UAE
+                Seven Districts • Ajman
               </span>
             </div>
           </div>

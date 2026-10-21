@@ -22,7 +22,7 @@ export function buildHeroSlides(settings: SiteSettings): HeroSlide[] {
       image:
         settings.hero_banner_image ||
         'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'CRICKET OBSESSED • SEVEN DISTRICTS ACADEMY',
+      tagline: 'CRICKET OBSESSED • CG SPORTS',
       title: 'Shop Grade 1 English Willow Bats',
       subtitle:
         'Hand-selected clefts from Kookaburra, Gray-Nicolls, SG & SS with massive edges, high spines, and featherlight pick-up.',
@@ -65,8 +65,8 @@ export function buildHeroSlides(settings: SiteSettings): HeroSlide[] {
     {
       id: 'academy',
       image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?q=80&w=1920&auto=format&fit=crop',
-      tagline: 'SEVEN DISTRICTS CRICKET ACADEMY • AJMAN, UAE',
-      title: 'Official Pro Shop & Team Match Gear',
+      tagline: 'CG SPORTS • LOCATED AT SEVEN DISTRICTS, AJMAN',
+      title: 'Official CG Sports Pro Shop & Match Gear',
       subtitle:
         'Equipping cricketers across Ajman and all 7 UAE Emirates with tournament-grade gear, card security, and Cash on Delivery.',
       priceBadge: 'Fast Courier Across UAE',

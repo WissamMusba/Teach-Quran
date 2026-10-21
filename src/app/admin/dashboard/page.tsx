@@ -168,7 +168,12 @@ export default async function AdminDashboardPage() {
 
         {/* Mobile / Foldable Recent Orders Card View */}
         <div className="md:hidden divide-y divide-white/5">
-          {orders.slice(0, 5).map((order) => (
+          {orders.length === 0 ? (
+            <div className="py-8 text-center text-xs text-neutral-500">
+              No customer orders recorded yet.
+            </div>
+          ) : (
+            orders.slice(0, 5).map((order) => (
             <div key={order.id} className="p-4 space-y-3 hover:bg-white/[0.03] transition-colors">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs font-bold text-neutral-400">
@@ -213,7 +218,8 @@ export default async function AdminDashboardPage() {
                 </Link>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* Desktop Table View */}
@@ -230,7 +236,14 @@ export default async function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-neutral-300">
-              {orders.slice(0, 5).map((order) => (
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-neutral-500">
+                    No customer orders recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                orders.slice(0, 5).map((order) => (
                 <tr key={order.id} className="hover:bg-white/[0.03] transition-colors">
                   <td className="py-3.5 px-5 font-mono font-bold text-neutral-400">
                     #{order.id.slice(0, 12)}
@@ -268,7 +281,8 @@ export default async function AdminDashboardPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

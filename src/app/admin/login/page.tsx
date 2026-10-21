@@ -62,10 +62,10 @@ function LoginForm() {
             <Shield className="w-7 h-7" />
           </div>
           <h1 className="font-display uppercase text-3xl font-black tracking-tight text-white">
-            Admin Management Portal
+            CG Sports Admin Portal
           </h1>
           <p className="text-xs text-neutral-400">
-            Authorized cricket store personnel only.
+            Authorized CG Sports store personnel only.
           </p>
         </div>
 

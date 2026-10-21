@@ -318,15 +318,15 @@ export default async function GlassHomePage() {
               <div>
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#C2410C] dark:text-[#FF9A5C]">
                   <MapPin className="h-4 w-4" aria-hidden="true" />
-                  <span>Seven Districts Cricket Academy • Ajman, UAE</span>
+                  <span>CG Sports • Located at Seven Districts, Ajman, UAE</span>
                 </div>
                 <h2 className="mt-3 font-display text-4xl font-black uppercase leading-[0.95] tracking-tight text-neutral-900 dark:text-white sm:text-6xl">
                   Train. Play.{' '}
                   <span className="text-[#EA580C] dark:text-[#FF5500]">Win the Districts.</span>
                 </h2>
                 <p className="mt-5 max-w-xl text-sm leading-relaxed text-neutral-600 dark:text-white/70 sm:text-base">
-                  Match-ready gear assembled by academy coaches and trusted by players across the
-                  UAE. Visit us in Ajman or order online with same-day dispatch and Cash on
+                  Match-ready gear assembled by expert coaches and trusted by players across the
+                  UAE. Visit CG Sports at Seven Districts in Ajman or order online with same-day dispatch and Cash on
                   Delivery.
                 </p>
 

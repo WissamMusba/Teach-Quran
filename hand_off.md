@@ -1,9 +1,12 @@
-# Seven Districts Cricket Academy (TSDCA) — Project Hand-Off Guide
+# CG Sports • Located at Seven Districts — Project Hand-Off Guide
 
 > **Official Storefront & Admin Management System**  
-> **Academy Location:** Ajman, United Arab Emirates (UAE)  
+> **Brand Name:** CG Sports  
+> **Location:** Seven Districts Cricket Academy, Ajman, United Arab Emirates (UAE)  
 > **Currency:** UAE Dirham (`AED`)  
 > **Equipment Units:** Grams (`g`)  
+> **Support Email:** Rizwany3k@gmail.com  
+> **Support WhatsApp / Phone:** 0552317221 (+971 55 231 7221)  
 > **Production URL:** [https://sdca-cricket-store.vercel.app](https://sdca-cricket-store.vercel.app)  
 > **Vercel Project Dashboard:** [https://vercel.com/leatcurt-5270/sdca-cricket-store](https://vercel.com/leatcurt-5270/sdca-cricket-store)
 
@@ -11,7 +14,7 @@
 
 ## 1. Executive Summary
 
-This repository contains the complete e-commerce platform and administrative back-office for **Seven Districts Cricket Academy (TSDCA)**, based in Ajman, UAE. 
+This repository contains the complete e-commerce platform and administrative back-office for **CG Sports**, located at Seven Districts Cricket Academy in Ajman, UAE. 
 
 The application is engineered to deliver a high-speed, photographic shopping experience matching premier global cricket retailers (such as *Pro:Direct Cricket*). It supports the academy's complete equipment range—including Grade 1 English Willow bats, match-grade leather balls, protective pads, wicketkeeping gear, helmets, luggage, and coaching equipment.
 
@@ -105,7 +108,7 @@ The store is designed with a **dual-engine architecture**:
 | :--- | :---: | :--- | :--- |
 | `DEMO_MODE` | No | `true` | When `true`, runs the built-in memory store. Set to `false` or delete once Supabase is connected. |
 | `NEXT_PUBLIC_SITE_URL` | Yes | `https://sdca-cricket-store.vercel.app` | Canonical site URL for metadata, sitemaps, and redirects. |
-| `ADMIN_EMAIL` | Yes | `admin@sevendistricts.ae` | Email address permitted to access the `/admin` portal. |
+| `ADMIN_EMAIL` | Yes | `Rizwany3k@gmail.com` | Email address permitted to access the `/admin` portal. |
 | `ORDER_TOKEN_SECRET` | Yes | *(32+ char random hex string)* | Secret key used for signing order confirmation URLs. |
 | `NEXT_PUBLIC_SUPABASE_URL` | For DB | `https://xyzcompany.supabase.co` | Supabase project API URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | For DB | `eyJhbGci...` | Supabase public anonymous key. |
@@ -258,4 +261,4 @@ SDCA Website/
 
 - **Development Status:** Complete & Production Deployed.
 - **Audit & Performance:** Clean production build with 0 TypeScript/Lint errors, Next.js image optimization, and sub-second edge routing.
-- **Support Contact:** Seven Districts Cricket Academy Engineering & Administration Team.
+- **Support Contact:** CG Sports Engineering & Administration Team (Rizwany3k@gmail.com / 0552317221).

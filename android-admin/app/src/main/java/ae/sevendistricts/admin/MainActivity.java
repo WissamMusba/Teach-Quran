@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUserAgentString(settings.getUserAgentString() + " SDCAAdminApp/1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " CGSportsAdminApp/1.0");
 
         // Native JavaScript bridge for tactile haptics from web
         webView.addJavascriptInterface(new NativeBridge(), "AndroidApp");
