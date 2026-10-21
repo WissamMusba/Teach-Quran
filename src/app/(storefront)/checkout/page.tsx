@@ -3,8 +3,17 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { CreditCard, Truck, ShieldCheck, Lock, AlertCircle, ArrowLeft, Loader2, Building2, Check, Copy } from 'lucide-react';
-import { SDCA_BANK_DETAILS } from '@/lib/bankDetails';
+import {
+  CreditCard,
+  Truck,
+  ShieldCheck,
+  Lock,
+  AlertCircle,
+  ArrowLeft,
+  Loader2,
+  Building2,
+  ArrowRight,
+} from 'lucide-react';
 
 export default function CheckoutPage() {
   const { cart, totalAmount } = useCart();
@@ -20,17 +29,10 @@ export default function CheckoutPage() {
     country: 'United Arab Emirates',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cod' | 'bank_transfer'>('bank_transfer');
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'card' | 'cod'>('bank_transfer');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-
-  const copyToClipboard = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldName);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
+  const [agreedToTerms, setAgreedToTerms] = useState(true);
 
   if (cart.length === 0) {
     return (
@@ -87,15 +89,12 @@ export default function CheckoutPage() {
         throw new Error(data.error || 'Failed to initialize order');
       }
 
-      // Redirect to the Stripe checkout session or the signed COD
-      // confirmation page. The cart is only cleared on the confirmation
-      // page, after the order token verifies — never before payment
-      // completes, so an abandoned payment does not wipe the cart.
       if (!data.redirectUrl) {
         throw new Error(
           'We could not start the order session. Please try again or select Direct Bank Transfer.'
         );
       }
+
       window.location.href = data.redirectUrl;
     } catch (err: any) {
       setErrorMessage(err.message || 'An unexpected error occurred. Please try again.');
@@ -104,10 +103,10 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-12 transition-colors duration-200">
+    <div className="bg-neutral-50 text-neutral-900 dark:bg-[#050505] dark:text-white min-h-screen py-8 sm:py-12 pb-32 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Link */}
-        <div className="mb-8">
+        <div className="mb-6">
           <Link
             href="/cart"
             className="inline-flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-neutral-600 hover:text-[#FF5500] dark:text-neutral-400 dark:hover:text-[#FF5500] transition-colors"
@@ -117,16 +116,17 @@ export default function CheckoutPage() {
           </Link>
         </div>
 
-        <div className="flex items-center space-x-3.5 mb-10 pb-6 border-b border-neutral-200 dark:border-[#1C1C24]">
-          <div className="w-10 h-10 rounded-xl bg-[#FF5500] text-white flex items-center justify-center font-bold shadow-orange-glow-sm">
+        {/* Header */}
+        <div className="flex items-center space-x-3.5 mb-8 pb-6 border-b border-neutral-200 dark:border-[#1C1C24]">
+          <div className="w-10 h-10 rounded-xl bg-[#FF5500] text-white flex items-center justify-center font-bold shadow-orange-glow-sm shrink-0">
             <Lock className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-display uppercase text-3xl sm:text-5xl font-black text-black dark:text-white tracking-tight">
-              Secure Cricket Checkout
+            <h1 className="font-display uppercase text-2xl sm:text-4xl font-black text-black dark:text-white tracking-tight">
+              Express Cricket Checkout
             </h1>
             <p className="text-xs text-neutral-600 dark:text-neutral-400">
-              Encrypted transaction. Direct courier fulfillment with tracking.
+              Direct courier fulfillment across Ajman &amp; all UAE Emirates.
             </p>
           </div>
         </div>
@@ -139,20 +139,20 @@ export default function CheckoutPage() {
         )}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* Customer & Shipping Information */}
+          {/* Left Column: Details & Payment Method */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Contact Details */}
-            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-7 shadow-sm dark:shadow-xl space-y-5">
-              <h2 className="font-display uppercase text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24] flex items-center justify-between">
+            {/* 1. Contact Details */}
+            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-6 sm:p-7 shadow-sm dark:shadow-xl space-y-5">
+              <h2 className="font-display uppercase text-xl sm:text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24] flex items-center justify-between">
                 <span>1. Customer Details</span>
                 <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Order updates
+                  Step 1 of 3
                 </span>
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label htmlFor="customer_name" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
+                  <label htmlFor="customer_name" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
                     Full Name *
                   </label>
                   <input
@@ -163,13 +163,13 @@ export default function CheckoutPage() {
                     autoComplete="name"
                     value={formData.customer_name}
                     onChange={handleInputChange}
-                    placeholder="e.g. Michael Clarke"
+                    placeholder="e.g. Tariq Mehmood"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="customer_email" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
+                  <label htmlFor="customer_email" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
                     Email Address *
                   </label>
                   <input
@@ -181,14 +181,14 @@ export default function CheckoutPage() {
                     inputMode="email"
                     value={formData.customer_email}
                     onChange={handleInputChange}
-                    placeholder="michael@example.com"
+                    placeholder="tariq@example.com"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="customer_phone" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    Phone Number *
+                  <label htmlFor="customer_phone" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    Phone / WhatsApp Number *
                   </label>
                   <input
                     id="customer_phone"
@@ -199,26 +199,26 @@ export default function CheckoutPage() {
                     inputMode="tel"
                     value={formData.customer_phone}
                     onChange={handleInputChange}
-                    placeholder="+971 50 000 0000"
+                    placeholder="055 000 0000"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Shipping Address */}
-            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-7 shadow-sm dark:shadow-xl space-y-5">
-              <h2 className="font-display uppercase text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24] flex items-center justify-between">
-                <span>2. Physical Shipping Destination</span>
+            {/* 2. Shipping Address */}
+            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-6 sm:p-7 shadow-sm dark:shadow-xl space-y-5">
+              <h2 className="font-display uppercase text-xl sm:text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24] flex items-center justify-between">
+                <span>2. Delivery Address</span>
                 <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Street delivery
+                  Step 2 of 3
                 </span>
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label htmlFor="street" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    Street Address &amp; House/Apartment *
+                  <label htmlFor="street" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    Street Address &amp; Villa/Apartment *
                   </label>
                   <input
                     id="street"
@@ -228,14 +228,14 @@ export default function CheckoutPage() {
                     autoComplete="address-line1"
                     value={formData.street}
                     onChange={handleInputChange}
-                    placeholder="Villa 12, Street 4, Al Barsha 1"
+                    placeholder="Villa 12, Street 4, Al Rashidiya"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="city" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    City *
+                  <label htmlFor="city" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    City / Area *
                   </label>
                   <input
                     id="city"
@@ -245,84 +245,75 @@ export default function CheckoutPage() {
                     autoComplete="address-level2"
                     value={formData.city}
                     onChange={handleInputChange}
-                    placeholder="Dubai"
+                    placeholder="Ajman / Dubai"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="state" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    State / Province (Emirate) *
+                  <label htmlFor="state" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    Emirate *
                   </label>
-                  <input
+                  <select
                     id="state"
-                    type="text"
                     name="state"
                     required
-                    autoComplete="address-level1"
-                    value={formData.state}
+                    value={formData.state || 'Ajman'}
                     onChange={handleInputChange}
-                    placeholder="Dubai"
-                    className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
+                    className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white focus:outline-none focus:border-[#FF5500] font-bold"
+                  >
+                    <option value="Ajman">Ajman</option>
+                    <option value="Dubai">Dubai</option>
+                    <option value="Sharjah">Sharjah</option>
+                    <option value="Abu Dhabi">Abu Dhabi</option>
+                    <option value="Ras Al Khaimah">Ras Al Khaimah</option>
+                    <option value="Fujairah">Fujairah</option>
+                    <option value="Umm Al Quwain">Umm Al Quwain</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="country" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    Country *
+                  </label>
+                  <input
+                    id="country"
+                    type="text"
+                    name="country"
+                    readOnly
+                    value="United Arab Emirates"
+                    className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-100 dark:bg-[#1A1A22] text-neutral-700 dark:text-neutral-300 font-bold"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="postal_code" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    Postal / ZIP Code (optional)
+                  <label htmlFor="postal_code" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    Postal Code (Optional)
                   </label>
                   <input
                     id="postal_code"
                     type="text"
                     name="postal_code"
-                    autoComplete="postal-code"
                     value={formData.postal_code}
                     onChange={handleInputChange}
                     placeholder="00000"
                     className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:border-[#FF5500] transition-colors"
                   />
                 </div>
-
-                <div>
-                  <label htmlFor="country" className="block text-xs font-black uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-2">
-                    Country *
-                  </label>
-                  <select
-                    id="country"
-                    name="country"
-                    autoComplete="country-name"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    className="w-full text-xs px-4 py-3 rounded-xl border border-neutral-300 dark:border-[#272730] bg-neutral-50 dark:bg-[#14141B] text-black dark:text-white focus:outline-none focus:border-[#FF5500] font-bold"
-                  >
-                    <option value="United Arab Emirates">United Arab Emirates</option>
-                    <option value="Saudi Arabia">Saudi Arabia</option>
-                    <option value="Oman">Oman</option>
-                    <option value="Qatar">Qatar</option>
-                    <option value="Kuwait">Kuwait</option>
-                    <option value="Bahrain">Bahrain</option>
-                    <option value="United Kingdom">United Kingdom</option>
-                    <option value="Australia">Australia</option>
-                    <option value="India">India</option>
-                    <option value="Pakistan">Pakistan</option>
-                    <option value="Sri Lanka">Sri Lanka</option>
-                    <option value="South Africa">South Africa</option>
-                    <option value="New Zealand">New Zealand</option>
-                    <option value="Canada">Canada</option>
-                    <option value="United States">United States</option>
-                  </select>
-                </div>
               </div>
             </div>
 
-            {/* Payment Method Selector */}
-            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-7 shadow-sm dark:shadow-xl space-y-5">
-              <h2 className="font-display uppercase text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24]">
-                3. Payment Method
+            {/* 3. Payment Method Selector */}
+            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-6 sm:p-7 shadow-sm dark:shadow-xl space-y-5">
+              <h2 className="font-display uppercase text-xl sm:text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24] flex items-center justify-between">
+                <span>3. Payment Method</span>
+                <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                  Step 3 of 3
+                </span>
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Direct Bank Wire Transfer */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                {/* 1. Direct Bank Wire Transfer */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -333,7 +324,7 @@ export default function CheckoutPage() {
                       setPaymentMethod('bank_transfer');
                     }
                   }}
-                  className={`relative flex flex-col p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  className={`relative flex flex-col p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                     paymentMethod === 'bank_transfer'
                       ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm ring-1 ring-[#FF5500]'
                       : 'border-neutral-200 dark:border-[#252530] hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50 dark:bg-[#121218]'
@@ -358,11 +349,11 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 flex-1">
-                    Direct transfer to Emirates Islamic. 0% processing fees.
+                    Emirates Islamic transfer. Dedicated invoice with Reference Code on next page.
                   </p>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-[10px] font-black tracking-wider uppercase text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                      Emirates Islamic
+                      Recommended
                     </span>
                     <span className="text-[10px] font-black uppercase text-[#FF5500]">
                       0% Fee
@@ -370,7 +361,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Stripe Card */}
+                {/* 2. Stripe Card */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -381,7 +372,7 @@ export default function CheckoutPage() {
                       setPaymentMethod('card');
                     }
                   }}
-                  className={`relative flex flex-col p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  className={`relative flex flex-col p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                     paymentMethod === 'card'
                       ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm ring-1 ring-[#FF5500]'
                       : 'border-neutral-200 dark:border-[#252530] hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50 dark:bg-[#121218]'
@@ -415,7 +406,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Cash on Delivery */}
+                {/* 3. Cash on Delivery */}
                 <div
                   role="button"
                   tabIndex={0}
@@ -426,7 +417,7 @@ export default function CheckoutPage() {
                       setPaymentMethod('cod');
                     }
                   }}
-                  className={`relative flex flex-col p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  className={`relative flex flex-col p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                     paymentMethod === 'cod'
                       ? 'border-[#FF5500] bg-[#FF5500]/10 shadow-orange-glow-sm ring-1 ring-[#FF5500]'
                       : 'border-neutral-200 dark:border-[#252530] hover:border-neutral-400 dark:hover:border-neutral-500 bg-neutral-50 dark:bg-[#121218]'
@@ -461,132 +452,97 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Bank Account Details Card if selected */}
+              {/* Informative Note for Bank Transfer */}
               {paymentMethod === 'bank_transfer' && (
-                <div className="mt-4 p-5 rounded-2xl border border-[#FF5500]/30 bg-neutral-100 dark:bg-[#161622] space-y-4 animate-fade-in">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center space-x-2">
-                      <Building2 className="w-5 h-5 text-[#FF5500]" />
-                      <span className="font-display uppercase font-black text-sm tracking-wide text-black dark:text-white">
-                        Official Emirates Islamic Bank Transfer Details
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
-                      {SDCA_BANK_DETAILS.bankName} • {SDCA_BANK_DETAILS.currency}
+                <div className="p-4 rounded-2xl bg-[#FF5500]/10 border border-[#FF5500]/30 flex items-start space-x-3 text-xs text-neutral-700 dark:text-neutral-300 animate-fade-in">
+                  <Building2 className="w-5 h-5 text-[#FF5500] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-black dark:text-white block font-bold mb-0.5">
+                      How Bank Transfer Works
+                    </strong>
+                    <span>
+                      After clicking below, you will instantly receive your unique <strong>Reference Code</strong> along with Emirates Islamic IBAN &amp; account details, a 24-hour reservation lock, and direct receipt submission / WhatsApp confirmation.
                     </span>
-                  </div>
-
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                    Please transfer the total of <strong className="text-black dark:text-white font-mono">AED {totalAmount.toLocaleString()}</strong> directly to our bank account. Your equipment will be reserved and dispatched immediately upon receipt.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    {/* Beneficiary Name */}
-                    <div className="sm:col-span-2 p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">Beneficiary / Account Name</span>
-                        <span className="font-bold text-black dark:text-white text-xs sm:text-sm block truncate">
-                          {SDCA_BANK_DETAILS.accountTitle}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.accountTitle, 'title')}
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
-                        title="Copy Beneficiary"
-                      >
-                        {copiedField === 'title' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-
-                    {/* IBAN */}
-                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">IBAN</span>
-                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs sm:text-[13px] block truncate">
-                          {SDCA_BANK_DETAILS.iban}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.ibanClean, 'iban')}
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
-                        title="Copy IBAN"
-                      >
-                        {copiedField === 'iban' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-
-                    {/* Account Number */}
-                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">Account Number</span>
-                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs sm:text-sm block">
-                          {SDCA_BANK_DETAILS.accountNumber}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.accountNumber, 'account')}
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
-                        title="Copy Account Number"
-                      >
-                        {copiedField === 'account' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-
-                    {/* Swift Code */}
-                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">SWIFT Code</span>
-                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs">
-                          {SDCA_BANK_DETAILS.swiftCode}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.swiftCode, 'swift')}
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
-                        title="Copy SWIFT"
-                      >
-                        {copiedField === 'swift' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-
-                    {/* Routing Number */}
-                    <div className="p-3 rounded-xl bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#262635] flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 block">Routing Number</span>
-                        <span className="font-mono font-bold text-black dark:text-white select-all text-xs">
-                          {SDCA_BANK_DETAILS.routingNumber}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(SDCA_BANK_DETAILS.routingNumber, 'routing')}
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-[#20202E] text-neutral-600 dark:text-neutral-300 hover:text-[#FF5500] shrink-0"
-                        title="Copy Routing Number"
-                      >
-                        {copiedField === 'routing' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}
             </div>
+
+            {/* 4. Complete Checkout Primary Action (Ergonomic, No Scrolling Required) */}
+            <div className="bg-white dark:bg-[#0E0E14] border-2 border-[#FF5500]/70 rounded-3xl p-6 sm:p-7 shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-neutral-200 dark:border-[#1C1C24]">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5500] block">
+                    Fast Checkout Step
+                  </span>
+                  <h3 className="font-display uppercase text-lg sm:text-xl font-black text-black dark:text-white">
+                    {paymentMethod === 'bank_transfer'
+                      ? 'Proceed to Bank Transfer Instructions'
+                      : paymentMethod === 'card'
+                        ? 'Proceed to Secure Card Payment'
+                        : 'Confirm Cash on Delivery'}
+                  </h3>
+                </div>
+                <div className="flex items-baseline space-x-1.5 self-start sm:self-auto">
+                  <span className="text-xs font-black text-[#FF5500]">AED</span>
+                  <span className="font-display text-3xl font-black text-black dark:text-white">
+                    {totalAmount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !agreedToTerms}
+                className="w-full py-4 px-6 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-widest rounded-xl text-xs sm:text-sm transition-all shadow-orange-glow flex items-center justify-center space-x-2.5 active:scale-[0.98] cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    <span>Processing Order...</span>
+                  </>
+                ) : paymentMethod === 'bank_transfer' ? (
+                  <>
+                    <span>Proceed to Bank Transfer Details</span>
+                    <ArrowRight className="w-5 h-5 text-white" />
+                  </>
+                ) : paymentMethod === 'card' ? (
+                  <>
+                    <span>Pay AED {totalAmount.toLocaleString()} by Card</span>
+                    <ArrowRight className="w-5 h-5 text-white" />
+                  </>
+                ) : (
+                  <>
+                    <span>Place Cash on Delivery Order</span>
+                    <ArrowRight className="w-5 h-5 text-white" />
+                  </>
+                )}
+              </button>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-500 gap-2 pt-1">
+                <span>
+                  By placing your order, you agree to our{' '}
+                  <Link href="/terms" className="text-[#FF5500] hover:underline font-bold">Terms</Link> and{' '}
+                  <Link href="/privacy" className="text-[#FF5500] hover:underline font-bold">Privacy</Link>.
+                </span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {paymentMethod === 'bank_transfer' ? '24-Hour Stock Reservation' : 'Instant Order Dispatch'}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Right Column: Order Review */}
+          {/* Right Column: Order Review (Sticky & Clean) */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-6 shadow-md dark:shadow-2xl space-y-6 sticky top-28">
-              <h3 className="font-display uppercase text-2xl font-black text-black dark:text-white pb-4 border-b border-neutral-200 dark:border-[#1C1C24]">
-                Order Review ({cart.length} item{cart.length > 1 ? 's' : ''})
+            <div className="bg-white dark:bg-[#0E0E14] border border-neutral-200 dark:border-[#22222A] rounded-3xl p-6 shadow-md dark:shadow-2xl space-y-5 sticky top-24">
+              <h3 className="font-display uppercase text-xl sm:text-2xl font-black text-black dark:text-white pb-3 border-b border-neutral-200 dark:border-[#1C1C24]">
+                Order Summary ({cart.length})
               </h3>
 
               {/* Items Summary */}
-              <div className="max-h-60 overflow-y-auto space-y-3 divide-y divide-neutral-200 dark:divide-[#1C1C24] pr-1">
+              <div className="max-h-52 overflow-y-auto space-y-2.5 divide-y divide-neutral-200 dark:divide-[#1C1C24] pr-1">
                 {cart.map((item, i) => (
-                  <div key={i} className="pt-3 first:pt-0 flex items-center justify-between text-xs">
+                  <div key={i} className="pt-2.5 first:pt-0 flex items-center justify-between text-xs">
                     <div className="flex-1 pr-2">
                       <p className="font-bold text-black dark:text-white line-clamp-1">{item.title}</p>
                       <p className="text-neutral-500 dark:text-neutral-400">Qty: {item.quantity}</p>
@@ -599,20 +555,20 @@ export default function CheckoutPage() {
               </div>
 
               {/* Totals */}
-              <div className="border-t border-neutral-200 dark:border-[#1C1C24] pt-4 space-y-2 text-xs">
+              <div className="border-t border-neutral-200 dark:border-[#1C1C24] pt-3.5 space-y-2 text-xs">
                 <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Subtotal</span>
                   <span className="font-bold text-black dark:text-white font-mono text-sm">AED {totalAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
                   <span className="uppercase tracking-wider font-bold">Tracked Courier</span>
-                  <span className="font-bold text-[#FF5500] uppercase">FREE</span>
+                  <span className="font-bold text-[#FF5500] uppercase font-mono">FREE</span>
                 </div>
                 <div className="border-t border-neutral-200 dark:border-[#1C1C24] pt-3 flex justify-between items-baseline">
-                  <span className="font-display uppercase text-lg font-black text-black dark:text-white">Total Amount</span>
+                  <span className="font-display uppercase text-base font-black text-black dark:text-white">Total</span>
                   <div className="flex items-baseline space-x-1">
                     <span className="text-sm font-black text-[#FF5500]">AED</span>
-                    <span className="font-display text-4xl font-black text-black dark:text-white">
+                    <span className="font-display text-3xl font-black text-black dark:text-white">
                       {totalAmount.toLocaleString()}
                     </span>
                   </div>
@@ -620,7 +576,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Terms Agreement */}
-              <label className="flex items-start space-x-3 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer">
+              <label className="flex items-start space-x-2.5 text-[11px] text-neutral-600 dark:text-neutral-400 cursor-pointer pt-1">
                 <input
                   type="checkbox"
                   required
@@ -631,25 +587,20 @@ export default function CheckoutPage() {
                 <span>
                   I agree to the{' '}
                   <Link href="/terms" className="text-[#FF5500] hover:underline font-bold">
-                    Terms of Service
+                    Terms
                   </Link>
-                  ,{' '}
-                  <Link href="/returns" className="text-[#FF5500] hover:underline font-bold">
-                    Returns Policy
-                  </Link>{' '}
-                  and{' '}
+                  {' '}and{' '}
                   <Link href="/privacy" className="text-[#FF5500] hover:underline font-bold">
                     Privacy Policy
-                  </Link>
-                  .
+                  </Link>.
                 </span>
               </label>
 
-              {/* Submit Button */}
+              {/* Action Button */}
               <button
                 type="submit"
                 disabled={isSubmitting || !agreedToTerms}
-                className="w-full py-4 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-orange-glow flex items-center justify-center space-x-2 active:scale-[0.98]"
+                className="w-full py-4 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-widest rounded-xl text-xs transition-all shadow-orange-glow flex items-center justify-center space-x-2 active:scale-[0.98] cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -657,7 +608,10 @@ export default function CheckoutPage() {
                     <span>Processing Order...</span>
                   </>
                 ) : paymentMethod === 'bank_transfer' ? (
-                  <span>Confirm Bank Transfer Order — AED {totalAmount.toLocaleString()}</span>
+                  <>
+                    <span>Proceed to Bank Transfer Details</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 ) : paymentMethod === 'card' ? (
                   <span>Pay by Card — AED {totalAmount.toLocaleString()}</span>
                 ) : (
@@ -665,13 +619,57 @@ export default function CheckoutPage() {
                 )}
               </button>
 
-              <div className="text-center text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center justify-center space-x-1.5 pt-2">
+              <div className="text-center text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center justify-center space-x-1.5 pt-1">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 <span>SSL 256-Bit Encrypted Checkout</span>
               </div>
             </div>
           </div>
         </form>
+      </div>
+
+      {/* Floating Ergonomic Mobile Bottom Action Bar: Always reachable without scrolling */}
+      <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white/95 dark:bg-[#0A0A0E]/95 backdrop-blur-xl border-t border-neutral-200 dark:border-[#1C1C24] p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.15)] safe-pb">
+        <div className="flex items-center justify-between gap-3 max-w-md mx-auto">
+          <div>
+            <span className="text-[10px] font-black uppercase text-neutral-500 block">Total Due</span>
+            <div className="flex items-baseline space-x-1">
+              <span className="text-xs font-black text-[#FF5500]">AED</span>
+              <span className="font-display text-xl font-black text-black dark:text-white">
+                {totalAmount.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const form = document.querySelector('form');
+              if (form) {
+                if (!form.checkValidity()) {
+                  form.reportValidity();
+                  return;
+                }
+                form.requestSubmit();
+              }
+            }}
+            disabled={isSubmitting}
+            className="flex-1 py-3 px-4 bg-[#FF5500] hover:bg-[#FF6600] disabled:bg-neutral-800 text-white font-black uppercase tracking-wider rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-orange-glow active:scale-95 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : paymentMethod === 'bank_transfer' ? (
+              <>
+                <span>Bank Transfer</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            ) : paymentMethod === 'card' ? (
+              <span>Pay by Card</span>
+            ) : (
+              <span>Place COD Order</span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

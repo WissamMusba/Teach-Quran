@@ -13,6 +13,12 @@ export const MobileBottomBar: React.FC = () => {
   const isHome = pathname === '/';
   const isShop = pathname.startsWith('/shop') || pathname.startsWith('/product');
   const isContact = pathname.startsWith('/contact');
+  const isCheckout = pathname.startsWith('/checkout');
+
+  // Hide general bottom bar on checkout pages so checkout button / form has full ergonomic screen real estate
+  if (isCheckout) {
+    return null;
+  }
 
   return (
     <nav

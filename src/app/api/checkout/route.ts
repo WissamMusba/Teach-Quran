@@ -174,6 +174,7 @@ export async function POST(req: NextRequest) {
       (req.headers.get('origin') ?? 'http://localhost:3000');
 
     const token = createOrderToken(newOrder.id);
+    const bankTransferUrl = `${siteUrl}/checkout/bank-transfer?order_id=${newOrder.id}&token=${token}&total=${total_amount}`;
     const successUrl = `${siteUrl}/checkout/success?order_id=${newOrder.id}&token=${token}&pm=${payment_method}&total=${total_amount}`;
 
     // ------------------------------------------------------------------
@@ -203,7 +204,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         orderId: newOrder.id,
-        redirectUrl: successUrl,
+        redirectUrl: payment_method === 'bank_transfer' ? bankTransferUrl : successUrl,
       });
     }
 
