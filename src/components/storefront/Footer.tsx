@@ -201,6 +201,15 @@ export const Footer: React.FC = () => {
                 Official payment methods supported across all UAE Emirates:
               </p>
               <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1.5 rounded-lg bg-[#121218] border border-[#272732] text-xs font-bold text-white">
+                  Visa
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-[#121218] border border-[#272732] text-xs font-bold text-white">
+                  Mastercard
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-[#121218] border border-[#272732] text-xs font-bold text-white">
+                  Apple Pay
+                </span>
                 <span className="px-3 py-1.5 rounded-lg bg-[#FF5500]/15 border border-[#FF5500]/40 text-xs font-black text-[#FF5500]">
                   Bank Transfer (Emirates Islamic)
                 </span>

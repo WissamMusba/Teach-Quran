@@ -284,7 +284,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ settings }) => {
             </div>
             <div className="flex items-center space-x-1.5">
               <Building2 className="w-3.5 h-3.5 text-[#FF5500]" />
-              <span>Bank Transfer &amp; COD</span>
+              <span>Cards, Apple Pay &amp; Bank Transfer</span>
             </div>
           </div>
         </div>

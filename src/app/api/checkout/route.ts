@@ -9,6 +9,7 @@ import {
 } from '@/lib/supabaseServer';
 import { stripe } from '@/lib/stripe';
 import { createOrderToken } from '@/lib/orderToken';
+import { createZiinaPaymentIntent } from '@/lib/ziina';
 import { Product } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -67,9 +68,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!['cod', 'bank_transfer'].includes(payment_method)) {
+    if (!['card', 'cod', 'bank_transfer'].includes(payment_method)) {
       return NextResponse.json(
-        { error: 'Card / Apple Pay is currently unavailable. Please select Direct Bank Transfer or Cash on Delivery.' },
+        { error: 'Invalid payment method. Allowed: "card" (Visa/Mastercard/Apple Pay via Ziina), "bank_transfer", or "cod"' },
         { status: 400 }
       );
     }
@@ -209,72 +210,48 @@ export async function POST(req: NextRequest) {
     }
 
     // ------------------------------------------------------------------
-    // 4b. Card payment via Stripe Checkout
+    // 4b. Card / Apple Pay payment via Ziina UAE Payment Gateway
     // ------------------------------------------------------------------
     if (payment_method === 'card') {
-      if (stripe) {
-        const stripeLineItems = resolved.map((r) => ({
-          price_data: {
-            currency: 'aed',
-            product_data: {
-              name: r.product.title,
-              description:
-                Object.keys(r.selectedOptions).length > 0
-                  ? Object.entries(r.selectedOptions)
-                      .map(([k, v]) => `${k}: ${v}`)
-                      .join(' | ')
-                  : undefined,
-            },
-            unit_amount: Math.round(Number(r.product.price) * 100), // Stripe expects fils
-          },
-          quantity: r.quantity,
-        }));
+      try {
+        const ziinaResult = await createZiinaPaymentIntent({
+          amountAed: total_amount,
+          orderId: newOrder.id,
+          successUrl: `${successUrl}&session_id=${newOrder.id}&gateway=ziina`,
+          cancelUrl: `${siteUrl}/checkout`,
+          customerName: name,
+          customerEmail: email,
+          customerPhone: phone,
+        });
 
-        const sessionParams: any = {
-          payment_method_types: ['card'],
-          line_items: stripeLineItems,
-          mode: 'payment',
-          customer_email: email,
-          metadata: {
-            order_id: newOrder.id,
-          },
-          success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${siteUrl}/checkout`,
-        };
+        await updateOrderPaymentStatus(
+          newOrder.id,
+          ziinaResult.isLive ? 'pending' : 'paid',
+          ziinaResult.intentId
+        );
 
-        const session = await stripe.checkout.sessions.create(sessionParams);
-        await updateOrderPaymentStatus(newOrder.id, 'pending', session.id);
+        // Reserve stock
+        for (const r of resolved) {
+          await decrementProductStock(r.product.id, r.quantity);
+        }
 
         return NextResponse.json({
           success: true,
           orderId: newOrder.id,
-          redirectUrl: session.url,
+          redirectUrl: ziinaResult.redirectUrl,
         });
-      }
-
-      // Stripe is missing. Never give away goods: fail closed in production.
-      if (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
+      } catch (ziinaErr: any) {
+        console.error('Ziina initiation error:', ziinaErr);
         await deleteOrder(newOrder.id);
         return NextResponse.json(
           {
             error:
-              'Card payments are temporarily unavailable. Please choose Cash on Delivery or try again later.',
+              ziinaErr.message ||
+              'Card payments via Ziina could not be initialized. Please choose Bank Transfer or Cash on Delivery.',
           },
-          { status: 503 }
+          { status: 502 }
         );
       }
-
-      // Local sandbox simulation (development only) — pays + reserves stock.
-      await updateOrderPaymentStatus(newOrder.id, 'paid', 'test_sandbox_session');
-      for (const r of resolved) {
-        await decrementProductStock(r.product.id, r.quantity);
-      }
-
-      return NextResponse.json({
-        success: true,
-        orderId: newOrder.id,
-        redirectUrl: `${successUrl}&sandbox=card_simulated`,
-      });
     }
 
     return NextResponse.json({ error: 'Unsupported flow' }, { status: 400 });

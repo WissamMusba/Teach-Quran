@@ -13,7 +13,7 @@ export const SDCA_BANK_DETAILS = {
   accountTitle: 'CG Sports',
   supportWhatsapp: '+971552317221',
   supportPhone: '0552317221',
-  supportEmail: 'Rizwany3k@gmail.com',
+  supportEmail: 'reears966@gmail.com',
   instructions:
     'Transfer the total amount via Online/Mobile Banking or ATM deposit. Include your Order Reference in the transfer remarks/description so we can immediately verify and dispatch your cricket equipment.',
 };

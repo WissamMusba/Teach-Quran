@@ -134,8 +134,8 @@ export default function PrivacyPolicyPage() {
         />
         <p>
           To exercise any of these rights, contact{' '}
-          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
-            Rizwany3k@gmail.com
+          <a href="mailto:reears966@gmail.com" className="text-[#FF5500] hover:underline">
+            reears966@gmail.com
           </a>
           . We may ask you to verify your identity before acting on a request. You also have the right to complain to the data
           protection authority in your jurisdiction — in the UAE this is the UAE Data Office.
@@ -167,8 +167,8 @@ export default function PrivacyPolicyPage() {
         <p>
           Our store is not directed at children under 16. We do not knowingly collect personal
           information from children. If you believe a child has provided us information, contact{' '}
-          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
-            Rizwany3k@gmail.com
+          <a href="mailto:reears966@gmail.com" className="text-[#FF5500] hover:underline">
+            reears966@gmail.com
           </a>{' '}
           and we will delete it.
         </p>

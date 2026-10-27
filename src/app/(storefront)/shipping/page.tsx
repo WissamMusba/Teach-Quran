@@ -77,8 +77,8 @@ export default function ShippingPage() {
       <LegalSection title="7. Contact">
         <p>
           Delivery questions? Reach us at{' '}
-          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
-            Rizwany3k@gmail.com
+          <a href="mailto:reears966@gmail.com" className="text-[#FF5500] hover:underline">
+            reears966@gmail.com
           </a>{' '}
           or via the{' '}
           <a href="/contact" className="text-[#FF5500] hover:underline font-bold">

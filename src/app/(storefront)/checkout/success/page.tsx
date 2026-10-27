@@ -126,7 +126,7 @@ export default async function CheckoutSuccessPage({ searchParams }: SuccessPageP
 
   const paymentLabel =
     order.payment_status === 'paid'
-      ? 'Card Paid via Stripe'
+      ? 'Paid via Card / Apple Pay (Ziina)'
       : order.payment_method === 'cod'
         ? 'Cash on Delivery (Pending)'
         : 'Payment Processing';

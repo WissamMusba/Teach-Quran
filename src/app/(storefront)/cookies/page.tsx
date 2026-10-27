@@ -108,8 +108,8 @@ export default function CookieNoticePage() {
       <LegalSection title="6. Contact">
         <p>
           Questions about this notice? Contact us at{' '}
-          <a href="mailto:Rizwany3k@gmail.com" className="text-[#FF5500] hover:underline">
-            Rizwany3k@gmail.com
+          <a href="mailto:reears966@gmail.com" className="text-[#FF5500] hover:underline">
+            reears966@gmail.com
           </a>
           , or see our{' '}
           <a href="/privacy" className="text-[#FF5500] hover:underline font-bold">

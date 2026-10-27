@@ -35,8 +35,8 @@ export default function ContactPage() {
                 Email
               </h2>
               <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                <a href="mailto:Rizwany3k@gmail.com" className="hover:text-[#FF5500] transition-colors">
-                  Rizwany3k@gmail.com
+                <a href="mailto:reears966@gmail.com" className="hover:text-[#FF5500] transition-colors">
+                  reears966@gmail.com
                 </a>
               </p>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
